@@ -1,6 +1,6 @@
 # shared — tests
 
-Live SoT for test depth under [`services/shared`](../../../services/shared). Behaviour → [shared/contents.md](../../backend/shared/contents.md), [mongo.md](../../backend/shared/mongo.md); planner sessions and HTTP middleware → [api/auth/sessions.md](../../backend/api/auth/sessions.md); identity / secrets → [stack.md](../../stack/stack.md), [secrets.md](../../stack/secrets.md). Module entrypoints → [contents.md](./contents.md).
+Live SoT for test depth under [`services/shared`](../../../services/shared). Behaviour → [shared/contents.md](../../backend/shared/contents.md), [mongo.md](../../backend/shared/mongo.md), [objectstore.md](../../backend/shared/objectstore.md), [pricing-defaults.md](../../backend/shared/pricing-defaults.md); planner sessions and HTTP middleware → [api/auth/sessions.md](../../backend/api/auth/sessions.md); identity / secrets → [stack.md](../../stack/stack.md), [secrets.md](../../stack/secrets.md). Module entrypoints → [contents.md](./contents.md).
 
 ## Entrypoints
 
@@ -8,6 +8,7 @@ Live SoT for test depth under [`services/shared`](../../../services/shared). Beh
 |-------|--------|--------|
 | Tree | From `services/`: `go test ./shared/...` | No Docker |
 | Document locks | `go test ./shared/core/documentlock/` | Large focused suite |
+| Object store | `go test ./shared/core/objectstore/` | `MemoryBackend`, no dial needed — see § Topic-only detail |
 | Redis handle / lease | `go test ./shared/redis/` | Handle, keyspace, lease, and the driver-boundary test |
 | Planner sessions | `go test ./shared/plannersession/... ` | Kernel, request-side reading, maintenance sweep |
 | HTTP middleware | `go test ./shared/httpmiddleware/` | Constructors + composition kit |
@@ -23,14 +24,16 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 
 ## Coverage map
 
-**Depth:** Strong for document locks, archiveimport normalise, models, crypto/keyrings, Redis lease, planner sessions, orchestration probes. Object store, SDE store, connect/monitor loops, and lifecycle runners are largely untested. Opt-in live Mongo covers Docs put/get parity under `shared/mongo`.
+**Depth:** Strong for document locks, archiveimport normalise, models, crypto/keyrings, Redis lease, planner sessions, orchestration probes, and the object store. SDE store, connect/monitor loops, and lifecycle runners are largely untested. Opt-in live Mongo covers Docs put/get parity under `shared/mongo`.
 
 ### Tested
 
 | Area | What the tests cover |
 |------|----------------------|
 | `core/documentlock` | Atomic acquire/release/handover/extend races; Redis lock roundtrip, waitlist, promote; status batch; cascade pipeline/predicate/membership; lease rebind; event payloads |
-| `models` | Job JSON/BSON parity & unknown-field policy; refresh-token encrypt/reencrypt; group-template validation; a saved market's shape, encoding and `Validate` limits; the hub list held to the SPA's copy and to what a region walk needs; `ComposeMarketLocations` — a reader's own row wins a collision, the nearer owner wins between two inherited rows and settles a tie the same way every time, an unshared row reaches nobody, `sharedBy` is never stored; `TakeMarketLocations` lifting rows out of `customStructures` and leaving one naming nowhere in place |
+| `core/objectstore` | `MemoryBackend` matches `S3Backend`'s contract exactly — a missing key is `ErrNotFound` rather than empty, keys normalised on the way in, `ListKeys` recursive and sorted where `ListChildNames` collapses to one level, what is read back is a copy, deletion and copy scoped to their own subtree, a cancelled context refused; `MarketPages` — a page round-trips, a missing page is not found, two regions never share a page, page numbers come back in numeric order, dropping a region leaves the others and dropping one page leaves the ones below it, retention drops only regions older than its cutoff by their **newest** page (a region mid-walk is not dropped), and a page store with no backend reports itself unavailable rather than panicking; the S3 dial retries until the store accepts, returns an error if it never does, and stops on context cancel; the committed bucket-list fixture is current, no bucket name carries the module boundary's separator, and every bucket name is distinct |
+| `models` | Job JSON/BSON parity & unknown-field policy; refresh-token encrypt/reencrypt; group-template validation; a saved market's shape, encoding and `Validate` limits; the hub list held to the SPA's copy and to what a region walk needs; `ComposeMarketLocations` — a reader's own row wins a collision, the nearer owner wins between two inherited rows and settles a tie the same way every time, an unshared row reaches nobody, `sharedBy` is never stored; `TakeMarketLocations` lifting rows out of `customStructures` and leaving one naming nowhere in place; a new account's pricing defaults price both sides from constants; a `PricingDefaults` pair round-trips through BSON as two subdocuments, each carrying only the fields its side answers with |
+| `documentschema` | `Upgrader.ApplicationSettings` seeding pricing defaults: gated on an empty market rather than the schema version, idempotent on a second run, a side the account already chose is left alone, a group table on a side survives the seed, an account's stored order type is read into an exit route and a route already chosen is kept, and an account with neither falls back to the global default |
 | `core/crypto` + `keyrings` | AES-GCM roundtrip/rotate/AAD; refresh-token keyring legacy parsing |
 | `redis` | Handle and connection defaults; key names and lifetimes pinned to literals; values, keys, collections, lists, compare-and-set, cardinality; pipeline batching and what `Exec` reports; scripts and their result readers; pattern subscription delivery and goroutine lifetime; retry and the three error predicates; the lease — single-leader, takeover, lost-lease cancel, reacquire on fn error, and that neither renew nor release touches another holder's lease; and that no package outside `shared/redis` imports the driver |
 | `plannersession` | The multi-key invariant each write owes (`TestOperationsLeaveTheKeysTheyOwe`); reauth deadline math; record normalise and prune; TTL constants pinned to literals, not to themselves; refresh-token key trimming; grants — refs stored rather than raw entity ids, an account's own key always granted, a corporation ref never grants the alliance of the same id, concurrent grant writes; grants repair — legacy rewrite, sessions survive, idempotence, dry run writes nothing, an account already on the new shape gains its own key, and a record stored under an untrimmed key; `ResolveTokenForValidSession` and `RefreshTokenReauthExpired`; `RevokeSessionTokens` reaching every token a scan attributes to a session, not only the indexed one; `ErrNoStore` classifying as a dependency outage; `GenerateRefreshToken` / `GenerateSessionID` distinctness |
@@ -43,7 +46,7 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 | `nats` (live, embedded server) | Stream and durable reconcile; the three cleanup layers; bounded consume concurrency and that stop waits for in-flight handlers; the three handler outcomes (ack, terminate, redeliver) asserted from what the server still holds; batched publish and `Wait`; schedules — fire, replace-by-id, cancel, and read-back of the server's own fire time |
 | `logs` | Request ID/account identity; operation context; debug steps; access-log / handler detail; OTLP JSON export |
 | `mongo` (unit) | `IsRetryableMongoError` classifier (cancel / no-docs / disconnected / string fallback); groups membership-diff helper; which fields a row-scoped refresh-token write puts on the wire, so a row carrying only a bumped failure count cannot blank its own credential |
-| `mongo` (live, opt-in) | `TestLive_*` put/get/schema/load-filter/doc-shape parity against stack Mongo; the `users.refreshTokens` row helpers — a bulk write and a single-row write racing on one account with every rotation surviving, an unmatched row reported as an error, push adding then replacing without duplicating, pull removing only the named rows, and a control performing a whole-array write that still loses a concurrent rotation |
+| `mongo` (live, opt-in) | `TestLive_*` put/get/schema/load-filter/doc-shape parity against stack Mongo; `MarketLocationsForAccount` — an account's own markets composed with those a planner it belongs to has shared, a market the planner kept internal reaching nobody, a planner with no settings document left out rather than refusing the set, the account's own row surviving a collision over one place, and the two refusals; citadels compose beside stations and are never folded into each other, and one citadel saved twice collapses the way one station saved twice does; the `users.refreshTokens` row helpers — a bulk write and a single-row write racing on one account with every rotation surviving, an unmatched row reported as an error, push adding then replacing without duplicating, pull removing only the named rows, and a control performing a whole-array write that still loses a concurrent rotation |
 | `mongo/writers` | Arg-validation / nil-bulk unit tests; exercised on live paths via group-templates / build-stats consumers |
 | `httpclient` | Retry classification and what is never repeated; gate refusals escaping the retry loop; wire-byte counting through gzip; conditional headers and validator parsing; h2 negotiation |
 | `esiclient` (unit) | Bucket keying and token cost against the protocol; allowance learned from headers, never written in code; the slot-hash ledger and its two key lifetimes; which term bound a refusal; class floors and hand-off order; glide; the observed downtime gate, including source spread and the lone-source trip; operator reset dropping the allowance and keeping the ledger |
@@ -59,11 +62,10 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 - `nats` core topics: publish and subscribe helpers are covered by their callers rather than directly, and the health census gather has no test of its own
 - `core/config` — mostly service-cred URL fallback; other loaders untested
 - `mongo` connect / monitor loops and most raw `Collection()` escape hatches
-- `mongo.MarketLocationsForAccount` — the orchestration that reads an account's settings, walks its planner memberships and calls `ComposeMarketLocations` once per account, has no test of its own; the collapsing rule it calls is thoroughly unit-tested (see `models` above)
 
 ### Little / none
 
-- `core/objectstore/`, `core/sde/`, `lifecycle/`
+- `core/sde/`, `lifecycle/`
 - `stackservices/connect` (no package tests); `wsplacement` keys untested (`tenant` key helpers have unit tests)
 - Main `appconfig` loader beyond process-version helpers
 
@@ -73,6 +75,7 @@ EIP_MONGO_PARITY_LIVE=1 go test ./shared/mongo/ -run Live -count=1
 - Shared changes often affect multiple services — run the touched shared package plus the consuming service's suite.
 - The whole-array control in the live `users.refreshTokens` suite is the point of that suite: it is expected to lose a concurrent rotation, and if it ever starts passing, the row-scoped helpers are no longer what holds the invariant up.
 - `plannersession`, `plannersession/request` and `plannersession/maintenance` tests build their fixtures through `testing/redisfixture` rather than hand-rolling the fake-to-handle bridge — see [../harness.md](../harness.md) § `redisfixture`.
+- **`core/objectstore` needed an in-process `Backend` to be testable at all.** `OpenTestStore` reaches a live store on a port not published to the host, so every package test there skipped silently until `MemoryBackend` gave them somewhere to run; it is written to match `S3Backend`'s contract rather than to be convenient, because a fake friendlier than the real thing would make its callers' tests lie. It is not test-only — any caller wanting object storage without a store to dial can take it, and the worker's market-lifecycle test does — see [worker.md](./worker.md).
 - Cross-service agreement on what a stored session means is not this file's concern — it is a property of the whole fleet, not one package — and is proved by `testing/sessionhandover` instead; see [../harness.md](../harness.md) § `sessionhandover`.
 - Live Mongo tests skip unless `EIP_MONGO_PARITY_LIVE=1`; they do not run in default CI unit jobs.
 - Live Redis tests skip unless `EIP_REDIS_PARITY_LIVE=1`, and they need a throwaway server:

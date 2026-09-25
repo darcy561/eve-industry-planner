@@ -39,12 +39,13 @@ go test ./core/...
 - `scheduler` — shutdown cancel only; handler/registry/under-primary largely untested
 - `changestream` — main watch loop mostly untested beyond empty-groups stop
 - `startup` — prepare / refresh-token keys / schema report untested
+- `commands` — `seedMarketLocationLane` and `moveMarketsToTheirOwnLane` each have a live-Mongo, opt-in test (`EIP_MONGO_PARITY_LIVE=1`) asserting the stored BSON rather than the decoder, since a nil slice and an empty one decode alike; no unit test exercises either without a live database
 
 ### Little / none
 
 - App wiring: `main.go`, `app.go`
 - Scheduler work: `scheduler/esi/`, `scheduler/sde/`, `scheduler/archivedjobs/`, `scheduler/contract/`, `scheduler/helpers/`
-- `commands/` (+ CLI), `metrics/` (+ subpackages), `sdeensure/`
+- `commands/` (+ CLI) otherwise, `metrics/` (+ subpackages), `sdeensure/`
 
 ## Topic-only detail
 

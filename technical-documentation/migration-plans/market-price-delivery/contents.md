@@ -33,7 +33,13 @@ gave a citadel's orders somewhere to be read. What remains is promotion:
 [plan.md](./plan.md) § What is still owed until promote names the live document that stays wrong
 until it happens.
 
-**Not live SoT** until this project is complete and promotion is approved.
+**Promoted (2026-09-25).** Every stage landed and the live topics now carry it:
+[frontend/market-data/contents.md](../../frontend/market-data/contents.md),
+[backend/api/market-prices.md](../../backend/api/market-prices.md),
+[backend/worker/market-orders.md](../../backend/worker/market-orders.md) and
+[backend/shared/objectstore.md](../../backend/shared/objectstore.md). This folder is **history
+only** — not live SoT — and is kept because market-locations, market-pricing-defaults and
+custom-structure-model cite its stages.
 
 Named for the **work**, not a git branch. **Project close** = plan tracks done + live-SoT **promote**
 (go-ahead).

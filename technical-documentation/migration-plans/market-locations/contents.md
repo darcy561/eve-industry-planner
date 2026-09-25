@@ -28,7 +28,11 @@ for managing one — in place of a row in the custom-structures array whose kind
   hands it here.
 - **Which vocabulary a market uses**, once it no longer borrows `jobType` and `structureKinds`.
 
-**Not live SoT** until this project is complete and promotion is approved.
+**Promoted (2026-09-25).** Every stage landed and the live topics now carry it:
+[frontend/settings/market-locations.md](../../frontend/settings/market-locations.md) and
+[backend/api/market-locations.md](../../backend/api/market-locations.md). This folder is **history
+only** — not live SoT — and is kept because custom-structure-model cites what its promotion waited
+on.
 
 Named for the **work**, not a git branch. **Project close** = plan tracks done + live-SoT **promote**
 (go-ahead).

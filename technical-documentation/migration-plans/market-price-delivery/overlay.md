@@ -1256,3 +1256,28 @@ the cache's side). The rule the paragraph is really stating survives the change 
 in the rewrite: a value the reader has typed away from the default is left alone.
 
 That file is live SoT, so it is not edited here. This section is the note for promote.
+
+### `testing/services/worker.md` is wrong about what the market tasks cover, and does not know the lifecycle pass
+
+Its § Tested row reads "Payload validation; percentile maths (sample floor, nearest rank, outlier
+trimming, empty sides)", and its § Gap row reads "Percentile maths and payload validation only — not
+the pagination pass, 304 page replay, or station filtering". All three of those named gaps have
+dedicated tests and did before this project touched them: `TestRegionMarketOrdersWalksEveryPage`,
+`TestRegionMarketOrdersReplaysFromStorageWhenPagesAreUnchanged` with the two `A304With…` cases
+beside it, and `TestOneWalkPricesEveryTrackedStation` /
+`TestAWalkPricesNothingUntilAStationIsTracked` / `TestAShrunkRegionStopsBeingPricedFrom`.
+
+What the row should say on promote is the registration and retirement coverage
+(`trackMarketSources_test.go`, `retireUnaskedMarkets_test.go`), and a row of its own for
+`marketLifecycle_test.go`: a saved market registered, its region walked, its prices derived, read
+back and then retired, in one pass over in-process fakes. What only that can say is that the steps
+join up — what registration leaves behind is what the walk looks for, what the walk stores is what
+the derive prices from, and the derive keys prices where retrieval reads them. It starts from the
+`MarketSourcesRequest` the API publishes on a settings save, which is the only thing the worker
+knows about how a market came to be wanted.
+
+What is genuinely still uncovered is a pagination or 304 pass through `RefreshRegionMarketOrders`
+itself rather than through `FetchRegionMarketOrders` beneath it; the lifecycle pass serves a single
+page.
+
+That file is live SoT, so it is not edited here. This section is the note for promote.

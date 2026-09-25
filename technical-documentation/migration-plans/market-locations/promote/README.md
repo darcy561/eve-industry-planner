@@ -38,7 +38,25 @@ that path.
   - Citadel raw-order IndexedDB storage merged into the Market Data dialogue, which landed very
     recently in the market area. It is not this project's — `market-price-delivery`'s — and neither
     plan.md nor overlay.md for this project claims it, so nothing needed removing.
-- **`mongo.MarketLocationsForAccount` has no test of its own** and **`v1endpoints/planners`'s market
-  write path is exercised only by refusal-path and composition tests, not a handler-level happy-path
-  test.** Recorded as gaps in the testing drafts above (§ Thin in each) rather than closed, since
-  writing the tests is code work outside this documentation promotion.
+- **Both test gaps this draft recorded are now closed.** `mongo.MarketLocationsForAccount` and
+  `PutPlannerSettingsHandler`'s market write each have a live-gated test of their own, and the
+  testing drafts above name them under § Tested rather than § Thin.
+
+## Eight of these drafts are shared with the other market projects
+
+`backend/api/contents.md`, `backend/shared/contents.md`, `frontend/contents.md`,
+`frontend/pricing/contents.md`, `frontend/settings/contents.md`,
+`testing/frontend/contents.md`, `testing/services/api.md` and
+`testing/services/shared.md` are each drafted by more than one of
+[market-locations](../../market-locations/promote/README.md),
+[market-price-delivery](../../market-price-delivery/promote/README.md) and
+[market-pricing-defaults](../../market-pricing-defaults/promote/README.md).
+
+Each project first drafted its own whole-file replacement carrying only its own rows, which would
+have meant the last promotion to run silently dropped the others' — `frontend/contents.md` alone was
+three files, one per project, each missing two thirds of the task map. **They have been reconciled:
+every project's copy of these eight is now byte-identical and carries all three projects' content.**
+
+So they fold once, in any order, and folding the same file again from another project is a no-op
+rather than a loss. Anything that changes one of the eight must change every copy, or the next
+promotion undoes it.

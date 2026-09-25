@@ -27,8 +27,9 @@ Same as other testing modules: **Tested** / **Thin** / **Little / none** (not co
 live in `frontend/src/tests/`. Reach for an existing one before writing a mock: the users store is
 mocked through `usersStoreHarness.js`, a static data file through `cachedDataMock.js` or seeded
 through `seedItems.js` ([static-data.md](./static-data.md)), a location name through
-`seedLocationNames.js`, the snackbar events through `snackbarHarness.js`, and a React Query client
-comes from `queryClients.js`.
+`seedLocationNames.js`, a market price through `seedPrices.js` ([market-data.md](./market-data.md)),
+the snackbar events through `snackbarHarness.js`, and a React Query client comes from
+`queryClients.js`.
 
 ### Why a shared mock rather than one per file
 
@@ -111,4 +112,6 @@ enforced by `store-partials/no-whole-state-spread`.
 | Shared app-shell component test depth — rows, menus, the labelled-field shells | [components.md](./components.md) |
 | Static data test depth — the file owners, and how to mock or seed one | [static-data.md](./static-data.md) |
 | Market Locations tab test depth — the registry, the panel, adding/editing/saving, read-outcome wording | [settings.md](./settings.md) |
+| Market data test depth — the registry, the price cache and loader, freshness, the two tiers, the citadel walk | [market-data.md](./market-data.md) |
+| Pricing defaults test depth — the ladder, the account's two sides, market group defaults | [pricing.md](./pricing.md) |
 | _(add rows as topic files land — e.g. document-lock, planner)_ | |

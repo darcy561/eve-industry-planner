@@ -10,13 +10,17 @@ reads an item, a recipe or an ore yield through, the group page's scheduler char
 group name editing and job dependency tree, the Edit Job page's floating
 step-navigation controls and parent-job linking, the job planner's job status
 accordions, the reprocessing settings panel, the dashboard's watchlist and
-tutorial-card row, the shared price history and price entry surfaces, the Accounts page — its
+tutorial-card row, the shared price history and price entry surfaces and where a
+price resolves against by default, how a market price reaches the SPA and is kept
+current — the source registry, the price cache and its two tiers, and a saved
+citadel's own fetch — the Accounts page — its
 roster and what a reader can do to a linked character, the corporations section, and how an
 account sees the planners it can work in — the Settings page's Market Locations tab — the markets
 a reader has saved and the ones an organisation shares with them, and where each side of a job is
-priced by default — and the app-shell component layer a panel is built
-from — its panel and card surfaces, figure and status atoms, labelled fields, scrolling tables,
-item market actions, and how a picture from EVE's image server is asked for and drawn.
+priced by default — and its Job Settings tab's per-market-group pricing table — and the app-shell
+component layer a panel is built from — its panel and card surfaces, figure and status atoms,
+labelled fields, scrolling tables, item market actions, and how a picture from EVE's image server is
+asked for and drawn.
 
 ## Does not own
 
@@ -45,9 +49,10 @@ item market actions, and how a picture from EVE's image server is asked for and 
 | Change the Edit Job page's floating step arrows, or which jobs the Link Parent Job dialogue offers | [editjob/contents.md](./editjob/contents.md) |
 | Change the job planner's job status accordions or their expansion state | [jobplanner/contents.md](./jobplanner/contents.md) |
 | Change the reprocessing settings panel | [reprocessing/contents.md](./reprocessing/contents.md) |
-| Change the price history chart or the price entry dialogue | [pricing/contents.md](./pricing/contents.md) |
+| Change the price history chart, the price entry dialogue, or where a price resolves against by default | [pricing/contents.md](./pricing/contents.md) |
+| Change how a market price is fetched, cached, kept fresh, or held on the device | [market-data/contents.md](./market-data/contents.md) |
 | Change the dashboard's watchlist panel or its tutorial-card row | [dashboard/contents.md](./dashboard/contents.md) |
-| Change the markets a reader has saved, the ones an organisation shares, or which market a job is priced against by default | [settings/contents.md](./settings/contents.md) |
+| Change the markets a reader has saved, the ones an organisation shares, which market a job is priced against by default, or a market group's own pricing default | [settings/contents.md](./settings/contents.md) |
 | Change a shared panel, card, row, menu, figure, field or table atom, or an item's market actions | [components/contents.md](./components/contents.md) |
 | Ask EVE's image server for a picture, or change what a missing one shows | [components/avatars.md](./components/avatars.md) |
 | Frontend test entrypoints / depth | [../testing/frontend/contents.md](../testing/frontend/contents.md) |

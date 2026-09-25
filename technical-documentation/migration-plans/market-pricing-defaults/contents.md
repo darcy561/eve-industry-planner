@@ -16,7 +16,12 @@ Which market a figure is priced against when nobody has said, and how that answe
 - **The vocabulary the ladder is written in** — `PricingChoice`, `PricingSide`, `JobPricing`,
   `PRICING_SIDE`, and the rule that an empty value is not a choice at any rung.
 
-**Not live SoT** until this project is complete and promotion is approved.
+**Promoted (2026-09-25).** Every stage landed and the live topics now carry it:
+[frontend/pricing/defaults.md](../../frontend/pricing/defaults.md),
+[frontend/settings/job-settings.md](../../frontend/settings/job-settings.md) and
+[backend/shared/pricing-defaults.md](../../backend/shared/pricing-defaults.md). This folder is
+**history only** — not live SoT — and is kept because shared-planners, planning-stage-panels and
+purchasing-stage-panels cite its stages.
 
 Named for the **work**, not a git branch. **Project close** = plan tracks done + live-SoT **promote**
 (go-ahead).

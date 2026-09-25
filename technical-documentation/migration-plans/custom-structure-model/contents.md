@@ -20,10 +20,11 @@ row already carries, in place of four lanes filled by three classes.
 a kind that is a market.** Stage D landed it, and that project has since finished: a citadel is read
 in the browser on the reader's own characters.
 
-**A market is leaving this model.** [market-locations](../market-locations/contents.md) moves a saved
+**A market has left this model.** [market-locations](../market-locations/contents.md) moved a saved
 market onto its own lane with its own panel — a reversal of where a market row lives, not of this
-project's finding that the four build kinds belong in one class. That project waits on this one
-promoting first.
+project's finding that the four build kinds belong in one class. That project has promoted, which is
+what this one waited on: see [plan.md](./plan.md) § What it waits on. What is left here is the four
+build kinds.
 
 **Not live SoT** until this project is complete and promotion is approved.
 
