@@ -6,7 +6,7 @@ one without knowing which kind of source it came from.
 ## The unit of a price
 
 One type at one source — a row of `{ buy, sell, buyP95, sellP05 }`, held as one React Query entry
-under `priceQueryKey(typeID, sourceID)`. CCP's adjusted price is a separate entry under
+under `priceQueryKey(typeID, marketLocation)`. CCP's adjusted price is a separate entry under
 `adjustedQueryKey(typeID)`; it belongs to no market and refreshes on its own day-long cadence.
 
 A type a source holds no order for has no entry rather than a row of zeroes: absence keeps "no orders
@@ -30,7 +30,7 @@ must read as the former.
 
 ## The accessor
 
-`getMarketPriceForType`, `getAdjustedPriceForType` and `getPriceRefreshedAt`, in
+`readMarketPriceForType`, `readAdjustedPriceForType` and `readPriceRefreshedAt`, in
 `Functions/MarketData/prices/marketPriceForType.js`, are what every price read in the SPA goes through; all
 three read the cache through `priceCache.js` and nothing else. They answer synchronously from
 whatever the cache already holds rather than waiting on a fetch, which is what lets a non-React reader
