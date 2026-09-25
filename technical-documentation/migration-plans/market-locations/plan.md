@@ -475,12 +475,12 @@ the panel's row; D3 says it, in the "Last read" cell, for the two outcomes a rea
 gives the sentence somewhere to go, through the same `useLinkCharacter` the Accounts surfaces call.
 One offer for the list rather than one per row, because linking is an account-wide act.
 
-**Every stage has landed.** What is left is promotion: this project has no `promote/` folder yet, and
-per [`../documentation-rules.md`](../documentation-rules.md) it cannot close until its overlays are
-folded into live SoT.
+**Every stage has landed, and the project has promoted.** Live SoT is
+[frontend/settings/market-locations.md](../../frontend/settings/market-locations.md) and
+[backend/api/market-locations.md](../../backend/api/market-locations.md); what is here is history.
 
-The project is on the critical path: custom-structure-model cannot promote until Stages A to C have
-landed and a saved market has left the shared form. The decision that gated Stage C is settled:
+It was on the critical path: custom-structure-model could not promote until Stages A to C had landed
+and a saved market had left the shared form, which it now has. The decision that gated Stage C is settled:
 editing an organisation's markets is ungated until there is a roles model to gate it with. Every question in § Open decisions
 that this project owns is now settled; what remains is promotion. The region id widths are settled: `int64` throughout, as ESI
 declares it.
