@@ -1,0 +1,20 @@
+{
+  "why": "Every JSON path the composed market set carries, against the kind of value each one holds, by reflection over the Go types. The SPA reads these rows into its market registry, so a path or a kind that moves here changes which markets it can offer and how it prices them. Regenerate with: EIP_UPDATE_MARKET_LOCATIONS_SURFACE=1 go test ./api/v1endpoints/user/ -run TestTheMarketLocationsSurfaceIsCurrent",
+  "types": {
+    "MarketLocationsResponse": {
+      "marketLocations": "array",
+      "marketLocations[]": "object",
+      "marketLocations[].brokerFee": "number",
+      "marketLocations[].id": "string",
+      "marketLocations[].name": "string",
+      "marketLocations[].ownerID": "number",
+      "marketLocations[].pricedAt": "number",
+      "marketLocations[].raceID": "number",
+      "marketLocations[].regionID": "number",
+      "marketLocations[].sharedBy": "string",
+      "marketLocations[].sharedWithMembers": "boolean",
+      "marketLocations[].stationID": "number",
+      "marketLocations[].structureID": "number"
+    }
+  }
+}

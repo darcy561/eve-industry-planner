@@ -1,0 +1,27 @@
+{
+  "why": "Every JSON path a market price query carries, in both directions, against the kind of value each one holds, by reflection over the Go types. A path alone says a key exists; the kind is what stops a figure the SPA sums becoming a string nobody notices. Regenerate with: EIP_UPDATE_MARKET_PRICES_SURFACE=1 go test ./api/v1endpoints/ -run TestTheMarketPricesSurfaceIsCurrent",
+  "types": {
+    "MarketPricesQueryBody": {
+      "adjustedTypeIDs": "array",
+      "adjustedTypeIDs[]": "string",
+      "sources": "object",
+      "sources.{id}": "array",
+      "sources.{id}[]": "string"
+    },
+    "MarketPricesQueryResponse": {
+      "adjusted": "object",
+      "adjusted.prices": "object",
+      "adjusted.prices.{id}": "number",
+      "adjusted.refreshedAt": "number",
+      "sources": "object",
+      "sources.{id}": "object",
+      "sources.{id}.prices": "object",
+      "sources.{id}.prices.{id}": "object",
+      "sources.{id}.prices.{id}.buy": "number",
+      "sources.{id}.prices.{id}.buyP95": "number",
+      "sources.{id}.prices.{id}.sell": "number",
+      "sources.{id}.prices.{id}.sellP05": "number",
+      "sources.{id}.refreshedAt": "number"
+    }
+  }
+}
