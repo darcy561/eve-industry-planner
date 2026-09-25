@@ -232,19 +232,43 @@ still written whole on save; the field-scoped write is
 
 ## Stage 4 — Getters become functions
 
-*Not landed.*
-
-Derived figures are still getters on `Job`, and reading one still requires an instance.
-
-Owed here: which figures have moved, what a converted panel reads instead, and what is still reached
-through the lens.
+**Landed.** A figure is read by calling a function of the job rather than by asking an instance for it:
+`buildCost(job)`, `setupCount(job)`, `parentJobIDs(job)`. They live in
+[jobSelectors.js](../../../frontend/src/Components/Edit%20Job/Edit%20Job%20Hooks/jobSelectors.js), with
+a `…Of` form beside each that takes only the rows the figure is read from, so a panel holding those
+rows reads its figure without the job.
 
 ## Stage 5 — `jobArray` goes plain and the lens is deleted
 
-*Not landed.*
+**Part landed: nothing outside the class asks an instance for anything.** `jobArray` still holds `Job`
+instances and `toDocument()` is still the persistence contract, so the cutover itself has not been
+taken.
 
-`jobArray` still holds `Job` instances, the inbound coalescer still reconstructs them on delivery, and
-`toDocument()` is still the persistence contract.
+What has landed is everything that had to happen before it could be. Three steps:
 
-Owed here: what the store holds, how a job reaches the save path, and confirmation that the lens is gone
-rather than kept as a wrapper.
+**The figures that were still getters became selectors.** Some already had a selector of the same name
+and the getter was a duplicate; the rest were written, tested and then taken off. The class now answers
+no figure at all. Two of them reached into the `JobMaterial` class rather than plain data, so
+`boughtCost` and `purchaseComplete` were written as material selectors first, and the row's own getters
+delegate to them.
+
+**The eleven mutation methods became commands.** Commands of the same name already existed from Stage 3
+but were reachable only through the editor's draft. `applyCommands(job, ...commands)` runs one against
+a job outside the editor, which is what let 42 method calls across 14 files move onto the commands the
+editor already used, and the methods go. They became 38 calls: a caller that ran two methods in a row
+names both commands in one.
+
+**What the tests were written against had to change with it.** Much of the suite proved the new path by
+agreeing with the class member it replaced, so each of those assertions now states its own expectation
+— see plan.md § The oracle the tests are written against, which called this and chose it deliberately.
+Three call-site files had no tests at all; those were written first, against the old implementation, so
+that they pass unchanged across the conversion rather than recording whatever it produced.
+
+`Classes/job.js` is 533 lines, from 929. What is left on it is the constructor, `buildJobObject`,
+`toDocument`, a private `#materialRequirement` the constructor hands to each material row, and three
+members with both a live caller and a command equivalent — `importPurchaseToMaterial`,
+`attachNewSetupToJob`, `recalculateSelectedSetup`.
+
+Owed here: the cutover. What the store holds, how a job reaches the save path, and confirmation the lens
+is gone rather than kept as a wrapper. `moveItemsOnPlanner.js` is the one caller known to break on it —
+it clones through `new Job(source.toDocument())`, and `toDocument()` is the call that goes.

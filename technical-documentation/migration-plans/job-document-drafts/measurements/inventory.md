@@ -347,3 +347,38 @@ the mutation methods that still have production callers through `jobArray`. Ever
 a one-line read of the selector that owns it rather than a second sum. They go with the class itself,
 in Stage 5.
 
+
+## Re-measured 2026-09-24, after Stage 5 steps 1–3
+
+`Classes/job.js` is **533 lines, from 929**. The 919 recorded against Stage 4 is no longer the
+baseline: an unrelated commit on this branch has since added to the file, so the journey measured here
+is from where the branch actually stood.
+
+What came off, and what it cost:
+
+| Step | Taken off | Call sites moved |
+|---|---|---|
+| 1 | `setupCount`, `completedMaterialCount`, `totalJobSlots`, `totalCost`, `totalBrokersFees`, `totalTransactionFees`, `totalMaterialCost`, `totalCostPerItem`, `#costPerItem` | 3 — every other reader already called the selector |
+| 2 | `selectedSetup`, `setupToBuildFrom`, `isReadyToBuild`, `isReadyToStart`, `nextRunToFinish`, `lastRunToFinish`, `involvedCharacters`, `remainingMaterialCount`, `totalBoughtMaterialCost` | 15 |
+| 3 | `stepForward`, `stepBackward`, `setJobStatus`, `removeChildJob`, `keepOnlyChildJobs`, `addChildJob`, `addParentJob`, `removeParentJob`, `keepOnlyParentJobs`, `releaseFromGroupToPlanner`, `assignToGroup` | 42 method calls, across 14 files |
+
+The 42 method calls became 38 `applyCommands` calls: a caller that ran two methods in a row — a merge
+relinking a parent, a close trimming both ends — names both commands in one call.
+
+**Step 1's members had almost no call sites because the conversion had already happened** — Stage 4
+wrote the selectors and moved the readers, and the getters stayed only as the oracle the tests
+compared against. The measurement above records that: nine members, three readers. What the step cost
+was the 34 assertions that had to state their own expectations first, across seven files.
+
+Selectors and commands grew by less than the class shrank: `jobSelectors.js` 662 → 781,
+`materialSelectors.js` 139 → 174, `jobCommands.js` 531 → 552. The difference is the duplication
+between a getter and the selector of the same name.
+
+**What is left on the class**: the constructor, `buildJobObject`, `toDocument`, a private
+`#materialRequirement` the constructor hands to each material row, and three members with both a live
+production caller and a command equivalent — `importPurchaseToMaterial`, `attachNewSetupToJob`,
+`recalculateSelectedSetup`. Every one of those goes in step 4, with the class.
+
+`lastRunToFinish` moved rather than went: it still has no caller, and is still kept because
+[building-stage-panels](../../building-stage-panels/plan.md) names it as an input. It is a selector
+now, which is the form that project will want.

@@ -1671,7 +1671,26 @@ rather than only to an open editor, so it is only worth taking if
 [document-write-granularity](../document-write-granularity/plan.md) Stages C and E are being taken.
 
 The lens does not survive as a forwarding wrapper: this stage finishes the cutover or it has not
-happened.
+happened. That is true of the cutover, not of the stage: what a job *is* changes in one step, but what
+the rest of the app asks of it can be moved off the class first, a member at a time, while `jobArray`
+still holds instances. Taking it in that order is what keeps the cutover itself small.
+
+**Step 1 — the figures that already had a selector.** Their getters were duplicates. The work is in the
+tests: the class was the oracle they were written against, so each assertion states its own expectation
+before the member it compared against can go — § The oracle the tests are written against.
+
+**Step 2 — the figures that did not.** Write the selector, test it, move the call sites, then take the
+getter off. Two of these read the `JobMaterial` class rather than plain data, so they want a material
+selector underneath them first, which the row's own getter then delegates to.
+
+**Step 3 — the mutation methods.** Commands of the same name already exist from Stage 3, reachable only
+through the draft. A caller outside the editor gets at them through `applyCommands(job, ...commands)`,
+and runs the same command the editor does rather than a second statement of the rule. A call-site file
+with no test gets one *before* it is converted, written against the method it is about to lose, so the
+test passes unchanged either side of the change rather than recording what the conversion produced.
+
+**Step 4 — the cutover.** `jobArray` stops holding instances, `buildJob(json)` and `toDocument`
+become functions, and the class and the lens are deleted. This is the step that cannot land in pieces.
 
 ## Stage status
 
@@ -1688,7 +1707,7 @@ Purchasing's and the three tutorial overlays. No file under the editor reads `st
 the page has no prop-drilled session left, and an edit the frame reads nothing of
 re-renders nothing. Next: Stage 4 |
 | Stage 4 — getters become functions | **Landed.** Re-scoped first: Stage 3 took every panel off the lens, so the panel-by-panel conversion it was costed as no longer exists. 4a removed twenty members — every mutation method the commands replaced, the figures only those methods fed, and `totalSales`, which lost its last reader inside the class when `averageItemSalePrice` went. Nineteen of the twenty measured; `lastRunToFinish` stayed, being named as an input by another project, and `totalSales` came off in its place. `materialRequirement` stayed and became private. `Classes/job.js` is 1,076 lines, from 1,405. The work was in the tests: the class was their oracle, and each assertion now states its own expectation — § The oracle the tests are written against. 4b took all nine id lists, in three bites: `setupSystemIDs` and `materialIDs`, then the three ESI sets, then `parentJobIDs`, `childJobIDs`, `relatedJobIDs` and `totalQuantityProduced`. `Classes/job.js` is 985 lines, from 1,405. What the conversion kept finding is below. 4c took the cost figures — `totalInstallCost`, `totalExtrasCost`, `totalInventionCost`, `buildCost` and `buildCostPerItem` — whose production reach was seven files, most of what looked like a call site being a JSDoc name or a figure on something that is not a job. `Classes/job.js` is 919 lines, from 1,405. What is left on the class is the four summands only its own members read, `totalCostPerItem`, and the mutation methods with live callers, which are Stage 5's. The measurement the three slices were cut from: [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-21 |
-| Stage 5 — `jobArray` goes plain | Not started |
+| Stage 5 — `jobArray` goes plain | **Part landed: steps 1–3.** Nothing outside `Job` asks an instance for anything any more. The figures that were still getters are selectors — some already had one of the same name and the getter was a duplicate, the rest were written and tested before the getter came off — and `boughtCost` / `purchaseComplete` were added as material selectors first, because two of them reached into `JobMaterial` rather than plain data. The eleven mutation methods are gone in favour of the Stage 3 commands, reachable outside the editor through a new `applyCommands(job, ...commands)`, which moved 42 method calls across 14 files. The work was again mostly in the tests: the oracles that proved the new path by agreeing with the class member now state their own expectations, and the three call-site files with no tests were given them first, written against the old implementation so they pass unchanged across the conversion. `Classes/job.js` is 533 lines, from 929. **Step 4, the cutover, is not taken**: `jobArray` still holds instances and `toDocument()` is still the persistence contract. See [overlay.md](./overlay.md) § Stage 5 |
 
 ## Settled
 
