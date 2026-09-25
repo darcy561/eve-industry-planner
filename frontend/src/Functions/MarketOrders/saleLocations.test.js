@@ -7,7 +7,7 @@ import {
 import {
   MARKET_LOCATIONS_QUERY_KEY,
   seedMarketLocations,
-} from "../MarketData/marketLocations.js";
+} from "../MarketData/registry/marketLocations";
 import { queryClient } from "../../queryClient.js";
 
 let structures = [];

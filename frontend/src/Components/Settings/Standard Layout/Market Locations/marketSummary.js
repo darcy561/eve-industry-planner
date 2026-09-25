@@ -1,9 +1,9 @@
 import {
   SOURCE_KIND,
   isReadByTheReader,
-} from "../../../../Functions/MarketData/marketSources";
-import { readMarketFreshness } from "../../../../Functions/MarketData/priceStore";
-import { readSourceClock } from "../../../../Functions/MarketData/sourceClocks";
+} from "../../../../Functions/MarketData/registry/marketSources.js";
+import { readMarketFreshness } from "../../../../Functions/MarketData/prices/priceStore.js";
+import { readSourceClock } from "../../../../Functions/MarketData/prices/sourceClocks.js";
 
 /**
  * What a panel says about one market.
@@ -40,7 +40,7 @@ import { readSourceClock } from "../../../../Functions/MarketData/sourceClocks";
  * A station's is worked out from the seller's skills and standings, so a stored
  * one there would quote the untrained rate without saying so.
  *
- * @param {import("../../../../Functions/MarketData/marketSources").MarketSource} source
+ * @param {import("../../../../Functions/MarketData/registry/marketSources.js").MarketSource} source
  * @returns {number|undefined}
  */
 export function visibleBrokerFee(source) {
@@ -55,7 +55,7 @@ export function visibleBrokerFee(source) {
  * in-memory clock a price answer leaves behind is empty on a fresh load, so
  * where both are held the newer wins.
  *
- * @param {import("../../../../Functions/MarketData/marketSources").MarketSource} source
+ * @param {import("../../../../Functions/MarketData/registry/marketSources.js").MarketSource} source
  * @returns {Promise<{lastReadAt: number|undefined, readHere: boolean,
  *   readOutcome: string|undefined}>}
  */
@@ -90,7 +90,7 @@ function newerOf(a, b) {
  * all already there — and the kind is the one place that decides the last of
  * those, rather than five readers each testing a field for themselves.
  *
- * @param {import("../../../../Functions/MarketData/marketSources").MarketSource} source
+ * @param {import("../../../../Functions/MarketData/registry/marketSources.js").MarketSource} source
  * @returns {Promise<MarketSummary>}
  */
 export async function summariseMarket(source) {

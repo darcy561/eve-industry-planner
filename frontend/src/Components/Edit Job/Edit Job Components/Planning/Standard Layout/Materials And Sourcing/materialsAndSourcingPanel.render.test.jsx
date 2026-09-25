@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MATERIAL_PLAN } from "../../../../../../Functions/MarketData/materialSourcingRow";
+import { MATERIAL_PLAN } from "../../../../../../Functions/Job/materialSourcingRow.js";
 
 const sourcing = {
   rows: [

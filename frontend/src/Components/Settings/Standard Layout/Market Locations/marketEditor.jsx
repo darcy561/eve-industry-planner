@@ -6,7 +6,7 @@ import { FormField } from "../../../../Styled Components/Textfield/FormField";
 import { SwitchField } from "../../../../Styled Components/Textfield/SwitchField";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import InsetSurface from "../../../../Styled Components/Paper/InsetSurface";
-import { SOURCE_KIND } from "../../../../Functions/MarketData/marketSources";
+import { SOURCE_KIND } from "../../../../Functions/MarketData/registry/marketSources.js";
 import { MAX_BROKER_FEE_PERCENT } from "./newMarket";
 import { marketEdits } from "./marketWriter";
 

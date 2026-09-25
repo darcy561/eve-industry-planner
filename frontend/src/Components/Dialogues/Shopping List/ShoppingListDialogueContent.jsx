@@ -14,9 +14,9 @@ import {
 } from "../../../Context/defaultValues";
 import { ListDataFrame_ShoppingListDialogue } from "./shoppingListDataFrame";
 import { AssetsFromClipboardButton_ShoppingList } from "./assetsFromClipboardButton";
-import { fetchPrices } from "../../../Functions/MarketData/priceCache";
-import { pricesWantedForTypes } from "../../../Functions/MarketData/pricesWanted";
-import { PRICING_SIDE } from "../../../Functions/MarketData/pricingSide.js";
+import { fetchPrices } from "../../../Functions/MarketData/prices/priceCache.js";
+import { pricesWantedForTypes } from "../../../Functions/MarketData/prices/pricesWanted.js";
+import { PRICING_SIDE } from "../../../Functions/MarketData/defaults/pricingSide";
 import ShoppingList from "../../../Classes/shoppingList";
 import UseAssetsButton_ShoppingList from "./useAssetsButton";
 import SelectAssetLocation_ShoppingListDialogue from "./assetLocationsSelection";

@@ -31,7 +31,7 @@ vi.mock("../../../../Functions/Endpoints/Private/userDocument.js", () => ({
 }));
 
 const marketLocationsChanged = vi.fn();
-vi.mock("../../../../Functions/MarketData/marketLocations", () => ({
+vi.mock("../../../../Functions/MarketData/registry/marketLocations.js", () => ({
   marketLocationsChanged: () => marketLocationsChanged(),
 }));
 

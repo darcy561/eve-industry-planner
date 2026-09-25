@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { citadelsInRegion } from "../../../Functions/MarketData/marketSources";
+import { citadelsInRegion } from "../../../Functions/MarketData/registry/marketSources.js";
 import {
   CITADEL_ORDERS_QUERY_KEY,
   ordersForTypeAtCitadels,
-} from "../../../Functions/MarketData/ordersAtCitadels";
+} from "../../../Functions/MarketData/citadels/ordersAtCitadels.js";
 import { useMarketSources } from "../../Static/useMarketSources";
 
 export { CITADEL_ORDERS_QUERY_KEY };

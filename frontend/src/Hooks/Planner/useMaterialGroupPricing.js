@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { groupPricingFor } from "../../Functions/MarketData/marketGroupData.js";
+import { groupPricingFor } from "../../Functions/MarketData/defaults/marketGroupData";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
@@ -14,7 +14,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
  * @param {string} params.side - One of PRICING_SIDE
  * @param {string} params.marketLocationRung - Which rung answered the panel's market
  * @param {string} params.orderTypeRung - Which rung answered the panel's order type
- * @returns {import("../../Functions/MarketData/materialPricing.js").GroupRungContext|undefined}
+ * @returns {import("../../Functions/MarketData/defaults/materialPricing").GroupRungContext|undefined}
  */
 export function useMaterialGroupPricing({
   side,

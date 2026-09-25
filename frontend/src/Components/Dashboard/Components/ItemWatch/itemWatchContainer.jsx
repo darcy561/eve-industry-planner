@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { WatchListRow } from "./ItemRow";
 import { WatchlistGroup } from "./watchlistGroup";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { pricesWantedByWatchlist } from "../../../../Functions/MarketData/pricesWanted";
+import { pricesWantedByWatchlist } from "../../../../Functions/MarketData/prices/pricesWanted.js";
 import { useMarketPricesQuery } from "../../../../Hooks/React Query/World/marketPrices";
 
 function WatchlistContainerInner({ onOpenGroupSettings, onEditWatchlistItem }) {

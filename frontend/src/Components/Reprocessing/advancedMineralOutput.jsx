@@ -22,7 +22,7 @@ import {
 } from "../../Context/defaultValues";
 import { useItemList } from "../../Hooks/Static/useItems";
 import { itemNameFrom } from "../../Functions/Static/items";
-import { getMarketPriceForType } from "../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../Functions/MarketData/prices/marketPriceForType.js";
 import MineralCard from "./Components/MineralCard";
 import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import ReprocessingSettingsPanel from "./reprocessingSettingsPanel";

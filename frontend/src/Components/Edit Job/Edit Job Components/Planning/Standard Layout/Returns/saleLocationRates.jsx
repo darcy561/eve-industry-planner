@@ -18,7 +18,7 @@ import {
   SALE_LOCATION_KIND,
   getDefaultSaleStructure,
 } from "../../../../../../Functions/MarketOrders/saleLocations";
-import { SOURCE_KIND } from "../../../../../../Functions/MarketData/marketSources";
+import { SOURCE_KIND } from "../../../../../../Functions/MarketData/registry/marketSources.js";
 import { BROKER_FEE_TERMS } from "../../../../../../Functions/MarketOrders/sellingRates";
 import AssignUsersSelect from "../../../../../../Styled Components/Select/users";
 import { readMarketSources } from "../../../../../../Hooks/Static/useMarketSources";

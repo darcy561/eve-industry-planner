@@ -4,7 +4,7 @@ import {
   SOURCE_KIND,
   savedCitadels,
   sourceIn,
-} from "../MarketData/marketSources";
+} from "../MarketData/registry/marketSources.js";
 import { readMarketSources } from "../../Hooks/Static/useMarketSources";
 
 /**

@@ -3,7 +3,7 @@ import { ORDER_TYPES } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
-import { orderTypeForExit } from "../../Functions/MarketData/pricingSide.js";
+import { orderTypeForExit } from "../../Functions/MarketData/defaults/pricingSide";
 
 const { DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 

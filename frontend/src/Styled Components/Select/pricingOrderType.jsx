@@ -27,7 +27,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
  * from the one in effect.
  *
  * @param {object} props
- * @param {import("../../Functions/MarketData/materialPricing").OrderTypeOption[]} props.options
+ * @param {import("../../Functions/MarketData/defaults/materialPricing.js").OrderTypeOption[]} props.options
  * @param {(orderTypeID: string) => void} props.onChange
  * @param {(value: number) => string} props.formatValue - Renders a total as ISK
  * @param {string} [props.label] - What the totals are of, e.g. "Materials"

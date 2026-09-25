@@ -13,7 +13,7 @@ import { useReducer } from "react";
 import {
   PRICING_SIDE,
   resolvePricingSide,
-} from "../../../Functions/MarketData/pricingSide.js";
+} from "../../../Functions/MarketData/defaults/pricingSide";
 import {
   reprocessingReducer,
   REPROCESSING_ACTION_TYPES,

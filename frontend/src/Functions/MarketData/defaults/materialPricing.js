@@ -1,0 +1,280 @@
+import { ORDER_TYPES } from "../../../Context/defaultValues";
+import { MATERIAL_PLAN } from "../../Job/materialSourcingRow.js";
+import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
+
+/**
+ * How a material row is priced on the Planning stage: what the job's materials
+ * would cost on each pricing order type, and whether a row is still an estimate at all.
+ */
+
+/**
+ * What answering the market-group rung takes: the tree, the account's table
+ * against it, and which rung each axis was answered by.
+ *
+ * Named apart from the server's `GroupPricing`, which is one group's stored
+ * `{market, orderType, exit}` — the thing this walks over rather than the walk.
+ *
+ * @typedef {object} GroupRungContext
+ * @property {Object<string, {parent_id?: number}>} marketGroups - The tree
+ * @property {Object<string, {market?: string, orderType?: string}>} groupDefaults -
+ *   The account side's group table
+ * @property {(typeID: number) => number|undefined} marketGroupOf - An item's own
+ *   market group
+ * @property {string} marketLocationRung - Which rung answered defaultMarketLocation
+ * @property {string} orderTypeRung - Which rung answered defaultOrderType
+ */
+
+/**
+ * Which hub and order type apply to one material row.
+ *
+ * A row's own override outranks the panel default on each axis independently, so
+ * a row can name a hub without naming an order type. This is the one place that rule
+ * lives; a second copy of it would let a quoted total disagree with the row it
+ * quotes.
+ *
+ * The market group walk sits between those two, and is why the panel default
+ * arrives with the rung that answered it: a group default outranks the account's
+ * and the global one, and loses to the job's own choice. Handed a panel value
+ * alone there would be no way to tell those apart, and a group would silently
+ * overrule a job the player had explicitly set.
+ *
+ * @param {object} build - The job's build, holding materialPriceOverrides
+ * @param {number} materialTypeID
+ * @param {string} defaultMarketLocation
+ * @param {string} defaultOrderType
+ * @param {GroupRungContext} [groupPricing] - Absent until the tree has loaded, which
+ *   is a normal early state: the ladder then reads as it did before rung 3
+ * @returns {{marketLocation: string, orderType: string}}
+ */
+export function getEffectiveMaterialPriceHub(
+  build,
+  materialTypeID,
+  defaultMarketLocation,
+  defaultOrderType,
+  groupPricing,
+) {
+  const override = build?.materialPriceOverrides?.[materialTypeID];
+
+  const group = groupPricing
+    ? resolveGroupDefault({
+        marketGroupID: groupPricing.marketGroupOf?.(materialTypeID),
+        marketGroups: groupPricing.marketGroups,
+        groupDefaults: groupPricing.groupDefaults,
+      })
+    : null;
+
+  return {
+    marketLocation:
+      override?.marketDisplay ??
+      beneathTheJob(group?.marketLocation, groupPricing?.marketLocationRung) ??
+      defaultMarketLocation,
+    orderType:
+      override?.orderDisplay ??
+      beneathTheJob(group?.orderType, groupPricing?.orderTypeRung) ??
+      defaultOrderType,
+  };
+}
+
+/**
+ * Marks an axis as one the group rung may not answer.
+ *
+ * `materialCostByOrderType` varies the order type to cost each candidate, so for that call
+ * the order type is not a rung question at all. It is named rather than borrowing the
+ * job's rung, which would read as a job choice that was never made.
+ */
+const SUPPRESSED = "suppressed";
+
+/**
+ * A group's answer, where what it would displace is something it outranks.
+ *
+ * The walk sits below a job's own choice and above the account's, so a job that
+ * named an axis keeps it on every row rather than being reached past.
+ *
+ * An unnamed rung yields too. A caller that knows about the walk knows which rung
+ * answered — the panel resolver returns both — so a missing one is a caller that
+ * did not, and guessing it was the account's would let a group overrule a job.
+ *
+ * @param {string|null|undefined} chosen
+ * @param {string|undefined} rung - The rung that answered the panel default
+ * @returns {string|undefined}
+ */
+function beneathTheJob(chosen, rung) {
+  if (!chosen) return undefined;
+  return rung === PRICING_RUNG.ACCOUNT || rung === PRICING_RUNG.GLOBAL
+    ? chosen
+    : undefined;
+}
+
+/**
+ * @typedef {object} OrderTypeOption
+ * @property {string} id - One of the ORDER_TYPES ids
+ * @property {string} label - Display name
+ * @property {number} total - What the job's materials cost on this orderType
+ * @property {number} delta - That total less the current orderType's total
+ * @property {boolean} isCurrent - Whether this is the orderType in effect
+ */
+
+/**
+ * What the job's materials cost on each of the four bases, so a player choosing
+ * one sees its effect rather than a label.
+ *
+ * A material carrying its own override keeps it on every order type: the picker sets
+ * the panel's default, and an override outranks the default, so a total that
+ * ignored overrides would not be the total the player would get.
+ *
+ * @param {object} params
+ * @param {Array<{typeID: number, quantity: number}>} params.rows - The rows the
+ *   panel draws, each stating how many the job takes
+ * @param {object} params.build - The job's build, holding materialPriceOverrides
+ * @param {string} params.marketLocation - The market in effect
+ * @param {string} params.orderType - The order type in effect
+ * @param {(typeID: number, hub: string, orderType: string) => number} params.getPrice
+ * @param {GroupRungContext} [params.groupPricing]
+ * @returns {OrderTypeOption[]}
+ */
+export function materialCostByOrderType({
+  rows: materialRows,
+  build,
+  marketLocation,
+  orderType,
+  getPrice,
+  groupPricing,
+}) {
+  const rows = Array.isArray(materialRows) ? materialRows : [];
+
+  // The order type is the axis being varied, so nothing below the panel may answer it:
+  // a group default naming one would answer every candidate identically and
+  // flatten the comparison into one figure repeated four times. Its market still
+  // applies, because that axis is not the one being asked about.
+  const perCandidate = groupPricing && {
+    ...groupPricing,
+    orderTypeRung: SUPPRESSED,
+  };
+
+  const totalOn = (candidate) =>
+    rows.reduce((total, material) => {
+      const resolved = getEffectiveMaterialPriceHub(
+        build,
+        material.typeID,
+        marketLocation,
+        candidate,
+        perCandidate,
+      );
+      const price = getPrice(
+        material.typeID,
+        resolved.marketLocation,
+        resolved.orderType,
+      );
+      return total + price * material.quantity;
+    }, 0);
+
+  const totalsById = new Map(
+    ORDER_TYPES.map((entry) => [entry.id, totalOn(entry.id)]),
+  );
+  const current = totalsById.get(orderType) ?? 0;
+
+  return ORDER_TYPES.map((entry) => {
+    const total = totalsById.get(entry.id) ?? 0;
+    return {
+      id: entry.id,
+      label: entry.name,
+      caption: entry.caption,
+      description: entry.description,
+      total,
+      delta: total - current,
+      isCurrent: entry.id === orderType,
+    };
+  });
+}
+
+/**
+ * How many rows are not on the panel's order type, and how many are not estimates at
+ * all.
+ *
+ * An override is otherwise invisible: a row priced against a different hub looks
+ * like any other, and the panel it replaced hid the whole list of them behind a
+ * dialogue. Counting departures makes one discoverable without opening anything.
+ *
+ * @param {Array<object>} rows - Rows from buildMaterialSourcingRow
+ * @param {string} marketLocation - The panel's market
+ * @param {string} orderType - The panel's order type
+ * @returns {{overridden: number, purchased: number}}
+ */
+export function summariseOrderTypeUse(rows, marketLocation, orderType) {
+  const list = Array.isArray(rows) ? rows : [];
+
+  return {
+    overridden: list.filter(
+      (row) =>
+        (row.marketLocation && row.marketLocation !== marketLocation) ||
+        (row.orderType && row.orderType !== orderType),
+    ).length,
+    purchased: list.filter((row) => row.plan === MATERIAL_PLAN.PAID).length,
+  };
+}
+
+/**
+ * @typedef {object} MaterialPurchaseState
+ * @property {'paid'|'part-paid'|'estimated'} kind
+ * @property {number} paidCost - What the job is charged for what was bought
+ * @property {number} paidQuantity - How many of the requirement that covered
+ * @property {number} remainingQuantity - How many are still to buy
+ */
+
+/**
+ * Whether a row is still an estimate, or reports what was actually paid.
+ *
+ * A material bought in full is not a price the app should guess at — the player
+ * has the receipt. One bought in part is both: what was paid, and an estimate for
+ * the rest.
+ *
+ * @param {object} material - A JobMaterial instance; its totals are getters, so a
+ *   spread of one loses them and must not be passed here
+ * @returns {MaterialPurchaseState}
+ */
+export function materialPurchaseState(material) {
+  const paidQuantity = material?.quantityPurchased ?? 0;
+  const paidCost = material?.purchasedCost ?? 0;
+  const required = material?.quantity ?? 0;
+  const remainingQuantity = Math.max(0, required - paidQuantity);
+
+  if (material?.purchaseComplete) {
+    return { kind: "paid", paidCost, paidQuantity, remainingQuantity: 0 };
+  }
+  if (paidQuantity > 0) {
+    return { kind: "part-paid", paidCost, paidQuantity, remainingQuantity };
+  }
+  return { kind: "estimated", paidCost: 0, paidQuantity: 0, remainingQuantity };
+}
+
+/**
+ * How old the figures a job is priced against actually are.
+ *
+ * The server refreshes on a period measured in hours, so a reader planning
+ * against them deserves to know whether they are minutes or most of a day old —
+ * the figures look equally authoritative either way.
+ *
+ * The oldest of the materials is the honest answer: a total is only as fresh as
+ * the stalest price inside it.
+ *
+ * @param {Array<{typeID: number}>} materials
+ * @param {(typeID: number) => number|undefined} refreshedAt - When a type's
+ *   figures were last refreshed. Passed in rather than imported, so this module
+ *   stays free of the store and testable without one
+ * @returns {number|null} Milliseconds since the oldest was refreshed, or null
+ *   where nothing has a timestamp
+ */
+export function priceAge(materials = [], refreshedAt) {
+  let oldest = null;
+
+  for (const material of materials) {
+    const updated = refreshedAt?.(material.typeID);
+    // Zero is nothing held rather than the epoch. A reader answering from the
+    // store's zero-filled row for an unpriced type would otherwise date the
+    // whole job to 1970.
+    if (!Number.isFinite(updated) || updated <= 0) continue;
+    if (oldest === null || updated < oldest) oldest = updated;
+  }
+
+  return oldest === null ? null : Date.now() - oldest;
+}

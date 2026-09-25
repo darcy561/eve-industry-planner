@@ -9,7 +9,7 @@ import GLOBAL_CONFIG from "../../global-config-app";
 import { getAppShellMarketSelectProps } from "../../Context/appShell";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
-import { sourceIn } from "../../Functions/MarketData/marketSources";
+import { sourceIn } from "../../Functions/MarketData/registry/marketSources.js";
 import { useMarketSources } from "../../Hooks/Static/useMarketSources";
 
 const { DEFAULT_MARKET_OPTION } = GLOBAL_CONFIG;

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { resolvePricingSideRungs } from "../../Functions/MarketData/pricingSide.js";
+import { resolvePricingSideRungs } from "../../Functions/MarketData/defaults/pricingSide";
 
 /**
  * Where one side of a job is priced, from the job's own choice down to the

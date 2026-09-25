@@ -1,11 +1,11 @@
 import { Box, Typography, useMediaQuery, Grid } from "@mui/material";
-import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
+import { PRICING_SIDE } from "../../../../../../Functions/MarketData/defaults/pricingSide";
 import ItemMarketActions from "../../../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { useMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import { useMemo } from "react";

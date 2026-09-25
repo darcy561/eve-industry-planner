@@ -39,7 +39,7 @@ import StatusChip, {
 import {
   MATERIAL_PLAN,
   hasSavingAvailable,
-} from "../../../../../../Functions/MarketData/materialSourcingRow";
+} from "../../../../../../Functions/Job/materialSourcingRow.js";
 import ShortfallChip from "./shortfallChip";
 import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageAvatar";
 
@@ -67,7 +67,7 @@ const COLUMNS = [
 
 /**
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/materialSourcingRow").MaterialSourcingRow[]} props.rows
+ * @param {import("../../../../../../Functions/Job/materialSourcingRow.js").MaterialSourcingRow[]} props.rows
  * @param {(value: number) => string} props.formatIsk
  * @param {(value: number) => string} props.formatQuantity
  * @param {(typeID: number) => void} [props.onToggleRow] - Opens the row's drawer
@@ -448,7 +448,7 @@ function ExpandAffordance({ expandable, isOpen, name, onToggle }) {
  * same thing twice on one row.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/materialSourcingRow").MaterialSourcingRow} props.row
+ * @param {import("../../../../../../Functions/Job/materialSourcingRow.js").MaterialSourcingRow} props.row
  */
 function SourceCell({ row }) {
   if (row.plan === MATERIAL_PLAN.PAID) {

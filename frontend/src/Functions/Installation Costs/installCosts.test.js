@@ -4,7 +4,7 @@ import { totalInstallCost } from "../../Components/Edit Job/Edit Job Hooks/jobSe
 /** The account doing the reading, and what it knows about its characters. */
 const reader = { own: {}, main: "me" };
 
-vi.mock("../MarketData/marketPriceForType", () => ({
+vi.mock("../MarketData/prices/marketPriceForType.js", () => ({
   getAdjustedPriceForType: () => 100,
 }));
 

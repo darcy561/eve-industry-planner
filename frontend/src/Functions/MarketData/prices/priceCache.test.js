@@ -1,0 +1,329 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const requestPrice = vi.fn();
+const requestAdjustedPrice = vi.fn();
+
+/** What the cache asked to be told when a market's clock moves. */
+let clockMovedListener = null;
+
+vi.mock("./priceLoader", () => ({
+  requestPrice: (...args) => requestPrice(...args),
+  requestAdjustedPrice: (...args) => requestAdjustedPrice(...args),
+  setClockMovedListener: (listener) => {
+    clockMovedListener = listener;
+  },
+  setOrdersStoredListener: () => {},
+}));
+
+const { queryClient } = await import("../../../queryClient.js");
+const { fetchPrices, readPrice, readAdjustedPrice, revalidateSourceClocks } =
+  await import("./priceCache.js");
+const { recordSourceClock, resetSourceClocks } =
+  await import("./sourceClocks.js");
+
+const row = (sell) => ({
+  buy: sell - 1,
+  sell,
+  buyP95: sell,
+  sellP05: sell,
+  refreshedAt: 1757000000000,
+});
+
+beforeEach(() => {
+  queryClient.clear();
+  resetSourceClocks();
+  requestPrice.mockReset();
+  requestAdjustedPrice.mockReset();
+});
+
+afterEach(() => {
+  queryClient.clear();
+});
+
+describe("reading a price", () => {
+  // The synchronous readers are the reason this is a read rather than a hook: a
+  // shopping list row and an order type comparison each read inside a reduce.
+  it("answers nothing before anything has been asked for", () => {
+    expect(readPrice(34, "jita")).toBeUndefined();
+    expect(readAdjustedPrice(34)).toBeUndefined();
+  });
+
+  it("answers from the cache once a want has settled", async () => {
+    requestPrice.mockResolvedValue(row(10));
+
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    expect(readPrice(34, "jita").sell).toBe(10);
+  });
+
+  // One entry per type at one market: the same type at two markets is two
+  // answers, and a market is never read out of another's row.
+  it("keeps the same type at two markets apart", async () => {
+    requestPrice.mockImplementation((typeID, sourceID) =>
+      Promise.resolve(row(sourceID === "jita" ? 10 : 30)),
+    );
+
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 34, sourceID: "amarr" },
+      ],
+    });
+
+    expect(readPrice(34, "jita").sell).toBe(10);
+    expect(readPrice(34, "amarr").sell).toBe(30);
+  });
+
+  it("reads a number back for an adjusted price", async () => {
+    requestAdjustedPrice.mockResolvedValue(4.9);
+
+    await fetchPrices({
+      wants: [{ typeID: 34, sourceID: "jita" }],
+      adjustedTypeIDs: [34],
+    });
+
+    expect(readAdjustedPrice(34)).toBe(4.9);
+  });
+});
+
+describe("asking for prices", () => {
+  it("asks for each type at each market it was given", async () => {
+    requestPrice.mockResolvedValue(row(10));
+
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 35, sourceID: "jita" },
+        { typeID: 34, sourceID: "amarr" },
+        { typeID: 35, sourceID: "amarr" },
+      ],
+    });
+
+    expect(requestPrice).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not ask for an adjusted price unless told to", async () => {
+    requestPrice.mockResolvedValue(row(10));
+
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    expect(requestAdjustedPrice).not.toHaveBeenCalled();
+  });
+
+  // The cache is what stops a second panel re-asking for what the first resolved.
+  it("does not ask again for a want it already holds", async () => {
+    requestPrice.mockResolvedValue(row(10));
+
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    expect(requestPrice).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for nothing when it has no type or no market", async () => {
+    await fetchPrices({ wants: [] });
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "" }] });
+
+    expect(requestPrice).not.toHaveBeenCalled();
+  });
+});
+
+describe("when a market cannot be reached", () => {
+  // A market that could not be reached leaves its own entry unwritten. It must
+  // not be recorded as "no orders here", and it must not stop the markets that
+  // answered from reaching the reader.
+  it("leaves that market unread and still answers for the others", async () => {
+    requestPrice.mockImplementation((typeID, sourceID) =>
+      sourceID === "amarr"
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(row(10)),
+    );
+
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 34, sourceID: "amarr" },
+      ],
+    });
+
+    expect(readPrice(34, "jita").sell).toBe(10);
+    expect(readPrice(34, "amarr")).toBeUndefined();
+  });
+
+  it("does not resolve as a settled answer", async () => {
+    requestPrice.mockRejectedValue(new Error("offline"));
+
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    // Undefined rather than null: nothing was learned, so the next reader asks
+    // again rather than being told there is no price.
+    expect(readPrice(34, "jita")).toBeUndefined();
+  });
+});
+
+describe("a market that answered and holds no order", () => {
+  // Distinct from a failure: this is an answer, so it is kept and not re-asked.
+  it("is remembered rather than asked about again", async () => {
+    requestPrice.mockResolvedValue(null);
+
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    expect(requestPrice).toHaveBeenCalledTimes(1);
+    expect(readPrice(34, "jita")).toBeUndefined();
+  });
+});
+
+describe("freshness comes from the market's clock", () => {
+  // The rule the five-minute guess replaced: a row is good while its market has
+  // not been walked again, however long that is.
+  it("does not ask again for a row it already holds", async () => {
+    requestPrice.mockResolvedValue(row(10));
+
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    expect(requestPrice).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks again once its market says it was walked again", async () => {
+    requestPrice.mockResolvedValue(row(10));
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    requestPrice.mockResolvedValue(row(30));
+    clockMovedListener({ sources: ["jita"], adjusted: false });
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+
+    expect(requestPrice).toHaveBeenCalledTimes(2);
+    expect(readPrice(34, "jita").sell).toBe(30);
+  });
+
+  // A market is walked whole, so every row from it goes at once — two moments
+  // side by side in one view is the thing this prevents.
+  it("drops every row a moved market answered, not just the one probed", async () => {
+    requestPrice.mockResolvedValue(row(10));
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 35, sourceID: "jita" },
+      ],
+    });
+
+    requestPrice.mockClear();
+    requestPrice.mockResolvedValue(row(30));
+    clockMovedListener({ sources: ["jita"], adjusted: false });
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 35, sourceID: "jita" },
+      ],
+    });
+
+    expect(requestPrice).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a market whose clock did not move alone", async () => {
+    requestPrice.mockResolvedValue(row(10));
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 34, sourceID: "amarr" },
+      ],
+    });
+
+    requestPrice.mockClear();
+    clockMovedListener({ sources: ["jita"], adjusted: false });
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 34, sourceID: "amarr" },
+      ],
+    });
+
+    expect(requestPrice).toHaveBeenCalledTimes(1);
+    expect(requestPrice).toHaveBeenCalledWith(34, "jita");
+  });
+
+  it("drops adjusted prices on their own clock", async () => {
+    requestAdjustedPrice.mockResolvedValue(5);
+    await fetchPrices({ wants: [], adjustedTypeIDs: [34] });
+
+    requestAdjustedPrice.mockClear();
+    requestAdjustedPrice.mockResolvedValue(7);
+    clockMovedListener({ sources: [], adjusted: true });
+    await fetchPrices({ wants: [], adjustedTypeIDs: [34] });
+
+    expect(requestAdjustedPrice).toHaveBeenCalledTimes(1);
+    expect(readAdjustedPrice(34)).toBe(7);
+  });
+});
+
+describe("asking the markets whether their clocks moved", () => {
+  it("asks nothing where no market holds rows", async () => {
+    await revalidateSourceClocks();
+
+    expect(requestPrice).not.toHaveBeenCalled();
+  });
+
+  // One row per market, whatever that market holds: the answer carries the
+  // clock, which is the only thing the probe is for.
+  it("asks each market holding rows for one type it already holds", async () => {
+    requestPrice.mockResolvedValue(row(10));
+    await fetchPrices({
+      wants: [
+        { typeID: 34, sourceID: "jita" },
+        { typeID: 35, sourceID: "jita" },
+        { typeID: 34, sourceID: "amarr" },
+      ],
+    });
+    recordSourceClock("jita", 1757000000000);
+    recordSourceClock("amarr", 1757000000000);
+
+    requestPrice.mockClear();
+    await revalidateSourceClocks();
+
+    expect(requestPrice).toHaveBeenCalledTimes(2);
+    const asked = requestPrice.mock.calls.map(([, sourceID]) => sourceID);
+    expect(asked.sort()).toEqual(["amarr", "jita"]);
+  });
+
+  // A market an account has just registered has no clock until its first walk
+  // finishes, and every row it holds reads as nothing. Asking only the markets
+  // that have reported a clock would leave a reader on "no price here" for as
+  // long as the tab stayed open, because nothing else would ever ask again.
+  it("asks a market that has rows but has never reported a clock", async () => {
+    requestPrice.mockResolvedValue(null);
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "a-new-market" }] });
+
+    requestPrice.mockClear();
+    await revalidateSourceClocks();
+
+    expect(requestPrice).toHaveBeenCalledWith("34", "a-new-market");
+  });
+
+  // The probe reads the query cache by key shape, and the adjusted prices sit
+  // under a neighbouring one — asking a market called "adjusted" would be a
+  // request for a market that does not exist.
+  it("does not mistake the adjusted prices for a market", async () => {
+    requestAdjustedPrice.mockResolvedValue(5);
+    await fetchPrices({ wants: [], adjustedTypeIDs: [34] });
+
+    requestPrice.mockClear();
+    await revalidateSourceClocks();
+
+    expect(requestPrice).not.toHaveBeenCalled();
+  });
+
+  it("survives a market that could not be reached", async () => {
+    requestPrice.mockResolvedValue(row(10));
+    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    recordSourceClock("jita", 1757000000000);
+
+    requestPrice.mockRejectedValue(new Error("offline"));
+
+    await expect(revalidateSourceClocks()).resolves.toBeUndefined();
+    // The row it already held is untouched: a market not answering says nothing
+    // about whether the figures held for it are still good.
+    expect(readPrice(34, "jita").sell).toBe(10);
+  });
+});

@@ -3,7 +3,7 @@ import Job from "./job.js";
 import {
   PRICING_SIDE,
   setJobPricingSide,
-} from "../Functions/MarketData/pricingSide.js";
+} from "../Functions/MarketData/defaults/pricingSide";
 
 const jobWith = (layout) => new Job({ jobID: "j1", itemID: 34, layout }).build;
 

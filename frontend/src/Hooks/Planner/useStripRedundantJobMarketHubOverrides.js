@@ -3,7 +3,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
 import {
   PRICING_SIDE,
   resolvePricingSide,
-} from "../../Functions/MarketData/pricingSide.js";
+} from "../../Functions/MarketData/defaults/pricingSide";
 
 /**
  * Drops a job's own market or order type once it matches what the account defaults

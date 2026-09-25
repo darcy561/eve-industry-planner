@@ -6,7 +6,7 @@ import {
   readProblem,
   sharedByLabel,
 } from "./marketRows";
-import { MARKET_READ_OUTCOME } from "../../../../Functions/MarketData/marketReadOutcome";
+import { MARKET_READ_OUTCOME } from "../../../../Functions/MarketData/registry/marketReadOutcome.js";
 
 const summary = {
   id: "market-1",

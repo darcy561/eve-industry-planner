@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from "react";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { getMarketPriceForType } from "../../../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../../../Functions/MarketData/prices/marketPriceForType.js";
 import {
   resolveFor,
   sideDefaults,
-} from "../../../../Functions/MarketData/priceResolution";
-import { PRICING_SIDE } from "../../../../Functions/MarketData/pricingSide.js";
+} from "../../../../Functions/MarketData/defaults/priceResolution.js";
+import { PRICING_SIDE } from "../../../../Functions/MarketData/defaults/pricingSide";
 
 /**
  * How a watchlist row is priced.

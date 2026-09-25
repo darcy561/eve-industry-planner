@@ -5,8 +5,8 @@
  */
 
 import GLOBAL_CONFIG from "../../global-config-app";
-import { EXIT_ROUTE } from "../../Functions/MarketData/returns.js";
-import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
+import { EXIT_ROUTE } from "../../Functions/Job/returns";
+import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide";
 import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
   extrasCategoriesDefault,

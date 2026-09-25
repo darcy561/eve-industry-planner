@@ -4,13 +4,13 @@ import {
   fetchPrices,
   MARKET_PRICES_QUERY_KEY,
   readPrice,
-} from "../../../Functions/MarketData/priceCache";
+} from "../../../Functions/MarketData/prices/priceCache.js";
 import { idsQueryKeySuffix } from "../idsQueryKey.js";
-import { wantKey } from "../../../Functions/MarketData/marketSources";
+import { wantKey } from "../../../Functions/MarketData/registry/marketSources.js";
 import {
   readAdjustedClock,
   readSourceClock,
-} from "../../../Functions/MarketData/sourceClocks";
+} from "../../../Functions/MarketData/prices/sourceClocks.js";
 
 export { MARKET_PRICES_QUERY_KEY };
 

@@ -21,7 +21,7 @@ import {
 import GLOBAL_CONFIG from "../../global-config-app.js";
 import { dedupeLinkedCharacterHashStrings } from "../../Functions/Auth/characterHashCanonical.js";
 import { mergeApplicationSettingsState } from "../applicationSettings/core.js";
-import { seedMarketLocations } from "../../Functions/MarketData/marketLocations";
+import { seedMarketLocations } from "../../Functions/MarketData/registry/marketLocations.js";
 import { asNumberIDSet } from "../../Functions/Helper/ids";
 
 /**

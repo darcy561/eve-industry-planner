@@ -38,7 +38,7 @@ const COLUMNS = [
 
 /**
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/costBreakdown").CostBreakdown} props.cost
+ * @param {import("../../../../../../Functions/Job/costBreakdown.js").CostBreakdown} props.cost
  * @param {(value: number) => string} props.formatIsk
  * @param {string|null} [props.activeId] - The part being looked at, on the bar
  *   above or here, so the two always agree about which one it is

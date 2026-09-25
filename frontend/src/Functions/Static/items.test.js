@@ -108,7 +108,7 @@ describe("resetItems", () => {
 describe("dropping the records independently", () => {
   it("lets marketGroupData prime them again", async () => {
     const { primeMarketGroupData, marketGroupOf, resetMarketGroupData } =
-      await import("../MarketData/marketGroupData.js");
+      await import("../MarketData/defaults/marketGroupData");
 
     resetMarketGroupData();
     await primeMarketGroupData();

@@ -2,11 +2,11 @@ import { useMemo } from "react";
 
 import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import useUsersStore from "../../../../../../Zustand/usersStore";
-import { pricesWantedBy } from "../../../../../../Functions/MarketData/pricesWanted";
+import { pricesWantedBy } from "../../../../../../Functions/MarketData/prices/pricesWanted.js";
 import { installCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
-import { buildCostBreakdown } from "../../../../../../Functions/MarketData/costBreakdown";
-import { calculateReturns } from "../../../../../../Functions/MarketData/returns";
-import { compareToHistory } from "../../../../../../Functions/MarketData/buildComparison";
+import { buildCostBreakdown } from "../../../../../../Functions/Job/costBreakdown.js";
+import { calculateReturns } from "../../../../../../Functions/Job/returns.js";
+import { compareToHistory } from "../../../../../../Functions/Job/buildComparison.js";
 import {
   brokerFeeAmount,
   salesTaxAmount,
@@ -14,7 +14,7 @@ import {
 import { useSellingRates } from "../../../../../../Hooks/React Query/Character/useSellingRates";
 import { useAccountTotalsQuery } from "../../../../../../Hooks/React Query/Backend/statisticsTotals";
 import { formatPercentage } from "../../../../../../Functions/Helper/numberParser";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useJobCommitment } from "../../../../../../Hooks/Planner/useJobCommitment";
 import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSellingContext";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";

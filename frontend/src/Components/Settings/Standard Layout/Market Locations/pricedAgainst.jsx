@@ -6,7 +6,7 @@ import ExitRouteSelect from "../../../../Styled Components/Select/exitRoute";
 import {
   PRICING_SIDE,
   PRICING_SIDES,
-} from "../../../../Functions/MarketData/pricingSide.js";
+} from "../../../../Functions/MarketData/defaults/pricingSide";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 

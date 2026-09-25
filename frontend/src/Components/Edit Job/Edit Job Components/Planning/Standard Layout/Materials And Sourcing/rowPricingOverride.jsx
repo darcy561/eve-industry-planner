@@ -1,6 +1,6 @@
 import { Box, Button, Typography } from "@mui/material";
 import ExplainerTooltip from "../../../../../../Styled Components/Tooltip/ExplainerTooltip";
-import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
+import { PRICING_SIDE } from "../../../../../../Functions/MarketData/defaults/pricingSide";
 
 import { OrderTypeSelectApplicationSettings } from "../../../../../../Styled Components/Select/orderType";
 import { MarketLocationSelectApplicationSettings } from "../../../../../../Styled Components/Select/marketLocation";

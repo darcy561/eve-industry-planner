@@ -4,7 +4,7 @@ import { CACHED_DATA_FILES } from "../../Context/defaultValues";
 import {
   ancestorPathIn,
   childrenIn,
-} from "../../Functions/MarketData/marketGroupData";
+} from "../../Functions/MarketData/defaults/marketGroupData.js";
 
 const EMPTY_TREE = {};
 

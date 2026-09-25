@@ -14,7 +14,7 @@ import { groupJobSkills } from "../../../../../../Functions/Skills/jobSkillGroup
 import { quotedCharacterHash } from "../../../../../../Functions/Skills/quotedCharacter";
 import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSellingContext";
 import { useSellingRates } from "../../../../../../Hooks/React Query/Character/useSellingRates";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import SkillsWhatIf from "./skillsWhatIf";
 import SkillLevelPips from "./skillLevelPips";

@@ -12,7 +12,7 @@ import { refreshStaticDataCache } from "../Helper/getCachedData.js";
 import {
   primeMarketGroupData,
   resetMarketGroupData,
-} from "../MarketData/marketGroupData.js";
+} from "../MarketData/defaults/marketGroupData";
 import { resetReprocessing } from "./reprocessing.js";
 import { resetRecipes } from "./recipes.js";
 

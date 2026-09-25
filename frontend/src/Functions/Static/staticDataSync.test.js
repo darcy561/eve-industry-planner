@@ -10,7 +10,7 @@ const invalidateQueries = vi.fn();
 vi.mock("../Helper/getCachedData.js", () => ({
   refreshStaticDataCache: (...args) => refreshStaticDataCache(...args),
 }));
-vi.mock("../MarketData/marketGroupData.js", () => ({
+vi.mock("../MarketData/defaults/marketGroupData", () => ({
   primeMarketGroupData: (...args) => primeMarketGroupData(...args),
   resetMarketGroupData: (...args) => resetMarketGroupData(...args),
 }));

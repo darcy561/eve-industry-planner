@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Box, Paper, Popper, Fade } from "@mui/material";
-import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
+import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide";
 import MarketDataIconButton from "../IconButton/marketData";
 import MarketHistoryIconButton from "../IconButton/marketHistory";
 import AssetsIconButton from "../IconButton/assets";

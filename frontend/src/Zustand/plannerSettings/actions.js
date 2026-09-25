@@ -8,7 +8,7 @@ import {
   savePlannerSettingsToApi,
 } from "../../Functions/Endpoints/Private/planners.js";
 import { permanentExtrasCategories } from "../../Context/defaultValues";
-import { refreshMarketLocationsAfterWrite } from "../../Functions/MarketData/marketLocations.js";
+import { refreshMarketLocationsAfterWrite } from "../../Functions/MarketData/registry/marketLocations";
 import {
   mergePlannerSettings,
   plannerSettingsDefault,

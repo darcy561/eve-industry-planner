@@ -1,9 +1,9 @@
-import { PRICING_SIDE } from "../Functions/MarketData/pricingSide.js";
+import { PRICING_SIDE } from "../Functions/MarketData/defaults/pricingSide";
 import {
   resolveFor,
   sideDefaults,
-} from "../Functions/MarketData/priceResolution";
-import { getMarketPriceForType } from "../Functions/MarketData/marketPriceForType";
+} from "../Functions/MarketData/defaults/priceResolution.js";
+import { getMarketPriceForType } from "../Functions/MarketData/prices/marketPriceForType.js";
 
 /**
  * ShoppingList class for EVE Online industry material purchasing management.

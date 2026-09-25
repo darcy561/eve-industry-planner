@@ -23,7 +23,7 @@ vi.mock("../../../../Hooks/App/useCachedData", () => ({
 // The walk every group goes through to build the search — the cost this dialogue
 // must not pay while it is shut.
 vi.mock(
-  "../../../../Functions/MarketData/marketGroupData",
+  "../../../../Functions/MarketData/defaults/marketGroupData.js",
   async (original) => {
     const actual = await original();
     return {

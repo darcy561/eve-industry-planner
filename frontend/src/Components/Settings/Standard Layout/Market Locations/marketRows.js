@@ -1,9 +1,9 @@
 import { formatTimeSince } from "../../../../Functions/Helper/numberParser";
-import { SOURCE_KIND } from "../../../../Functions/MarketData/marketSources";
+import { SOURCE_KIND } from "../../../../Functions/MarketData/registry/marketSources.js";
 import {
   MARKET_READ_OUTCOME,
   readerCanAct,
-} from "../../../../Functions/MarketData/marketReadOutcome";
+} from "../../../../Functions/MarketData/registry/marketReadOutcome.js";
 
 /**
  * A summarised market as the table draws it.

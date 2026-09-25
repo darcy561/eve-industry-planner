@@ -25,7 +25,7 @@ import {
   useMarketGroupChildren,
   useMarketGroupTree,
 } from "../../../../Hooks/Static/useMarketGroups";
-import { ancestorPathIn } from "../../../../Functions/MarketData/marketGroupData";
+import { ancestorPathIn } from "../../../../Functions/MarketData/defaults/marketGroupData.js";
 
 /**
  * Every group as one searchable row, each with where it sits.

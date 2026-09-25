@@ -19,7 +19,7 @@ vi.mock("../../../../../../Hooks/React Query/World/marketPrices", () => ({
 const useSellingRates = vi.fn();
 const useAccountTotalsQuery = vi.fn();
 
-vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
   getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: (...args) => getMarketPriceForType(...args),
 }));
@@ -64,7 +64,7 @@ const { useJobEconomics } = await import("./useJobEconomics");
 const { default: useUsersStore } =
   await import("../../../../../../Zustand/usersStore");
 const { MATERIAL_PLAN } =
-  await import("../../../../../../Functions/MarketData/materialSourcingRow");
+  await import("../../../../../../Functions/Job/materialSourcingRow.js");
 
 const session = () => useUsersStore.getState().editSession;
 

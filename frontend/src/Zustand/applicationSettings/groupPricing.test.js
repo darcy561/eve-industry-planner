@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import useUsersStore from "../usersStore";
-import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide";
+import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide.js";
 
 const pricing = () =>
   useUsersStore.getState().applicationSettings.defaultPricing;

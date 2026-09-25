@@ -8,7 +8,7 @@ import { vi } from "vitest";
  * beneath it. Every such test needs the same three lines of `importOriginal`
  * plumbing and the same source literals, which is what lives here.
  *
- * @see Functions/MarketData/marketSources
+ * @see Functions/MarketData/registry/marketSources
  */
 
 /** The station and structure ids the fixtures use, for a test to assert on. */
@@ -56,7 +56,7 @@ export function savedCitadel(overrides = {}) {
  * the factory rather than passed to it:
  *
  * ```js
- * vi.mock("./marketSources", async () => {
+ * vi.mock("../Functions/MarketData/registry/marketSources.js", async () => {
  *   const { marketSourcesWith, savedCitadel } = await import(
  *     "../../tests/marketSourceFixtures.js"
  *   );
@@ -74,7 +74,7 @@ export function savedCitadel(overrides = {}) {
  */
 export async function marketSourcesWith(...saved) {
   const real = await vi.importActual(
-    "../Functions/MarketData/marketSources.js",
+    "../Functions/MarketData/registry/marketSources.js",
   );
 
   return {

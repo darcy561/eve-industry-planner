@@ -8,7 +8,7 @@ import {
   mergeCitadelOrders,
   placeOrdersInSystems,
   systemsOfPlaces,
-} from "../../../Functions/MarketData/regionOrderMerge";
+} from "../../../Functions/MarketData/citadels/regionOrderMerge.js";
 import { useCitadelOrdersQuery } from "../../React Query/World/citadelOrders";
 
 /**

@@ -26,7 +26,7 @@ const { default: useUsersStore } =
   await import("../../../../Zustand/usersStore.js");
 const { queryClient } = await import("../../../../queryClient.js");
 const { MARKET_LOCATIONS_QUERY_KEY, marketsToOffer, seedMarketLocations } =
-  await import("../../../../Functions/MarketData/marketLocations.js");
+  await import("../../../../Functions/MarketData/registry/marketLocations");
 const { marketEdits } = await import("./marketWriter.js");
 
 const jitaMarket = {

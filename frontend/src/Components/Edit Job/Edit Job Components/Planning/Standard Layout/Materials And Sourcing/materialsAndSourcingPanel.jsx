@@ -27,8 +27,8 @@ import { getSafeMaterialPriceOverrides } from "./Helpers/materialPriceOverridesS
 import { useChildJobBuildActions } from "./Hooks/useChildJobBuildActions";
 import { finaliseCreatedChildJobs } from "./Helpers/finaliseCreatedChildJobs";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
-import { hasSavingAvailable } from "../../../../../../Functions/MarketData/materialSourcingRow";
-import { PRICING_SIDE } from "../../../../../../Functions/MarketData/pricingSide.js";
+import { hasSavingAvailable } from "../../../../../../Functions/Job/materialSourcingRow.js";
+import { PRICING_SIDE } from "../../../../../../Functions/MarketData/defaults/pricingSide";
 import {
   useJobActions,
   useJobDraft,
@@ -312,7 +312,7 @@ function overrideFor(build, typeID) {
 /**
  * The list as a player pastes it into the game, one material and quantity a line.
  *
- * @param {import("../../../../../../Functions/MarketData/materialSourcingRow").MaterialSourcingRow[]} rows
+ * @param {import("../../../../../../Functions/Job/materialSourcingRow.js").MaterialSourcingRow[]} rows
  * @returns {string}
  */
 function resourceListText(rows) {

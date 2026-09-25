@@ -12,7 +12,7 @@ import {
 } from "../../Functions/Auth/buildAccountData";
 import { clearQueryTimings } from "../../Functions/Debugging/queryWaterfallLogger";
 import { prefetchCollections } from "../../Functions/EveESI/prefetch/scheduler";
-import { readSavedMarketsNow } from "../../Functions/MarketData/priceRefreshSchedule";
+import { readSavedMarketsNow } from "../../Functions/MarketData/prices/priceRefreshSchedule.js";
 import {
   emitLoginError,
   emitLoginStepComplete,

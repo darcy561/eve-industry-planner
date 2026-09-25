@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const readMarketFreshness = vi.fn();
-vi.mock("../../../../Functions/MarketData/priceStore", () => ({
+vi.mock("../../../../Functions/MarketData/prices/priceStore.js", () => ({
   readMarketFreshness: (...args) => readMarketFreshness(...args),
 }));
 
 const { lastReadMoment, summariseMarket } = await import("./marketSummary.js");
 const { recordSourceClock, resetSourceClocks } =
-  await import("../../../../Functions/MarketData/sourceClocks.js");
+  await import("../../../../Functions/MarketData/prices/sourceClocks");
 const { SOURCE_KIND } =
-  await import("../../../../Functions/MarketData/marketSources.js");
+  await import("../../../../Functions/MarketData/registry/marketSources");
 const { MARKET_READ_OUTCOME } =
-  await import("../../../../Functions/MarketData/marketReadOutcome.js");
+  await import("../../../../Functions/MarketData/registry/marketReadOutcome");
 
 const citadel = {
   id: "saved-citadel",

@@ -15,7 +15,7 @@ import { PanelFooterMeta } from "../../../../../../Styled Components/Typography/
  * saying a change would save nothing is an invitation to make it.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/materialSourcingRow").SourcingSummary} props.summary
+ * @param {import("../../../../../../Functions/Job/materialSourcingRow.js").SourcingSummary} props.summary
  * @param {(value: number) => string} props.formatIsk
  * @param {() => void} props.onApply
  * @param {boolean} [props.disabled]
@@ -56,7 +56,7 @@ export function SourcingOffer({
  * What the list holds, and how much room it takes.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/materialSourcingRow").SourcingSummary} props.summary
+ * @param {import("../../../../../../Functions/Job/materialSourcingRow.js").SourcingSummary} props.summary
  * @param {(value: number) => string} props.formatVolume
  */
 export function SourcingFooter({ summary, formatVolume }) {

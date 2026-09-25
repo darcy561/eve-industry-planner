@@ -2,7 +2,7 @@
  * Change-stream handlers for `application_settings` collection (account singleton doc).
  */
 
-import { refreshMarketLocations } from "../../Functions/MarketData/marketLocations.js";
+import { refreshMarketLocations } from "../../Functions/MarketData/registry/marketLocations";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { mergeApplicationSettingsState } from "../../Zustand/applicationSettings/core.js";
 import {

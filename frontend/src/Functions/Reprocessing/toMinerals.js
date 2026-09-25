@@ -1,4 +1,4 @@
-import { fetchPrices } from "../MarketData/priceCache";
+import { fetchPrices } from "../MarketData/prices/priceCache.js";
 import gatherMaterialTotals from "./combineMinerals";
 import parseReprocessingInput from "./parseOreInput";
 import { primeReprocessing } from "../Static/reprocessing";

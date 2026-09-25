@@ -1,7 +1,7 @@
 import parseInputMineralString from "./parseMineralInput";
 import ReprocessingItem from "../../Classes/reprocessingItem";
-import { fetchPrices } from "../MarketData/priceCache";
-import { getMarketPriceForType } from "../MarketData/marketPriceForType";
+import { fetchPrices } from "../MarketData/prices/priceCache.js";
+import { getMarketPriceForType } from "../MarketData/prices/marketPriceForType.js";
 import oreSelector from "./oreSelector";
 import { primeReprocessing, selectableItems } from "../Static/reprocessing";
 

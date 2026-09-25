@@ -10,7 +10,7 @@ import { useReducer, useMemo } from "react";
 import {
   PRICING_SIDE,
   resolvePricingSide,
-} from "../../../../Functions/MarketData/pricingSide.js";
+} from "../../../../Functions/MarketData/defaults/pricingSide";
 import {
   PRICE_ENTRY_ACTION_TYPES,
   priceEntryReducer,

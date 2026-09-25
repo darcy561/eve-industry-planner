@@ -2,7 +2,7 @@
  * Change-stream handlers for `planner_settings` — one document per planner.
  */
 
-import { refreshMarketLocations } from "../../Functions/MarketData/marketLocations.js";
+import { refreshMarketLocations } from "../../Functions/MarketData/registry/marketLocations";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**

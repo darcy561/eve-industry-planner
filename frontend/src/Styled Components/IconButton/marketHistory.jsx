@@ -1,6 +1,6 @@
 import { IconButton, Tooltip } from "@mui/material";
-import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
-import { resolveMarketLinkTarget } from "../../Functions/MarketData/marketLinkTarget.js";
+import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide";
+import { resolveMarketLinkTarget } from "../../Functions/MarketData/registry/marketLinkTarget";
 import { showPriceHistoryDialogue } from "../../Events/dialogueEvents";
 import TimelineIcon from "@mui/icons-material/Timeline";
 import useUsersStore from "../../Zustand/usersStore";

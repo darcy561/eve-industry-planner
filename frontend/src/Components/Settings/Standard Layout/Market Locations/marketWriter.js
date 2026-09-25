@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 
-import { marketLocationsChanged } from "../../../../Functions/MarketData/marketLocations";
+import { marketLocationsChanged } from "../../../../Functions/MarketData/registry/marketLocations.js";
 import useUsersStore from "../../../../Zustand/usersStore";
 import {
   flushPendingUserDocumentSaves,

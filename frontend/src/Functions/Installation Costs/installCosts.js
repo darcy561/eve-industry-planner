@@ -15,7 +15,7 @@ import {
   ALPHA_CLONE_TAX,
 } from "../../Context/defaultValues";
 import useUsersStore from "../../Zustand/usersStore";
-import { getAdjustedPriceForType } from "../MarketData/marketPriceForType";
+import { getAdjustedPriceForType } from "../MarketData/prices/marketPriceForType.js";
 import { quotedCharacterHash } from "../Skills/quotedCharacter";
 import { costOfInstalls } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 

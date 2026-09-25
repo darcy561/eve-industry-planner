@@ -1,5 +1,5 @@
 import requestWithPrivateHeaders from "./applyPrivateHeaders.js";
-import { refreshMarketLocationsAfterWrite } from "../../MarketData/marketLocations.js";
+import { refreshMarketLocationsAfterWrite } from "../../MarketData/registry/marketLocations";
 import useUsersStore from "../../../Zustand/usersStore";
 
 const USER_MAIN_URL = "/api/v1/user/document";

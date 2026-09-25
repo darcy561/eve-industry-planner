@@ -7,9 +7,9 @@ import {
   deferMarket,
   replaceStoredPrices,
   resetPriceStore,
-} from "../../../../Functions/MarketData/priceStore";
-import { MARKET_READ_OUTCOME } from "../../../../Functions/MarketData/marketReadOutcome";
-import { SOURCE_KIND } from "../../../../Functions/MarketData/marketSources";
+} from "../../../../Functions/MarketData/prices/priceStore.js";
+import { MARKET_READ_OUTCOME } from "../../../../Functions/MarketData/registry/marketReadOutcome.js";
+import { SOURCE_KIND } from "../../../../Functions/MarketData/registry/marketSources.js";
 import { summariseMarket } from "./marketSummary";
 import { marketRow } from "./marketRows";
 

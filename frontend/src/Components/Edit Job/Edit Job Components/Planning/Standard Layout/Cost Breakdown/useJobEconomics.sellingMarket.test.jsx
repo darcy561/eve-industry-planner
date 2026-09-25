@@ -6,7 +6,7 @@ const { getMarketPriceForType } = vi.hoisted(() => ({
   getMarketPriceForType: vi.fn(() => 200),
 }));
 
-vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
   getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: (...args) => getMarketPriceForType(...args),
 }));
@@ -73,7 +73,7 @@ const { useJobEconomics } = await import("./useJobEconomics");
 const { default: useUsersStore } =
   await import("../../../../../../Zustand/usersStore");
 const { primeMarketGroupData, resetMarketGroupData } =
-  await import("../../../../../../Functions/MarketData/marketGroupData");
+  await import("../../../../../../Functions/MarketData/defaults/marketGroupData.js");
 
 const session = () => useUsersStore.getState().editSession;
 

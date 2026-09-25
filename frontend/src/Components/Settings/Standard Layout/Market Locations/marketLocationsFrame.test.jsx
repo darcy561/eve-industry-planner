@@ -27,7 +27,7 @@ const { default: useUsersStore } =
 const { default: MarketLocationsFrame } =
   await import("./marketLocationsFrame.jsx");
 const { MARKET_READ_OUTCOME } =
-  await import("../../../../Functions/MarketData/marketReadOutcome.js");
+  await import("../../../../Functions/MarketData/registry/marketReadOutcome");
 
 const jita = {
   id: "jita",

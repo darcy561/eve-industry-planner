@@ -12,7 +12,7 @@ vi.mock("../Functions/Helper/getCachedData", async (importOriginal) => ({
 import {
   primeMarketGroupData,
   resetMarketGroupData,
-} from "../Functions/MarketData/marketGroupData";
+} from "../Functions/MarketData/defaults/marketGroupData.js";
 
 const seed = ({ market, prices, groups }) => {
   useUsersStore.setState((state) => ({

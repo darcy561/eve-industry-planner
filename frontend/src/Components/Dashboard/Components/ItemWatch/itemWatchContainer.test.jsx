@@ -15,7 +15,7 @@ vi.mock("../../../../Zustand/usersStore", async () => {
   return usersStoreMock(() => usersStoreState(store.current));
 });
 
-vi.mock("../../../../Functions/MarketData/priceCache", () => ({
+vi.mock("../../../../Functions/MarketData/prices/priceCache.js", () => ({
   fetchPrices,
   MARKET_PRICES_QUERY_KEY: ["market", "prices"],
 }));

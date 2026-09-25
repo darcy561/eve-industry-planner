@@ -3,7 +3,7 @@ import { init, tanstackRouterBrowserTracingIntegration } from "@sentry/react";
 import { appRouter } from "./appRouter";
 import { subscribeGa4ToTanStackRouter } from "./analytics/googleAnalytics";
 import { startStaticDataSync } from "./Functions/Static/staticDataSync";
-import { startPriceRefresh } from "./Functions/MarketData/priceRefreshSchedule";
+import { startPriceRefresh } from "./Functions/MarketData/prices/priceRefreshSchedule.js";
 import { AppWrapper } from "./AppWrapper";
 import {
   captureReactErrorOnce,

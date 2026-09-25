@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import GLOBAL_CONFIG from "../../../global-config-app";
-import { getMarketPriceForType } from "../../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useHasChanged } from "../../../Hooks/useHasChanged";
 import {
   numberToShortText,

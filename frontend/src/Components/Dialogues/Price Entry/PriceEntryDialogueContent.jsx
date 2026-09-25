@@ -9,7 +9,7 @@ import {
   showSnackbarError,
 } from "../../../Events/snackbarEvents";
 import useUsersStore from "../../../Zustand/usersStore";
-import { getMarketPriceForType } from "../../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../../Functions/MarketData/prices/marketPriceForType.js";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import importMultibuyFromClipboard from "../../../Functions/Clipboard/importMultibuy";
 import { requestClipboardPermissions } from "../../../Functions/Clipboard/clipboardPermissions";

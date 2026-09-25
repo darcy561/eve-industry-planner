@@ -15,7 +15,7 @@ import { useMarketSources } from "../../../../Hooks/Static/useMarketSources";
 import {
   SOURCE_KIND,
   isReadByTheReader,
-} from "../../../../Functions/MarketData/marketSources";
+} from "../../../../Functions/MarketData/registry/marketSources.js";
 import { summariseMarket, visibleBrokerFee } from "./marketSummary";
 import { usePlannerSettingsForOwners } from "../../../../Hooks/React Query/plannerSettings";
 import { useMarketIsEditable } from "./marketWriter";

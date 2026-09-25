@@ -27,7 +27,7 @@ vi.mock(
   }),
 );
 
-vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
   getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: () => 10_000,
 }));

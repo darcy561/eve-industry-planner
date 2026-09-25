@@ -289,7 +289,7 @@ export async function reconcileAfterRemoteUserDoc(snap, incomingUserDoc) {
   // back onto this module through `priceCache`'s module-level clock listener,
   // which then registers against a loader that has not begun.
   const { readSavedMarketsNow } =
-    await import("../../Functions/MarketData/priceRefreshSchedule.js");
+    await import("../../Functions/MarketData/prices/priceRefreshSchedule");
   readSavedMarketsNow();
 }
 

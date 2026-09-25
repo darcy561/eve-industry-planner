@@ -15,7 +15,7 @@ import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
 } from "../../Context/defaultValues";
-import { getMarketPriceForType } from "../../Functions/MarketData/marketPriceForType";
+import { getMarketPriceForType } from "../../Functions/MarketData/prices/marketPriceForType.js";
 import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";

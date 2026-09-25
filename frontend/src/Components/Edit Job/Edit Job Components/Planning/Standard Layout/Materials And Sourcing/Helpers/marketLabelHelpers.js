@@ -1,5 +1,5 @@
 import { ORDER_TYPES } from "../../../../../../../Context/defaultValues.jsx";
-import { sourceNameIn } from "../../../../../../../Functions/MarketData/marketSources";
+import { sourceNameIn } from "../../../../../../../Functions/MarketData/registry/marketSources.js";
 import { readMarketSources } from "../../../../../../../Hooks/Static/useMarketSources";
 
 const listingLabelById = Object.fromEntries(

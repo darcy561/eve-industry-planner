@@ -18,7 +18,7 @@ import { costParts } from "./costParts";
  * has one meaning.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/costBreakdown").CostBreakdown} props.cost
+ * @param {import("../../../../../../Functions/Job/costBreakdown.js").CostBreakdown} props.cost
  * @param {React.ReactNode} [props.aside] - Shown beside the headline figure
  * @param {React.ReactNode} [props.children] - Shown under the table
  * @param {React.ReactNode} [props.action] - Shown in the panel header

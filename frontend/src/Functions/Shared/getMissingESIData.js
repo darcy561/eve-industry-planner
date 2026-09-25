@@ -1,5 +1,5 @@
-import { fetchPrices } from "../MarketData/priceCache";
-import { pricesWantedBy } from "../MarketData/pricesWanted";
+import { fetchPrices } from "../MarketData/prices/priceCache.js";
+import { pricesWantedBy } from "../MarketData/prices/pricesWanted.js";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
 import { setupSystemIDs } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 

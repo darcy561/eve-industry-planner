@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { setJobPricingSide } from "../../../../../../../Functions/MarketData/pricingSide.js";
+import { setJobPricingSide } from "../../../../../../../Functions/MarketData/defaults/pricingSide";
 import {
   getSafeMaterialPriceOverrides,
   setMaterialOverrideMap,

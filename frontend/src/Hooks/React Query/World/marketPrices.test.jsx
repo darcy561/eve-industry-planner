@@ -7,7 +7,7 @@ const { fetchPrices } = vi.hoisted(() => ({
   fetchPrices: vi.fn(async () => {}),
 }));
 
-vi.mock("../../../Functions/MarketData/priceCache", () => ({
+vi.mock("../../../Functions/MarketData/prices/priceCache.js", () => ({
   fetchPrices,
   MARKET_PRICES_QUERY_KEY: ["market", "prices"],
 }));

@@ -7,9 +7,9 @@ import { testQueryClient } from "../../../../../../tests/queryClients.js";
 
 // The panel asks for every market it compares, so the boundary beneath it is
 // mocked rather than left to reach the network and fail quickly.
-vi.mock("../../../../../../Functions/MarketData/priceCache", async () => {
+vi.mock("../../../../../../Functions/MarketData/prices/priceCache.js", async () => {
   const actual = await vi.importActual(
-    "../../../../../../Functions/MarketData/priceCache",
+    "../../../../../../Functions/MarketData/prices/priceCache.js",
   );
   return {
     ...actual,
@@ -27,7 +27,7 @@ vi.mock("../../../../../../Hooks/Static/useMarketSources", () => ({
   useMarketSources: () => [{ id: "jita", name: "Jita" }],
 }));
 
-vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
   getMarketPriceForType: (typeID, _source, side) =>
     side === "sell" ? typeID * 2 : typeID,
 }));

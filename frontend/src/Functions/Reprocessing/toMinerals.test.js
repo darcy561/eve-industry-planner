@@ -11,7 +11,7 @@ vi.mock("../Helper/getCachedData", async () => {
   });
 });
 
-vi.mock("../MarketData/priceCache", () => ({
+vi.mock("../MarketData/prices/priceCache.js", () => ({
   fetchPrices: (...args) => fetchPrices(...args),
 }));
 

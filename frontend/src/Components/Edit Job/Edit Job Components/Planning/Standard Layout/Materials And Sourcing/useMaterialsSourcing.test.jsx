@@ -29,7 +29,7 @@ let heldPrices = {
   amarr: { sell: 20, buy: 16, buyP95: 18, sellP05: 22 },
 };
 
-vi.mock("../../../../../../Functions/MarketData/marketPriceForType", () => ({
+vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
   getPriceRefreshedAt: () => undefined,
   getMarketPriceForType: (typeID, hub, orderType) =>
     heldPrices[hub]?.[orderType] ?? 0,
@@ -436,7 +436,7 @@ describe("a material priced from its market group", () => {
   // in the same run may have primed it with data of its own.
   beforeAll(async () => {
     const { primeMarketGroupData, resetMarketGroupData } =
-      await import("../../../../../../Functions/MarketData/marketGroupData");
+      await import("../../../../../../Functions/MarketData/defaults/marketGroupData.js");
     resetMarketGroupData();
     await primeMarketGroupData();
   });

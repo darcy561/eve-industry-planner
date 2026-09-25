@@ -1,6 +1,6 @@
 import { Typography, Tooltip } from "@mui/material";
-import { PRICING_SIDE } from "../../Functions/MarketData/pricingSide.js";
-import { resolveMarketLinkTarget } from "../../Functions/MarketData/marketLinkTarget.js";
+import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide";
+import { resolveMarketLinkTarget } from "../../Functions/MarketData/registry/marketLinkTarget";
 import { showMarketDataDialogue } from "../../Events/dialogueEvents";
 import useUsersStore from "../../Zustand/usersStore";
 

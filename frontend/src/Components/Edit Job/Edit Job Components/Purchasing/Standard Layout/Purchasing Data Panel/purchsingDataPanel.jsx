@@ -23,7 +23,7 @@ import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel
 import {
   PRICING_SIDE,
   setJobPricingSide,
-} from "../../../../../../Functions/MarketData/pricingSide.js";
+} from "../../../../../../Functions/MarketData/defaults/pricingSide";
 import { useBuildCost } from "../../../../Edit Job Hooks/useBuildCost";
 import {
   useJobActions,

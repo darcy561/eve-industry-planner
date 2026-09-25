@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const readSavedMarketsNow = vi.fn();
 const buildAccountDataFromRefreshTokenCandidates = vi.fn();
 
-vi.mock("../../Functions/MarketData/priceRefreshSchedule.js", () => ({
+vi.mock("../../Functions/MarketData/prices/priceRefreshSchedule", () => ({
   readSavedMarketsNow: (...args) => readSavedMarketsNow(...args),
 }));
 

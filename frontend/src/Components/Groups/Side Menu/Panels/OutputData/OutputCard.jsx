@@ -1,12 +1,12 @@
 import { totalQuantityProduced } from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import HighlightIcon from "@mui/icons-material/Highlight";
 import { useMemo } from "react";
-import { PRICING_SIDE } from "../../../../../Functions/MarketData/pricingSide.js";
+import { PRICING_SIDE } from "../../../../../Functions/MarketData/defaults/pricingSide";
 import {
   resolveFor,
   sideDefaults,
-} from "../../../../../Functions/MarketData/priceResolution";
-import { getMarketPriceForType } from "../../../../../Functions/MarketData/marketPriceForType";
+} from "../../../../../Functions/MarketData/defaults/priceResolution.js";
+import { getMarketPriceForType } from "../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import {
   Avatar,
   Card,

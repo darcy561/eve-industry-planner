@@ -12,7 +12,7 @@ import {
   PRICING_SIDE,
   PRICING_SIDES,
   resolvePricingSide,
-} from "../../../../Functions/MarketData/pricingSide";
+} from "../../../../Functions/MarketData/defaults/pricingSide.js";
 import ExitRouteSelect from "../../../../Styled Components/Select/exitRoute";
 import MarketGroupPicker from "./marketGroupPicker";
 import MarketGroupIcon from "../../../../Styled Components/Avatar/MarketGroupIcon";

@@ -16,7 +16,7 @@ vi.mock("./applyPrivateHeaders.js", () => ({
 }));
 
 const refreshMarketLocationsAfterWrite = vi.fn(async () => {});
-vi.mock("../../MarketData/marketLocations.js", () => ({
+vi.mock("../../MarketData/registry/marketLocations", () => ({
   refreshMarketLocationsAfterWrite: () => refreshMarketLocationsAfterWrite(),
 }));
 

@@ -2,12 +2,12 @@ import { queryClient } from "../queryClient";
 import {
   adjustedQueryKey,
   priceQueryKey,
-} from "../Functions/MarketData/priceCache";
+} from "../Functions/MarketData/prices/priceCache.js";
 import {
   recordAdjustedClock,
   recordSourceClock,
   resetSourceClocks,
-} from "../Functions/MarketData/sourceClocks";
+} from "../Functions/MarketData/prices/sourceClocks.js";
 
 /**
  * Puts prices into the cache as though they had already been fetched.

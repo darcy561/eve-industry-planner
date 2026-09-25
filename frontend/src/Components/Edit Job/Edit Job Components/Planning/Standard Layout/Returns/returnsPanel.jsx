@@ -16,7 +16,7 @@ import {
   formatPercentage,
 } from "../../../../../../Functions/Helper/numberParser";
 import { monthLabel } from "../Archive Jobs Panel/buildHistoryFigures";
-import { EXIT_ROUTE } from "../../../../../../Functions/MarketData/returns";
+import { EXIT_ROUTE } from "../../../../../../Functions/Job/returns.js";
 import ExitRoutes, { signTone } from "./exitRoutes";
 import OutputHeader from "./outputHeader";
 
@@ -28,10 +28,10 @@ import OutputHeader from "./outputHeader";
  * reader can see.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/MarketData/returns").Returns} props.returns
+ * @param {import("../../../../../../Functions/Job/returns.js").Returns} props.returns
  * @param {{brokerFee: number, salesTax: number}} props.charges - ISK, for the ledger
  * @param {number} props.buildCost - ISK, selling excluded
- * @param {ReturnType<import("../../../../../../Functions/MarketData/buildComparison").compareToHistory>} [props.comparison]
+ * @param {ReturnType<import("../../../../../../Functions/Job/buildComparison.js").compareToHistory>} [props.comparison]
  * @param {object} [props.output] - What the job makes, for the header
  * @param {string} [props.saleLocationName] - Where the sale is planned, for saying
  *   which market holds no orders
@@ -253,7 +253,7 @@ function Ledger({ route, charges, buildCost }) {
  * The figure that makes break-even worth stating: on its own it is a number a
  * reader has to compare against the price themselves.
  *
- * @param {import("../../../../../../Functions/MarketData/returns").Returns} returns
+ * @param {import("../../../../../../Functions/Job/returns.js").Returns} returns
  */
 function headroomNote({ headroom }) {
   if (!headroom || headroom.above === null) return null;

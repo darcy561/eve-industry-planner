@@ -7,7 +7,7 @@ const MARKET_LOCATIONS_URL = "/api/v1/user/market-locations";
  *
  * This module is the client and nothing more. What a market is, which of them a
  * reader is offered and how their prices are kept belong to the market package
- * ({@link ../../MarketData/marketSources.js}).
+ * ({@link ../../MarketData/registry/marketSources.js}).
  */
 
 /**
