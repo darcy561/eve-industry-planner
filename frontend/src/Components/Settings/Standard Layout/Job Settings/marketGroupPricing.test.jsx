@@ -252,3 +252,31 @@ describe("what each side's groups answer", () => {
     );
   });
 });
+
+describe("adding a group", () => {
+  // Choosing a group says "this one is different", and it is the reader who
+  // says how. A group seeded at the global default would already differ from
+  // everything around it for a reader whose side sits anywhere else — which is
+  // what this side's Amarr default is here to catch.
+  it("starts the group on the side's own market, not the global default", async () => {
+    seed();
+    renderPanel();
+
+    // The selling side's heading, so the second Add is this side's.
+    expect(screen.getByText("Output")).toBeInTheDocument();
+    const [, sellingAdd] = screen.getAllByRole("button", {
+      name: /add a group/i,
+    });
+    await userEvent.click(sellingAdd);
+    // The picker opens on the roots, so Minerals is a level in.
+    await userEvent.click(await screen.findByText("Manufacture & Research"));
+    await userEvent.click(await screen.findByText("Minerals"));
+
+    expect(updateGroupPricingDefault).toHaveBeenCalledWith(
+      "selling",
+      1857,
+      "market",
+      "amarr",
+    );
+  });
+});

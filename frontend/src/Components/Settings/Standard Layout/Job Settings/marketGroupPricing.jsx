@@ -11,15 +11,13 @@ import {
 import {
   PRICING_SIDE,
   PRICING_SIDES,
+  resolvePricingSide,
 } from "../../../../Functions/MarketData/pricingSide";
 import ExitRouteSelect from "../../../../Styled Components/Select/exitRoute";
 import MarketGroupPicker from "./marketGroupPicker";
 import MarketGroupIcon from "../../../../Styled Components/Avatar/MarketGroupIcon";
 import ExplainerTooltip from "../../../../Styled Components/Tooltip/ExplainerTooltip";
 import { useDialogueTrigger } from "../../../../Styled Components/Dialogue/ContentDialogue";
-import GLOBAL_CONFIG from "../../../../global-config-app";
-
-const { DEFAULT_MARKET_OPTION } = GLOBAL_CONFIG;
 import {
   useAncestorPath,
   useMarketGroupTree,
@@ -138,12 +136,19 @@ function SideSection({ side, noun, groups }) {
   const { updateGroupPricingDefault } = useUsersStore(
     (state) => state.applicationSettings.actions,
   );
+  const accountPricing = useUsersStore(
+    (state) => state.applicationSettings.defaultPricing,
+  );
 
   // A group starts on the side's own market, which is what it was priced against
   // before: choosing a group is saying "this one is different", and the reader
-  // says how it differs with the controls on the row.
+  // says how it differs with the controls on the row. Asked of the ladder rather
+  // than read off the account, so the selling side's route answers for it — and
+  // so a reader whose side does not sit at the global default is not handed a
+  // group that already differs from everything around it.
   const add = (groupID) => {
-    updateGroupPricingDefault(side, groupID, "market", DEFAULT_MARKET_OPTION);
+    const { marketLocation } = resolvePricingSide({ accountPricing, side });
+    updateGroupPricingDefault(side, groupID, "market", marketLocation);
     scheduleDebouncedApplicationSettingsSave();
   };
 
