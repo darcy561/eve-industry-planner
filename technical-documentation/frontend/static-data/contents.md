@@ -12,7 +12,7 @@ is read through.
 | `SEARCH_INDEX` | the same pair | [items.md](./items.md) |
 | `REPROCESSING_DATA` | [`Functions/Static/reprocessing.js`](../../../frontend/src/Functions/Static/reprocessing.js) | [reprocessing.md](./reprocessing.md) |
 | `RECIPE_LIST` | [`Functions/Static/recipes.js`](../../../frontend/src/Functions/Static/recipes.js) | [recipes.md](./recipes.md) |
-| `MARKET_GROUPS` | [`Functions/MarketData/marketGroupData.js`](../../../frontend/src/Functions/MarketData/marketGroupData.js) | not yet written |
+| `MARKET_GROUPS` | [`Functions/MarketData/defaults/marketGroupData.js`](../../../frontend/src/Functions/MarketData/defaults/marketGroupData.js) | not yet written |
 | `SOLAR_SYSTEMS` | [`Hooks/useSolarSystemNames.js`](../../../frontend/src/Hooks/useSolarSystemNames.js) | not yet written |
 
 Nothing outside an owner reaches for a static file or builds its query key.

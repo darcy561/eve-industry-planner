@@ -1,4 +1,4 @@
-# The price cache (`Functions/MarketData/priceCache.js`, `priceLoader.js`, `marketPriceForType.js`)
+# The price cache (`Functions/MarketData/prices/priceCache.js`, `priceLoader.js`, `marketPriceForType.js`)
 
 Live SoT for where a price lives once fetched, what decides it has gone stale, and how a caller reads
 one without knowing which kind of source it came from.
@@ -31,7 +31,7 @@ must read as the former.
 ## The accessor
 
 `getMarketPriceForType`, `getAdjustedPriceForType` and `getPriceRefreshedAt`, in
-`Functions/MarketData/marketPriceForType.js`, are what every price read in the SPA goes through; all
+`Functions/MarketData/prices/marketPriceForType.js`, are what every price read in the SPA goes through; all
 three read the cache through `priceCache.js` and nothing else. They answer synchronously from
 whatever the cache already holds rather than waiting on a fetch, which is what lets a non-React reader
 — `Classes/shoppingList.js`, a reduce inside `materialCostByOrderType` — read a price mid-build.
@@ -58,7 +58,7 @@ clock-moved listener invalidates that query alongside removing the rows, and the
 asked market's clock so React Query has a changed field to notify on.
 
 Nothing polls a market for its clock. `revalidateSourceClocks`, paced by
-`Functions/MarketData/priceRefreshSchedule.js`, asks each market currently holding rows for one type
+`Functions/MarketData/prices/priceRefreshSchedule.js`, asks each market currently holding rows for one type
 it already holds — the answer's own `refreshedAt` settles whether every other row held for that market
 is still good. The schedule runs from `index.jsx`, owned by no component, on a fifteen-minute tick
 that matches the server's own scheduler — with a five-minute floor on the extra probe fired when a

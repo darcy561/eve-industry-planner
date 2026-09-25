@@ -68,7 +68,7 @@ rows, written from the same pass rather than a second walk. The write cannot fai
 beside: it is fire-and-forget, so a reader over their storage quota loses the browsing and keeps the
 costing rather than losing both.
 
-`Functions/MarketData/ordersAtCitadels.js` selects one type's orders out of what is stored, and
+`Functions/MarketData/citadels/ordersAtCitadels.js` selects one type's orders out of what is stored, and
 `Hooks/React Query/World/citadelOrders.js` puts a surface behind it — shaped like the region-orders
 hook so a surface drawing both is handed the same thing twice. It is keyed by **region**: a saved
 market carries the region it sits in, and `citadelsInRegion` in `marketSources.js` finds every citadel
@@ -76,7 +76,7 @@ the reader has saved there. A surface reads and never fetches — the rotation a
 needs, so opening it spends nothing; a citadel nothing has read yet contributes nothing rather than an
 error.
 
-`Functions/MarketData/regionOrderMerge.js` merges a region's public orders with the reader's private
+`Functions/MarketData/citadels/regionOrderMerge.js` merges a region's public orders with the reader's private
 markets inside it, in the `useMarketData` hook rather than in a dialogue, so every caller of that hook
 gets the whole region. A structure ESI already publishes publicly and a citadel the reader saved
 separately are deduplicated by place; the region's own copy wins, because both hold the same market

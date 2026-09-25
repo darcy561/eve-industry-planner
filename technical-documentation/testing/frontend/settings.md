@@ -15,9 +15,9 @@ tests, plus two end-to-end suites over the write and the read-outcome paths toge
 
 | Area | What the tests cover |
 |------|----------------------|
-| `Functions/MarketData/marketSources.js` | Kind traits, `allMarketSources` composing hubs and saved sources, `citadelsInRegion` and `savedCitadels` filtering |
-| `Functions/MarketData/marketLocations.js` | The composed-set cache entry surviving session collection, seeding from the bootstrap, `marketsToOffer` falling back to the account's own lane, `marketLocationsChanged` / `refreshMarketLocationsAfterWrite` re-reading only once a write lands |
-| `Functions/MarketData/marketReadOutcome.js` | Which outcome an error's flags map to, and which outcomes `readerCanAct` marks as worth wording |
+| `Functions/MarketData/registry/marketSources.js` | Kind traits, `allMarketSources` composing hubs and saved sources, `citadelsInRegion` and `savedCitadels` filtering |
+| `Functions/MarketData/registry/marketLocations.js` | The composed-set cache entry surviving session collection, seeding from the bootstrap, `marketsToOffer` falling back to the account's own lane, `marketLocationsChanged` / `refreshMarketLocationsAfterWrite` re-reading only once a write lands |
+| `Functions/MarketData/registry/marketReadOutcome.js` | Which outcome an error's flags map to, and which outcomes `readerCanAct` marks as worth wording |
 | `Hooks/Static/useMarketSources.js` | Redrawing as the composed set or the account's own lane changes |
 | `Market Locations/marketLocationsFrame.jsx` | The tab assembling sources into rows, hub filtering, row open/close |
 | `Market Locations/marketRows.js` | Row shape, `sharedByLabel`, `placeLabel`, `readProblem` wording the two actionable outcomes and staying silent on the rest |

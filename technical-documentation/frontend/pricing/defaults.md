@@ -1,4 +1,4 @@
-# Where a price resolves by default (`Functions/MarketData/pricingSide.js`, `priceResolution.js`)
+# Where a price resolves by default (`Functions/MarketData/defaults/pricingSide.js`, `priceResolution.js`)
 
 Live SoT for which market and order type a figure is priced against when nothing nearer has said —
 the resolution ladder, the account's two sides, and the market group defaults beneath them.
@@ -68,7 +68,7 @@ same pieces, re-rendering when a rung moves; both end in the same `getEffectiveM
 sell orders, with the selling side's exit route set to a listing.
 
 **The selling side names an exit route, not an order type.** `defaultPricing.selling.exit` is one of
-`EXIT_ROUTE.LISTED` / `EXIT_ROUTE.IMMEDIATE` (`Functions/MarketData/returns.js`), and
+`EXIT_ROUTE.LISTED` / `EXIT_ROUTE.IMMEDIATE` (`Functions/Job/returns.js`), and
 `orderTypeForExit` (`pricingSide.js`) is the single place that turns a route into a side of the book —
 listing prices from the ask and pays a broker fee, selling into bids prices from the bid and pays tax
 only. A route answers two questions an order type alone cannot: which side of the book a figure comes
@@ -135,7 +135,7 @@ type, matching the side it sits inside; `defaultPricing.buying.groups` names ord
 A group can never answer the side it was not set on.
 
 **The tree and each item's market group are held outside React Query**, in
-`Functions/MarketData/marketGroupData.js`, because the walk runs per material on every row of every
+`Functions/MarketData/defaults/marketGroupData.js`, because the walk runs per material on every row of every
 job — including from `shoppingList.calculateTotalValue`, a class method with no hook available.
 `primeMarketGroupData()` awaits the tree once, from the same static-data refresh every other cached
 file uses; every read after that is a synchronous lookup reporting absence rather than blocking.
@@ -171,7 +171,7 @@ controls named for the two axes.
 
 ## Resolving a market link, and pricing a watchlist row
 
-`resolveMarketLinkTarget` (`Functions/MarketData/marketLinkTarget.js`) is where every price-link
+`resolveMarketLinkTarget` (`Functions/MarketData/registry/marketLinkTarget.js`) is where every price-link
 component — the market data and price history buttons — resolves a link with no market of its own to
 point at: it reads the account's default for the side the figure beside it is on, so a link beside a
 selling figure never opens the buying market. A caller's own `locationID` or `regionID` always

@@ -60,5 +60,5 @@ whose entries carry their name under another key passes a reader for it.
 ## Which owners are built from it
 
 [items.md](./items.md), [reprocessing.md](./reprocessing.md) and [recipes.md](./recipes.md) — and
-`Functions/MarketData/marketGroupData.js`, which holds the market group tree this way while reading an
+`Functions/MarketData/defaults/marketGroupData.js`, which holds the market group tree this way while reading an
 item's group from the item list rather than holding a second copy.

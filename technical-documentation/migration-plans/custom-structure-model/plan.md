@@ -68,7 +68,7 @@ stored setup's rig slots.
 
 **Added by Stage D:** [`frontend/src/Functions/MarketOrders/`](../../../frontend/src/Functions/MarketOrders/) —
 `saleLocations.js`, `sellingRates.js`, `calcSellingCharges.js`;
-[`frontend/src/Functions/MarketData/marketSources.js`](../../../frontend/src/Functions/MarketData/marketSources.js);
+[`frontend/src/Functions/MarketData/registry/marketSources.js`](../../../frontend/src/Functions/MarketData/registry/marketSources.js);
 [`frontend/src/Hooks/React Query/Character/useSellingRates.js`](../../../frontend/src/Hooks/React%20Query/Character/useSellingRates.js).
 **Live SoT (until promote):** [frontend/](../../frontend/contents.md), [backend/](../../backend/contents.md)
 

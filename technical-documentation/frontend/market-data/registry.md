@@ -1,4 +1,4 @@
-# The market source registry (`Functions/MarketData/marketSources.js`)
+# The market source registry (`Functions/MarketData/registry/marketSources.js`)
 
 Live SoT for what a market source is and where the SPA reads the list of them from.
 
@@ -30,7 +30,7 @@ a source's kind.
 `models.DefaultMarketLocations` by a committed fixture (§ The hub list) — with whatever markets the
 reader has saved. Nothing above it may assume a source is one of the four hubs.
 
-Those saved markets come from `marketsToOffer()` in `Functions/MarketData/marketLocations.js`: the
+Those saved markets come from `marketsToOffer()` in `Functions/MarketData/registry/marketLocations.js`: the
 composed set the server answers with, which is the account's own markets **plus the ones each
 organisation it belongs to has shared**, collapsed so one place is one market. Until that set has
 been read it falls back to the account's own lane, so a reader part-way through signing in is

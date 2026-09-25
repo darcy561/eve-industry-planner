@@ -324,7 +324,7 @@ client-side mistake and is rejected rather than silently empty. Three things fol
 - **The caller names the sources**, so a surface pricing against one market carries one market's
   figures. Rows where the market holds no order for a type are absent rather than a block of zeroes.
 - **All four order types stay together in a row.** Narrowing to one would save a further tenth and break the
-  order type picker: [`materialCostByOrderType`](../../../frontend/src/Functions/MarketData/materialPricing.js)
+  order type picker: [`materialCostByOrderType`](../../../frontend/src/Functions/MarketData/defaults/materialPricing.js)
   prices the whole job on all four so a player choosing one sees its effect rather than its name.
 - **The adjusted price is its own block.** It is source-independent and refreshes daily, so repeating
   it inside each row would tie a figure that has not moved to the clock of one that has. It is asked

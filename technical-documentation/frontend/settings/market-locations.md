@@ -10,7 +10,7 @@ Layout frames.
 
 ## The registry
 
-`allMarketSources()` ([`Functions/MarketData/marketSources.js`](../../../frontend/src/Functions/MarketData/marketSources.js))
+`allMarketSources()` ([`Functions/MarketData/registry/marketSources.js`](../../../frontend/src/Functions/MarketData/registry/marketSources.js))
 is every market a price may be asked for: the four trading hubs (static configuration, held to the
 server's own list by a parity test) plus the reader's saved sources — their own markets and the ones
 shared with them, filtered to a row naming a place at all. Read this rather than either list alone, so
@@ -25,7 +25,7 @@ asked only by rotation; a hub and a saved NPC station share every answer.
 
 **The composed set an account may price against is read from the server, not assembled here.** It is
 held in the React Query cache under `["market", "locations"]`
-([`Functions/MarketData/marketLocations.js`](../../../frontend/src/Functions/MarketData/marketLocations.js)),
+([`Functions/MarketData/registry/marketLocations.js`](../../../frontend/src/Functions/MarketData/registry/marketLocations.js)),
 seeded from what the sign-in bootstrap already carried and re-read from
 `GET /api/v1/user/market-locations` whenever a settings document moves — the account's own or any
 planner's. `marketsToOffer()` answers that set, or the account's own saved lane until it has arrived,
@@ -73,7 +73,7 @@ Every row is asked, through `summariseMarket`, when it was last read and how tha
 
 **Why a citadel is not answering, where the reader can act on it.** A citadel read on this device can
 fail for reasons only the reader can fix, and the read keeps what it settled on
-(`Functions/MarketData/marketReadOutcome.js`) rather than the four outcomes collapsing into one
+(`Functions/MarketData/registry/marketReadOutcome.js`) rather than the four outcomes collapsing into one
 "no prices" the moment they reach a panel:
 
 | Outcome | Shown? | Meaning |
@@ -134,9 +134,9 @@ constant, on the pattern the trading-hub list already uses.
 
 | Path | Holds |
 |------|-------|
-| `Functions/MarketData/marketSources.js` | `SOURCE_KIND`, `allMarketSources`, kind traits |
-| `Functions/MarketData/marketLocations.js` | The composed-set cache entry, `marketsToOffer`, `refreshMarketLocationsAfterWrite` |
-| `Functions/MarketData/marketReadOutcome.js` | The four read outcomes, and which a reader can act on |
+| `Functions/MarketData/registry/marketSources.js` | `SOURCE_KIND`, `allMarketSources`, kind traits |
+| `Functions/MarketData/registry/marketLocations.js` | The composed-set cache entry, `marketsToOffer`, `refreshMarketLocationsAfterWrite` |
+| `Functions/MarketData/registry/marketReadOutcome.js` | The four read outcomes, and which a reader can act on |
 | `Hooks/Static/useMarketSources.js` | `useMarketSources`, `readMarketSources` |
 | `Components/Settings/Standard Layout/Market Locations/marketLocationsFrame.jsx` | The tab: table, add form, priced-against, unsaved-citadel fee |
 | `.../marketRows.js` | Wording a row: labels, `readProblem` |
