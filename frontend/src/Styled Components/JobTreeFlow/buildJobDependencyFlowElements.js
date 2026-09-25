@@ -1,6 +1,7 @@
 import {
   childJobIDs,
   esiJobIDs,
+  isReadyToStart,
   parentJobIDs,
 } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 const NODE_WIDTH = 248;
@@ -253,7 +254,7 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
     row.forEach((job, i) => {
       const { x: nx, y: ny } = positionNudge(job.jobID, i, lv);
       const esiCount = esiJobIDs(job).size;
-      const readyToBuild = job.isReadyToStart;
+      const readyToBuild = isReadyToStart(job);
       rowNodes.push({
         id: job.jobID,
         type: "jobDependency",

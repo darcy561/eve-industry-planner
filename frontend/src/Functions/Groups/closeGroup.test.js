@@ -45,11 +45,13 @@ function makeGroup(id = "g1") {
   };
 }
 
+// A job as the close reads one: the links it trims are on the document, not
+// methods it calls.
 function makeJob(id = "j1") {
   return {
     jobID: id,
-    keepOnlyParentJobs: vi.fn(),
-    keepOnlyChildJobs: vi.fn(),
+    parentJobs: [],
+    build: { childJobs: {} },
   };
 }
 

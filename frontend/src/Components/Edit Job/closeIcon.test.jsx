@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
 import { renderOverEditJob, storedJob } from "../../tests/editJobHarness";
-import { stepForward } from "./Edit Job Hooks/jobCommands";
+import {
+  applyCommands,
+  removeChildJob,
+  stepForward,
+} from "./Edit Job Hooks/jobCommands";
 
 const { store, restored, navigated, yielded, held } = vi.hoisted(() => ({
   store: { current: null },
@@ -115,7 +119,9 @@ describe("closing a job without saving", () => {
     close();
 
     await vi.waitFor(() => expect(restored).toHaveLength(1));
-    expect(() => restored[0].removeChildJob(34, "child-1")).not.toThrow();
+    expect(() =>
+      applyCommands(restored[0], removeChildJob(34, "child-1")),
+    ).not.toThrow();
   });
 
   // A job deleted while the reader had it open is not there to put back, and

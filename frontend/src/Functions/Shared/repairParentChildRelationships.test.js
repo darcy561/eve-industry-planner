@@ -19,8 +19,6 @@ const job = (overrides = {}) => ({
     materials: { 34: { typeID: 34, name: "Tritanium" } },
     childJobs: {},
   },
-  removeParentJob: vi.fn(),
-  removeChildJob: vi.fn(),
   ...overrides,
 });
 
@@ -55,7 +53,9 @@ describe("repairing a job's links", () => {
     failed.mockRestore();
   });
 
-  it("still walks the materials that do have them", () => {
+  // A child the planner no longer holds is cut loose rather than left naming a
+  // job nothing answers to.
+  it("cuts loose a child job the planner has lost", () => {
     const withChild = job({
       build: {
         materials: { 34: { typeID: 34, name: "Tritanium" } },
@@ -65,9 +65,6 @@ describe("repairing a job's links", () => {
 
     repairMissingParentChildRelationships(withChild, []);
 
-    expect(withChild.removeChildJob).toHaveBeenCalledWith(
-      34,
-      new Set(["child-gone"]),
-    );
+    expect(withChild.build.childJobs[34]).toEqual([]);
   });
 });

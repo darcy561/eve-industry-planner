@@ -1,4 +1,6 @@
 import {
+  involvedCharacters,
+  totalBoughtMaterialCost,
   totalExtrasCost,
   totalInstallCost,
   totalInventionCost,
@@ -21,26 +23,26 @@ export default function GroupBreakdownFrame({ groupJobs = [] }) {
   }, [groupJobs, groupObject]);
 
   const {
-    totalBoughtMaterialCost,
+    totalBoughtMaterialCost: boughtMaterialsTotal,
     totalInstallCosts,
     totalExtrasCosts,
     totalInventionCosts,
     totalInvolvedCharacters,
   } = useMemo(() => {
-    let totalBoughtMaterialCost = 0;
+    let boughtMaterialsTotal = 0;
     let totalInstallCosts = 0;
     let totalExtrasCosts = 0;
     let totalInventionCosts = 0;
     let totalInvolvedCharacters = 0;
     for (const job of groupJobs) {
-      totalBoughtMaterialCost += job.totalBoughtMaterialCost;
+      boughtMaterialsTotal += totalBoughtMaterialCost(job);
       totalInstallCosts += totalInstallCost(job);
       totalExtrasCosts += totalExtrasCost(job);
       totalInventionCosts += totalInventionCost(job);
-      totalInvolvedCharacters += job.involvedCharacters.size;
+      totalInvolvedCharacters += involvedCharacters(job).size;
     }
     return {
-      totalBoughtMaterialCost,
+      totalBoughtMaterialCost: boughtMaterialsTotal,
       totalInstallCosts,
       totalExtrasCosts,
       totalInventionCosts,
@@ -63,7 +65,7 @@ export default function GroupBreakdownFrame({ groupJobs = [] }) {
           </Typography>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Bought Material Cost:{" "}
-            {formatNumberForLocale(totalBoughtMaterialCost)}
+            {formatNumberForLocale(boughtMaterialsTotal)}
           </Typography>
           <Typography sx={{ typography: LARGE_TEXT_FORMAT }}>
             Total Install Costs: {formatNumberForLocale(totalInstallCosts)}

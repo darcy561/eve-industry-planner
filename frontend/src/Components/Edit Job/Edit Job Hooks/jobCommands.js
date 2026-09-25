@@ -30,6 +30,27 @@ import { asIDList } from "../../../Functions/Helper/ids";
 
 const command = (name, recipe) => ({ name, recipe });
 
+/**
+ * Applies commands to a job, in order, and answers the job they leave.
+ *
+ * The editor runs a command through the draft, which records what moved so a
+ * step can be taken back. A caller outside the editor — a merge relinking
+ * parents, a delete cutting children loose — has no draft and no undo, but must
+ * change a job the same way: this runs the same command against the job it is
+ * given rather than letting each caller restate the rule.
+ *
+ * The job is changed in place, so a caller that must not disturb what it was
+ * handed copies first.
+ *
+ * @param {object} job
+ * @param {...{recipe: Recipe}} commands
+ * @returns {object} The job it was given
+ */
+export function applyCommands(job, ...commands) {
+  for (const command of commands) command.recipe(job);
+  return job;
+}
+
 /** Moves the job on a stage. */
 export const stepForward = () =>
   command("move to the next stage", (job) => {

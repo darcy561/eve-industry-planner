@@ -5,6 +5,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import {
   esiJobIDs,
+  isReadyToStart,
   totalInstallCost,
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
@@ -98,7 +99,7 @@ describe("linking industry runs to a job", () => {
       new Set([500000001, 500000002]),
     );
     // A job with runs against it is no longer waiting to be started.
-    expect(job.isReadyToStart).toBe(false);
+    expect(isReadyToStart(job)).toBe(false);
 
     // 4. A linked run keeps ESI's own names and the character that installed it.
     const first = job.esi.industryJobs["500000001"];

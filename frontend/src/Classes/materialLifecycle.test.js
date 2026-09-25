@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildCost,
   buildCostPerItem,
+  isReadyToBuild,
+  totalBoughtMaterialCost,
+  totalMaterialCost,
   totalQuantityProduced,
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
@@ -85,8 +88,8 @@ describe("a job's materials through its life", () => {
     // Before a setup exists the job asks for nothing, and a material with no
     // requirement is not "complete" work waiting to be built.
     expect(tritanium.quantity).toBe(0);
-    expect(job.totalMaterialCost).toBe(0);
-    expect(job.isReadyToBuild).toBe(false);
+    expect(totalMaterialCost(job.toDocument())).toBe(0);
+    expect(isReadyToBuild(job)).toBe(false);
 
     // One setup: ten runs of ten, so 100 Tritanium and 40 Pyerite.
     job.attachNewSetupToJob(
@@ -106,9 +109,9 @@ describe("a job's materials through its life", () => {
     expect(tritanium.quantityPurchased).toBe(60);
     expect(tritanium.purchasedCost).toBe(300);
     expect(tritanium.purchaseComplete).toBe(false);
-    expect(job.totalMaterialCost).toBe(300);
+    expect(totalMaterialCost(job.toDocument())).toBe(300);
     expect(buildCost(job)).toBe(300);
-    expect(job.isReadyToBuild).toBe(false);
+    expect(isReadyToBuild(job)).toBe(false);
 
     // Buying past the requirement is recorded but not charged.
     const { taken, leftOver } = job.importPurchaseToMaterial(
@@ -124,10 +127,10 @@ describe("a job's materials through its life", () => {
     expect(tritanium.purchaseComplete).toBe(true);
 
     // The other material still holds the job back.
-    expect(job.isReadyToBuild).toBe(false);
+    expect(isReadyToBuild(job)).toBe(false);
     job.importPurchaseToMaterial(PYERITE, { itemCount: 40, itemCost: 2 });
-    expect(job.isReadyToBuild).toBe(true);
-    expect(job.totalMaterialCost).toBe(700);
+    expect(isReadyToBuild(job)).toBe(true);
+    expect(totalMaterialCost(job.toDocument())).toBe(700);
 
     // A second setup asks for more of everything, and every figure follows it
     // without anything being recalculated.
@@ -146,7 +149,7 @@ describe("a job's materials through its life", () => {
     expect(tritanium.excessQuantity).toBe(0);
     // The 20 that were excess now count, at the price they were bought for.
     expect(tritanium.purchasedCost).toBe(780);
-    expect(job.isReadyToBuild).toBe(false);
+    expect(isReadyToBuild(job)).toBe(false);
 
     // Dropping a setup takes the requirement back down, and the dearest units
     // are the ones that stop counting.
@@ -154,10 +157,10 @@ describe("a job's materials through its life", () => {
     expect(tritanium.quantity).toBe(100);
     expect(tritanium.purchasedCost).toBe(620);
     expect(tritanium.excessQuantity).toBe(20);
-    expect(job.isReadyToBuild).toBe(true);
+    expect(isReadyToBuild(job)).toBe(true);
 
     // What the job cost, per item, is the sum of the parts over what it makes.
-    expect(job.totalMaterialCost).toBe(700);
+    expect(totalMaterialCost(job.toDocument())).toBe(700);
     expect(buildCost(job)).toBe(700);
     expect(buildCostPerItem(job)).toBe(7);
 
@@ -168,7 +171,7 @@ describe("a job's materials through its life", () => {
     expect(reloadedTritanium.quantityPurchased).toBe(100);
     expect(reloadedTritanium.purchasedCost).toBe(620);
     expect(reloadedTritanium.excessQuantity).toBe(20);
-    expect(reloaded.totalMaterialCost).toBe(700);
+    expect(totalMaterialCost(reloaded.toDocument())).toBe(700);
     expect(buildCostPerItem(reloaded)).toBe(7);
   });
 
@@ -204,7 +207,7 @@ describe("a job's materials through its life", () => {
     expect(tritanium.purchasedCost).toBe(430);
     // Only what was bought is a spend of this job's.
     expect(tritanium.boughtCost).toBe(150);
-    expect(parent.totalBoughtMaterialCost).toBe(150);
+    expect(totalBoughtMaterialCost(parent)).toBe(150);
 
     // Re-running the import does not charge the same output twice.
     distributeItemCostsBetweenJobs(
@@ -245,6 +248,6 @@ describe("a job's materials through its life", () => {
     expect(tritanium.quantityPurchased).toBe(40);
     expect(tritanium.purchasedCost).toBe(360);
     expect(tritanium.purchaseComplete).toBe(false);
-    expect(job.totalMaterialCost).toBe(360);
+    expect(totalMaterialCost(job.toDocument())).toBe(360);
   });
 });

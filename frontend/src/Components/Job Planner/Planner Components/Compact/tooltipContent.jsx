@@ -1,5 +1,6 @@
 import {
   completedMaterialCount,
+  isReadyToBuild,
   setupCount,
   totalQuantityProduced,
 } from "../../../Edit Job/Edit Job Hooks/jobSelectors";
@@ -21,7 +22,7 @@ function getTooltipContent(job) {
     case 1: {
       const totalMaterials = Object.keys(job.build.materials).length;
       const totalComplete = completedMaterialCount(job);
-      if (!job.isReadyToBuild) {
+      if (!isReadyToBuild(job)) {
         return (
           <span>
             <p>

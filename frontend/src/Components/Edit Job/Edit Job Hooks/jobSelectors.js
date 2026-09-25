@@ -13,7 +13,12 @@
  */
 
 import { asNumberIDList, asStringIDList } from "../../../Functions/Helper/ids";
-import { purchasedCost, quantityRemaining } from "./materialSelectors";
+import { finishesAt } from "./linkedRunSelectors";
+import {
+  boughtCost,
+  purchaseComplete,
+  purchasedCost,
+} from "./materialSelectors";
 
 /**
  * The jobs this one feeds.
@@ -366,17 +371,131 @@ export function completedMaterialCount(job) {
 }
 
 /**
+ * How many of the job's materials are still short of what it needs.
+ *
+ * @param {object} job
+ * @returns {number}
+ */
+export function remainingMaterialCount(job) {
+  const materials = job?.build?.materials ?? {};
+  return (
+    Object.keys(materials).length -
+    materialsBoughtInFull(materials, job?.build?.setup)
+  );
+}
+
+/**
+ * What the job spent buying materials rather than building them.
+ *
+ * A purchase imported from a child job is that child's cost, not a spend of
+ * this job's, so it is left out.
+ *
+ * @param {object} job
+ * @returns {number}
+ */
+export function totalBoughtMaterialCost(job) {
+  return Object.values(job?.build?.materials ?? {}).reduce(
+    (total, material) => total + boughtCost(material),
+    0,
+  );
+}
+
+/**
+ * Whether every material the job calls for has been bought.
+ *
+ * A job calling for nothing is not ready: it has not been planned yet, rather
+ * than having had everything bought.
+ *
+ * @param {object} job
+ * @returns {boolean}
+ */
+export function isReadyToBuild(job) {
+  const count = Object.keys(job?.build?.materials ?? {}).length;
+  if (count === 0) return false;
+  return count === completedMaterialCount(job);
+}
+
+/**
+ * Whether the job is bought for and has not been started.
+ *
+ * The group tree's "Ready" chip. A job that has linked a run has started, and
+ * one that is finished or being sold is past the question.
+ *
+ * @param {object} job
+ * @returns {boolean}
+ */
+export function isReadyToStart(job) {
+  const status = Number(job?.jobStatus);
+  if (status === 3 || status === 4) return false;
+  if (!isReadyToBuild(job)) return false;
+  return Object.keys(job?.esi?.industryJobs ?? {}).length === 0;
+}
+
+/**
+ * The linked run that finishes first, which is what the planner counts down to.
+ *
+ * @param {object} job
+ * @returns {object|null}
+ */
+export function nextRunToFinish(job) {
+  return runFinishingAt(job, (a, b) => a < b);
+}
+
+/**
+ * The linked run that finishes last, which is when the job as a whole is done.
+ *
+ * @param {object} job
+ * @returns {object|null}
+ */
+export function lastRunToFinish(job) {
+  return runFinishingAt(job, (a, b) => a > b);
+}
+
+/**
+ * The linked run whose finish wins the given comparison.
+ *
+ * A run with no end date is not waited on: it has not started, so nothing can
+ * be said about when it lands.
+ *
+ * @param {object} job
+ * @param {(a: number, b: number) => boolean} wins
+ * @returns {object|null}
+ */
+function runFinishingAt(job, wins) {
+  return Object.values(job?.esi?.industryJobs ?? {}).reduce((held, run) => {
+    if (finishesAt(run) === null) return held;
+    if (!held || wins(finishesAt(run), finishesAt(held))) return run;
+    return held;
+  }, null);
+}
+
+/**
+ * The characters the job has actually used, by hash: the ones that ran it and
+ * the ones that listed it.
+ *
+ * @param {object} job
+ * @returns {Set<string>}
+ */
+export function involvedCharacters(job) {
+  const characters = new Set();
+  for (const run of Object.values(job?.esi?.industryJobs ?? {})) {
+    characters.add(run.CharacterHash);
+  }
+  for (const order of Object.values(job?.esi?.marketOrders ?? {})) {
+    characters.add(order.CharacterHash);
+  }
+  return characters;
+}
+
+/**
  * @param {object} materials
  * @param {object} setups
  * @returns {number}
  */
 export function materialsBoughtInFull(materials, setups) {
-  return Object.values(materials ?? {}).filter((material) => {
-    // A material nothing calls for is not bought in full, it is not wanted: a
-    // row left behind by a resized setup would otherwise read as done.
-    const requirement = materialRequirementOf(setups, material.typeID);
-    return requirement > 0 && quantityRemaining(material, requirement) === 0;
-  }).length;
+  return Object.values(materials ?? {}).filter((material) =>
+    purchaseComplete(material, materialRequirementOf(setups, material.typeID)),
+  ).length;
 }
 
 /**

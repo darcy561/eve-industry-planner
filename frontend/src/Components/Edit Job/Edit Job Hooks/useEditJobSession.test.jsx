@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
 import { renderOverEditJob, storedJob } from "../../../tests/editJobHarness";
-import { stepForward } from "./jobCommands";
+import { applyCommands, removeChildJob, stepForward } from "./jobCommands";
 
 const { store } = vi.hoisted(() => ({ store: { current: null } }));
 
@@ -38,7 +38,7 @@ describe("the job the page reads", () => {
     fireEvent.click(screen.getByRole("button", { name: "next step" }));
 
     expect(() =>
-      editJob.current.activeJob.removeChildJob(34, "child-1"),
+      applyCommands(editJob.current.activeJob, removeChildJob(34, "child-1")),
     ).toThrow(TypeError);
   });
 
@@ -50,7 +50,7 @@ describe("the job the page reads", () => {
     const { editJob } = renderOverEditJob(jobWithChild(), () => null);
 
     expect(() =>
-      editJob.current.activeJob.removeChildJob(34, "child-1"),
+      applyCommands(editJob.current.activeJob, removeChildJob(34, "child-1")),
     ).toThrow(TypeError);
   });
 

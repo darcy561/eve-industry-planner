@@ -1,3 +1,8 @@
+import {
+  applyCommands,
+  assignToGroup,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+
 import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import Group from "../../Classes/group";
 import { buildJob } from "../JobPlanner/buildJob";
@@ -104,7 +109,7 @@ export async function instantiateGroupTemplate({
   if (mode === "newGroup") {
     group = new Group();
     for (const j of built) {
-      j.assignToGroup(group.groupID);
+      applyCommands(j, assignToGroup(group.groupID));
     }
     group.createGroup(built);
     addGroupToGroupArray(group);
@@ -117,7 +122,7 @@ export async function instantiateGroupTemplate({
       );
     }
     for (const j of built) {
-      j.assignToGroup(active.groupID);
+      applyCommands(j, assignToGroup(active.groupID));
     }
     active.addJobsToGroup(built);
     updateModifiedGroups(active);

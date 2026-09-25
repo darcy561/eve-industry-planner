@@ -1,3 +1,8 @@
+import {
+  addChildJob,
+  applyCommands,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+
 import Job from "../../Classes/job";
 import useUsersStore from "../../Zustand/usersStore";
 import separateGroupAndJobIDs from "../Helper/separateGroupAndJobIDs";
@@ -135,7 +140,7 @@ export default async function massBuildMaterials(inputJobIDs, options) {
       for (const parentJobID of request.parentJobs) {
         const parentJob = getWorkingParent(parentJobID);
         if (!parentJob) continue;
-        parentJob.addChildJob(request.itemID, builtJob.jobID);
+        applyCommands(parentJob, addChildJob(request.itemID, builtJob.jobID));
       }
     }
 

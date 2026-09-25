@@ -85,6 +85,41 @@ export function purchasedCost(material, requirement) {
 }
 
 /**
+ * What was spent buying the material rather than building it: every purchase
+ * except the ones imported from a child job, in full.
+ *
+ * Nothing is capped at the requirement — this is what left the wallet, not what
+ * the job is charged for.
+ *
+ * @param {object} material
+ * @returns {number}
+ */
+export function boughtCost(material) {
+  return Object.values(material?.purchasing ?? {}).reduce(
+    (total, row) =>
+      isValidPurchase(row) && !row.childJobImport
+        ? total + row.itemCount * row.itemCost
+        : total,
+    0,
+  );
+}
+
+/**
+ * Whether enough has been bought to cover what the job needs.
+ *
+ * A material the setups ask for none of has nothing bought against it rather
+ * than everything, so a row left behind by a resized setup does not read as
+ * done.
+ *
+ * @param {object} material
+ * @param {number} requirement
+ * @returns {boolean}
+ */
+export function purchaseComplete(material, requirement) {
+  return requirement > 0 && quantityRemaining(material, requirement) === 0;
+}
+
+/**
  * How many of the material the job still needs.
  *
  * @param {object} material

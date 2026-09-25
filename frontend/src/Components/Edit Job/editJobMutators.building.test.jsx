@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import Group from "../../Classes/group";
+import Job from "../../Classes/job";
 import { stepBackward, stepForward } from "./Edit Job Hooks/jobCommands";
 import { editJobStore } from "../../tests/editJobFixtures";
 
@@ -77,8 +78,9 @@ describe("what the reader changes on a job, end to end", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Available ESI Job/i }));
 
-    // A plain object would lose every figure the job derives.
-    expect(typeof editJob.current.activeJob.totalJobSlots).toBe("number");
+    // The check is what the job is, not what can be worked out from it: a
+    // selector answers for a plain object just as readily.
+    expect(editJob.current.activeJob).toBeInstanceOf(Job);
   });
 
   it("marks a grouped job ready for sale and moves it on a step", () => {
@@ -161,6 +163,6 @@ describe("stepping a job through the planner, end to end", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "next step" }));
 
-    expect(typeof editJob.current.activeJob.totalJobSlots).toBe("number");
+    expect(editJob.current.activeJob).toBeInstanceOf(Job);
   });
 });

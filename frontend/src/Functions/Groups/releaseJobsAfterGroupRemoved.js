@@ -1,3 +1,7 @@
+import {
+  applyCommands,
+  releaseFromGroupToPlanner,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { requestJobDocumentsByIdsFromApi } from "../Endpoints/Private/requestJobDocumentsByIds.js";
 import useUsersStore from "../../Zustand/usersStore.js";
@@ -47,7 +51,7 @@ export function applyGroupRemovalToJobs(groupLike) {
   for (const jobID of jobIDsOfRemovedGroup(groupLike)) {
     const foundJob = actions.findJobInJobArray(jobID);
     if (!foundJob) continue;
-    foundJob.releaseFromGroupToPlanner();
+    applyCommands(foundJob, releaseFromGroupToPlanner());
     released.push(foundJob);
   }
   if (released.length > 0) actions.updateOrAddJobsToJobArray(released);

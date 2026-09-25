@@ -1,6 +1,7 @@
 import { finishesAt } from "../../../../Edit Job/Edit Job Hooks/linkedRunSelectors";
 import {
   esiJobIDs,
+  nextRunToFinish,
   totalJobSlots,
 } from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { useMemo } from "react";
@@ -15,7 +16,7 @@ import { useCurrentTime } from "../../../../../Hooks/useCurrentTime";
 export default function GroupStep3JobCard({ job }) {
   const now = useCurrentTime();
   const timeRemaining = useMemo(() => {
-    const next = job.nextRunToFinish;
+    const next = nextRunToFinish(job);
     return next ? formatTimeRemaining(finishesAt(next), { now }) : null;
   }, [job, now]);
 

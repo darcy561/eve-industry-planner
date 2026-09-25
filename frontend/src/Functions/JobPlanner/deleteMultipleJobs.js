@@ -1,4 +1,9 @@
 import {
+  applyCommands,
+  removeChildJob,
+  removeParentJob,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+import {
   esiJobIDs,
   esiOrderIDs,
   esiTransactionIDs,
@@ -103,7 +108,7 @@ export default async function deleteMultipleJobs(inputJobIDs) {
         if (selectedJobIDSet.has(jobID)) continue;
         const child = getWorkingJob(jobID);
         if (!child) continue;
-        child.removeParentJob(inputJob.jobID);
+        applyCommands(child, removeParentJob(inputJob.jobID));
         jobsToSave.add(child.jobID);
       }
     }
@@ -119,7 +124,7 @@ export default async function deleteMultipleJobs(inputJobIDs) {
       if (selectedJobIDSet.has(parentJobID)) continue;
       const parentJob = getWorkingJob(parentJobID);
       if (!parentJob || !parentJob.build.childJobs[inputJob.itemID]) continue;
-      parentJob.removeChildJob(inputJob.itemID, inputJob.jobID);
+      applyCommands(parentJob, removeChildJob(inputJob.itemID, inputJob.jobID));
       jobsToSave.add(parentJob.jobID);
     }
 

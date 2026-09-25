@@ -1,3 +1,8 @@
+import {
+  applyCommands,
+  setJobStatus,
+} from "../../Edit Job/Edit Job Hooks/jobCommands";
+
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ItemTypes, JobCardUiSource } from "../../../Context/DnDTypes";
@@ -111,7 +116,7 @@ export function useDnD() {
         if (!inputJob) {
           return;
         }
-        inputJob.setJobStatus(status.id);
+        applyCommands(inputJob, setJobStatus(status.id));
         const ui = item.uiListSource ?? JobCardUiSource.jobPlannerSnapshots;
         updateOrAddJobsToJobArray(inputJob);
         if (isLoggedIn) {

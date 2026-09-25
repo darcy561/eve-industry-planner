@@ -2,20 +2,9 @@ import { jobTypes } from "../Context/defaultValues";
 import Setup from "./jobSetup";
 import Material from "./jobMaterial";
 import LinkedESIJob from "./linkedESIJob";
-import { finishesAt } from "../Components/Edit Job/Edit Job Hooks/linkedRunSelectors";
 import BrokerFee from "./brokerFee";
-import { asIDList, asStringID } from "../Functions/Helper/ids";
-import {
-  brokersFeesOf,
-  buildCost,
-  costOfMaterials,
-  jobSlotsOf,
-  materialRequirementOf,
-  materialsBoughtInFull,
-  quantityProduced,
-  totalCostOf,
-  transactionFeesOf,
-} from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
+import { asStringID } from "../Functions/Helper/ids";
+import { materialRequirementOf } from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import ExtraCost from "./extraCost";
 import InventionEntry from "./inventionEntry";
 import MarketOrder from "./marketOrder";
@@ -51,9 +40,10 @@ function jobPricingOverride(stored) {
 /**
  * An industry job: its setups, materials, and the ESI rows linked to it.
  *
- * The job holds what it is made of. What it is worth is derived by the
- * selectors in `Edit Job Hooks/jobSelectors.js`, and the members here that
- * still answer a figure read one rather than summing the rows again.
+ * The job holds what it is made of, and reads and writes it as a document.
+ * What it is worth is derived by the selectors in
+ * `Edit Job Hooks/jobSelectors.js`, and what a reader does to it is a command
+ * in `jobCommands.js`; neither is answered here.
  *
  * @class Job
  */
@@ -292,122 +282,6 @@ class Job {
     };
   }
 
-  stepForward() {
-    this.jobStatus++;
-  }
-
-  stepBackward() {
-    this.jobStatus--;
-  }
-
-  /**
-   * @param {number} statusID - The status ID to set (0-3)
-   */
-  setJobStatus(statusID) {
-    const n = Number(statusID);
-    if (Number.isNaN(n)) return;
-    this.jobStatus = n;
-  }
-
-  /**
-   * @returns {number} Number of setups
-   */
-  get setupCount() {
-    return Object.values(this.build.setup).length;
-  }
-
-  /**
-   * @returns {number} Number of completed materials
-   */
-  get completedMaterialCount() {
-    return materialsBoughtInFull(this.build.materials, this.build.setup);
-  }
-
-  /**
-   * True when the job has at least one material and every material is purchase-complete.
-   * Stage-independent (Planning / Purchasing / Building can all match once mats are bought).
-   *
-   * @returns {boolean}
-   */
-  get isReadyToBuild() {
-    const count = Object.keys(this.build?.materials ?? {}).length;
-    if (count === 0) return false;
-    return count === this.completedMaterialCount;
-  }
-
-  /**
-   * Group job tree “Ready” chip: all materials bought and no linked ESI industry jobs yet
-   * (link runs → Building / progress). Hidden on Complete and For Sale.
-   *
-   * @returns {boolean}
-   */
-  get isReadyToStart() {
-    const status = Number(this.jobStatus);
-    if (status === 3 || status === 4) return false;
-    if (!this.isReadyToBuild) return false;
-    return Object.keys(this.esi.industryJobs).length === 0;
-  }
-
-  /**
-   * @returns {number} Number of remaining materials
-   */
-  get remainingMaterialCount() {
-    return Object.values(this.build.materials).filter(
-      (material) => !material.purchaseComplete,
-    ).length;
-  }
-
-  /**
-   * @returns {number} Total job count
-   */
-  get totalJobSlots() {
-    return jobSlotsOf(this.build.setup);
-  }
-
-  /**
-   * What the job cost: building it, and then selling it.
-   *
-   * @returns {number} Total cost
-   */
-  get totalCost() {
-    return totalCostOf({
-      buildCost: buildCost(this),
-      brokersFees: this.totalBrokersFees,
-      transactionFees: this.totalTransactionFees,
-    });
-  }
-
-  /**
-   * Broker fees paid to list the output.
-   *
-   * @returns {number} Fee total
-   */
-  get totalBrokersFees() {
-    return brokersFeesOf(this.esi.marketOrders);
-  }
-
-  /**
-   * Fees taken on the sales.
-   *
-   * `transaction.tax` keeps ESI's own name for the same figure, which is where
-   * it is read from.
-   *
-   * @returns {number} Transaction fee total
-   */
-  get totalTransactionFees() {
-    return transactionFeesOf(this.esi.transactions);
-  }
-
-  /**
-   * What the materials cost the job: what each material's purchases bought,
-   * summed. `models.Job.TotalMaterialCost` is the same method on the backend.
-   *
-   * @returns {number} Material cost
-   */
-  get totalMaterialCost() {
-    return costOfMaterials(this.build.materials, this.build.setup);
-  }
-
   /**
    * How many of a material the job's setups call for.
    *
@@ -416,183 +290,6 @@ class Job {
    */
   #materialRequirement(typeID) {
     return materialRequirementOf(this.build.setup, typeID);
-  }
-
-  /**
-   * What one unit cost in total, selling included.
-   *
-   * Matches `totalCostPerItem` on an archived job, so the planner and the
-   * archive mean the same thing by the name.
-   *
-   * @returns {number} Total cost per item (rounded to 2 decimal places)
-   */
-  totalCostPerItem() {
-    return this.#costPerItem(this.totalCost);
-  }
-
-  /**
-   * Takes a total cost and calculates the item cost.
-   *
-   * @param {number} cost - A total cost
-   * @returns {number} Cost per item
-   */
-  #costPerItem(cost) {
-    const produced = quantityProduced(
-      this.build.setup,
-      this.itemsProducedPerRun,
-    );
-    if (!produced) return 0;
-
-    return cost / produced;
-  }
-
-  /**
-   * @param {number} materialTypeID - Type ID of the material
-   * @param {string|Array<string>|Set<string>} childIDToRemove - Child job ID(s) to remove
-   */
-  removeChildJob(materialTypeID, childIDToRemove) {
-    if (!materialTypeID || !childIDToRemove) {
-      console.error(
-        `Missing input data: materialTypeID=${materialTypeID}, childIDToRemove=${childIDToRemove}`,
-      );
-
-      return;
-    }
-    const childLocation = this.build.childJobs[materialTypeID];
-
-    if (!childLocation) {
-      console.error(`Material not present: materialTypeID=${materialTypeID}`);
-      return;
-    }
-
-    const childrenToRemove = asIDList(childIDToRemove);
-
-    this.build.childJobs[materialTypeID] = childLocation.filter(
-      (i) => !childrenToRemove.includes(i),
-    );
-  }
-
-  /**
-   * Keeps only the given child jobs, on every material.
-   *
-   * @param {string|Array<string>|Set<string>} includedJobIDs - Job IDs to keep
-   */
-  keepOnlyChildJobs(includedJobIDs) {
-    if (!includedJobIDs) {
-      console.error("Missing Input IDs");
-      return;
-    }
-
-    const childrenToKeep = asIDList(includedJobIDs);
-
-    Object.entries(this.build.childJobs).forEach(([key, value]) => {
-      this.build.childJobs[key] = value.filter((i) =>
-        childrenToKeep.includes(i),
-      );
-    });
-  }
-
-  /**
-   * Adds child jobs to a specific material type.
-   *
-   * @param {number} materialTypeID - Type ID of the material
-   * @param {string|Array<string>|Set<string>} childIDToAdd - Child job ID(s) to add
-   */
-  addChildJob(materialTypeID, childIDToAdd) {
-    if (
-      !materialTypeID ||
-      !childIDToAdd ||
-      !this.build.childJobs[materialTypeID]
-    ) {
-      console.error(
-        `Missing input data: materialTypeID=${materialTypeID}, childIDToAdd=${childIDToAdd}`,
-      );
-      return;
-    }
-    const childLocation = this.build.childJobs[materialTypeID];
-
-    const childrenToAdd = asIDList(childIDToAdd);
-
-    this.build.childJobs[materialTypeID] = [
-      ...new Set([...childLocation, ...childrenToAdd]),
-    ];
-  }
-
-  /**
-   * Adds parent jobs to this job.
-   *
-   * @param {string|Array<string>|Set<string>} parentJobID - Parent job ID(s) to add
-   */
-  addParentJob(parentJobID) {
-    if (!parentJobID) {
-      console.error("Missing Input ID");
-      return;
-    }
-
-    const parentsToAdd = asIDList(parentJobID);
-
-    if (parentsToAdd.length === 0) return;
-
-    this.parentJobs = [...new Set([...this.parentJobs, ...parentsToAdd])];
-  }
-
-  /**
-   * Removes parent jobs from this job.
-   *
-   * @param {string|Array<string>|Set<string>} parentJobID - Parent job ID(s) to remove
-   */
-  removeParentJob(parentJobID) {
-    if (!parentJobID) {
-      console.error("Missing Input ID");
-      return;
-    }
-
-    const parentsToRemove = asIDList(parentJobID);
-
-    if (parentsToRemove.length === 0) return;
-
-    this.parentJobs = this.parentJobs.filter(
-      (id) => !parentsToRemove.includes(id),
-    );
-  }
-
-  /**
-   * Keeps only the given parent jobs.
-   *
-   * @param {string|Array<string>|Set<string>} includedJobIDs - Job IDs to keep
-   */
-  keepOnlyParentJobs(includedJobIDs) {
-    if (!includedJobIDs) {
-      console.error("Missing Input IDs");
-      return;
-    }
-
-    const parentsToKeep = asIDList(includedJobIDs);
-
-    this.parentJobs = this.parentJobs.filter((id) =>
-      parentsToKeep.includes(id),
-    );
-  }
-
-  /**
-   * Clears group membership and forces the job onto the planner (e.g. deleting a group without archiving jobs).
-   */
-  releaseFromGroupToPlanner() {
-    this.includedInGroup = false;
-    this.groupID = "";
-    this.displayOnPlanner = true;
-  }
-
-  /**
-   * Puts the job in a group: same fields as {@link releaseFromGroupToPlanner} in reverse
-   * (new builds, add-to-group flows).
-   *
-   * @param {string} groupID
-   */
-  assignToGroup(groupID) {
-    this.includedInGroup = true;
-    this.groupID = groupID;
-    this.displayOnPlanner = false;
   }
 
   /**
@@ -612,76 +309,8 @@ class Job {
   }
 
   /**
-   * What the job spent buying materials rather than building them: every
-   * purchase except the ones imported from a child job, which are that child's
-   * cost and not a spend of this job's.
-   *
-   * @returns {number} Bought material cost
-   */
-  get totalBoughtMaterialCost() {
-    return Object.values(this.build.materials).reduce(
-      (total, material) => total + material.boughtCost,
-      0,
-    );
-  }
-
-  /**
-   * The linked job that finishes last, which is when the job as a whole is done.
-   * Jobs with no end date are not waited on.
-   *
-   * @returns {LinkedESIJob|null}
-   */
-  get lastRunToFinish() {
-    return Object.values(this.esi.industryJobs).reduce((latest, linkedJob) => {
-      if (finishesAt(linkedJob) === null) return latest;
-      if (!latest || finishesAt(linkedJob) > finishesAt(latest)) {
-        return linkedJob;
-      }
-      return latest;
-    }, null);
-  }
-
-  /**
-   * The linked job that finishes first, which is what the planner counts down
-   * to. Jobs with no end date are not waited on.
-   *
-   * @returns {LinkedESIJob|null}
-   */
-  get nextRunToFinish() {
-    return Object.values(this.esi.industryJobs).reduce((soonest, linkedJob) => {
-      if (finishesAt(linkedJob) === null) return soonest;
-      if (!soonest || finishesAt(linkedJob) < finishesAt(soonest)) {
-        return linkedJob;
-      }
-      return soonest;
-    }, null);
-  }
-
-  /**
-   * The setup the editor is on, or undefined when nothing is selected, which is
-   * the state of a job loaded without a stored selection.
-   *
-   * @returns {Setup|undefined}
-   */
-
-  get selectedSetup() {
-    return this.build.setup[this.layout.setupToEdit];
-  }
-
-  /**
-   * The setup another one should continue from: the selected one, or the first.
-   *
-   * @returns {Setup|undefined}
-   */
-
-  get setupToBuildFrom() {
-    return this.selectedSetup ?? Object.values(this.build.setup)[0];
-  }
-
-  /**
    * @param {Setup} setup
    */
-
   attachNewSetupToJob(setup) {
     this.build.setup[setup.id] = setup;
     this.layout.setupToEdit = setup.id;
@@ -694,25 +323,6 @@ class Job {
     }
 
     this.build.setup[setupId].recalculateMaterials(this.rawData.materials);
-  }
-  /**
-   * Calculates the total number of involved characters for the job.
-   *
-   * Characters named only by an invention cost are not counted.
-   */
-
-  get involvedCharacters() {
-    const characters = new Set();
-
-    for (const linkedJob of Object.values(this.esi.industryJobs)) {
-      characters.add(linkedJob.CharacterHash);
-    }
-
-    for (const order of Object.values(this.esi.marketOrders)) {
-      characters.add(order.CharacterHash);
-    }
-
-    return characters;
   }
 }
 
@@ -735,12 +345,6 @@ function documentToSetups(object) {
   }, {});
 }
 
-/**
- * Helper function that converts a document's linked ESI jobs to instances.
- *
- * @param {Object} object - Object containing job data
- * @returns {Array<LinkedESIJob>}
- */
 /**
  * Helper function that reads a document's required skills.
  *

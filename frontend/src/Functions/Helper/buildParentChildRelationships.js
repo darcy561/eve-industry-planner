@@ -1,3 +1,9 @@
+import {
+  addChildJob,
+  addParentJob,
+  applyCommands,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+
 /**
  * Builds parent-child relationships between jobs based on material dependencies.
  * Establishes connections between jobs where one job's output is another job's input.
@@ -27,11 +33,11 @@ function buildParentChildRelationships(inputJobArray) {
       Object.values(job.build.materials).forEach((material) => {
         const relatedJobs = typesMap[material.typeID];
         if (relatedJobs) {
-          job.addChildJob(material.typeID, relatedJobs);
+          applyCommands(job, addChildJob(material.typeID, relatedJobs));
 
           relatedJobs.forEach((id) => {
             const matchingJob = jobIDMap[id];
-            matchingJob.addParentJob(job.jobID);
+            applyCommands(matchingJob, addParentJob(job.jobID));
           });
         }
       });

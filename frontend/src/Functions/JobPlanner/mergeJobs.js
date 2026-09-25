@@ -1,4 +1,11 @@
 import {
+  addChildJob,
+  addParentJob,
+  applyCommands,
+  removeChildJob,
+  removeParentJob,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+import {
   esiJobIDs,
   esiOrderIDs,
   esiTransactionIDs,
@@ -188,8 +195,11 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     for (const parentID of record.parentJobs) {
       const parentJob = resolveJobObject(parentID);
       if (!parentJob || parentJob.jobID === replacementJob.jobID) continue;
-      parentJob.removeChildJob(record.itemID, oldIDs);
-      parentJob.addChildJob(record.itemID, replacementJob.jobID);
+      applyCommands(
+        parentJob,
+        removeChildJob(record.itemID, oldIDs),
+        addChildJob(record.itemID, replacementJob.jobID),
+      );
       touchedJobs.add(parentJob);
     }
 
@@ -197,8 +207,11 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
       for (const childID of childIDs) {
         const childJob = resolveJobObject(childID);
         if (!childJob || childJob.jobID === replacementJob.jobID) continue;
-        childJob.removeParentJob(oldIDs);
-        childJob.addParentJob(replacementJob.jobID);
+        applyCommands(
+          childJob,
+          removeParentJob(oldIDs),
+          addParentJob(replacementJob.jobID),
+        );
         touchedJobs.add(childJob);
       }
     }

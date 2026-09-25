@@ -6,6 +6,8 @@ vi.mock("../Zustand/usersStore", async () => {
 });
 
 const { default: Job } = await import("./job.js");
+const { addChildJob, applyCommands, removeChildJob, removeParentJob } =
+  await import("../Components/Edit Job/Edit Job Hooks/jobCommands.js");
 
 const TRITANIUM = 34;
 
@@ -34,7 +36,7 @@ describe("a job copied through its document", () => {
     const source = jobWithAChild();
     const copy = new Job(source.toDocument());
 
-    copy.removeChildJob(TRITANIUM, "child-1");
+    applyCommands(copy, removeChildJob(TRITANIUM, "child-1"));
 
     expect(copy.build.childJobs[TRITANIUM]).toEqual(["child-2"]);
     expect(source.build.childJobs[TRITANIUM]).toEqual(["child-1", "child-2"]);
@@ -44,7 +46,7 @@ describe("a job copied through its document", () => {
     const source = jobWithAChild();
     const copy = new Job(source.toDocument());
 
-    copy.addChildJob(TRITANIUM, "child-3");
+    applyCommands(copy, addChildJob(TRITANIUM, "child-3"));
 
     expect(copy.build.childJobs[TRITANIUM]).toContain("child-3");
     expect(source.build.childJobs[TRITANIUM]).not.toContain("child-3");
@@ -54,7 +56,7 @@ describe("a job copied through its document", () => {
     const source = jobWithAChild();
     const copy = new Job(source.toDocument());
 
-    copy.removeParentJob("grandparent");
+    applyCommands(copy, removeParentJob("grandparent"));
 
     expect(copy.parentJobs).toEqual([]);
     expect(source.parentJobs).toEqual(["grandparent"]);
@@ -67,7 +69,7 @@ describe("a job copied through its document", () => {
     const job = jobWithAChild();
     const document = job.toDocument();
 
-    job.removeChildJob(TRITANIUM, "child-1");
+    applyCommands(job, removeChildJob(TRITANIUM, "child-1"));
 
     expect(document.build.childJobs[TRITANIUM]).toEqual(["child-1", "child-2"]);
   });

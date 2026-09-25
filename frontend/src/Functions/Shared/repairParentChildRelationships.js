@@ -1,3 +1,10 @@
+import {
+  addChildJob,
+  addParentJob,
+  applyCommands,
+  removeChildJob,
+  removeParentJob,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
@@ -35,7 +42,7 @@ function repairMissingParentChildRelationships(inputJob, tempJobs) {
         if (!isParentIDValid) {
           parentIDsToRemove.add(parentID);
         }
-        inputJob.removeParentJob(parentIDsToRemove);
+        applyCommands(inputJob, removeParentJob(parentIDsToRemove));
       } catch (err) {
         console.error(`Error processing parentID ${parentID}:`, err.message);
         parentIDsToRemove.add(parentID);
@@ -59,7 +66,10 @@ function repairMissingParentChildRelationships(inputJob, tempJobs) {
           childJobsToRemove.add(childJobID);
         }
       }
-      inputJob.removeChildJob(material.typeID, childJobsToRemove);
+      applyCommands(
+        inputJob,
+        removeChildJob(material.typeID, childJobsToRemove),
+      );
     }
 
     return modifiedJobIDs;
@@ -96,7 +106,10 @@ function processParentID(parentID, inputJob, jobLookup, modifiedJobsSet) {
       if (
         matchedJob.build.childJobs[material.typeID]?.includes(inputJob.jobID)
       ) {
-        matchedJob.removeChildJob(material.typeID, inputJob.typeID);
+        applyCommands(
+          matchedJob,
+          removeChildJob(material.typeID, inputJob.typeID),
+        );
       }
     });
 
@@ -106,7 +119,10 @@ function processParentID(parentID, inputJob, jobLookup, modifiedJobsSet) {
   const childJobLocation = matchedJob.build.childJobs[parentMaterial.typeID];
 
   if (!childJobLocation?.includes(inputJob.jobID)) {
-    matchedJob.addChildJob(parentMaterial.typeID, inputJob.jobID);
+    applyCommands(
+      matchedJob,
+      addChildJob(parentMaterial.typeID, inputJob.jobID),
+    );
     modifiedJobsSet.add(parentID);
   }
 
@@ -139,12 +155,12 @@ function processChildID(
   }
 
   if (matchedJob.itemID !== material.typeID) {
-    matchedJob.removeParentJob(inputJobID);
+    applyCommands(matchedJob, removeParentJob(inputJobID));
     return false;
   }
 
   if (!matchedJob.parentJobs.includes(inputJobID)) {
-    matchedJob.addParentJob(inputJobID);
+    applyCommands(matchedJob, addParentJob(inputJobID));
     modifiedJobsSet.add(childID);
   }
 

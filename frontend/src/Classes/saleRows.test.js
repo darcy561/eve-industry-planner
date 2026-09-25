@@ -2,7 +2,9 @@ import {
   buildCost,
   esiOrderIDs,
   estimatedSalesTaxOutstanding,
+  totalBrokersFees,
   totalCost,
+  totalTransactionFees,
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { describe, expect, it } from "vitest";
 
@@ -396,7 +398,7 @@ describe("linking a market order", () => {
     // one would take the total with it.
     expect(listed.esi.marketOrders["1"].fee).toBe(0);
     expect(listed.esi.marketOrders["1"].feeDate).toBeNull();
-    expect(listed.totalBrokersFees).toBe(0);
+    expect(totalBrokersFees(listed.toDocument())).toBe(0);
   });
 
   it("records the fee alongside the order when there is one", () => {
@@ -416,7 +418,7 @@ describe("linking a market order", () => {
     );
 
     expect(esiOrderIDs(listed.toDocument()).has(1)).toBe(true);
-    expect(listed.totalBrokersFees).toBe(1200);
+    expect(totalBrokersFees(listed.toDocument())).toBe(1200);
     // The fee rides the order it was charged against rather than sitting beside it.
     expect(listed.esi.marketOrders["1"].fee).toBe(1200);
   });
@@ -445,13 +447,13 @@ describe("linking a market order", () => {
 
     expect(job.esi.marketOrders["1"].fee).toBe(1200);
     expect(job.esi.marketOrders["1"].feeDate).toBe("2026-01-01T00:00:00Z");
-    expect(job.totalBrokersFees).toBe(1200);
+    expect(totalBrokersFees(job.toDocument())).toBe(1200);
 
     // The fee survives a read and a write, and the dead completion flag does not.
     const document = job.toDocument();
     expect(document.esi.marketOrders["1"]).not.toHaveProperty("complete");
     expect(document.esi.marketOrders["1"].fee).toBe(1200);
-    expect(new Job(document).totalBrokersFees).toBe(1200);
+    expect(totalBrokersFees(new Job(document).toDocument())).toBe(1200);
   });
 
   it("removes a fee with the order it was charged for", () => {
@@ -479,7 +481,7 @@ describe("linking a market order", () => {
       removeMarketOrder({ order_id: 1, location_id: 60003760 }),
     );
 
-    expect(unlisted.totalBrokersFees).toBe(800);
+    expect(totalBrokersFees(unlisted.toDocument())).toBe(800);
   });
 });
 
@@ -575,7 +577,7 @@ describe("tax expected on orders that have not sold", () => {
 
     expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(0);
     // What was actually charged is the figure that survives.
-    expect(job.totalTransactionFees).toBe(480);
+    expect(totalTransactionFees(job.toDocument())).toBe(480);
   });
 
   it("counts only the orders still open when some have sold", () => {

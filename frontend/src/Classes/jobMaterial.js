@@ -12,8 +12,13 @@
  */
 
 import {
+  boughtCost,
   countedPurchases,
+  excessQuantity,
   isValidPurchase,
+  purchaseComplete,
+  quantityImported,
+  quantityRemaining,
 } from "../Components/Edit Job/Edit Job Hooks/materialSelectors";
 
 class Material {
@@ -61,7 +66,7 @@ class Material {
    * @returns {number}
    */
   get quantityRemaining() {
-    return Math.max(0, this.quantity - this.quantityPurchased);
+    return quantityRemaining(this, this.quantity);
   }
 
   /**
@@ -143,10 +148,7 @@ class Material {
    * @returns {number}
    */
   get quantityImported() {
-    return Object.values(this.purchasing).reduce(
-      (total, row) => (isValidPurchase(row) ? total + row.itemCount : total),
-      0,
-    );
+    return quantityImported(this);
   }
 
   /**
@@ -156,7 +158,7 @@ class Material {
    * @returns {number}
    */
   get excessQuantity() {
-    return Math.max(0, this.quantityImported - this.quantityPurchased);
+    return excessQuantity(this, this.quantity);
   }
 
   /**
@@ -166,13 +168,7 @@ class Material {
    * @returns {number}
    */
   get boughtCost() {
-    return Object.values(this.purchasing).reduce(
-      (total, row) =>
-        isValidPurchase(row) && !row.childJobImport
-          ? total + row.itemCount * row.itemCost
-          : total,
-      0,
-    );
+    return boughtCost(this);
   }
 
   /**
@@ -185,7 +181,7 @@ class Material {
    * @returns {boolean}
    */
   get purchaseComplete() {
-    return this.quantity > 0 && this.quantityPurchased >= this.quantity;
+    return purchaseComplete(this, this.quantity);
   }
 
   /**

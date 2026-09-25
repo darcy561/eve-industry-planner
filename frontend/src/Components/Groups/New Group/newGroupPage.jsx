@@ -1,3 +1,11 @@
+import {
+  applyCommands,
+  assignToGroup,
+  keepOnlyChildJobs,
+  keepOnlyParentJobs,
+  removeChildJob,
+  removeParentJob,
+} from "../../Edit Job/Edit Job Hooks/jobCommands";
 import { useEffect } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import Group from "../../../Classes/group.js";
@@ -26,7 +34,7 @@ function NewGroupPage() {
           .jobData.actions.findJobInJobArray(id);
         if (!matchedGroupJob) continue;
         groupJobs.push(matchedGroupJob);
-        matchedGroupJob.assignToGroup(group.groupID);
+        applyCommands(matchedGroupJob, assignToGroup(group.groupID));
 
         for (let parentID of matchedGroupJob.parentJobs) {
           if (jobIDsToInclude.includes(parentID)) continue;
@@ -43,14 +51,14 @@ function NewGroupPage() {
             continue;
           }
 
-          matchedParentJob.removeChildJob(
-            matchedGroupJob.itemID,
-            matchedGroupJob.jobID,
+          applyCommands(
+            matchedParentJob,
+            removeChildJob(matchedGroupJob.itemID, matchedGroupJob.jobID),
           );
           jobsToSave.add(matchedParentJob.jobID);
         }
 
-        matchedGroupJob.keepOnlyParentJobs(jobIDsToInclude);
+        applyCommands(matchedGroupJob, keepOnlyParentJobs(jobIDsToInclude));
 
         for (let material of Object.values(matchedGroupJob.build.materials)) {
           const childJobArray =
@@ -65,12 +73,15 @@ function NewGroupPage() {
 
             if (!matchedChildJob) continue;
 
-            matchedChildJob.removeParentJob(matchedGroupJob.jobID);
+            applyCommands(
+              matchedChildJob,
+              removeParentJob(matchedGroupJob.jobID),
+            );
             jobsToSave.add(matchedChildJob.jobID);
           }
         }
 
-        matchedGroupJob.keepOnlyChildJobs(jobIDsToInclude);
+        applyCommands(matchedGroupJob, keepOnlyChildJobs(jobIDsToInclude));
         jobsToSave.add(matchedGroupJob.jobID);
       }
 

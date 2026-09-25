@@ -3,6 +3,7 @@ import {
   totalExtrasCost,
   totalInstallCost,
   totalInventionCost,
+  totalMaterialCost,
   totalQuantityProduced,
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 import { describe, expect, test } from "vitest";
@@ -25,7 +26,7 @@ describe("job cost corpus", () => {
     const { expected, why } = testCase;
 
     expect(totalQuantityProduced(job), why).toBe(expected.produced);
-    expect(job.totalMaterialCost, why).toBe(expected.materials);
+    expect(totalMaterialCost(job), why).toBe(expected.materials);
     expect(totalInstallCost(job), why).toBe(expected.install);
     expect(totalInventionCost(job), why).toBe(expected.invention);
     expect(totalExtrasCost(job), why).toBe(expected.extras);

@@ -1,3 +1,4 @@
+import { totalBrokersFees } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { describe, expect, it, vi } from "vitest";
 import { testQueryClient } from "../../tests/queryClients.js";
 
@@ -159,7 +160,7 @@ describe("the fee that reaches the job", () => {
       { id: 55, ref_type: "brokers_fee", date: ISSUED, amount: -9000000 },
     ]);
 
-    expect(job.totalBrokersFees).toBe(1500000);
+    expect(totalBrokersFees(job)).toBe(1500000);
     // The fee rides the order, and carries when the journal says it was charged.
     expect(job.esi.marketOrders["900"].fee).toBe(1500000);
     expect(job.esi.marketOrders["900"].feeDate).toBe(ISSUED);
@@ -168,7 +169,7 @@ describe("the fee that reaches the job", () => {
   it("still records the fee when the journal has not caught up", () => {
     const job = jobWithOrder(1500000, null);
 
-    expect(job.totalBrokersFees).toBe(1500000);
+    expect(totalBrokersFees(job)).toBe(1500000);
     expect(esiOrderIDs(job.toDocument()).has(900)).toBe(true);
     expect(job.esi.marketOrders["900"].feeDate).toBe(ISSUED);
   });

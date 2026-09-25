@@ -1,3 +1,11 @@
+import {
+  addChildJob,
+  addParentJob,
+  applyCommands,
+  removeChildJob,
+  removeParentJob,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+
 /**
  * Normalises parent/child links across the provided jobs and returns modified job IDs.
  *
@@ -28,14 +36,14 @@ export default function normaliseParentChildRelationships(jobs = []) {
       );
 
       if (!canBuildChildType) {
-        job.removeParentJob(parentID);
+        applyCommands(job, removeParentJob(parentID));
         modifiedJobIDs.add(job.jobID);
         continue;
       }
 
       const parentChildList = parentJob.build?.childJobs?.[job.itemID] ?? [];
       if (!parentChildList.includes(job.jobID)) {
-        parentJob.addChildJob(job.itemID, job.jobID);
+        applyCommands(parentJob, addChildJob(job.itemID, job.jobID));
         modifiedJobIDs.add(parentJob.jobID);
       }
     }
@@ -50,18 +58,18 @@ export default function normaliseParentChildRelationships(jobs = []) {
         if (!childJob) continue;
 
         if (childJob.itemID !== materialTypeID) {
-          job.removeChildJob(materialTypeID, childID);
+          applyCommands(job, removeChildJob(materialTypeID, childID));
           modifiedJobIDs.add(job.jobID);
 
           if (childJob.parentJobs?.includes(job.jobID)) {
-            childJob.removeParentJob(job.jobID);
+            applyCommands(childJob, removeParentJob(job.jobID));
             modifiedJobIDs.add(childJob.jobID);
           }
           continue;
         }
 
         if (!childJob.parentJobs?.includes(job.jobID)) {
-          childJob.addParentJob(job.jobID);
+          applyCommands(childJob, addParentJob(job.jobID));
           modifiedJobIDs.add(childJob.jobID);
         }
       }

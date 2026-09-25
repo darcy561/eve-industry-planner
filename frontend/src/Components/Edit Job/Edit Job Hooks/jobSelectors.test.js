@@ -14,12 +14,16 @@ import {
   selectedSetupOf,
   setupSystemIDs,
   setupToBuildFrom,
+  involvedCharacters,
+  isReadyToBuild,
+  isReadyToStart,
+  lastRunToFinish,
+  nextRunToFinish,
 } from "./jobSelectors";
 
 /**
- * Each selector is checked against the getter on `Job` it replaces: both read
- * the same job, and the answers are compared. The getter returns a `Setup` and
- * the selector returns the row, so the comparison is made on documents.
+ * Each selector is read off plain job data and checked against the figure it
+ * should give, written out.
  */
 
 const jobWith = (setup, setupToEdit) =>
@@ -31,9 +35,6 @@ const jobWith = (setup, setupToEdit) =>
     layout: { setupToEdit },
   });
 
-const asDocument = (setup) =>
-  setup && typeof setup.toDocument === "function" ? setup.toDocument() : setup;
-
 const twoSetups = {
   "setup-1": { id: "setup-1", runCount: 1, jobCount: 1 },
   "setup-2": { id: "setup-2", runCount: 5, jobCount: 2 },
@@ -43,9 +44,6 @@ describe("the setup the reader has open", () => {
   it("is the one being edited, as the job says", () => {
     const job = jobWith(twoSetups, "setup-2");
 
-    expect(selectedSetup(job.toDocument())).toEqual(
-      asDocument(job.selectedSetup),
-    );
     expect(selectedSetup(job.toDocument()).id).toBe("setup-2");
   });
 
@@ -53,21 +51,18 @@ describe("the setup the reader has open", () => {
     const job = jobWith(twoSetups, "setup-9");
 
     expect(selectedSetup(job.toDocument())).toBeUndefined();
-    expect(job.selectedSetup).toBeUndefined();
   });
 
   it("is nothing where the job names none", () => {
     const job = jobWith(twoSetups, undefined);
 
     expect(selectedSetup(job.toDocument())).toBeUndefined();
-    expect(job.selectedSetup).toBeUndefined();
   });
 
   it("is nothing for a job with no setups at all", () => {
     const job = jobWith({}, undefined);
 
     expect(selectedSetup(job.toDocument())).toBeUndefined();
-    expect(job.selectedSetup).toBeUndefined();
   });
 });
 
@@ -75,9 +70,6 @@ describe("the setup a new one continues from", () => {
   it("is the one open, as the job says", () => {
     const job = jobWith(twoSetups, "setup-2");
 
-    expect(setupToBuildFrom(job.toDocument())).toEqual(
-      asDocument(job.setupToBuildFrom),
-    );
     expect(setupToBuildFrom(job.toDocument()).id).toBe("setup-2");
   });
 
@@ -86,9 +78,6 @@ describe("the setup a new one continues from", () => {
   it("falls back to the first where none is open, as the job says", () => {
     const job = jobWith(twoSetups, undefined);
 
-    expect(setupToBuildFrom(job.toDocument())).toEqual(
-      asDocument(job.setupToBuildFrom),
-    );
     expect(setupToBuildFrom(job.toDocument()).id).toBe("setup-1");
   });
 
@@ -96,14 +85,12 @@ describe("the setup a new one continues from", () => {
     const job = jobWith(twoSetups, "setup-9");
 
     expect(setupToBuildFrom(job.toDocument()).id).toBe("setup-1");
-    expect(asDocument(job.setupToBuildFrom).id).toBe("setup-1");
   });
 
   it("is nothing for a job with no setups at all", () => {
     const job = jobWith({}, undefined);
 
     expect(setupToBuildFrom(job.toDocument())).toBeUndefined();
-    expect(job.setupToBuildFrom).toBeUndefined();
   });
 });
 
@@ -277,5 +264,131 @@ describe("the types a job prices", () => {
     };
 
     expect(materialIDs(job)).toEqual([587, 34, 35]);
+  });
+});
+
+const TRITANIUM = 34;
+const PYERITE = 35;
+
+/** A job calling for the materials named, each bought as much as stated. */
+const jobNeeding = (bought, runs = {}, status = 1) => ({
+  jobStatus: status,
+  build: {
+    setup: {
+      "setup-1": {
+        id: "setup-1",
+        runCount: 1,
+        jobCount: 1,
+        materialCount: Object.fromEntries(
+          Object.keys(bought).map((typeID) => [
+            typeID,
+            { typeID: Number(typeID), quantity: 100 },
+          ]),
+        ),
+      },
+    },
+    materials: Object.fromEntries(
+      Object.entries(bought).map(([typeID, itemCount]) => [
+        typeID,
+        {
+          typeID: Number(typeID),
+          purchasing: itemCount
+            ? { p1: { id: "p1", itemCount, itemCost: 1 } }
+            : {},
+        },
+      ]),
+    ),
+  },
+  esi: { industryJobs: runs, marketOrders: {}, transactions: {} },
+});
+
+describe("whether a job is bought for", () => {
+  it("is ready once every material it calls for is bought", () => {
+    expect(isReadyToBuild(jobNeeding({ [TRITANIUM]: 100 }))).toBe(true);
+  });
+
+  it("is not ready while one material is short", () => {
+    expect(
+      isReadyToBuild(jobNeeding({ [TRITANIUM]: 100, [PYERITE]: 40 })),
+    ).toBe(false);
+  });
+
+  // A job calling for nothing has not been planned yet, rather than having had
+  // everything bought.
+  it("is not ready for a job that calls for nothing", () => {
+    expect(isReadyToBuild({ build: { materials: {}, setup: {} } })).toBe(false);
+    expect(isReadyToBuild(undefined)).toBe(false);
+  });
+});
+
+describe("whether a job can be started", () => {
+  it("can be started once it is bought for and nothing is running", () => {
+    expect(isReadyToStart(jobNeeding({ [TRITANIUM]: 100 }))).toBe(true);
+  });
+
+  it("cannot be started once a run is linked", () => {
+    const started = jobNeeding({ [TRITANIUM]: 100 }, { 1: { job_id: 1 } });
+
+    expect(isReadyToStart(started)).toBe(false);
+  });
+
+  it.each([3, 4])("is past the question at status %s", (status) => {
+    expect(isReadyToStart(jobNeeding({ [TRITANIUM]: 100 }, {}, status))).toBe(
+      false,
+    );
+  });
+
+  it("cannot be started while a material is short", () => {
+    expect(isReadyToStart(jobNeeding({ [TRITANIUM]: 40 }))).toBe(false);
+  });
+});
+
+describe("when a job's runs finish", () => {
+  const runs = {
+    1: { job_id: 1, end_date: "2026-03-01T00:00:00Z" },
+    2: { job_id: 2, end_date: "2026-01-01T00:00:00Z" },
+    3: { job_id: 3, end_date: "2026-02-01T00:00:00Z" },
+  };
+  const job = { esi: { industryJobs: runs, marketOrders: {} } };
+
+  it("counts down to the one finishing first", () => {
+    expect(nextRunToFinish(job).job_id).toBe(2);
+  });
+
+  it("is done when the one finishing last is done", () => {
+    expect(lastRunToFinish(job).job_id).toBe(1);
+  });
+
+  // A run with no end date has not started, so nothing can be said about when
+  // it lands and it is not waited on.
+  it("does not wait on a run that has not started", () => {
+    const withUnstarted = {
+      esi: { industryJobs: { ...runs, 4: { job_id: 4 } }, marketOrders: {} },
+    };
+
+    expect(nextRunToFinish(withUnstarted).job_id).toBe(2);
+    expect(lastRunToFinish(withUnstarted).job_id).toBe(1);
+  });
+
+  it("answers nothing for a job with no runs", () => {
+    expect(nextRunToFinish({ esi: { industryJobs: {} } })).toBeNull();
+    expect(lastRunToFinish(undefined)).toBeNull();
+  });
+});
+
+describe("the characters a job used", () => {
+  it("names the ones that ran it and the ones that sold it", () => {
+    const job = {
+      esi: {
+        industryJobs: { 1: { job_id: 1, CharacterHash: "builder" } },
+        marketOrders: { 900: { order_id: 900, CharacterHash: "seller" } },
+      },
+    };
+
+    expect(involvedCharacters(job)).toEqual(new Set(["builder", "seller"]));
+  });
+
+  it("names none for a job nothing has been done on", () => {
+    expect(involvedCharacters(undefined)).toEqual(new Set());
   });
 });

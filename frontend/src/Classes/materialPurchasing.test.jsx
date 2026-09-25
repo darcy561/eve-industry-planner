@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { totalMaterialCost } from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
 vi.mock("../Zustand/usersStore.js", async () => {
   const { usersStoreOverSession } =
@@ -53,7 +54,7 @@ describe("adding a cost on a material card", () => {
     expect(material.quantityPurchased).toBe(40);
     expect(material.purchasedCost).toBe(200);
     expect(material.purchaseComplete).toBe(false);
-    expect(job.totalMaterialCost).toBe(200);
+    expect(totalMaterialCost(job.toDocument())).toBe(200);
   });
 
   it("counts a purchase only up to what the job needs, keeping the row whole", () => {
@@ -107,7 +108,7 @@ describe("pasting a multibuy on the purchasing panel", () => {
     ).toEqual([30, 70]);
     expect(material.quantityPurchased).toBe(100);
     expect(material.purchasedCost).toBe(710);
-    expect(job.totalMaterialCost).toBe(710);
+    expect(totalMaterialCost(job.toDocument())).toBe(710);
   });
 
   it("adds nothing when the material is already covered", () => {
@@ -144,6 +145,6 @@ describe("removing a purchase from a material card", () => {
     ).toEqual([30]);
     expect(remaining.quantityPurchased).toBe(30);
     expect(remaining.purchasedCost).toBe(240);
-    expect(changed.totalMaterialCost).toBe(240);
+    expect(totalMaterialCost(changed.toDocument())).toBe(240);
   });
 });

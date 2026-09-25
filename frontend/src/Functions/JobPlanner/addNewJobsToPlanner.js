@@ -1,3 +1,8 @@
+import {
+  applyCommands,
+  assignToGroup,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+
 import Group from "../../Classes/group";
 import getMissingESIData from "../Shared/getMissingESIData";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
@@ -60,7 +65,7 @@ export default async function addNewJobsToPlanner(
     }
 
     if (shouldCreateNewGroup) {
-      jobObject.assignToGroup(createdGroup.groupID);
+      applyCommands(jobObject, assignToGroup(createdGroup.groupID));
     }
   }
 

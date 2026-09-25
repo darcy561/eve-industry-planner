@@ -1,11 +1,19 @@
 import {
   buildCost,
   buildCostPerItem,
+  completedMaterialCount,
+  involvedCharacters,
+  remainingMaterialCount,
+  setupCount,
+  totalBrokersFees,
   totalCost,
   totalCostPerItem,
   totalInstallCost,
   totalInventionCost,
+  totalJobSlots,
+  totalMaterialCost,
   totalSales,
+  totalTransactionFees,
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 import { describe, expect, test } from "vitest";
 import Job from "./job.js";
@@ -133,7 +141,7 @@ describe("invention is its own cost", () => {
     const job = jobWith({ materials: [100], invention: 25 });
 
     expect(totalInventionCost(job)).toBe(25);
-    expect(job.totalMaterialCost).toBe(100);
+    expect(totalMaterialCost(job)).toBe(100);
     expect(buildCost(job)).toBe(133);
   });
 
@@ -179,8 +187,8 @@ describe("what the job cost in total", () => {
     });
 
     expect(buildCost(job)).toBe(108);
-    expect(job.totalBrokersFees).toBe(3);
-    expect(job.totalTransactionFees).toBe(0.75);
+    expect(totalBrokersFees(job)).toBe(3);
+    expect(totalTransactionFees(job)).toBe(0.75);
     expect(totalSales(job.toDocument())).toBe(250);
     expect(totalCost(job)).toBe(111.75);
   });
@@ -213,17 +221,17 @@ describe("reading a job's figures", () => {
     const job = sold(jobWith({ materials: [100] }));
 
     expect(totalSales(job.toDocument())).toBe(250);
-    expect(job.totalBrokersFees).toBe(3);
-    expect(job.totalTransactionFees).toBe(0.75);
+    expect(totalBrokersFees(job)).toBe(3);
+    expect(totalTransactionFees(job)).toBe(0.75);
   });
 
   test("the counts read as values", () => {
     const job = jobWith({ materials: [100, 0] });
 
-    expect(job.setupCount).toBe(1);
-    expect(job.totalJobSlots).toBe(1);
-    expect(job.completedMaterialCount).toBe(1);
-    expect(job.remainingMaterialCount).toBe(1);
+    expect(setupCount(job)).toBe(1);
+    expect(totalJobSlots(job)).toBe(1);
+    expect(completedMaterialCount(job)).toBe(1);
+    expect(remainingMaterialCount(job)).toBe(1);
   });
 
   // Every character that worked on the job, counted once, whether they ran it or
@@ -236,6 +244,6 @@ describe("reading a job's figures", () => {
     };
     job.esi.marketOrders = { 1: { order_id: 1, CharacterHash: "DEF" } };
 
-    expect(job.involvedCharacters.size).toBe(2);
+    expect(involvedCharacters(job).size).toBe(2);
   });
 });

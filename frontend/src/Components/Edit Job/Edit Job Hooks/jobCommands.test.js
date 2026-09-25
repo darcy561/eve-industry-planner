@@ -110,24 +110,26 @@ function changes(document, command, applyToDocument) {
 }
 
 describe("moving between stages", () => {
-  it("steps forward as the job does", () => {
-    agree(documentFor(), commands.stepForward(), (job) => job.stepForward());
+  it("steps forward as the reader asked", () => {
+    changes(documentFor(), commands.stepForward(), (job) => {
+      job.jobStatus = 2;
+    });
   });
 
-  it("steps back as the job does", () => {
-    agree(documentFor(), commands.stepBackward(), (job) => job.stepBackward());
+  it("steps back as the reader asked", () => {
+    changes(documentFor(), commands.stepBackward(), (job) => {
+      job.jobStatus = 0;
+    });
   });
 
-  it("sets a stage as the job does", () => {
-    agree(documentFor(), commands.setJobStatus(3), (job) =>
-      job.setJobStatus(3),
-    );
+  it("sets a stage as the reader asked", () => {
+    changes(documentFor(), commands.setJobStatus(3), (job) => {
+      job.jobStatus = 3;
+    });
   });
 
-  it("ignores a stage that is not a number, as the job does", () => {
-    agree(documentFor(), commands.setJobStatus("nonsense"), (job) =>
-      job.setJobStatus("nonsense"),
-    );
+  it("ignores a stage that is not a number, as the reader asked", () => {
+    changes(documentFor(), commands.setJobStatus("nonsense"), () => {});
   });
 });
 
@@ -291,59 +293,56 @@ describe("the costs a reader adds by hand", () => {
 });
 
 describe("how a job relates to others", () => {
-  it("removes a child job as the job does", () => {
-    agree(documentFor(), commands.removeChildJob(34, "child-1"), (job) =>
-      job.removeChildJob(34, "child-1"),
-    );
+  it("removes a child job as the reader asked", () => {
+    changes(documentFor(), commands.removeChildJob(34, "child-1"), (job) => {
+      job.build.childJobs[34] = ["child-2"];
+    });
   });
 
-  it("removes several child jobs at once, as the job does", () => {
+  it("removes several child jobs at once, as the reader asked", () => {
     const ids = ["child-1", "child-2"];
-    agree(documentFor(), commands.removeChildJob(34, ids), (job) =>
-      job.removeChildJob(34, ids),
-    );
+    changes(documentFor(), commands.removeChildJob(34, ids), (job) => {
+      job.build.childJobs[34] = [];
+    });
   });
 
-  it("adds a child job as the job does", () => {
-    agree(documentFor(), commands.addChildJob(34, "child-3"), (job) =>
-      job.addChildJob(34, "child-3"),
-    );
+  it("adds a child job as the reader asked", () => {
+    changes(documentFor(), commands.addChildJob(34, "child-3"), (job) => {
+      job.build.childJobs[34] = ["child-1", "child-2", "child-3"];
+    });
   });
 
   it("will not add one under a material the job does not build", () => {
-    agree(documentFor(), commands.addChildJob(99, "child-3"), (job) =>
-      job.addChildJob(99, "child-3"),
-    );
+    changes(documentFor(), commands.addChildJob(99, "child-3"), () => {});
   });
 
-  it("keeps only the child jobs named, as the job does", () => {
-    agree(documentFor(), commands.keepOnlyChildJobs(["child-2"]), (job) =>
-      job.keepOnlyChildJobs(["child-2"]),
-    );
+  it("keeps only the child jobs named, as the reader asked", () => {
+    changes(documentFor(), commands.keepOnlyChildJobs(["child-2"]), (job) => {
+      job.build.childJobs[34] = ["child-2"];
+      job.build.childJobs[35] = ["child-2"];
+    });
   });
 
-  it("adds a parent job as the job does", () => {
-    agree(documentFor(), commands.addParentJob("parent-3"), (job) =>
-      job.addParentJob("parent-3"),
-    );
+  it("adds a parent job as the reader asked", () => {
+    changes(documentFor(), commands.addParentJob("parent-3"), (job) => {
+      job.parentJobs = ["parent-1", "parent-2", "parent-3"];
+    });
   });
 
-  it("does not add a parent twice, as the job does", () => {
-    agree(documentFor(), commands.addParentJob("parent-1"), (job) =>
-      job.addParentJob("parent-1"),
-    );
+  it("does not add a parent twice, as the reader asked", () => {
+    changes(documentFor(), commands.addParentJob("parent-1"), () => {});
   });
 
-  it("removes a parent job as the job does", () => {
-    agree(documentFor(), commands.removeParentJob("parent-1"), (job) =>
-      job.removeParentJob("parent-1"),
-    );
+  it("removes a parent job as the reader asked", () => {
+    changes(documentFor(), commands.removeParentJob("parent-1"), (job) => {
+      job.parentJobs = ["parent-2"];
+    });
   });
 
-  it("keeps only the parent jobs named, as the job does", () => {
-    agree(documentFor(), commands.keepOnlyParentJobs(["parent-2"]), (job) =>
-      job.keepOnlyParentJobs(["parent-2"]),
-    );
+  it("keeps only the parent jobs named, as the reader asked", () => {
+    changes(documentFor(), commands.keepOnlyParentJobs(["parent-2"]), (job) => {
+      job.parentJobs = ["parent-2"];
+    });
   });
 });
 
@@ -355,16 +354,20 @@ describe("groups and selling", () => {
       displayOnPlanner: false,
     });
 
-  it("assigns to a group as the job does", () => {
-    agree(documentFor(), commands.assignToGroup("group-1"), (job) =>
-      job.assignToGroup("group-1"),
-    );
+  it("assigns to a group as the reader asked", () => {
+    changes(documentFor(), commands.assignToGroup("group-1"), (job) => {
+      job.includedInGroup = true;
+      job.groupID = "group-1";
+      job.displayOnPlanner = false;
+    });
   });
 
-  it("releases to the planner as the job does", () => {
-    agree(grouped(), commands.releaseFromGroupToPlanner(), (job) =>
-      job.releaseFromGroupToPlanner(),
-    );
+  it("releases to the planner as the reader asked", () => {
+    changes(grouped(), commands.releaseFromGroupToPlanner(), (job) => {
+      job.includedInGroup = false;
+      job.groupID = "";
+      job.displayOnPlanner = true;
+    });
   });
 
   // A job inside a group is not on the planner until it is ready to sell, and
@@ -401,7 +404,7 @@ describe("groups and selling", () => {
 
   // A player taking their seller off is not the same as a caller saying nothing
   // about it, and a null that falls through leaves the old choice in place.
-  it("clears a choice given as null, as the job does", () => {
+  it("clears a choice given as null, as the reader asked", () => {
     const chosen = documentFor({
       build: {
         ...documentFor().build,
@@ -566,7 +569,7 @@ describe("sales and orders ESI reported", () => {
 describe("what was bought for a material", () => {
   const purchase = { id: "buy-3", itemCount: 30, itemCost: 7 };
 
-  it("records a purchase as the job does", () => {
+  it("records a purchase as the reader asked", () => {
     agree(
       documentFor(),
       commands.importPurchaseToMaterial(34, purchase, { availableToBuy: 100 }),
@@ -575,7 +578,7 @@ describe("what was bought for a material", () => {
     );
   });
 
-  it("takes only what the job still needs, as the job does", () => {
+  it("takes only what the job still needs, as the reader asked", () => {
     agree(
       documentFor(),
       commands.importPurchaseToMaterial(34, purchase, { availableToBuy: 10 }),
@@ -593,7 +596,7 @@ describe("what was bought for a material", () => {
     );
   });
 
-  it("reports what a purchase takes and leaves, as the job does", () => {
+  it("reports what a purchase takes and leaves, as the reader asked", () => {
     const instance = new Job(structuredClone(documentFor()));
     const fromClass = instance.importPurchaseToMaterial(34, purchase, {
       availableToBuy: 10,
@@ -619,7 +622,7 @@ describe("the setups a job builds from", () => {
   // Callers build a Setup and hand it over; the class stores the instance it is
   // given, so a plain row would break its own toDocument later. The command
   // stores the row either way, which is why it is handed the instance here.
-  it("attaches a setup and opens it, as the job does", () => {
+  it("attaches a setup and opens it, as the reader asked", () => {
     const setup = new Setup({ id: "setup-3", runCount: 5, jobCount: 1 });
     agree(withSetups(), commands.attachNewSetupToJob(setup), (job) =>
       job.attachNewSetupToJob(setup),
@@ -734,5 +737,50 @@ describe("storing a changed setup", () => {
     expect(
       produce(document, commands.storeSetup(undefined, "set the runs").recipe),
     ).toBe(document);
+  });
+});
+
+// A caller outside the editor has no draft to run a command through, and must
+// still change a job the same way the editor does.
+describe("running a command without a draft", () => {
+  const jobWithChild = () => ({
+    parentJobs: ["old-parent"],
+    build: { childJobs: { 34: ["child-1", "child-2"] } },
+  });
+
+  it("changes the job it is given", () => {
+    const job = jobWithChild();
+
+    commands.applyCommands(job, commands.removeChildJob(34, "child-1"));
+
+    expect(job.build.childJobs[34]).toEqual(["child-2"]);
+  });
+
+  it("runs them in the order they are given", () => {
+    const job = jobWithChild();
+
+    commands.applyCommands(
+      job,
+      commands.removeParentJob("old-parent"),
+      commands.addParentJob("new-parent"),
+    );
+
+    expect(job.parentJobs).toEqual(["new-parent"]);
+  });
+
+  it("answers the job, so a caller can read what it left", () => {
+    const job = jobWithChild();
+
+    expect(commands.applyCommands(job, commands.addParentJob("extra"))).toBe(
+      job,
+    );
+  });
+
+  it("leaves a job alone when it is given no commands", () => {
+    const job = jobWithChild();
+
+    commands.applyCommands(job);
+
+    expect(job).toEqual(jobWithChild());
   });
 });

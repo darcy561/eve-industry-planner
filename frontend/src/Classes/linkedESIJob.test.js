@@ -1,4 +1,7 @@
-import { totalInstallCost } from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
+import {
+  nextRunToFinish,
+  totalInstallCost,
+} from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import LinkedESIJob from "./linkedESIJob.js";
 import Job from "./job.js";
@@ -158,10 +161,10 @@ describe("a job's linked runs", () => {
       esiJob({ job_id: 3, end_date: "2026-09-09T00:00:00Z" }),
     );
 
-    expect(job.nextRunToFinish.job_id).toBe(2);
+    expect(nextRunToFinish(job).job_id).toBe(2);
   });
 
   test("nothing linked has nothing to wait for", () => {
-    expect(jobWithLinkedRuns().nextRunToFinish).toBeNull();
+    expect(nextRunToFinish(jobWithLinkedRuns())).toBeNull();
   });
 });

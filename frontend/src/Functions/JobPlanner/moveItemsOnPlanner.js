@@ -1,3 +1,8 @@
+import {
+  applyCommands,
+  stepBackward,
+  stepForward,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 import Job from "../../Classes/job";
 import Group from "../../Classes/group";
 import { scheduleSaveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
@@ -123,7 +128,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
 
     if (!canMoveForward(inputJob)) return;
 
-    inputJob.stepForward();
+    applyCommands(inputJob, stepForward());
     collectModifiedJob(inputJob);
   }
 
@@ -141,7 +146,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
 
     if (!canMoveBackward(inputJob)) return;
 
-    inputJob.stepBackward();
+    applyCommands(inputJob, stepBackward());
     collectModifiedJob(inputJob);
   }
 

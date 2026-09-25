@@ -1,3 +1,8 @@
+import {
+  applyCommands,
+  keepOnlyChildJobs,
+  keepOnlyParentJobs,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
 import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
@@ -41,8 +46,11 @@ export default async function closeActiveGroup(groupJobs) {
   const updatedGroupJobs = groupJobsInStore.map((job) => {
     if (!activeGroup.includedJobIDs.has(job.jobID)) return job;
 
-    job.keepOnlyParentJobs(activeGroup.includedJobIDs);
-    job.keepOnlyChildJobs(activeGroup.includedJobIDs);
+    applyCommands(
+      job,
+      keepOnlyParentJobs(activeGroup.includedJobIDs),
+      keepOnlyChildJobs(activeGroup.includedJobIDs),
+    );
 
     modifiedJobIDsToPersist.add(job.jobID);
     return job;

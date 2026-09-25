@@ -10,6 +10,13 @@
  */
 
 import useUsersStore from "../../../Zustand/usersStore";
+import {
+  addChildJob,
+  addParentJob,
+  applyCommands,
+  removeChildJob,
+  removeParentJob,
+} from "../Edit Job Hooks/jobCommands";
 
 /**
  * Applies parent-child job relationship changes to job objects.
@@ -89,11 +96,17 @@ function processParentJobs(
       const matchingJob = jobLookup.get(parentID);
       if (!matchingJob) continue;
 
-      matchingJob.removeChildJob(inputJob.itemID, inputJob.jobID);
+      applyCommands(
+        matchingJob,
+        removeChildJob(inputJob.itemID, inputJob.jobID),
+      );
       modifiedJobIDs.add(parentID);
     }
 
-    inputJob.removeParentJob(parentChildObject.parentJobs.remove);
+    applyCommands(
+      inputJob,
+      removeParentJob(parentChildObject.parentJobs.remove),
+    );
 
     const unmatchedParentIDS = new Set();
 
@@ -104,13 +117,16 @@ function processParentJobs(
         continue;
       }
 
-      matchingJob.addChildJob(inputJob.itemID, inputJob.jobID);
+      applyCommands(matchingJob, addChildJob(inputJob.itemID, inputJob.jobID));
       modifiedJobIDs.add(parentID);
     }
 
-    inputJob.addParentJob(
-      parentChildObject.parentJobs.add.filter(
-        (id) => !unmatchedParentIDS.has(id),
+    applyCommands(
+      inputJob,
+      addParentJob(
+        parentChildObject.parentJobs.add.filter(
+          (id) => !unmatchedParentIDS.has(id),
+        ),
       ),
     );
   } catch (err) {
@@ -157,7 +173,7 @@ function processChildJobs(
           continue;
         }
 
-        matchedJob.addParentJob(inputJob.jobID);
+        applyCommands(matchedJob, addParentJob(inputJob.jobID));
         modifiedJobIDs.add(childID);
       }
 
@@ -169,14 +185,17 @@ function processChildJobs(
           continue;
         }
 
-        matchedJob.removeParentJob(inputJob.jobID);
+        applyCommands(matchedJob, removeParentJob(inputJob.jobID));
         modifiedJobIDs.add(childID);
       }
-      inputJob.addChildJob(
-        material.typeID,
-        matchedMaterial.add.filter((id) => !unMatchedChildIDs.has(id)),
+      applyCommands(
+        inputJob,
+        addChildJob(
+          material.typeID,
+          matchedMaterial.add.filter((id) => !unMatchedChildIDs.has(id)),
+        ),
+        removeChildJob(material.typeID, unMatchedChildIDs),
       );
-      inputJob.removeChildJob(material.typeID, unMatchedChildIDs);
     }
   } catch (err) {
     throw new Error(`Error updating child jobs: ${err.message}`, {

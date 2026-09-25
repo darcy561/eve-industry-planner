@@ -3,6 +3,7 @@ import {
   buildSetupFromQuantity,
   setupQuantitiesForTotal,
 } from "./setupBuildHelpers";
+import { setupToBuildFrom } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
  * Recalculates a job for a new total: the setups are replaced with a new layout,
@@ -23,7 +24,7 @@ export default function recalculateJobForNewTotal(
 ) {
   if (!inputJob || !requiredQuantity) return;
 
-  const basedOn = inputJob.setupToBuildFrom;
+  const basedOn = setupToBuildFrom(inputJob);
   const context = buildSetupContextForJob(inputJob, queryClient);
   const setupQuantities = setupQuantitiesForTotal(
     inputJob,

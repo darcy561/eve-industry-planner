@@ -4,6 +4,9 @@ import {
   esiJobIDs,
   esiOrderIDs,
   esiTransactionIDs,
+  isReadyToBuild,
+  nextRunToFinish,
+  remainingMaterialCount,
   setupCount,
   totalQuantityProduced,
 } from "../../../Edit Job/Edit Job Hooks/jobSelectors";
@@ -29,9 +32,9 @@ function getTooltipContent(job, now) {
         </span>
       );
     case 1: {
-      const totalRemaining = job.remainingMaterialCount;
+      const totalRemaining = remainingMaterialCount(job);
 
-      if (!job.isReadyToBuild) {
+      if (!isReadyToBuild(job)) {
         return (
           <span>
             <p>
@@ -95,7 +98,7 @@ function getTooltipContent(job, now) {
 }
 
 function timeUntilNextJobFinishes(job, now) {
-  const next = job.nextRunToFinish;
+  const next = nextRunToFinish(job);
   return next ? formatTimeRemaining(finishesAt(next), { now }) : null;
 }
 
