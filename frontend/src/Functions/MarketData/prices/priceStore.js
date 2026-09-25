@@ -52,7 +52,8 @@ export const STORE_VERSION = VERSION;
 const PREFIX = "price|";
 const CURRENT_PREFIX = `${PREFIX}v${VERSION}|`;
 
-const entryKey = (sourceID, typeID) => `${CURRENT_PREFIX}${sourceID}|${typeID}`;
+const entryKey = (marketLocation, typeID) =>
+  `${CURRENT_PREFIX}${marketLocation}|${typeID}`;
 
 /**
  * Where a market's rows are addressed from, and the one place that decides it.
@@ -61,7 +62,7 @@ const entryKey = (sourceID, typeID) => `${CURRENT_PREFIX}${sourceID}|${typeID}`;
  * so anything kept about a market that is *not* a price lives outside it — see
  * {@link characterKey}.
  */
-const marketPrefix = (sourceID) => `${CURRENT_PREFIX}${sourceID}|`;
+const marketPrefix = (marketLocation) => `${CURRENT_PREFIX}${marketLocation}|`;
 
 const CHARACTER_PREFIX = "market-character|";
 const CURRENT_CHARACTER_PREFIX = `${CHARACTER_PREFIX}v${VERSION}|`;
@@ -79,7 +80,8 @@ const CURRENT_ORDERS_PREFIX = `${ORDERS_PREFIX}v${VERSION}|`;
  * `replaceStoredPrices` clears: a record living inside it would be thrown away
  * by the very read that proved it right.
  */
-const characterKey = (sourceID) => `${CURRENT_CHARACTER_PREFIX}${sourceID}`;
+const characterKey = (marketLocation) =>
+  `${CURRENT_CHARACTER_PREFIX}${marketLocation}`;
 
 /**
  * Where a market's `readAt` and `expiresAt` are kept, both on this device's
@@ -91,7 +93,8 @@ const characterKey = (sourceID) => `${CURRENT_CHARACTER_PREFIX}${sourceID}`;
  * market rather than on a row because what asks is deciding whether to read the
  * market at all — it has no type in hand to look one up by.
  */
-const freshnessKey = (sourceID) => `${CURRENT_FRESHNESS_PREFIX}${sourceID}`;
+const freshnessKey = (marketLocation) =>
+  `${CURRENT_FRESHNESS_PREFIX}${marketLocation}`;
 
 /**
  * Where a market's orders are kept, as ESI returned them.
@@ -104,7 +107,8 @@ const freshnessKey = (sourceID) => `${CURRENT_FRESHNESS_PREFIX}${sourceID}`;
  * Kept beside the derived prices rather than instead of them: pricing reads
  * four numbers per type and must not walk every order to get them.
  */
-const ordersKey = (sourceID) => `${CURRENT_ORDERS_PREFIX}${sourceID}`;
+const ordersKey = (marketLocation) =>
+  `${CURRENT_ORDERS_PREFIX}${marketLocation}`;
 
 /** @type {Promise<void>|null} */
 let pruning = null;
@@ -143,18 +147,18 @@ function prunePastVersions() {
 /**
  * A row held for one type at one market.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @param {number|string} typeID
  * @returns {Promise<object|undefined>} undefined where nothing is held
  */
-export async function readStoredPrice(sourceID, typeID) {
+export async function readStoredPrice(marketLocation, typeID) {
   prunePastVersions();
-  return withinBudget(readEntry(sourceID, typeID), undefined);
+  return withinBudget(readEntry(marketLocation, typeID), undefined);
 }
 
-async function readEntry(sourceID, typeID) {
+async function readEntry(marketLocation, typeID) {
   try {
-    return (await get(entryKey(sourceID, typeID))) ?? undefined;
+    return (await get(entryKey(marketLocation, typeID))) ?? undefined;
   } catch {
     return undefined;
   }
@@ -165,17 +169,17 @@ async function readEntry(sourceID, typeID) {
  * next read asks one character rather than every character. Absent means the
  * next read finds out again.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @returns {Promise<string|undefined>}
  */
-export async function readMarketCharacter(sourceID) {
+export async function readMarketCharacter(marketLocation) {
   prunePastVersions();
-  return withinBudget(characterHeld(sourceID), undefined);
+  return withinBudget(characterHeld(marketLocation), undefined);
 }
 
-async function characterHeld(sourceID) {
+async function characterHeld(marketLocation) {
   try {
-    const hash = await get(characterKey(sourceID));
+    const hash = await get(characterKey(marketLocation));
     return typeof hash === "string" && hash ? hash : undefined;
   } catch {
     return undefined;
@@ -185,16 +189,16 @@ async function characterHeld(sourceID) {
 /**
  * Keeps the character that read a market.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @param {string} characterHash
  * @returns {Promise<void>}
  */
-export async function writeMarketCharacter(sourceID, characterHash) {
+export async function writeMarketCharacter(marketLocation, characterHash) {
   if (!characterHash) return;
   prunePastVersions();
 
   try {
-    await set(characterKey(sourceID), characterHash);
+    await set(characterKey(marketLocation), characterHash);
   } catch {
     // A reader whose storage is blocked finds the character again next time,
     // which costs one walk and nothing else.
@@ -213,19 +217,22 @@ export async function writeMarketCharacter(sourceID, characterHash) {
  * time and stored separately, so orders that could not be written cost a
  * reader the browse and not the pricing.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @param {Array<object>} orders - Orders as ESI returned them
  * @param {number} refreshedAt - The moment ESI stated for them
  * @returns {Promise<void>}
  */
-export async function replaceStoredOrders(sourceID, orders, refreshedAt) {
+export async function replaceStoredOrders(marketLocation, orders, refreshedAt) {
   prunePastVersions();
-  await withinBudget(writeOrders(sourceID, orders, refreshedAt), undefined);
+  await withinBudget(
+    writeOrders(marketLocation, orders, refreshedAt),
+    undefined,
+  );
 }
 
-async function writeOrders(sourceID, orders, refreshedAt) {
+async function writeOrders(marketLocation, orders, refreshedAt) {
   try {
-    await set(ordersKey(sourceID), {
+    await set(ordersKey(marketLocation), {
       orders: orders ?? [],
       refreshedAt,
     });
@@ -238,17 +245,17 @@ async function writeOrders(sourceID, orders, refreshedAt) {
 /**
  * A market's orders as they were last read here.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @returns {Promise<{orders: Array<object>, refreshedAt: number}|undefined>}
  */
-export async function readStoredOrders(sourceID) {
+export async function readStoredOrders(marketLocation) {
   prunePastVersions();
-  return withinBudget(ordersHeld(sourceID), undefined);
+  return withinBudget(ordersHeld(marketLocation), undefined);
 }
 
-async function ordersHeld(sourceID) {
+async function ordersHeld(marketLocation) {
   try {
-    const held = await get(ordersKey(sourceID));
+    const held = await get(ordersKey(marketLocation));
     return Array.isArray(held?.orders) ? held : undefined;
   } catch {
     return undefined;
@@ -263,24 +270,27 @@ async function ordersHeld(sourceID) {
  * charges at five times a hit. Bounded for a sharper reason than the rest: the
  * rotation waits on it.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @param {number} nextTurnAt
  * @param {string} [outcome] - One of MARKET_READ_OUTCOME, where the caller knows
  *   what the attempt settled on
  * @returns {Promise<void>}
  */
-export async function deferMarket(sourceID, nextTurnAt, outcome) {
+export async function deferMarket(marketLocation, nextTurnAt, outcome) {
   prunePastVersions();
-  await withinBudget(putTurnBack(sourceID, nextTurnAt, outcome), undefined);
+  await withinBudget(
+    putTurnBack(marketLocation, nextTurnAt, outcome),
+    undefined,
+  );
 }
 
-async function putTurnBack(sourceID, nextTurnAt, outcome) {
+async function putTurnBack(marketLocation, nextTurnAt, outcome) {
   try {
-    const held = await get(freshnessKey(sourceID));
+    const held = await get(freshnessKey(marketLocation));
     // `readAt` is left where it was: a market that could not be read has not
     // been read, and moving it would keep a market nobody can reach alive
     // against the sweep for as long as it went on failing.
-    await set(freshnessKey(sourceID), {
+    await set(freshnessKey(marketLocation), {
       readAt: held?.readAt ?? 0,
       expiresAt: nextTurnAt,
       outcome: outcome ?? held?.outcome,
@@ -299,17 +309,17 @@ async function putTurnBack(sourceID, nextTurnAt, outcome) {
  * Carries `outcome` — one of MARKET_READ_OUTCOME — on a market read here, which
  * is what a panel says when the figures did not arrive.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @returns {Promise<{readAt: number, expiresAt: number, outcome?: string}|undefined>}
  */
-export async function readMarketFreshness(sourceID) {
+export async function readMarketFreshness(marketLocation) {
   prunePastVersions();
-  return withinBudget(freshnessHeld(sourceID), undefined);
+  return withinBudget(freshnessHeld(marketLocation), undefined);
 }
 
-async function freshnessHeld(sourceID) {
+async function freshnessHeld(marketLocation) {
   try {
-    const held = await get(freshnessKey(sourceID));
+    const held = await get(freshnessKey(marketLocation));
     return Number.isFinite(held?.readAt) ? held : undefined;
   } catch {
     return undefined;
@@ -349,14 +359,14 @@ async function sweepUnread(now) {
     for (const key of held.filter((key) =>
       key.startsWith(CURRENT_FRESHNESS_PREFIX),
     )) {
-      const sourceID = key.slice(CURRENT_FRESHNESS_PREFIX.length);
-      if (!(await stillUnread(sourceID, now))) continue;
+      const marketLocation = key.slice(CURRENT_FRESHNESS_PREFIX.length);
+      if (!(await stillUnread(marketLocation, now))) continue;
 
       await delMany([
         key,
-        characterKey(sourceID),
-        ordersKey(sourceID),
-        ...held.filter((row) => row.startsWith(marketPrefix(sourceID))),
+        characterKey(marketLocation),
+        ordersKey(marketLocation),
+        ...held.filter((row) => row.startsWith(marketPrefix(marketLocation))),
       ]);
       dropped += 1;
     }
@@ -374,8 +384,8 @@ async function sweepUnread(now) {
  * deciding about every market first and deleting afterwards threw away one
  * refreshed while the scan was still walking, losing the walk just paid for.
  */
-async function stillUnread(sourceID, now) {
-  const readAt = (await get(freshnessKey(sourceID)))?.readAt;
+async function stillUnread(marketLocation, now) {
+  const readAt = (await get(freshnessKey(marketLocation)))?.readAt;
 
   // Absent is a market never read successfully. Its record is what paces the
   // attempts, and it holds no rows to throw away.
@@ -394,19 +404,19 @@ async function stillUnread(sourceID, now) {
  * **Its caller waits on this**, unlike the reads around it: a surface woken by
  * the market's clock moving reads through here, so it must find the new rows.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @param {Map<string, object>|Array<[string, object]>} rows - Type id to row
  * @param {{refreshedAt: number, expiresAt: number}} freshness - The moment ESI
  *   stated for these orders, and when the market is due again
  * @returns {Promise<void>}
  */
-export async function replaceStoredPrices(sourceID, rows, freshness) {
+export async function replaceStoredPrices(marketLocation, rows, freshness) {
   prunePastVersions();
-  await withinBudget(writeMarket(sourceID, rows, freshness), undefined);
+  await withinBudget(writeMarket(marketLocation, rows, freshness), undefined);
 }
 
-async function writeMarket(sourceID, rows, freshness) {
-  const prefix = marketPrefix(sourceID);
+async function writeMarket(marketLocation, rows, freshness) {
+  const prefix = marketPrefix(marketLocation);
 
   try {
     const held = (await keys()).filter(
@@ -416,7 +426,7 @@ async function writeMarket(sourceID, rows, freshness) {
 
     await Promise.all(
       [...new Map(rows)].map(([typeID, row]) =>
-        set(entryKey(sourceID, typeID), {
+        set(entryKey(marketLocation, typeID), {
           ...row,
           refreshedAt: freshness.refreshedAt,
         }),
@@ -426,7 +436,7 @@ async function writeMarket(sourceID, rows, freshness) {
     // Written last, so a torn row write never reaches it: a market whose rows
     // only partly landed keeps the record that said it was due — which is why
     // this read happened — rather than one claiming a read it did not finish.
-    await set(freshnessKey(sourceID), {
+    await set(freshnessKey(marketLocation), {
       readAt: Date.now(),
       expiresAt: freshness.expiresAt,
       // Prices arrived, so whatever the last turn could not do is no longer

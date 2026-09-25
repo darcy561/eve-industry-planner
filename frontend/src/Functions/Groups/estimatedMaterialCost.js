@@ -1,6 +1,6 @@
 import useUsersStore from "../../Zustand/usersStore.js";
 import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
-import { getMarketPriceForType } from "../MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../MarketData/prices/marketPriceForType.js";
 import { materialCostThroughChildJobs } from "./childJobCostWalk.js";
 
 /**
@@ -45,7 +45,7 @@ export function estimatedMaterialCost(
       // Nothing was fetched at this market where it holds no row, so falling
       // back to what the reader already paid beats pricing the line at nothing.
       buyCost: (material) =>
-        (getMarketPriceForType(material.typeID, marketLocation, orderType) ||
+        (readMarketPriceForType(material.typeID, marketLocation, orderType) ||
           material.purchasedCost) * material.quantity,
       installCost: getJobInstallCostForPlanning,
     },

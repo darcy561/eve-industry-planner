@@ -23,8 +23,8 @@ import {
   summariseSourcing,
 } from "../../../../../../Functions/Job/materialSourcingRow";
 import {
-  getMarketPriceForType,
-  getPriceRefreshedAt,
+  readMarketPriceForType,
+  readPriceRefreshedAt,
 } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import {
   resolveMaterialChildJobStatus,
@@ -145,7 +145,7 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
         ? null
         : (speculativeChildJobs?.[material.typeID] ?? null);
 
-      const buyPrice = getMarketPriceForType(
+      const buyPrice = readMarketPriceForType(
         material.typeID,
         resolved.marketLocation,
         resolved.orderType,
@@ -188,13 +188,13 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
       marketLocation,
       orderType,
       orderTypeUsage: summariseOrderTypeUse(rows, marketLocation, orderType),
-      priceAge: priceAge(materials, getPriceRefreshedAt),
+      priceAge: priceAge(materials, readPriceRefreshedAt),
       orderTypeOptions: materialCostByOrderType({
         rows,
         build,
         marketLocation,
         orderType,
-        getPrice: getMarketPriceForType,
+        getPrice: readMarketPriceForType,
         groupPricing,
       }),
     };

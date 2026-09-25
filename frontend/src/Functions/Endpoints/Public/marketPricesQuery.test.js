@@ -8,7 +8,7 @@ vi.mock("./applyPublicHeaders.js", () => ({
 const { fetchMarketPricesQuery } = await import("./marketPricesQuery.js");
 
 const ok = (body) => ({ ok: true, json: async () => body });
-const want = (typeID, sourceID) => ({ typeID, sourceID });
+const want = (typeID, marketLocation) => ({ typeID, marketLocation });
 
 afterEach(() => {
   fetchWithPublicHeaders.mockReset();

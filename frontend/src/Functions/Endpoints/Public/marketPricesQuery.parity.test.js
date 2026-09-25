@@ -93,7 +93,7 @@ describe("the request this client sends", () => {
   const bodySent = async () => {
     fetchWithPublicHeaders.mockResolvedValue(ok({ sources: {} }));
     await fetchMarketPricesQuery({
-      wants: [{ typeID: 34, sourceID: "jita" }],
+      wants: [{ typeID: 34, marketLocation: "jita" }],
       adjustedTypeIDs: [34],
     });
     const body = JSON.parse(fetchWithPublicHeaders.mock.calls[0][1].body);
@@ -161,7 +161,7 @@ describe("the answer this client reads", () => {
     fetchWithPublicHeaders.mockResolvedValue(ok(answerFromSurface()));
 
     const result = await fetchMarketPricesQuery({
-      wants: [{ typeID: 34, sourceID: "jita" }],
+      wants: [{ typeID: 34, marketLocation: "jita" }],
     });
 
     expect(result.sources.jita.refreshedAt).toBe(1700000000000);

@@ -19,7 +19,9 @@ const row = (sell) => ({ buy: sell - 1, sell, buyP95: sell, sellP05: sell });
 const answer = (sources, adjusted = null) => ({ sources, adjusted });
 
 const byPair = (a, b) =>
-  `${a.sourceID}|${a.typeID}`.localeCompare(`${b.sourceID}|${b.typeID}`);
+  `${a.marketLocation}|${a.typeID}`.localeCompare(
+    `${b.marketLocation}|${b.typeID}`,
+  );
 
 afterEach(() => {
   resetPriceLoader();
@@ -51,9 +53,9 @@ describe("a tick's worth of wants", () => {
     const asked = fetchMarketPricesQuery.mock.calls[0][0];
     // Three pairs, not four: nothing wanted 35 at Amarr, so nothing asks for it.
     expect([...asked.wants].sort(byPair)).toEqual([
-      { typeID: "34", sourceID: "amarr" },
-      { typeID: "34", sourceID: "jita" },
-      { typeID: "35", sourceID: "jita" },
+      { typeID: "34", marketLocation: "amarr" },
+      { typeID: "34", marketLocation: "jita" },
+      { typeID: "35", marketLocation: "jita" },
     ]);
 
     expect(jita34.sell).toBe(10);

@@ -19,7 +19,7 @@ import { materialTypeIDsOf } from "../../../Components/Edit Job/Edit Job Hooks/j
  * @param {Object} [accountPricing] - Defaults to the account's stored pricing.
  *   Taken rather than read where a caller re-resolves as it moves, so what the
  *   wants depend on is visible at the call site
- * @returns {{wants: Array<{typeID: number, sourceID: string}>,
+ * @returns {{wants: Array<{typeID: number, marketLocation: string}>,
  *   adjustedTypeIDs: number[]}}
  */
 export function pricesWantedBy(inputJobs, accountPricing) {
@@ -73,7 +73,7 @@ export function pricesWantedBy(inputJobs, accountPricing) {
  *
  * @param {Iterable<number|string>} typeIDs
  * @param {string} side - One of PRICING_SIDE
- * @returns {{wants: Array<{typeID: number|string, sourceID: string}>}}
+ * @returns {{wants: Array<{typeID: number|string, marketLocation: string}>}}
  */
 export function pricesWantedForTypes(typeIDs, side) {
   const defaults = sideDefaults(side);
@@ -85,9 +85,9 @@ export function pricesWantedForTypes(typeIDs, side) {
   return { wants: [...wants.values()] };
 }
 
-function add(wants, typeID, sourceID) {
-  if (typeID == null || !sourceID) return;
-  wants.set(wantKey(sourceID, typeID), { typeID, sourceID });
+function add(wants, typeID, marketLocation) {
+  if (typeID == null || !marketLocation) return;
+  wants.set(wantKey(marketLocation, typeID), { typeID, marketLocation });
 }
 
 /**
@@ -100,7 +100,7 @@ function add(wants, typeID, sourceID) {
  *
  * @param {Array<Object>} items - `userWatchlist.items`
  * @param {Object} [accountPricing] - Defaults to the account's stored pricing
- * @returns {{wants: Array<{typeID: number|string, sourceID: string}>}}
+ * @returns {{wants: Array<{typeID: number|string, marketLocation: string}>}}
  */
 export function pricesWantedByWatchlist(items, accountPricing) {
   const buying = sideDefaults(PRICING_SIDE.BUYING, { accountPricing });

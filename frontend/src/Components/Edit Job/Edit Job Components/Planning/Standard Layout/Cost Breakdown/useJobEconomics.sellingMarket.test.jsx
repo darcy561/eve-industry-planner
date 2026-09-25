@@ -2,14 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PricedSurface } from "../../../../../../tests/pricedSurface.jsx";
 import { renderHook } from "@testing-library/react";
 
-const { getMarketPriceForType } = vi.hoisted(() => ({
-  getMarketPriceForType: vi.fn(() => 200),
+const { readMarketPriceForType } = vi.hoisted(() => ({
+  readMarketPriceForType: vi.fn(() => 200),
 }));
 
-vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
-  getPriceRefreshedAt: () => undefined,
-  getMarketPriceForType: (...args) => getMarketPriceForType(...args),
-}));
+vi.mock(
+  "../../../../../../Functions/MarketData/prices/marketPriceForType.js",
+  () => ({
+    readPriceRefreshedAt: () => undefined,
+    readMarketPriceForType: (...args) => readMarketPriceForType(...args),
+  }),
+);
 
 // No saved citadel, which is the only state in which the side's own market
 // decides. `getSaleStructures` returns a placeholder today, so this case cannot
@@ -119,7 +122,7 @@ const jobDocument = () => ({
 // from, which is the crossing this whole arrangement exists to remove.
 describe("which market a sale is quoted against", () => {
   beforeEach(async () => {
-    getMarketPriceForType.mockClear();
+    readMarketPriceForType.mockClear();
     pricedWith();
     // The module holds the tree for the whole worker, so another file may have
     // primed it with data of its own.
@@ -136,7 +139,7 @@ describe("which market a sale is quoted against", () => {
 
   const hubsAskedForOutput = () =>
     new Set(
-      getMarketPriceForType.mock.calls
+      readMarketPriceForType.mock.calls
         .filter(([typeID]) => typeID === 34)
         .map(([, hub]) => hub),
     );
@@ -144,7 +147,7 @@ describe("which market a sale is quoted against", () => {
   it("asks the selling side's market, not the buying side's", () => {
     price();
 
-    const forOutput = getMarketPriceForType.mock.calls.filter(
+    const forOutput = readMarketPriceForType.mock.calls.filter(
       ([typeID]) => typeID === 34,
     );
 

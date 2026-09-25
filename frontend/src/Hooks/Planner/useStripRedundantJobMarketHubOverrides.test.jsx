@@ -7,9 +7,8 @@ vi.mock("../../Zustand/usersStore.js", () => ({
   default: (selector) => selector({ applicationSettings: store }),
 }));
 
-const { useStripRedundantJobMarketHubOverrides } = await import(
-  "./useStripRedundantJobMarketHubOverrides.js"
-);
+const { useStripRedundantJobMarketHubOverrides } =
+  await import("./useStripRedundantJobMarketHubOverrides.js");
 
 const update = vi.fn();
 

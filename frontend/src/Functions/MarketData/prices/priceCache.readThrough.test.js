@@ -67,8 +67,8 @@ describe("a market this server prices", () => {
 
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 34, sourceID: "saved-station" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "saved-station" },
       ],
     });
 
@@ -83,7 +83,9 @@ describe("a market this server prices", () => {
     readStoredPrice.mockResolvedValue(row(7));
     requestPrice.mockResolvedValue(row(10));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "saved-station" }] });
+    await fetchPrices({
+      wants: [{ typeID: 34, marketLocation: "saved-station" }],
+    });
 
     expect(requestPrice).toHaveBeenCalledWith(34, "saved-station");
     expect(readPrice(34, "saved-station").sell).toBe(10);
@@ -99,8 +101,8 @@ describe("every market", () => {
 
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "saved-station" },
-        { typeID: 34, sourceID: "jita" },
+        { typeID: 34, marketLocation: "saved-station" },
+        { typeID: 34, marketLocation: "jita" },
       ],
     });
 
@@ -120,7 +122,9 @@ describe("a market the reader reads themselves", () => {
   it("is served from the reader's device without asking for it again", async () => {
     readStoredPrice.mockResolvedValue(row(7));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "saved-citadel" }] });
+    await fetchPrices({
+      wants: [{ typeID: 34, marketLocation: "saved-citadel" }],
+    });
 
     expect(readStoredPrice).toHaveBeenCalledWith("saved-citadel", 34);
     expect(requestPrice).not.toHaveBeenCalled();
@@ -131,7 +135,9 @@ describe("a market the reader reads themselves", () => {
     readStoredPrice.mockResolvedValue(undefined);
     requestPrice.mockResolvedValue(row(10));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "saved-citadel" }] });
+    await fetchPrices({
+      wants: [{ typeID: 34, marketLocation: "saved-citadel" }],
+    });
 
     expect(requestPrice).toHaveBeenCalledWith(34, "saved-citadel");
     expect(readPrice(34, "saved-citadel").sell).toBe(10);
@@ -149,7 +155,9 @@ describe("a market whose rows come back from the reader's device", () => {
       ...row(7),
       refreshedAt: 1757003600000,
     });
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "saved-citadel" }] });
+    await fetchPrices({
+      wants: [{ typeID: 34, marketLocation: "saved-citadel" }],
+    });
 
     expect(readSourceClock("saved-citadel")).toBe(1757003600000);
 
@@ -158,7 +166,9 @@ describe("a market whose rows come back from the reader's device", () => {
       ...row(6),
       refreshedAt: 1757000000000,
     });
-    await fetchPrices({ wants: [{ typeID: 35, sourceID: "saved-citadel" }] });
+    await fetchPrices({
+      wants: [{ typeID: 35, marketLocation: "saved-citadel" }],
+    });
 
     expect(readSourceClock("saved-citadel")).toBe(1757003600000);
   });
@@ -172,8 +182,8 @@ describe("the probe and a market the reader reads themselves", () => {
     requestPrice.mockResolvedValue(row(10));
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 34, sourceID: "saved-citadel" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "saved-citadel" },
       ],
     });
     requestPrice.mockClear();

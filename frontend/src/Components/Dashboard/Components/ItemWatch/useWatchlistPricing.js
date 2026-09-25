@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import useUsersStore from "../../../../Zustand/usersStore";
-import { getMarketPriceForType } from "../../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../../Functions/MarketData/prices/marketPriceForType.js";
 import {
   resolveFor,
   sideDefaults,
@@ -44,14 +44,14 @@ export function useWatchlistPricing() {
   const buyingPrice = useCallback(
     (typeID) => {
       const { marketLocation, orderType } = resolveFor(buying, null, typeID);
-      return getMarketPriceForType(typeID, marketLocation, orderType);
+      return readMarketPriceForType(typeID, marketLocation, orderType);
     },
     [buying],
   );
 
   const sellWorth = useCallback(
     (typeID) =>
-      getMarketPriceForType(
+      readMarketPriceForType(
         typeID,
         resolveFor(selling, null, typeID).marketLocation,
         "sell",

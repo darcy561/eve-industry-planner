@@ -5,7 +5,7 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../../../Context/defaultValues";
 import { useMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import { useMemo } from "react";
@@ -23,7 +23,10 @@ export function MarketCostsPanel() {
     () =>
       itemID == null
         ? []
-        : marketSources.map(({ id }) => ({ typeID: itemID, sourceID: id })),
+        : marketSources.map(({ id }) => ({
+            typeID: itemID,
+            marketLocation: id,
+          })),
     [itemID, marketSources],
   );
   useMarketPricesQuery(wants);
@@ -83,13 +86,13 @@ export function MarketCostsPanel() {
                 <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
                   Sell:{" "}
                   {formatNumberForLocale(
-                    getMarketPriceForType(itemID, id, "sell"),
+                    readMarketPriceForType(itemID, id, "sell"),
                   )}
                 </Typography>
                 <Typography sx={{ typography: STANDARD_TEXT_FORMAT }}>
                   Buy:{" "}
                   {formatNumberForLocale(
-                    getMarketPriceForType(itemID, id, "buy"),
+                    readMarketPriceForType(itemID, id, "buy"),
                   )}
                 </Typography>
               </Grid>

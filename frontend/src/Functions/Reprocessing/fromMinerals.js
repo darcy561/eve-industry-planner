@@ -1,7 +1,7 @@
 import parseInputMineralString from "./parseMineralInput";
 import ReprocessingItem from "../../Classes/reprocessingItem";
 import { fetchPrices } from "../MarketData/prices/priceCache.js";
-import { getMarketPriceForType } from "../MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../MarketData/prices/marketPriceForType.js";
 import oreSelector from "./oreSelector";
 import { primeReprocessing, selectableItems } from "../Static/reprocessing";
 
@@ -48,14 +48,14 @@ async function reprocessFromMinerals(
   const pricesSettled = fetchPrices({
     wants: [...priceRequest].map((typeID) => ({
       typeID,
-      sourceID: marketLocation,
+      marketLocation,
     })),
   });
   const mineralRequestObjects = await parseInputMineralString(inputString);
   await pricesSettled;
 
   Object.values(reprocessingObjects).forEach((item) => {
-    item.unitPrice = getMarketPriceForType(item.id, marketLocation, orderType);
+    item.unitPrice = readMarketPriceForType(item.id, marketLocation, orderType);
   });
 
   const oreSelection = oreSelector(

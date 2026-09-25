@@ -22,7 +22,7 @@ function Subject({ wants, adjustedTypeIDs, enabled }) {
   return <p>{isLoading ? "pricing" : "priced"}</p>;
 }
 
-const want = (typeID, sourceID) => ({ typeID, sourceID });
+const want = (typeID, marketLocation) => ({ typeID, marketLocation });
 
 let client;
 

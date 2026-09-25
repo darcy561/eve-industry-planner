@@ -14,7 +14,7 @@ import { groupJobSkills } from "../../../../../../Functions/Skills/jobSkillGroup
 import { quotedCharacterHash } from "../../../../../../Functions/Skills/quotedCharacter";
 import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSellingContext";
 import { useSellingRates } from "../../../../../../Hooks/React Query/Character/useSellingRates";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import SkillsWhatIf from "./skillsWhatIf";
 import SkillLevelPips from "./skillLevelPips";
@@ -61,7 +61,7 @@ export function SkillsPanel() {
     () =>
       itemID == null || !soldAtID
         ? []
-        : [{ typeID: itemID, sourceID: soldAtID }],
+        : [{ typeID: itemID, marketLocation: soldAtID }],
     [itemID, soldAtID],
   );
   useMarketPricesQuery(wants);
@@ -150,7 +150,7 @@ export function SkillsPanel() {
             brokerFee={rates.brokerFee}
             salesTax={rates.salesTax}
             listedValue={
-              getMarketPriceForType(itemID, saleLocation?.id, "sell") * surplus
+              readMarketPriceForType(itemID, saleLocation?.id, "sell") * surplus
             }
             quantity={surplus}
             proposed={proposed}

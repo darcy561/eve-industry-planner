@@ -5,7 +5,7 @@ import { totalInstallCost } from "../../Components/Edit Job/Edit Job Hooks/jobSe
 const reader = { own: {}, main: "me" };
 
 vi.mock("../MarketData/prices/marketPriceForType.js", () => ({
-  getAdjustedPriceForType: () => 100,
+  readAdjustedPriceForType: () => 100,
 }));
 
 /** The planner's jobs, for the cases that walk a chain. */
@@ -41,8 +41,7 @@ vi.mock("../../Zustand/usersStore", () => ({
 const world = { indexes: {} };
 
 const { default: Job } = await import("../../Classes/job.js");
-const { jobCostSoFar } =
-  await import("../Groups/jobCostSoFar.js");
+const { jobCostSoFar } = await import("../Groups/jobCostSoFar.js");
 const {
   calculateInstallCostfromSetup,
   getJobInstallCostForPlanning,
@@ -264,8 +263,7 @@ describe("costing a chain deeper than one link", () => {
     link("child", KNOWN, 34, "grandchild");
     const parent = link("parent", KNOWN, 34, "child");
 
-    const missingTheGrandchild =
-      jobCostSoFar(parent);
+    const missingTheGrandchild = jobCostSoFar(parent);
 
     world.indexes[UNKNOWN] = { manufacturing: 0.1 };
     const whole = jobCostSoFar(parent);

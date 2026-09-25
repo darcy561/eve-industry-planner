@@ -65,10 +65,14 @@ const PRICE_CACHE_TIME = 30 * 60 * 1000;
  * Every market key is built from this, so dropping a whole market's rows and
  * reading one of them cannot disagree about where they are held.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @returns {string[]}
  */
-const marketPricesKey = (sourceID) => ["market", "price", String(sourceID)];
+const marketPricesKey = (marketLocation) => [
+  "market",
+  "price",
+  String(marketLocation),
+];
 
 /** @type {string[]} */
 const ADJUSTED_PRICES_QUERY_KEY = ["market", "adjusted"];
@@ -82,9 +86,9 @@ const ADJUSTED_PRICES_QUERY_KEY = ["market", "adjusted"];
  */
 export const MARKET_PRICES_QUERY_KEY = ["market", "prices"];
 
-/** @param {number|string} typeID @param {string} sourceID */
-export const priceQueryKey = (typeID, sourceID) => [
-  ...marketPricesKey(sourceID),
+/** @param {number|string} typeID @param {string} marketLocation */
+export const priceQueryKey = (typeID, marketLocation) => [
+  ...marketPricesKey(marketLocation),
   String(typeID),
 ];
 
@@ -100,12 +104,14 @@ export const adjustedQueryKey = (typeID) => [
  * caller reading a price cannot act differently on.
  *
  * @param {number|string} typeID
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @returns {{buy: number, sell: number, buyP95: number, sellP05: number,
  *   refreshedAt: number}|undefined}
  */
-export function readPrice(typeID, sourceID) {
-  return queryClient.getQueryData(priceQueryKey(typeID, sourceID)) ?? undefined;
+export function readPrice(typeID, marketLocation) {
+  return (
+    queryClient.getQueryData(priceQueryKey(typeID, marketLocation)) ?? undefined
+  );
 }
 
 /**
@@ -133,7 +139,7 @@ export function readAdjustedPrice(typeID) {
  * that could not be made is an error, and that is not written to the cache.
  *
  * @param {object} params
- * @param {Iterable<{typeID: number|string, sourceID: string}>} params.wants
+ * @param {Iterable<{typeID: number|string, marketLocation: string}>} params.wants
  * @param {Iterable<number|string>} [params.adjustedTypeIDs] - Types whose
  *   adjusted price is also wanted. Source-independent, so named apart
  * @returns {Promise<{asked: number, failed: number}>} How many wants were put to
@@ -144,16 +150,16 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
   const asked = [];
   const seen = new Set();
 
-  for (const { typeID, sourceID } of wants ?? []) {
-    if (typeID == null || !sourceID) continue;
-    const key = wantKey(sourceID, typeID);
+  for (const { typeID, marketLocation } of wants ?? []) {
+    if (typeID == null || !marketLocation) continue;
+    const key = wantKey(marketLocation, typeID);
     if (seen.has(key)) continue;
     seen.add(key);
 
     asked.push(
       queryClient.ensureQueryData({
-        queryKey: priceQueryKey(typeID, sourceID),
-        queryFn: () => resolvePrice(typeID, sourceID),
+        queryKey: priceQueryKey(typeID, marketLocation),
+        queryFn: () => resolvePrice(typeID, marketLocation),
         staleTime: PRICE_STALE_TIME,
         gcTime: PRICE_CACHE_TIME,
         retry: false,
@@ -194,22 +200,22 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
  * read takes a whole market at once, and one resolved row shows neither what
  * every type is worth nor which have stopped trading.
  */
-async function resolvePrice(typeID, sourceID) {
-  const source = sourceIn(allMarketSources(), sourceID);
+async function resolvePrice(typeID, marketLocation) {
+  const source = sourceIn(allMarketSources(), marketLocation);
 
   if (!persistsAcrossSessions(source?.kind)) {
-    return requestPrice(typeID, sourceID);
+    return requestPrice(typeID, marketLocation);
   }
 
-  const stored = await readStoredPrice(sourceID, typeID);
+  const stored = await readStoredPrice(marketLocation, typeID);
   if (stored) {
     // A reload leaves rows on disk and no clock, and a market with no clock
     // cannot be seen to move: the next read would count as its first.
-    recordSourceClock(sourceID, stored.refreshedAt);
+    recordSourceClock(marketLocation, stored.refreshedAt);
     return stored;
   }
 
-  return requestPrice(typeID, sourceID);
+  return requestPrice(typeID, marketLocation);
 }
 
 /**
@@ -222,8 +228,8 @@ async function resolvePrice(typeID, sourceID) {
  * the new figures are never fetched.
  */
 setClockMovedListener(({ sources, adjusted }) => {
-  for (const sourceID of sources) {
-    queryClient.removeQueries({ queryKey: marketPricesKey(sourceID) });
+  for (const marketLocation of sources) {
+    queryClient.removeQueries({ queryKey: marketPricesKey(marketLocation) });
   }
 
   if (adjusted) {
@@ -283,8 +289,8 @@ export async function rotateSelfReadMarkets(now = Date.now()) {
   const refused = await readEach(rotating);
 
   await Promise.all(
-    refused.map(({ sourceID, outcome }) =>
-      deferMarket(sourceID, now + PRICE_ROTATION_MS, outcome),
+    refused.map(({ marketLocation, outcome }) =>
+      deferMarket(marketLocation, now + PRICE_ROTATION_MS, outcome),
     ),
   );
 
@@ -307,19 +313,19 @@ export async function rotateSelfReadMarkets(now = Date.now()) {
  * the strength of that would leave a readable market unread on nothing more than
  * bad timing.
  *
- * @param {string[]} sourceIDs
- * @returns {Promise<Array<{sourceID: string, outcome: string}>>}
+ * @param {string[]} marketLocations
+ * @returns {Promise<Array<{marketLocation: string, outcome: string}>>}
  */
-async function readEach(sourceIDs) {
+async function readEach(marketLocations) {
   const settled = [];
 
   await Promise.all(
-    sourceIDs.map(async (sourceID) => {
+    marketLocations.map(async (marketLocation) => {
       try {
-        await requestMarketRead(sourceID);
+        await requestMarketRead(marketLocation);
       } catch (error) {
         const outcome = outcomeOfFailedRead(error);
-        if (readerCanAct(outcome)) settled.push({ sourceID, outcome });
+        if (readerCanAct(outcome)) settled.push({ marketLocation, outcome });
       }
     }),
   );
@@ -353,37 +359,40 @@ export async function revalidateSourceClocks() {
   const sources = allMarketSources();
   const wants = [];
 
-  for (const sourceID of sourcesHoldingRows()) {
+  for (const marketLocation of sourcesHoldingRows()) {
     // Asking one of these for one type reads its whole market, so the question
     // that is cheap everywhere else is a walk here.
-    if (!answersAPerTypeProbe(sourceIn(sources, sourceID)?.kind)) continue;
+    if (!answersAPerTypeProbe(sourceIn(sources, marketLocation)?.kind))
+      continue;
 
-    const typeID = anyHeldTypeAt(sourceID);
+    const typeID = anyHeldTypeAt(marketLocation);
     if (typeID === undefined) continue;
     wants.push({
       typeID,
-      sourceID,
-      unwalked: readSourceClock(sourceID) === undefined,
+      marketLocation,
+      unwalked: readSourceClock(marketLocation) === undefined,
     });
   }
 
   if (wants.length === 0) return;
 
   await Promise.allSettled(
-    wants.map(({ typeID, sourceID }) => requestPrice(typeID, sourceID)),
+    wants.map(({ typeID, marketLocation }) =>
+      requestPrice(typeID, marketLocation),
+    ),
   );
 
   // A first clock is not a move, so nothing announced it — but the rows held
   // were answered before the market had been walked and all say it holds no
   // price, and a reader who asked too early would sit on that for the tab's life.
   const walkedAtLast = wants.filter(
-    ({ sourceID, unwalked }) =>
-      unwalked && readSourceClock(sourceID) !== undefined,
+    ({ marketLocation, unwalked }) =>
+      unwalked && readSourceClock(marketLocation) !== undefined,
   );
   if (walkedAtLast.length === 0) return;
 
-  for (const { sourceID } of walkedAtLast) {
-    queryClient.removeQueries({ queryKey: marketPricesKey(sourceID) });
+  for (const { marketLocation } of walkedAtLast) {
+    queryClient.removeQueries({ queryKey: marketPricesKey(marketLocation) });
   }
   queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
 }
@@ -401,8 +410,8 @@ function sourcesHoldingRows() {
   for (const entry of queryClient
     .getQueryCache()
     .findAll({ queryKey: ["market", "price"] })) {
-    const sourceID = entry.queryKey?.[2];
-    if (sourceID) held.add(sourceID);
+    const marketLocation = entry.queryKey?.[2];
+    if (marketLocation) held.add(marketLocation);
   }
   return [...held];
 }
@@ -414,9 +423,9 @@ function sourcesHoldingRows() {
  * choose between them and no reason for a sentinel type id that would be a
  * magic constant in the bargain.
  */
-function anyHeldTypeAt(sourceID) {
+function anyHeldTypeAt(marketLocation) {
   const [entry] = queryClient.getQueryCache().findAll({
-    queryKey: marketPricesKey(sourceID),
+    queryKey: marketPricesKey(marketLocation),
   });
 
   return entry?.queryKey?.[3];

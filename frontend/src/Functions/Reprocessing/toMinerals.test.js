@@ -70,7 +70,7 @@ describe("turning pasted ore into minerals", () => {
     expect(wants.map((want) => String(want.typeID))).toEqual(
       expect.arrayContaining(["1230", "34"]),
     );
-    expect(new Set(wants.map((want) => want.sourceID))).toEqual(
+    expect(new Set(wants.map((want) => want.marketLocation))).toEqual(
       new Set(["jita"]),
     );
   });

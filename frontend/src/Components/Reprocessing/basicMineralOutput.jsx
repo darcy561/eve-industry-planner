@@ -15,7 +15,7 @@ import {
   LARGE_TEXT_FORMAT,
   STANDARD_TEXT_FORMAT,
 } from "../../Context/defaultValues";
-import { getMarketPriceForType } from "../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../Functions/MarketData/prices/marketPriceForType.js";
 import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
@@ -28,7 +28,7 @@ function BasicMineralOutput({ pageState }) {
     if (isLoading) return 0;
     return pageState.processedInput.reduce((acc, item) => {
       if (item.quantity === 0) return acc;
-      const unitPrice = getMarketPriceForType(
+      const unitPrice = readMarketPriceForType(
         item.id,
         pageState.marketLocation,
         pageState.orderType,
@@ -46,7 +46,7 @@ function BasicMineralOutput({ pageState }) {
     if (isLoading) return 0;
     return pageState.reprocessingObjects.reduce((acc, item) => {
       if (item.batchSize > item.totalQuantity) return acc;
-      const unitPrice = getMarketPriceForType(
+      const unitPrice = readMarketPriceForType(
         item.id,
         pageState.marketLocation,
         pageState.orderType,
@@ -186,7 +186,7 @@ function BasicMineralOutput({ pageState }) {
         {pageState.processedInput.map((item) => {
           if (item.quantity === 0) return null;
           const matchedName = itemNameFrom(item.id, itemRecords);
-          const unitPrice = getMarketPriceForType(
+          const unitPrice = readMarketPriceForType(
             item.id,
             pageState.marketLocation,
             pageState.orderType,

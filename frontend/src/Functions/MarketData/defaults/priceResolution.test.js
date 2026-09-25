@@ -108,8 +108,8 @@ describe("what is fetched is what is read", () => {
     );
 
     const fetchedFor34 = wants.find((want) => want.typeID === 34);
-    expect(fetchedFor34.sourceID).toBe(read.marketLocation);
-    expect(fetchedFor34.sourceID).toBe("amarr");
+    expect(fetchedFor34.marketLocation).toBe(read.marketLocation);
+    expect(fetchedFor34.marketLocation).toBe("amarr");
   });
 
   it("agrees for a material carrying its own override", () => {
@@ -125,7 +125,7 @@ describe("what is fetched is what is read", () => {
       34,
     );
 
-    expect(wants.find((want) => want.typeID === 34).sourceID).toBe(
+    expect(wants.find((want) => want.typeID === 34).marketLocation).toBe(
       read.marketLocation,
     );
   });
@@ -140,8 +140,8 @@ describe("what is fetched is what is read", () => {
     const { wants } = pricesWantedForTypes([34], PRICING_SIDE.BUYING);
     const read = resolveFor(sideDefaults(PRICING_SIDE.BUYING), null, 34);
 
-    expect(wants[0].sourceID).toBe(read.marketLocation);
-    expect(wants[0].sourceID).toBe("dodixie");
+    expect(wants[0].marketLocation).toBe(read.marketLocation);
+    expect(wants[0].marketLocation).toBe("dodixie");
   });
 
   // The output is sold, not bought, and the two sides routinely differ.
@@ -153,7 +153,11 @@ describe("what is fetched is what is read", () => {
 
     const { wants } = pricesWantedBy(job());
 
-    expect(wants.find((want) => want.typeID === 99).sourceID).toBe("amarr");
-    expect(wants.find((want) => want.typeID === 34).sourceID).toBe("jita");
+    expect(wants.find((want) => want.typeID === 99).marketLocation).toBe(
+      "amarr",
+    );
+    expect(wants.find((want) => want.typeID === 34).marketLocation).toBe(
+      "jita",
+    );
   });
 });

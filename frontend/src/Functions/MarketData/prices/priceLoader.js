@@ -13,7 +13,7 @@ import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 /**
  * What a tick has been asked for, and everyone waiting on each want.
  *
- * Keyed `sourceID|typeID` for a price and `adjusted|typeID` for an adjusted
+ * Keyed `marketLocation|typeID` for a price and `adjusted|typeID` for an adjusted
  * price, so two callers wanting the same thing in the same tick wait on one
  * lookup rather than issuing two.
  *
@@ -34,12 +34,12 @@ const adjustedKey = (typeID) => `adjusted|${typeID}`;
  * here, sorted by who can answer it, and issued as one request per transport.
  *
  * @param {number|string} typeID
- * @param {string} sourceID - A market source id
+ * @param {string} marketLocation - A market source id
  * @returns {Promise<{buy: number, sell: number, buyP95: number, sellP05: number,
  *   refreshedAt: number}|null>} null where the market holds no order for the type
  */
-export function requestPrice(typeID, sourceID) {
-  return enqueue(wantKey(sourceID, typeID));
+export function requestPrice(typeID, marketLocation) {
+  return enqueue(wantKey(marketLocation, typeID));
 }
 
 /**
@@ -49,15 +49,15 @@ export function requestPrice(typeID, sourceID) {
  * naming a type it does not care about and throwing the answer away, which
  * would put a magic id through machinery built for batching real wants.
  *
- * @param {string} sourceID - A market the reader reads themselves
+ * @param {string} marketLocation - A market the reader reads themselves
  * @returns {Promise<void>}
  * @throws whatever reading the market threw
  */
-export async function requestMarketRead(sourceID) {
-  const source = sourceIn(allMarketSources(), sourceID);
+export async function requestMarketRead(marketLocation) {
+  const source = sourceIn(allMarketSources(), marketLocation);
   if (!isReadByTheReader(source?.kind)) return;
 
-  await readAndKeep(sourceID, source);
+  await readAndKeep(marketLocation, source);
 }
 
 /**
@@ -106,7 +106,10 @@ async function flush() {
     // is an answer and this is the absence of anywhere to ask — a reader whose
     // saved market has gone needs the difference.
     for (const want of unaskable) {
-      rejectWant(want, new Error(`no market source named "${want.sourceID}"`));
+      rejectWant(
+        want,
+        new Error(`no market source named "${want.marketLocation}"`),
+      );
     }
   } catch (error) {
     // Every want must settle. Each transport already fails only its own, so
@@ -144,7 +147,7 @@ function splitByTransport(batch) {
     }
 
     const source = sourceIn(sources, head);
-    const want = { typeID, sourceID: head, source, waiters };
+    const want = { typeID, marketLocation: head, source, waiters };
 
     // A market the registry does not carry cannot be asked at all. One it does
     // carry is asked whichever way its kind says, rather than this listing the
@@ -186,7 +189,7 @@ async function serveServerHeld(wants, adjusted) {
     const answer = await fetchMarketPricesQuery({
       wants: wants.map(({ typeID, source }) => ({
         typeID,
-        sourceID: transportIDFor(source),
+        marketLocation: transportIDFor(source),
       })),
       adjustedTypeIDs: adjusted.map(({ typeID }) => typeID),
     });
@@ -219,11 +222,11 @@ async function serveWalked(wants) {
 
   const byMarket = new Map();
   for (const want of wants) {
-    const group = byMarket.get(want.sourceID);
+    const group = byMarket.get(want.marketLocation);
     if (group) {
       group.push(want);
     } else {
-      byMarket.set(want.sourceID, [want]);
+      byMarket.set(want.marketLocation, [want]);
     }
   }
 
@@ -233,11 +236,11 @@ async function serveWalked(wants) {
 }
 
 async function serveOneCitadel(wants) {
-  const { sourceID, source } = wants[0];
+  const { marketLocation, source } = wants[0];
 
   let prices;
   try {
-    prices = await readAndKeep(sourceID, source);
+    prices = await readAndKeep(marketLocation, source);
   } catch (error) {
     for (const want of wants) rejectWant(want, error);
     return;
@@ -270,19 +273,19 @@ const reading = new Map();
  * lasts exactly as long as the work: a market asked for afterwards is read
  * again, and a failure is not held on to.
  */
-function readAndKeep(sourceID, source) {
-  const underWay = reading.get(sourceID);
+function readAndKeep(marketLocation, source) {
+  const underWay = reading.get(marketLocation);
   if (underWay) return underWay;
 
-  const work = keepWhatIsRead(sourceID, source).finally(() =>
-    reading.delete(sourceID),
+  const work = keepWhatIsRead(marketLocation, source).finally(() =>
+    reading.delete(marketLocation),
   );
-  reading.set(sourceID, work);
+  reading.set(marketLocation, work);
 
   return work;
 }
 
-async function keepWhatIsRead(sourceID, source) {
+async function keepWhatIsRead(marketLocation, source) {
   const prices = await readCitadelPrices(source);
 
   // A read of a whole market is a statement about every type on it, so the
@@ -294,7 +297,7 @@ async function keepWhatIsRead(sourceID, source) {
   // through is the store — so announcing first sends them to the rows this read
   // is about to replace, which they would then hold until something else moved
   // the market.
-  await replaceStoredPrices(sourceID, prices.rows, {
+  await replaceStoredPrices(marketLocation, prices.rows, {
     refreshedAt: prices.refreshedAt,
     expiresAt: prices.expiresAt,
   });
@@ -304,14 +307,14 @@ async function keepWhatIsRead(sourceID, source) {
   // write it does not read — and its failure is swallowed here as well as
   // inside, because an unawaited promise that rejects takes the whole tick down
   // rather than the browse it belongs to.
-  replaceStoredOrders(sourceID, prices.orders, prices.refreshedAt)
-    .then(() => onOrdersStored?.(sourceID))
+  replaceStoredOrders(marketLocation, prices.orders, prices.refreshedAt)
+    .then(() => onOrdersStored?.(marketLocation))
     .catch(() => {});
 
   // Before any waiter, as the served transport does: a reader woken by one of
   // them reads the rows against the clock they arrived with.
-  if (recordSourceClock(sourceID, prices.refreshedAt)) {
-    onClocksMoved?.({ sources: [sourceID], adjusted: false });
+  if (recordSourceClock(marketLocation, prices.refreshedAt)) {
+    onClocksMoved?.({ sources: [marketLocation], adjusted: false });
   }
 
   return prices;
@@ -349,20 +352,21 @@ function recordClocks(answer, wants) {
   const answered = new Set();
   for (const want of wants ?? []) {
     answered.add(transportIDFor(want.source));
-    if (asked.has(want.sourceID)) continue;
-    asked.add(want.sourceID);
+    if (asked.has(want.marketLocation)) continue;
+    asked.add(want.marketLocation);
 
     const block = answer?.sources?.[transportIDFor(want.source)];
-    if (recordSourceClock(want.sourceID, block?.refreshedAt)) {
-      moved.push(want.sourceID);
+    if (recordSourceClock(want.marketLocation, block?.refreshedAt)) {
+      moved.push(want.marketLocation);
     }
   }
 
   // A market the answer named that nothing asked for still states its clock,
   // under the only id there is for it here.
-  for (const [sourceID, block] of Object.entries(answer?.sources ?? {})) {
-    if (answered.has(sourceID)) continue;
-    if (recordSourceClock(sourceID, block?.refreshedAt)) moved.push(sourceID);
+  for (const [marketLocation, block] of Object.entries(answer?.sources ?? {})) {
+    if (answered.has(marketLocation)) continue;
+    if (recordSourceClock(marketLocation, block?.refreshedAt))
+      moved.push(marketLocation);
   }
 
   const adjustedMoved = answer?.adjusted
@@ -392,7 +396,7 @@ export function setClockMovedListener(listener) {
   onClocksMoved = listener;
 }
 
-/** @type {((sourceID: string) => void)|null} */
+/** @type {((marketLocation: string) => void)|null} */
 let onOrdersStored = null;
 
 /**
@@ -404,7 +408,7 @@ let onOrdersStored = null;
  * browsing its orders is waiting on nobody and would sit on an empty market for
  * as long as it stayed open.
  *
- * @param {((sourceID: string) => void)|null} listener
+ * @param {((marketLocation: string) => void)|null} listener
  */
 export function setOrdersStoredListener(listener) {
   onOrdersStored = listener;

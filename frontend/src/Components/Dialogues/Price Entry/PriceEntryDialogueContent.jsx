@@ -9,7 +9,7 @@ import {
   showSnackbarError,
 } from "../../../Events/snackbarEvents";
 import useUsersStore from "../../../Zustand/usersStore";
-import { getMarketPriceForType } from "../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../Functions/MarketData/prices/marketPriceForType.js";
 import { formatNumberForLocale } from "../../../Functions/Helper/numberParser";
 import importMultibuyFromClipboard from "../../../Functions/Clipboard/importMultibuy";
 import { requestClipboardPermissions } from "../../../Functions/Clipboard/clipboardPermissions";
@@ -40,7 +40,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
     () =>
       state.priceEntryList.map(({ typeID }) => ({
         typeID,
-        sourceID: state.marketLocation,
+        marketLocation: state.marketLocation,
       })),
     [state.priceEntryList, state.marketLocation],
   );
@@ -375,7 +375,7 @@ export function PriceEntryDialogueContent({ state, actions }) {
                   const remainingQty = item.remainingQuantity - confirmedQty;
 
                   if (remainingQty > 0) {
-                    const defaultPrice = getMarketPriceForType(
+                    const defaultPrice = readMarketPriceForType(
                       item.typeID,
                       state.marketLocation,
                       state.orderType,

@@ -66,7 +66,7 @@ describe("a want for a station the reader saved", () => {
     const row = await requestPrice(34, "saved-station");
 
     expect(fetchMarketPricesQuery.mock.calls[0][0].wants).toEqual([
-      { typeID: "34", sourceID: String(JITA_4_4) },
+      { typeID: "34", marketLocation: String(JITA_4_4) },
     ]);
     expect(row.sell).toBe(10);
   });
@@ -131,8 +131,8 @@ describe("two markets an account saved at one station", () => {
 
     expect(fetchMarketPricesQuery).toHaveBeenCalledTimes(1);
     expect(fetchMarketPricesQuery.mock.calls[0][0].wants).toEqual([
-      { typeID: "34", sourceID: String(JITA_4_4) },
-      { typeID: "34", sourceID: String(JITA_4_4) },
+      { typeID: "34", marketLocation: String(JITA_4_4) },
+      { typeID: "34", marketLocation: String(JITA_4_4) },
     ]);
   });
 });
@@ -156,8 +156,8 @@ describe("a tick naming hubs and saved markets together", () => {
 
     expect(fetchMarketPricesQuery).toHaveBeenCalledTimes(1);
     expect(fetchMarketPricesQuery.mock.calls[0][0].wants).toEqual([
-      { typeID: "34", sourceID: "jita" },
-      { typeID: "34", sourceID: String(RENS) },
+      { typeID: "34", marketLocation: "jita" },
+      { typeID: "34", marketLocation: String(RENS) },
     ]);
     expect(hub.sell).toBe(5);
     expect(saved.sell).toBe(6);

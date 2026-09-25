@@ -13,7 +13,9 @@ const order = (typeID, locationID, price) => ({
 });
 
 const heldAt = (held) => {
-  readStoredOrders.mockImplementation(async (sourceID) => held[sourceID]);
+  readStoredOrders.mockImplementation(
+    async (marketLocation) => held[marketLocation],
+  );
 };
 
 beforeEach(() => {

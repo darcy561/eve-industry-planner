@@ -27,10 +27,13 @@ vi.mock(
   }),
 );
 
-vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
-  getPriceRefreshedAt: () => undefined,
-  getMarketPriceForType: () => 10_000,
-}));
+vi.mock(
+  "../../../../../../Functions/MarketData/prices/marketPriceForType.js",
+  () => ({
+    readPriceRefreshedAt: () => undefined,
+    readMarketPriceForType: () => 10_000,
+  }),
+);
 
 vi.mock(
   "../../../../../../Functions/MarketOrders/saleLocations",

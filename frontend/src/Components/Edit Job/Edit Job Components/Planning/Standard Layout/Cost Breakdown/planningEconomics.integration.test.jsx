@@ -24,11 +24,14 @@ const marketPrices = {
   35: { jita: { sell: 5, buy: 4, buyP95: 4.2, sellP05: 4.8 } },
 };
 
-vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
-  getPriceRefreshedAt: () => undefined,
-  getMarketPriceForType: (typeID, hub, listing) =>
-    marketPrices[typeID]?.[hub]?.[listing] ?? 0,
-}));
+vi.mock(
+  "../../../../../../Functions/MarketData/prices/marketPriceForType.js",
+  () => ({
+    readPriceRefreshedAt: () => undefined,
+    readMarketPriceForType: (typeID, hub, listing) =>
+      marketPrices[typeID]?.[hub]?.[listing] ?? 0,
+  }),
+);
 
 vi.mock("../../../../../../Functions/Installation Costs/installCosts", () => ({
   installCostForPlanning: () => 100,

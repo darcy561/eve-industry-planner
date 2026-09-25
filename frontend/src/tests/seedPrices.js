@@ -30,9 +30,9 @@ export default function seedPrices(
   prices,
   { adjusted = {}, refreshedAt = Date.now() } = {},
 ) {
-  for (const [sourceID, rows] of Object.entries(prices)) {
+  for (const [marketLocation, rows] of Object.entries(prices)) {
     for (const [typeID, row] of Object.entries(rows)) {
-      queryClient.setQueryData(priceQueryKey(typeID, sourceID), {
+      queryClient.setQueryData(priceQueryKey(typeID, marketLocation), {
         buy: 0,
         sell: 0,
         buyP95: 0,
@@ -50,8 +50,8 @@ export default function seedPrices(
   // The clock beside the rows, not just on them: a market's clock is what
   // decides whether rows held for it survive, so seeding rows without one
   // leaves a market the freshness rule cannot see.
-  for (const sourceID of Object.keys(prices)) {
-    recordSourceClock(sourceID, refreshedAt);
+  for (const marketLocation of Object.keys(prices)) {
+    recordSourceClock(marketLocation, refreshedAt);
   }
   if (Object.keys(adjusted).length > 0) {
     recordAdjustedClock(refreshedAt);

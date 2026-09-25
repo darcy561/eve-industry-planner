@@ -7,15 +7,18 @@ import { testQueryClient } from "../../../../../../tests/queryClients.js";
 
 // The panel asks for every market it compares, so the boundary beneath it is
 // mocked rather than left to reach the network and fail quickly.
-vi.mock("../../../../../../Functions/MarketData/prices/priceCache.js", async () => {
-  const actual = await vi.importActual(
-    "../../../../../../Functions/MarketData/prices/priceCache.js",
-  );
-  return {
-    ...actual,
-    fetchPrices: vi.fn(async () => ({ asked: 0, failed: 0 })),
-  };
-});
+vi.mock(
+  "../../../../../../Functions/MarketData/prices/priceCache.js",
+  async () => {
+    const actual = await vi.importActual(
+      "../../../../../../Functions/MarketData/prices/priceCache.js",
+    );
+    return {
+      ...actual,
+      fetchPrices: vi.fn(async () => ({ asked: 0, failed: 0 })),
+    };
+  },
+);
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreOverSession } =
@@ -27,10 +30,13 @@ vi.mock("../../../../../../Hooks/Static/useMarketSources", () => ({
   useMarketSources: () => [{ id: "jita", name: "Jita" }],
 }));
 
-vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
-  getMarketPriceForType: (typeID, _source, side) =>
-    side === "sell" ? typeID * 2 : typeID,
-}));
+vi.mock(
+  "../../../../../../Functions/MarketData/prices/marketPriceForType.js",
+  () => ({
+    readMarketPriceForType: (typeID, _source, side) =>
+      side === "sell" ? typeID * 2 : typeID,
+  }),
+);
 
 vi.mock("../../../../../../Styled Components/Item/marketActions", () => ({
   default: ({ typeID }) => <span>actions for {typeID}</span>,

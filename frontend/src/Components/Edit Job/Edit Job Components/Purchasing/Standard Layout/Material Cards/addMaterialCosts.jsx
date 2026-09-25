@@ -12,7 +12,7 @@ import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import { useEffectiveMarketHub } from "../../../../../../Hooks/Planner/useEffectiveMarketHub.js";
 import { PRICING_SIDE } from "../../../../../../Functions/MarketData/defaults/pricingSide";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import {
   importedQuantities,
@@ -40,12 +40,12 @@ export function AddMaterialCost_Purchasing({
   // The one price this card draws. Read out of the cache as it renders, so the
   // query is what tells it the figure has moved.
   const wants = useMemo(
-    () => [{ typeID: material.typeID, sourceID: marketLocation }],
+    () => [{ typeID: material.typeID, marketLocation }],
     [material.typeID, marketLocation],
   );
   useMarketPricesQuery(wants);
 
-  const materialPrice = getMarketPriceForType(
+  const materialPrice = readMarketPriceForType(
     material.typeID,
     marketLocation,
     orderType,

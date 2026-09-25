@@ -24,11 +24,11 @@ const ADJUSTED = " adjusted";
 /**
  * The newest clock recorded for a market, or undefined where none is held.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @returns {number|undefined}
  */
-export function readSourceClock(sourceID) {
-  return clocks.get(sourceID);
+export function readSourceClock(marketLocation) {
+  return clocks.get(marketLocation);
 }
 
 /** @returns {number|undefined} */
@@ -42,13 +42,13 @@ export function readAdjustedClock() {
  * An older clock is ignored rather than written: answers from two chunks of one
  * request can settle in either order, and a market never walks backwards.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @param {number} refreshedAt - Milliseconds, as the price answer carries it
  * @returns {boolean} true where this is a newer walk than the one held, which
  *   is what makes every row from the older one stale
  */
-export function recordSourceClock(sourceID, refreshedAt) {
-  return record(sourceID, refreshedAt);
+export function recordSourceClock(marketLocation, refreshedAt) {
+  return record(marketLocation, refreshedAt);
 }
 
 /** @param {number} refreshedAt @returns {boolean} */

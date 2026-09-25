@@ -31,7 +31,7 @@ const { queryClient } = await import("../../../queryClient.js");
 const { resetSourceClocks, readSourceClock } =
   await import("./sourceClocks.js");
 const { resetPriceLoader } = await import("./priceLoader.js");
-const { getMarketPriceForType, getPriceRefreshedAt } =
+const { readMarketPriceForType, readPriceRefreshedAt } =
   await import("./marketPriceForType.js");
 const { revalidateSourceClocks } = await import("./priceCache.js");
 const { useMarketPricesQuery } =
@@ -82,9 +82,9 @@ function Subject({ wants }) {
 
   return (
     <ul>
-      {wants.map(({ typeID, sourceID }) => (
-        <li key={`${sourceID}|${typeID}`}>
-          {`${sourceID}/${typeID}: ${getMarketPriceForType(typeID, sourceID, "sell")}`}
+      {wants.map(({ typeID, marketLocation }) => (
+        <li key={`${marketLocation}|${typeID}`}>
+          {`${marketLocation}/${typeID}: ${readMarketPriceForType(typeID, marketLocation, "sell")}`}
         </li>
       ))}
     </ul>
@@ -124,7 +124,7 @@ describe("a price from the wire to the screen", () => {
       }),
     );
 
-    show([{ typeID: 34, sourceID: "jita" }]);
+    show([{ typeID: 34, marketLocation: "jita" }]);
 
     expect(await screen.findByText("jita/34: 10")).toBeTruthy();
   });
@@ -143,9 +143,9 @@ describe("a price from the wire to the screen", () => {
     );
 
     show([
-      { typeID: 34, sourceID: "jita" },
-      { typeID: 35, sourceID: "jita" },
-      { typeID: 34, sourceID: "amarr" },
+      { typeID: 34, marketLocation: "jita" },
+      { typeID: 35, marketLocation: "jita" },
+      { typeID: 34, marketLocation: "amarr" },
     ]);
 
     expect(await screen.findByText("jita/34: 10")).toBeTruthy();
@@ -166,11 +166,11 @@ describe("a price from the wire to the screen", () => {
       }),
     );
 
-    show([{ typeID: 34, sourceID: "jita" }]);
+    show([{ typeID: 34, marketLocation: "jita" }]);
     await screen.findByText("jita/34: 10");
 
     expect(readSourceClock("jita")).toBe(WALKED_AT);
-    expect(getPriceRefreshedAt(34, "jita")).toBe(WALKED_AT);
+    expect(readPriceRefreshedAt(34, "jita")).toBe(WALKED_AT);
   });
 
   // A type a market holds no order for is absent from the answer, and absence
@@ -180,11 +180,11 @@ describe("a price from the wire to the screen", () => {
       apiResponse({ jita: { refreshedAt: WALKED_AT, prices: {} } }),
     );
 
-    show([{ typeID: 34, sourceID: "jita" }]);
+    show([{ typeID: 34, marketLocation: "jita" }]);
 
     expect(await screen.findByText("jita/34: 0")).toBeTruthy();
     // Nothing was learned about when this type was priced, so no age is shown.
-    expect(getPriceRefreshedAt(34, "jita")).toBeUndefined();
+    expect(readPriceRefreshedAt(34, "jita")).toBeUndefined();
   });
 
   // A request that could not be made is not an answer of no orders, so nothing
@@ -193,7 +193,7 @@ describe("a price from the wire to the screen", () => {
   it("leaves nothing held when the request fails", async () => {
     fetchMock.mockImplementation(async () => apiRefusal());
 
-    show([{ typeID: 34, sourceID: "jita" }]);
+    show([{ typeID: 34, marketLocation: "jita" }]);
     // The shared retry layer makes four attempts with escalating backoff before
     // a refusal is final, so this waits on the outcome rather than a moment.
     expect(
@@ -202,8 +202,8 @@ describe("a price from the wire to the screen", () => {
 
     // Nothing is written: a refusal is not an answer of no orders, so the next
     // reader asks again rather than being told zero for the rest of the session.
-    expect(getMarketPriceForType(34, "jita", "sell")).toBe(0);
-    expect(getPriceRefreshedAt(34, "jita")).toBeUndefined();
+    expect(readMarketPriceForType(34, "jita", "sell")).toBe(0);
+    expect(readPriceRefreshedAt(34, "jita")).toBeUndefined();
     expect(readSourceClock("jita")).toBeUndefined();
   });
 
@@ -213,7 +213,7 @@ describe("a price from the wire to the screen", () => {
   it("reports a failure rather than resolving as loaded", async () => {
     fetchMock.mockImplementation(async () => apiRefusal());
 
-    show([{ typeID: 34, sourceID: "jita" }]);
+    show([{ typeID: 34, marketLocation: "jita" }]);
 
     expect(
       await screen.findByText("could not price", {}, RETRY_WAIT),
@@ -233,7 +233,7 @@ describe("a price from the wire to the screen", () => {
       }),
     );
 
-    show([{ typeID: 34, sourceID: "saved-market" }]);
+    show([{ typeID: 34, marketLocation: "saved-market" }]);
 
     expect(await screen.findByText("saved-market/34: 12")).toBeTruthy();
 
@@ -250,11 +250,11 @@ describe("a price from the wire to the screen", () => {
       }),
     );
 
-    show([{ typeID: 34, sourceID: "saved-market" }]);
+    show([{ typeID: 34, marketLocation: "saved-market" }]);
     await screen.findByText("saved-market/34: 12");
 
     expect(readSourceClock("saved-market")).toBe(WALKED_AT);
-    expect(getPriceRefreshedAt(34, "saved-market")).toBe(WALKED_AT);
+    expect(readPriceRefreshedAt(34, "saved-market")).toBe(WALKED_AT);
   });
 
   // A hub and a saved market travel as one request now, where the saved one
@@ -268,8 +268,8 @@ describe("a price from the wire to the screen", () => {
     );
 
     show([
-      { typeID: 34, sourceID: "jita" },
-      { typeID: 34, sourceID: "saved-market" },
+      { typeID: 34, marketLocation: "jita" },
+      { typeID: 34, marketLocation: "saved-market" },
     ]);
 
     expect(await screen.findByText("jita/34: 10")).toBeTruthy();
@@ -288,7 +288,7 @@ describe("a price from the wire to the screen", () => {
       apiResponse({ [SAVED_STATION]: { refreshedAt: 0, prices: {} } }),
     );
 
-    show([{ typeID: 34, sourceID: "saved-market" }]);
+    show([{ typeID: 34, marketLocation: "saved-market" }]);
     expect(await screen.findByText("saved-market/34: 0")).toBeTruthy();
 
     // The walk finishes, and the market starts answering with a clock.
@@ -309,10 +309,10 @@ describe("a price from the wire to the screen", () => {
       }),
     );
 
-    show([{ typeID: 34, sourceID: "jita" }]);
+    show([{ typeID: 34, marketLocation: "jita" }]);
     await screen.findByText("jita/34: 10");
 
-    show([{ typeID: 34, sourceID: "jita" }]);
+    show([{ typeID: 34, marketLocation: "jita" }]);
     await screen.findAllByText("jita/34: 10");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

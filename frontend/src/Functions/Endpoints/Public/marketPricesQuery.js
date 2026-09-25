@@ -19,7 +19,7 @@ import { chunkArray } from "../chunkArray.js";
  * (`services/api/v1endpoints/marketPricesQuery.go`).
  *
  * @param {object} params
- * @param {Iterable<{typeID: string|number, sourceID: string}>} params.wants -
+ * @param {Iterable<{typeID: string|number, marketLocation: string}>} params.wants -
  *   Each type paired with the one market it is wanted at. Pairs rather than two
  *   lists: a caller pricing some materials at Jita and some at Amarr wants
  *   neither of them at both
@@ -37,12 +37,12 @@ export async function fetchMarketPricesQuery({ wants, adjustedTypeIDs = [] }) {
   const reads = [];
   const seen = new Set();
 
-  for (const { typeID, sourceID } of wants ?? []) {
-    if (typeID == null || !sourceID) continue;
-    const key = `${sourceID}|${String(typeID)}`;
+  for (const { typeID, marketLocation } of wants ?? []) {
+    if (typeID == null || !marketLocation) continue;
+    const key = `${marketLocation}|${String(typeID)}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    reads.push({ sourceID, typeID: String(typeID) });
+    reads.push({ marketLocation, typeID: String(typeID) });
   }
 
   for (const typeID of new Set(Array.from(adjustedTypeIDs ?? [], String))) {
@@ -72,12 +72,12 @@ function bodyFor(reads) {
   const sources = {};
   const adjustedTypeIDs = [];
 
-  for (const { sourceID, typeID } of reads) {
-    if (sourceID === undefined) {
+  for (const { marketLocation, typeID } of reads) {
+    if (marketLocation === undefined) {
       adjustedTypeIDs.push(typeID);
       continue;
     }
-    (sources[sourceID] ??= []).push(typeID);
+    (sources[marketLocation] ??= []).push(typeID);
   }
 
   return { sources, adjustedTypeIDs };
@@ -116,9 +116,9 @@ async function askFor({ sources, adjustedTypeIDs }) {
  * simply wins.
  */
 function mergeInto(merged, answer) {
-  for (const [sourceID, block] of Object.entries(answer.sources)) {
-    const held = merged.sources[sourceID];
-    merged.sources[sourceID] = {
+  for (const [marketLocation, block] of Object.entries(answer.sources)) {
+    const held = merged.sources[marketLocation];
+    merged.sources[marketLocation] = {
       refreshedAt: block.refreshedAt ?? held?.refreshedAt ?? 0,
       prices: { ...held?.prices, ...block.prices },
     };

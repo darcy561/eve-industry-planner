@@ -15,9 +15,8 @@ vi.mock("../../Events/snackbarEvents", () => ({
   showSnackbarSuccess: vi.fn(),
 }));
 vi.mock("../../Zustand/usersStore", async () => {
-  const { usersStoreMock, usersStoreState } = await import(
-    "../../tests/usersStoreHarness.js"
-  );
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() =>
     usersStoreState({ worldData: { actions: { addSystemIndex } } }),
   );

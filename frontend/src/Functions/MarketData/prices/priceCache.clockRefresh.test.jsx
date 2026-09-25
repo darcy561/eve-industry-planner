@@ -21,7 +21,7 @@ vi.mock("../../Endpoints/Public/marketPricesQuery", () => ({
 const { queryClient } = await import("../../../queryClient.js");
 const { resetSourceClocks } = await import("./sourceClocks.js");
 const { revalidateSourceClocks } = await import("./priceCache.js");
-const { getMarketPriceForType } = await import("./marketPriceForType.js");
+const { readMarketPriceForType } = await import("./marketPriceForType.js");
 const { useMarketPricesQuery } =
   await import("../../../Hooks/React Query/World/marketPrices.js");
 
@@ -32,12 +32,12 @@ const answerAt = (refreshedAt, sell) => ({
   adjusted: null,
 });
 
-const WANTS = [{ typeID: 34, sourceID: "jita" }];
+const WANTS = [{ typeID: 34, marketLocation: "jita" }];
 
 /** Reads its price the way every priced surface does: synchronously, in render. */
 function Subject() {
   const { isLoading } = useMarketPricesQuery(WANTS);
-  const price = getMarketPriceForType(34, "jita", "sell");
+  const price = readMarketPriceForType(34, "jita", "sell");
 
   return <p>{isLoading ? "pricing" : `sell ${price}`}</p>;
 }

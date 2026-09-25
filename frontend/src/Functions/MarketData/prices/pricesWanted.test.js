@@ -28,7 +28,7 @@ const at = (wants, typeID) =>
   wants.filter((want) => String(want.typeID) === String(typeID));
 const marketsFor = (wants, typeID) =>
   at(wants, typeID)
-    .map((want) => want.sourceID)
+    .map((want) => want.marketLocation)
     .sort();
 
 beforeEach(() => {
@@ -136,11 +136,11 @@ describe("what a job needs priced", () => {
 describe("what a bare list of types needs priced", () => {
   it("prices every type on the side it was asked for", () => {
     expect(pricesWantedForTypes([34, 35], PRICING_SIDE.BUYING).wants).toEqual([
-      { typeID: 34, sourceID: "jita" },
-      { typeID: 35, sourceID: "jita" },
+      { typeID: 34, marketLocation: "jita" },
+      { typeID: 35, marketLocation: "jita" },
     ]);
     expect(pricesWantedForTypes([34], PRICING_SIDE.SELLING).wants).toEqual([
-      { typeID: 34, sourceID: "amarr" },
+      { typeID: 34, marketLocation: "amarr" },
     ]);
   });
 
@@ -206,7 +206,7 @@ describe("what the watchlist needs priced", () => {
       watched({ materials: [null, { materials: [null] }] }),
     ]);
 
-    expect(wants).toEqual([{ typeID: 99, sourceID: "amarr" }]);
+    expect(wants).toEqual([{ typeID: 99, marketLocation: "amarr" }]);
   });
 
   it("asks for nothing for an empty watchlist", () => {

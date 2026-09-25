@@ -22,7 +22,7 @@ import {
 } from "../../Context/defaultValues";
 import { useItemList } from "../../Hooks/Static/useItems";
 import { itemNameFrom } from "../../Functions/Static/items";
-import { getMarketPriceForType } from "../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../Functions/MarketData/prices/marketPriceForType.js";
 import MineralCard from "./Components/MineralCard";
 import ItemMarketActions from "../../Styled Components/Item/marketActions";
 import ReprocessingSettingsPanel from "./reprocessingSettingsPanel";
@@ -105,7 +105,7 @@ export function AdvancedMineralOutput(props) {
       // When converting to minerals, calculate value of processed minerals
       return pageState.processedInput.reduce((acc, item) => {
         if (item.quantity === 0) return acc;
-        const unitPrice = getMarketPriceForType(
+        const unitPrice = readMarketPriceForType(
           item.id,
           pageState.marketLocation,
           pageState.orderType,
@@ -120,7 +120,7 @@ export function AdvancedMineralOutput(props) {
         for (const [mineralId, quantity] of Object.entries(
           item.reprocessedMaterials,
         )) {
-          const unitPrice = getMarketPriceForType(
+          const unitPrice = readMarketPriceForType(
             mineralId,
             pageState.marketLocation,
             pageState.orderType,
@@ -147,7 +147,7 @@ export function AdvancedMineralOutput(props) {
     if (isLoading) return 0;
     return pageState.reprocessingObjects.reduce((acc, item) => {
       if (item.batchSize > item.totalQuantity) return acc;
-      const unitPrice = getMarketPriceForType(
+      const unitPrice = readMarketPriceForType(
         item.id,
         pageState.marketLocation,
         pageState.orderType,
@@ -182,7 +182,7 @@ export function AdvancedMineralOutput(props) {
           pageState.requestedMinerals &&
           pageState.requestedMinerals[parseInt(mineralId, 10)];
         if (!isRequestedMineral) {
-          const unitPrice = getMarketPriceForType(
+          const unitPrice = readMarketPriceForType(
             mineralId,
             pageState.marketLocation,
             pageState.orderType,
@@ -224,7 +224,7 @@ export function AdvancedMineralOutput(props) {
   // Calculate reprocessing costs for each mineral within each ore
   const calculateReprocessingCosts = (item) => {
     const oreCost =
-      getMarketPriceForType(
+      readMarketPriceForType(
         item.id,
         pageState.marketLocation,
         pageState.orderType,
@@ -250,7 +250,7 @@ export function AdvancedMineralOutput(props) {
 
     Object.entries(reprocessedQuantities).forEach(
       ([mineralId, reprocessedQuantity]) => {
-        const mineralPrice = getMarketPriceForType(
+        const mineralPrice = readMarketPriceForType(
           mineralId,
           pageState.marketLocation,
           pageState.orderType,
@@ -539,7 +539,7 @@ export function AdvancedMineralOutput(props) {
             {pageState.reprocessingObjects.map((item) => {
               if (item.batchSize > item.totalQuantity) return null;
               const matchedName = itemNameFrom(item.id, itemRecords);
-              const unitPrice = getMarketPriceForType(
+              const unitPrice = readMarketPriceForType(
                 item.id,
                 pageState.marketLocation,
                 pageState.orderType,
@@ -693,7 +693,7 @@ export function AdvancedMineralOutput(props) {
                     {Object.entries(item.reprocessedMaterials).map(
                       ([key, quantity]) => {
                         const matchedName = itemNameFrom(key, itemRecords);
-                        const unitPrice = getMarketPriceForType(
+                        const unitPrice = readMarketPriceForType(
                           key,
                           pageState.marketLocation,
                           pageState.orderType,

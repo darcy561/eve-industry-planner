@@ -102,7 +102,7 @@ describe("the watchlist", () => {
 
     await waitFor(() => expect(fetchPrices).toHaveBeenCalled());
     expect(fetchPrices.mock.calls[0][0].wants).toEqual([
-      { typeID: 34, sourceID: "amarr" },
+      { typeID: 34, marketLocation: "amarr" },
     ]);
   });
 

@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import GLOBAL_CONFIG from "../../../global-config-app";
-import { getMarketPriceForType } from "../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useHasChanged } from "../../../Hooks/useHasChanged";
 import {
   numberToShortText,
@@ -30,7 +30,7 @@ export function ItemPriceRow({
   priceEntryListData,
   setPriceEntryListData,
 }) {
-  const defaultPrice = getMarketPriceForType(
+  const defaultPrice = readMarketPriceForType(
     item.typeID,
     marketLocation,
     orderType,
@@ -90,7 +90,7 @@ export function ItemPriceRow({
   // Sync unconfirmed row prices when hub/listing changes, or when market data fills in / updates
   // (without clobbering a value the user edited away from the last synced default).
   useEffect(() => {
-    const nextDefault = getMarketPriceForType(
+    const nextDefault = readMarketPriceForType(
       item.typeID,
       marketLocation,
       orderType,

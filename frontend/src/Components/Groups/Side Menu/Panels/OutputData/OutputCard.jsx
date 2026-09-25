@@ -6,7 +6,7 @@ import {
   resolveFor,
   sideDefaults,
 } from "../../../../../Functions/MarketData/defaults/priceResolution.js";
-import { getMarketPriceForType } from "../../../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import {
   Avatar,
   Card,
@@ -51,7 +51,7 @@ function OutputJobCard({ inputJob, state, actions }) {
       inputJob.build,
       inputJob.itemID,
     );
-    return getMarketPriceForType(inputJob.itemID, marketLocation, orderType);
+    return readMarketPriceForType(inputJob.itemID, marketLocation, orderType);
   }, [inputJob.build, inputJob.itemID, accountPricing]);
 
   const isHighlighted = state.highlightedItems.has(inputJob.jobID);

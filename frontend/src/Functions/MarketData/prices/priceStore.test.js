@@ -76,13 +76,14 @@ const { MARKET_READ_OUTCOME } = await import("../registry/marketReadOutcome");
 
 /** The prefixes the store writes under now, so a version bump moves these with it. */
 const { STORE_VERSION } = await import("./priceStore.js");
-const rowKey = (sourceID, typeID) =>
-  `price|v${STORE_VERSION}|${sourceID}|${typeID}`;
-const readKey = (sourceID) => `market-read|v${STORE_VERSION}|${sourceID}`;
+const rowKey = (marketLocation, typeID) =>
+  `price|v${STORE_VERSION}|${marketLocation}|${typeID}`;
+const readKey = (marketLocation) =>
+  `market-read|v${STORE_VERSION}|${marketLocation}`;
 
 /** Holds one row, the way a read of that market's whole set does. */
-const hold = (sourceID, typeID, entry) =>
-  replaceStoredPrices(sourceID, new Map([[String(typeID), entry]]), {
+const hold = (marketLocation, typeID, entry) =>
+  replaceStoredPrices(marketLocation, new Map([[String(typeID), entry]]), {
     refreshedAt: entry.refreshedAt,
     expiresAt: entry.refreshedAt + 60 * 60 * 1000,
   });
@@ -484,9 +485,9 @@ describe("a market nothing has read in a day", () => {
   const DAY = UNREAD_MARKET_MS;
 
   /** Holds one row for a market read at a given moment. */
-  async function readAt(sourceID, moment) {
+  async function readAt(marketLocation, moment) {
     vi.setSystemTime(moment);
-    await hold(sourceID, 34, row());
+    await hold(marketLocation, 34, row());
     vi.useRealTimers();
   }
 

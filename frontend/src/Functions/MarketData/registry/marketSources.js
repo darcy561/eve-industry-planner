@@ -156,11 +156,12 @@ export function allMarketSources() {
  * Here because all three are the same question, and four spellings of it would
  * agree until one of them changed.
  *
- * @param {string} sourceID
+ * @param {string} marketLocation
  * @param {number|string} typeID
  * @returns {string}
  */
-export const wantKey = (sourceID, typeID) => `${sourceID}|${typeID}`;
+export const wantKey = (marketLocation, typeID) =>
+  `${marketLocation}|${typeID}`;
 
 /**
  * One source from a registry, or undefined.

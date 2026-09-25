@@ -30,7 +30,7 @@ async function reprocessIntoMinerals(
   const pricesSettled = fetchPrices({
     wants: [...priceRequest].map((typeID) => ({
       typeID,
-      sourceID: marketLocation,
+      marketLocation,
     })),
   });
   const mineralTotals = gatherMaterialTotals(reprocessingObjects);

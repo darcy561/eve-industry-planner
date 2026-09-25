@@ -7,7 +7,7 @@ import { setupSystemIDs } from "../../Components/Edit Job/Edit Job Hooks/jobSele
  * Fetches what a job needs priced and what its setups cost to install.
  *
  * Prices resolve into the cache rather than being returned: a caller reads them
- * through `getMarketPriceForType` once this settles, so there is no interval in
+ * through `readMarketPriceForType` once this settles, so there is no interval in
  * which the caller holds figures the readers cannot see.
  *
  * Each material is asked for at the market it is actually priced against, which

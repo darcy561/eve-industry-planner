@@ -51,7 +51,7 @@ describe("reading a price", () => {
   it("answers from the cache once a want has settled", async () => {
     requestPrice.mockResolvedValue(row(10));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     expect(readPrice(34, "jita").sell).toBe(10);
   });
@@ -59,14 +59,14 @@ describe("reading a price", () => {
   // One entry per type at one market: the same type at two markets is two
   // answers, and a market is never read out of another's row.
   it("keeps the same type at two markets apart", async () => {
-    requestPrice.mockImplementation((typeID, sourceID) =>
-      Promise.resolve(row(sourceID === "jita" ? 10 : 30)),
+    requestPrice.mockImplementation((typeID, marketLocation) =>
+      Promise.resolve(row(marketLocation === "jita" ? 10 : 30)),
     );
 
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 34, sourceID: "amarr" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "amarr" },
       ],
     });
 
@@ -78,7 +78,7 @@ describe("reading a price", () => {
     requestAdjustedPrice.mockResolvedValue(4.9);
 
     await fetchPrices({
-      wants: [{ typeID: 34, sourceID: "jita" }],
+      wants: [{ typeID: 34, marketLocation: "jita" }],
       adjustedTypeIDs: [34],
     });
 
@@ -92,10 +92,10 @@ describe("asking for prices", () => {
 
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 35, sourceID: "jita" },
-        { typeID: 34, sourceID: "amarr" },
-        { typeID: 35, sourceID: "amarr" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 35, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "amarr" },
+        { typeID: 35, marketLocation: "amarr" },
       ],
     });
 
@@ -105,7 +105,7 @@ describe("asking for prices", () => {
   it("does not ask for an adjusted price unless told to", async () => {
     requestPrice.mockResolvedValue(row(10));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     expect(requestAdjustedPrice).not.toHaveBeenCalled();
   });
@@ -114,15 +114,15 @@ describe("asking for prices", () => {
   it("does not ask again for a want it already holds", async () => {
     requestPrice.mockResolvedValue(row(10));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     expect(requestPrice).toHaveBeenCalledTimes(1);
   });
 
   it("asks for nothing when it has no type or no market", async () => {
     await fetchPrices({ wants: [] });
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "" }] });
 
     expect(requestPrice).not.toHaveBeenCalled();
   });
@@ -133,16 +133,16 @@ describe("when a market cannot be reached", () => {
   // not be recorded as "no orders here", and it must not stop the markets that
   // answered from reaching the reader.
   it("leaves that market unread and still answers for the others", async () => {
-    requestPrice.mockImplementation((typeID, sourceID) =>
-      sourceID === "amarr"
+    requestPrice.mockImplementation((typeID, marketLocation) =>
+      marketLocation === "amarr"
         ? Promise.reject(new Error("offline"))
         : Promise.resolve(row(10)),
     );
 
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 34, sourceID: "amarr" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "amarr" },
       ],
     });
 
@@ -153,7 +153,7 @@ describe("when a market cannot be reached", () => {
   it("does not resolve as a settled answer", async () => {
     requestPrice.mockRejectedValue(new Error("offline"));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     // Undefined rather than null: nothing was learned, so the next reader asks
     // again rather than being told there is no price.
@@ -166,8 +166,8 @@ describe("a market that answered and holds no order", () => {
   it("is remembered rather than asked about again", async () => {
     requestPrice.mockResolvedValue(null);
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     expect(requestPrice).toHaveBeenCalledTimes(1);
     expect(readPrice(34, "jita")).toBeUndefined();
@@ -180,19 +180,19 @@ describe("freshness comes from the market's clock", () => {
   it("does not ask again for a row it already holds", async () => {
     requestPrice.mockResolvedValue(row(10));
 
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     expect(requestPrice).toHaveBeenCalledTimes(1);
   });
 
   it("asks again once its market says it was walked again", async () => {
     requestPrice.mockResolvedValue(row(10));
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     requestPrice.mockResolvedValue(row(30));
     clockMovedListener({ sources: ["jita"], adjusted: false });
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
 
     expect(requestPrice).toHaveBeenCalledTimes(2);
     expect(readPrice(34, "jita").sell).toBe(30);
@@ -204,8 +204,8 @@ describe("freshness comes from the market's clock", () => {
     requestPrice.mockResolvedValue(row(10));
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 35, sourceID: "jita" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 35, marketLocation: "jita" },
       ],
     });
 
@@ -214,8 +214,8 @@ describe("freshness comes from the market's clock", () => {
     clockMovedListener({ sources: ["jita"], adjusted: false });
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 35, sourceID: "jita" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 35, marketLocation: "jita" },
       ],
     });
 
@@ -226,8 +226,8 @@ describe("freshness comes from the market's clock", () => {
     requestPrice.mockResolvedValue(row(10));
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 34, sourceID: "amarr" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "amarr" },
       ],
     });
 
@@ -235,8 +235,8 @@ describe("freshness comes from the market's clock", () => {
     clockMovedListener({ sources: ["jita"], adjusted: false });
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 34, sourceID: "amarr" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "amarr" },
       ],
     });
 
@@ -271,9 +271,9 @@ describe("asking the markets whether their clocks moved", () => {
     requestPrice.mockResolvedValue(row(10));
     await fetchPrices({
       wants: [
-        { typeID: 34, sourceID: "jita" },
-        { typeID: 35, sourceID: "jita" },
-        { typeID: 34, sourceID: "amarr" },
+        { typeID: 34, marketLocation: "jita" },
+        { typeID: 35, marketLocation: "jita" },
+        { typeID: 34, marketLocation: "amarr" },
       ],
     });
     recordSourceClock("jita", 1757000000000);
@@ -283,7 +283,9 @@ describe("asking the markets whether their clocks moved", () => {
     await revalidateSourceClocks();
 
     expect(requestPrice).toHaveBeenCalledTimes(2);
-    const asked = requestPrice.mock.calls.map(([, sourceID]) => sourceID);
+    const asked = requestPrice.mock.calls.map(
+      ([, marketLocation]) => marketLocation,
+    );
     expect(asked.sort()).toEqual(["amarr", "jita"]);
   });
 
@@ -293,7 +295,9 @@ describe("asking the markets whether their clocks moved", () => {
   // long as the tab stayed open, because nothing else would ever ask again.
   it("asks a market that has rows but has never reported a clock", async () => {
     requestPrice.mockResolvedValue(null);
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "a-new-market" }] });
+    await fetchPrices({
+      wants: [{ typeID: 34, marketLocation: "a-new-market" }],
+    });
 
     requestPrice.mockClear();
     await revalidateSourceClocks();
@@ -316,7 +320,7 @@ describe("asking the markets whether their clocks moved", () => {
 
   it("survives a market that could not be reached", async () => {
     requestPrice.mockResolvedValue(row(10));
-    await fetchPrices({ wants: [{ typeID: 34, sourceID: "jita" }] });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
     recordSourceClock("jita", 1757000000000);
 
     requestPrice.mockRejectedValue(new Error("offline"));

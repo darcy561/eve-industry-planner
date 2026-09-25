@@ -29,11 +29,14 @@ let heldPrices = {
   amarr: { sell: 20, buy: 16, buyP95: 18, sellP05: 22 },
 };
 
-vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
-  getPriceRefreshedAt: () => undefined,
-  getMarketPriceForType: (typeID, hub, orderType) =>
-    heldPrices[hub]?.[orderType] ?? 0,
-}));
+vi.mock(
+  "../../../../../../Functions/MarketData/prices/marketPriceForType.js",
+  () => ({
+    readPriceRefreshedAt: () => undefined,
+    readMarketPriceForType: (typeID, hub, orderType) =>
+      heldPrices[hub]?.[orderType] ?? 0,
+  }),
+);
 
 // The clocks the prices came back with. The panel reads the figures out of the
 // cache rather than subscribing to a row, so this is what tells it they moved.
@@ -203,7 +206,7 @@ describe("prices that land after the rows were built", () => {
   it("asks for each material at the market it is drawn at", () => {
     render(setup({ materials: [material(34), material(35)] }));
 
-    expect(asked.map((want) => want.sourceID)).toEqual(["jita", "jita"]);
+    expect(asked.map((want) => want.marketLocation)).toEqual(["jita", "jita"]);
     expect(asked.map((want) => want.typeID).sort()).toEqual([34, 35]);
   });
 

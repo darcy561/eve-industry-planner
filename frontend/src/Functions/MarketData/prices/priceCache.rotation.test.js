@@ -71,8 +71,8 @@ describe("a rotation across several markets", () => {
   });
 
   it("reads the rest after one of them fails", async () => {
-    requestMarketRead.mockImplementation(async (sourceID) => {
-      if (sourceID === "azbel") throw new Error("ESI is down");
+    requestMarketRead.mockImplementation(async (marketLocation) => {
+      if (marketLocation === "azbel") throw new Error("ESI is down");
     });
 
     await rotateSelfReadMarkets(1000);
@@ -82,8 +82,8 @@ describe("a rotation across several markets", () => {
 
   // The market that was refused, and not whichever happened to sit at its index.
   it("puts back the turn of the markets it was refused, and no others", async () => {
-    requestMarketRead.mockImplementation(async (sourceID) => {
-      if (sourceID === "astrahus" || sourceID === "raitaru") {
+    requestMarketRead.mockImplementation(async (marketLocation) => {
+      if (marketLocation === "astrahus" || marketLocation === "raitaru") {
         const refusal = new Error("nobody can dock there");
         refusal.permanent = true;
         throw refusal;

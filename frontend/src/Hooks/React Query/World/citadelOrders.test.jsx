@@ -8,10 +8,13 @@ const { ordersForTypeAtCitadels, sources } = vi.hoisted(() => ({
   sources: { current: [] },
 }));
 
-vi.mock("../../../Functions/MarketData/citadels/ordersAtCitadels.js", async (real) => ({
-  ...(await real()),
-  ordersForTypeAtCitadels,
-}));
+vi.mock(
+  "../../../Functions/MarketData/citadels/ordersAtCitadels.js",
+  async (real) => ({
+    ...(await real()),
+    ordersForTypeAtCitadels,
+  }),
+);
 
 vi.mock("../../Static/useMarketSources", () => ({
   useMarketSources: () => sources.current,

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-const getMarketPriceForType = vi.fn();
+const readMarketPriceForType = vi.fn();
 
 // The clocks the prices came back with. The figures below are read out of the
 // cache rather than subscribed to, so this is what tells this hook they moved —
@@ -19,10 +19,13 @@ vi.mock("../../../../../../Hooks/React Query/World/marketPrices", () => ({
 const useSellingRates = vi.fn();
 const useAccountTotalsQuery = vi.fn();
 
-vi.mock("../../../../../../Functions/MarketData/prices/marketPriceForType.js", () => ({
-  getPriceRefreshedAt: () => undefined,
-  getMarketPriceForType: (...args) => getMarketPriceForType(...args),
-}));
+vi.mock(
+  "../../../../../../Functions/MarketData/prices/marketPriceForType.js",
+  () => ({
+    readPriceRefreshedAt: () => undefined,
+    readMarketPriceForType: (...args) => readMarketPriceForType(...args),
+  }),
+);
 
 vi.mock(
   "../../../../../../Hooks/React Query/Character/useSellingRates",
@@ -120,7 +123,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   session().actions.closeSession();
   findJobInJobArray.mockReturnValue(undefined);
-  getMarketPriceForType.mockImplementation((_typeID, hub, listing) =>
+  readMarketPriceForType.mockImplementation((_typeID, hub, listing) =>
     listing === "sell" ? 200 : 150,
   );
   useSellingRates.mockReturnValue({
@@ -194,12 +197,12 @@ describe("useJobEconomics", () => {
   it("prices the output at the sale location's hub", () => {
     render();
 
-    const hubs = getMarketPriceForType.mock.calls.map(([, hub]) => hub);
+    const hubs = readMarketPriceForType.mock.calls.map(([, hub]) => hub);
     expect(new Set(hubs)).toEqual(new Set(["jita"]));
   });
 
   it("charges the fee on what the listing is worth", () => {
-    getMarketPriceForType.mockImplementation((_typeID, _hub, listing) =>
+    readMarketPriceForType.mockImplementation((_typeID, _hub, listing) =>
       listing === "sell" ? 20000 : 15000,
     );
 
@@ -299,13 +302,13 @@ describe("a job whose output is owed to a parent", () => {
   // unmemoised by `useJobSellingContext`. Naming the clocks is what keeps this
   // true if that is ever fixed.
   it("takes up the figures once the prices have settled", () => {
-    getMarketPriceForType.mockReturnValue(0);
+    readMarketPriceForType.mockReturnValue(0);
     const { result, rerender } = render();
     const beforeTheyLanded = result.current.returns.routes.find(
       (route) => route.id === "listed",
     ).revenue;
 
-    getMarketPriceForType.mockReturnValue(500);
+    readMarketPriceForType.mockReturnValue(500);
     clocks = { jita: 2 };
     rerender();
 

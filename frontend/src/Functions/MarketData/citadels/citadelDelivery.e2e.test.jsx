@@ -62,7 +62,7 @@ const { queryClient } = await import("../../../queryClient.js");
 const { resetSourceClocks } = await import("../prices/sourceClocks");
 const { resetPriceLoader } = await import("../prices/priceLoader");
 const { resetPriceStore } = await import("../prices/priceStore");
-const { getMarketPriceForType } = await import("../prices/marketPriceForType");
+const { readMarketPriceForType } = await import("../prices/marketPriceForType");
 const { rotateSelfReadMarkets } = await import("../prices/priceCache");
 const { useMarketPricesQuery } =
   await import("../../../Hooks/React Query/World/marketPrices.js");
@@ -125,9 +125,9 @@ function Subject({ wants }) {
 
   return (
     <ul>
-      {wants.map(({ typeID, sourceID }) => (
-        <li key={`${sourceID}|${typeID}`}>
-          {`${typeID}: ${getMarketPriceForType(typeID, sourceID, "sell")}`}
+      {wants.map(({ typeID, marketLocation }) => (
+        <li key={`${marketLocation}|${typeID}`}>
+          {`${typeID}: ${readMarketPriceForType(typeID, marketLocation, "sell")}`}
         </li>
       ))}
     </ul>
@@ -154,7 +154,7 @@ function Browsing({ typeID, regionID }) {
 function browse(typeID, regionID) {
   return render(
     <QueryClientProvider client={queryClient}>
-      <Subject wants={[{ typeID, sourceID: "saved-citadel" }]} />
+      <Subject wants={[{ typeID, marketLocation: "saved-citadel" }]} />
       <Browsing typeID={typeID} regionID={regionID} />
     </QueryClientProvider>,
   );
@@ -198,7 +198,7 @@ describe("a citadel's price from ESI to the screen", () => {
       ordersPage([order(34, 10), order(34, 8, true)]),
     );
 
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
 
     expect(await screen.findByText("34: 10")).toBeTruthy();
     expect(fetchMock.mock.calls[0][0]).toContain(
@@ -214,8 +214,8 @@ describe("a citadel's price from ESI to the screen", () => {
     );
 
     show([
-      { typeID: 34, sourceID: "saved-citadel" },
-      { typeID: 35, sourceID: "saved-citadel" },
+      { typeID: 34, marketLocation: "saved-citadel" },
+      { typeID: 35, marketLocation: "saved-citadel" },
     ]);
 
     expect(await screen.findByText("34: 10")).toBeTruthy();
@@ -228,7 +228,7 @@ describe("a citadel's price from ESI to the screen", () => {
       .mockResolvedValueOnce(ordersPage([order(34, 50)], { pages: 2 }))
       .mockResolvedValueOnce(ordersPage([order(34, 10)], { pages: 2 }));
 
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
 
     // The cheaper ask is on the second page: a read that stopped at the first
     // would price this market at 50 and look entirely plausible doing it.
@@ -248,7 +248,7 @@ describe("which character the market is read with", () => {
         : refusal(),
     );
 
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
     await screen.findByText("34: 10");
 
     expect(asked().map(({ token }) => token.split(".").pop())).toEqual([
@@ -274,7 +274,7 @@ describe("which character the market is read with", () => {
       return refusal();
     });
 
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
 
     expect(await screen.findByText("34: 10")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -285,7 +285,7 @@ describe("which character the market is read with", () => {
   it("reports a market no character can see rather than pricing it at nothing", async () => {
     fetchMock.mockResolvedValue(refusal());
 
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
 
     expect(await screen.findByText("could not price")).toBeTruthy();
   });
@@ -295,7 +295,7 @@ describe("what the reader's device keeps", () => {
   it("prices a second type without reading the market again", async () => {
     fetchMock.mockResolvedValue(ordersPage([order(34, 10), order(35, 25)]));
 
-    const first = show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    const first = show([{ typeID: 34, marketLocation: "saved-citadel" }]);
     await screen.findByText("34: 10");
 
     // A fresh page of the app: the cache is empty, the device is not.
@@ -305,7 +305,7 @@ describe("what the reader's device keeps", () => {
     resetSourceClocks();
     fetchMock.mockClear();
 
-    show([{ typeID: 35, sourceID: "saved-citadel" }]);
+    show([{ typeID: 35, marketLocation: "saved-citadel" }]);
 
     expect(await screen.findByText("35: 25")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -320,7 +320,7 @@ describe("a market whose hour is up", () => {
   it("is read once by the tick, and the surface follows it", async () => {
     fetchMock.mockResolvedValue(ordersPage([order(34, 10)]));
 
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
     await screen.findByText("34: 10");
 
     fetchMock.mockClear();
@@ -345,7 +345,7 @@ describe("a market whose hour is up", () => {
     // And what it read is on the device, so the first surface to want a price
     // there is a lookup rather than a walk.
     fetchMock.mockClear();
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
 
     expect(await screen.findByText("34: 10")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -383,7 +383,7 @@ describe("a market whose hour is up", () => {
   it("is left alone until its hour is up", async () => {
     fetchMock.mockResolvedValue(ordersPage([order(34, 10)]));
 
-    show([{ typeID: 34, sourceID: "saved-citadel" }]);
+    show([{ typeID: 34, marketLocation: "saved-citadel" }]);
     await screen.findByText("34: 10");
     fetchMock.mockClear();
 

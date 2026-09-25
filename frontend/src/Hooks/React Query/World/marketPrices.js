@@ -26,7 +26,7 @@ export { MARKET_PRICES_QUERY_KEY };
  * A failed fetch is not retried — the views that use this draw without prices
  * rather than waiting behind a retry.
  *
- * @param {Array<{typeID: number|string, sourceID: string}>} wants - Each type
+ * @param {Array<{typeID: number|string, marketLocation: string}>} wants - Each type
  *   paired with the market it is priced against, as `pricesWanted` resolves them
  * @param {Object} [options]
  * @param {Iterable<number|string>} [options.adjustedTypeIDs]
@@ -42,8 +42,8 @@ export function useMarketPricesQuery(
   // key that said otherwise would fetch again on every render.
   const asked = useMemo(() => {
     const unique = new Map();
-    for (const { typeID, sourceID } of wants ?? []) {
-      unique.set(wantKey(sourceID, typeID), { typeID, sourceID });
+    for (const { typeID, marketLocation } of wants ?? []) {
+      unique.set(wantKey(marketLocation, typeID), { typeID, marketLocation });
     }
     return [...unique.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [wants]);
@@ -109,13 +109,13 @@ export function useMarketPricesQuery(
 function clocksFor(asked) {
   const clocks = { adjusted: readAdjustedClock() ?? 0 };
 
-  for (const [pair, { typeID, sourceID }] of asked) {
-    const walked = readSourceClock(sourceID);
+  for (const [pair, { typeID, marketLocation }] of asked) {
+    const walked = readSourceClock(marketLocation);
     if (walked !== undefined) {
-      clocks[sourceID] = walked;
+      clocks[marketLocation] = walked;
       continue;
     }
-    clocks[pair] = readPrice(typeID, sourceID)?.refreshedAt ?? 0;
+    clocks[pair] = readPrice(typeID, marketLocation)?.refreshedAt ?? 0;
   }
 
   return clocks;

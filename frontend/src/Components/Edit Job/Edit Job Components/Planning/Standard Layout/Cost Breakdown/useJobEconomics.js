@@ -14,7 +14,7 @@ import {
 import { useSellingRates } from "../../../../../../Hooks/React Query/Character/useSellingRates";
 import { useAccountTotalsQuery } from "../../../../../../Hooks/React Query/Backend/statisticsTotals";
 import { formatPercentage } from "../../../../../../Functions/Helper/numberParser";
-import { getMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useJobCommitment } from "../../../../../../Hooks/Planner/useJobCommitment";
 import { useJobSellingContext } from "../../../../../../Hooks/Planner/useJobSellingContext";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
@@ -79,8 +79,8 @@ export function useJobEconomics({ rows, buyEverything = false }) {
     // panel's: the panel resolves where materials are bought, and quoting a sale
     // against it is the crossing this whole arrangement exists to stop.
     const pricedAt = saleLocation?.id ?? sellingMarket;
-    const sellPrice = getMarketPriceForType(itemID, pricedAt, "sell");
-    const buyPrice = getMarketPriceForType(itemID, pricedAt, "buy");
+    const sellPrice = readMarketPriceForType(itemID, pricedAt, "sell");
+    const buyPrice = readMarketPriceForType(itemID, pricedAt, "buy");
 
     // The fee is charged on what the listing is worth, which is the sell-side
     // revenue of what is actually going to be listed.

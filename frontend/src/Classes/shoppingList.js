@@ -3,7 +3,7 @@ import {
   resolveFor,
   sideDefaults,
 } from "../Functions/MarketData/defaults/priceResolution.js";
-import { getMarketPriceForType } from "../Functions/MarketData/prices/marketPriceForType.js";
+import { readMarketPriceForType } from "../Functions/MarketData/prices/marketPriceForType.js";
 
 /**
  * ShoppingList class for EVE Online industry material purchasing management.
@@ -139,7 +139,7 @@ class ShoppingList {
       );
       this.totalValue +=
         quantityAfterAssets *
-        getMarketPriceForType(item.typeID, marketLocation, orderType);
+        readMarketPriceForType(item.typeID, marketLocation, orderType);
     });
   }
 
