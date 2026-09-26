@@ -12,7 +12,7 @@ reader's own token) — under
 - **The source registry.** What a market source is, which kinds exist, and the one place every
   surface reads the list from.
 - **The price cache.** One React Query entry per type at one source, the loader beneath it, the
-  accessor every reader goes through, and the freshness rule that decides when a row is asked for
+  accessor every reader goes through, and the freshness rule that decides when a price is asked for
   again.
 - **The citadel walk.** The per-character read of a structure's whole market, its hourly rotation, and
   the device-side tier that holds it between visits.
@@ -40,7 +40,7 @@ reader's own token) — under
 | Find every market source the SPA can price against, and which kind each is | [registry.md](./registry.md) |
 | Add a market kind, or change what one carries | [registry.md](./registry.md) § What a source kind carries |
 | Read or ask for a price without knowing which kind of source answered | [cache.md](./cache.md) § The accessor |
-| Know what decides a price has gone stale, and what happens when a market's clock moves | [cache.md](./cache.md) § Freshness |
+| Know what decides a price has gone stale, and what happens when a market's refresh time moves | [cache.md](./cache.md) § Freshness |
 | Know which markets survive a reload, and what bounds the device | [cache.md](./cache.md) § The two tiers |
 | Know how a citadel's market is read, and by which character | [citadels.md](./citadels.md) § The walk |
 | Know when a saved citadel is refreshed | [citadels.md](./citadels.md) § The rotation |

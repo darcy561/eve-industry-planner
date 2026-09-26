@@ -5,7 +5,7 @@ Live SoT for what a market source is and where the SPA reads the list of them fr
 ## What a source kind carries
 
 Three kinds, distinguished by who fetches a market's orders, who derives its prices from them, and
-whether its rows survive a reload:
+whether its prices survive a reload:
 
 | Kind | Fetched by | Derived by | Tier |
 |------|-----------|-----------|------|

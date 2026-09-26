@@ -67,9 +67,11 @@ Every row is asked, through `summariseMarket`, when it was last read and how tha
 - A **citadel**'s moment is the `readAt` this device holds beside its prices in IndexedDB — this
   device's own clock, absent for a market never read here. Deliberately not the freshness the orders
   themselves carry, which is already old the moment a quiet structure is walked.
-- A **hub or NPC station**'s moment is `pricedAt`, the clock this server states with the market — the
-  same for every reader, and absent only while the region has not been walked since the market was
-  saved.
+- A **hub or NPC station**'s moment is the newer of two: `pricedAt`, the moment this server states
+  with the market, which is the same for every reader and absent only while the region has not been
+  walked since the market was saved; and the refresh time on whatever price this device currently
+  holds for it, read through `readHeldRefreshTime`. A price fetched here since the server last
+  stamped `pricedAt` is the later read, and is what the row shows.
 
 **Why a citadel is not answering, where the reader can act on it.** A citadel read on this device can
 fail for reasons only the reader can fix, and the read keeps what it settled on

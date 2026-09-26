@@ -29,14 +29,14 @@ derivation a committed fixture holds to the server's own (§ Where E1 lands — 
 [backend/worker/market-orders.md](../../backend/worker/market-orders.md) for the server side of that
 fixture). A type with no order is absent rather than zero.
 
-**What a read does, in order.** Read the market, **await** writing it to the device, then record the
-clock and announce that the market moved. The order matters: announcing drops the market's held rows
-and wakes every open surface reading them, and those surfaces read through the device — announcing
-before the write finished would send them to rows the read was still replacing. One read runs per
+**What a read does, in order.** Read the market, **await** writing it to the device, then announce the
+refresh time it was read under. The order matters: announcing drops the prices the read superseded and
+wakes every open surface reading them, and those surfaces read through the device — announcing before
+the write finished would send them to prices the read was still replacing. One read runs per
 market at a time, so a scheduled rotation and a panel wanting the same market share it rather than
 doubling the walk.
 
-A market's rows are replaced whole, not merged: a whole-market read is a statement about every type on
+A market's prices are replaced whole, not merged: a whole-market read is a statement about every type on
 it, so a type the new read did not see has no standing regardless of what an older read said.
 
 ## The rotation
@@ -47,8 +47,8 @@ has already been asked for would leave figures fresh where a reader has been and
 else. The hour matches this server's own hub cadence, so a citadel's figures and a hub's carry the
 same kind of age.
 
-**A row carries no expiry of its own**, and nothing sweeps one on a per-row schedule. `gcTime` is what
-retires an unobserved row from memory; on the device, a market's turn on the rotation is the only fact
+**A price carries no expiry of its own**, and nothing sweeps one on its own schedule. `gcTime` is what
+retires an unobserved price from memory; on the device, a market's turn on the rotation is the only fact
 deciding when its held prices stop standing. `readAt` — the device's own clock, not ESI's — is the
 separate fact `cache.md` § What bounds the device ages a market out by; the two are kept apart because
 a market that keeps failing has its turn moved forward on every attempt, and pacing and age cannot
@@ -64,7 +64,7 @@ does not, because a failure says nothing about whether the market is reachable.
 ## Browsing a citadel's orders
 
 The walk that prices a citadel keeps its orders too, under a key of their own beside the derived
-rows, written from the same pass rather than a second walk. The write cannot fail the pricing it sits
+prices, written from the same pass rather than a second walk. The write cannot fail the pricing it sits
 beside: it is fire-and-forget, so a reader over their storage quota loses the browsing and keeps the
 costing rather than losing both.
 
