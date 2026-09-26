@@ -8,14 +8,10 @@ import {
   wantKey,
 } from "../registry/marketSources.js";
 import { replaceStoredOrders, replaceStoredPrices } from "./priceStore";
-import { recordAdjustedClock, recordSourceClock } from "./sourceClocks";
 
 /**
- * What a tick has been asked for, and everyone waiting on each want.
- *
- * Keyed `marketLocation|typeID` for a price and `adjusted|typeID` for an adjusted
- * price, so two callers wanting the same thing in the same tick wait on one
- * lookup rather than issuing two.
+ * What a tick has been asked for, and everyone waiting on each want, keyed so
+ * two callers wanting the same thing wait on one lookup.
  *
  * @type {Map<string, {resolve: Function, reject: Function}[]>}
  */
@@ -26,12 +22,7 @@ const adjustedKey = (typeID) => `adjusted|${typeID}`;
 
 /**
  * Asks for one type's price at one market, batched with whatever else is asked
- * for in the same tick.
- *
- * The cache above this is keyed by type and source, which is what makes two
- * panels wanting the same material one entry rather than two — but an entry per
- * want would be a request per want. Everything raised in one tick is collected
- * here, sorted by who can answer it, and issued as one request per transport.
+ * for in the same tick and issued as one request per transport.
  *
  * @param {number|string} typeID
  * @param {string} marketLocation - A market source id
@@ -43,11 +34,8 @@ export function requestPrice(typeID, marketLocation) {
 }
 
 /**
- * Reads a market for its own sake rather than for any type's price.
- *
- * A rotation wants the market fresh, not a figure, so it says so — rather than
- * naming a type it does not care about and throwing the answer away, which
- * would put a magic id through machinery built for batching real wants.
+ * Reads a market for its own sake rather than for any type's price, for a
+ * rotation that wants the market fresh and not a figure.
  *
  * @param {string} marketLocation - A market the reader reads themselves
  * @returns {Promise<void>}
@@ -81,13 +69,15 @@ function enqueue(key) {
 
     if (!flushScheduled) {
       flushScheduled = true;
-      // A macrotask rather than a microtask: React renders every panel wanting
-      // prices before yielding, and a microtask would flush after the first.
       setTimeout(flush, 0);
     }
   });
 }
 
+/**
+ * Settles one tick's wants, every one of them, whatever fails, this running from
+ * a timer where an escaping rejection is reported nowhere.
+ */
 async function flush() {
   const batch = new Map(pending);
   pending.clear();
@@ -97,14 +87,8 @@ async function flush() {
   try {
     const { served, walked, adjusted, unaskable } = splitByTransport(batch);
 
-    // The two transports fail independently: a citadel nobody can see must not
-    // take the tick's hub prices with it.
     await Promise.all([serveServerHeld(served, adjusted), serveWalked(walked)]);
 
-    // A source no registry entry answers for cannot be asked of anything. It
-    // settles as a failure rather than as nothing held, because "no order here"
-    // is an answer and this is the absence of anywhere to ask — a reader whose
-    // saved market has gone needs the difference.
     for (const want of unaskable) {
       rejectWant(
         want,
@@ -112,13 +96,6 @@ async function flush() {
       );
     }
   } catch (error) {
-    // Every want must settle. Each transport already fails only its own, so
-    // reaching here means something outside them threw — reading the registry,
-    // most likely, which stops being a static list the moment a reader's own
-    // markets are stored in it. This runs from a timer, so an escaping
-    // rejection would be reported nowhere and leave every cache entry in the
-    // tick waiting for ever. Failing them all is worse than one transport
-    // failing and better than silence.
     for (const waiters of batch.values()) {
       for (const waiter of waiters) waiter.reject(error);
     }
@@ -126,11 +103,8 @@ async function flush() {
 }
 
 /**
- * Sorts a tick's wants by who can answer them.
- *
- * The kind is read from the registry rather than from the want, so a caller
- * names a source and never learns what it is — `allMarketSources()` is the one
- * seam a reader-saved market joins at, and this reads whatever it carries.
+ * Sorts a tick's wants by who can answer them, taking the kind from the registry
+ * rather than from the want. One the registry does not carry cannot be asked.
  */
 function splitByTransport(batch) {
   const sources = allMarketSources();
@@ -149,9 +123,6 @@ function splitByTransport(batch) {
     const source = sourceIn(sources, head);
     const want = { typeID, marketLocation: head, source, waiters };
 
-    // A market the registry does not carry cannot be asked at all. One it does
-    // carry is asked whichever way its kind says, rather than this listing the
-    // kinds again — `marketSources` is where that is decided.
     if (!source) {
       unaskable.push(want);
     } else if (isReadByTheReader(source.kind)) {
@@ -165,12 +136,8 @@ function splitByTransport(batch) {
 }
 
 /**
- * What a source is called on the wire.
- *
- * A hub is named by its id and a saved station by the station it sits at: this
- * server prices a market an account registered, and a station id is what it was
- * registered by. The reader's own id for that market never leaves here — every
- * row, key and clock is still held under it.
+ * What a market is called on the wire: a hub by its id, a saved station by the
+ * station it sits at. The reader's own id never leaves here.
  *
  * @param {{id: string, kind: string, stationID?: number}} source
  * @returns {string}
@@ -194,13 +161,11 @@ async function serveServerHeld(wants, adjusted) {
       adjustedTypeIDs: adjusted.map(({ typeID }) => typeID),
     });
 
-    // Before the waiters, so a reader woken by one of them sees the clock that
-    // the rows it is about to read arrived with.
-    recordClocks(answer, wants);
+    announceRefreshTimes(answer, wants);
 
     for (const want of wants) {
       const block = answer.sources?.[transportIDFor(want.source)];
-      resolveWant(want, rowFrom(block, want.typeID));
+      resolveWant(want, typePriceFrom(block, want.typeID));
     }
     for (const want of adjusted) {
       resolveWant(want, answer.adjusted?.prices?.[want.typeID] ?? null);
@@ -211,11 +176,8 @@ async function serveServerHeld(wants, adjusted) {
 }
 
 /**
- * The citadels a tick named, each read once however many types were asked for.
- *
- * A structure's market has no per-type form, so the read that answers one want
- * answers every want at that market — and every type on it, which is why what
- * comes back is kept rather than the wants picked out of it.
+ * The citadels a tick named, each read once however many types were asked for, a
+ * structure's market having no per-type form.
  */
 async function serveWalked(wants) {
   if (wants.length === 0) return;
@@ -247,8 +209,11 @@ async function serveOneCitadel(wants) {
   }
 
   for (const want of wants) {
-    const row = prices.rows.get(String(want.typeID));
-    resolveWant(want, row ? { ...row, refreshedAt: prices.refreshedAt } : null);
+    const typePrice = prices.typePrices.get(String(want.typeID));
+    resolveWant(
+      want,
+      typePrice ? { ...typePrice, refreshedAt: prices.refreshedAt } : null,
+    );
   }
 }
 
@@ -260,18 +225,8 @@ async function serveOneCitadel(wants) {
 const reading = new Map();
 
 /**
- * Reads one market, keeps what it said, and reports that it moved.
- *
- * Everything a read of a whole market owes, wherever the read was asked for —
- * a tick's wants and a rotation share it, so neither can drift from the other
- * on the order these have to happen in.
- *
- * **One at a time per market, keeping included.** A rotation and a panel can
- * want the same citadel at the same moment — both are set off by the same
- * market having gone stale — and guarding only the walk would let them share
- * one read and then write the whole market to the device twice. The sharing
- * lasts exactly as long as the work: a market asked for afterwards is read
- * again, and a failure is not held on to.
+ * Everything a read of a whole market owes, shared by a tick's wants and a
+ * rotation, and run one at a time per market with the keeping included.
  */
 function readAndKeep(marketLocation, source) {
   const underWay = reading.get(marketLocation);
@@ -285,37 +240,25 @@ function readAndKeep(marketLocation, source) {
   return work;
 }
 
+/**
+ * Keeps what a whole-market read returned, announcing last because a surface
+ * woken by it reads through the store.
+ */
 async function keepWhatIsRead(marketLocation, source) {
   const prices = await readCitadelPrices(source);
 
-  // A read of a whole market is a statement about every type on it, so the
-  // store takes the set: a type that has stopped trading there goes, and the
-  // next reader to want any type already has it.
-  //
-  // **Awaited, and before the clock moves.** Announcing a move drops this
-  // market's held rows and wakes every surface reading them, and what they read
-  // through is the store — so announcing first sends them to the rows this read
-  // is about to replace, which they would then hold until something else moved
-  // the market.
-  await replaceStoredPrices(marketLocation, prices.rows, {
+  await replaceStoredPrices(marketLocation, prices.typePrices, {
     refreshedAt: prices.refreshedAt,
     expiresAt: prices.expiresAt,
   });
 
-  // The orders themselves, for the surfaces that browse orders rather than price
-  // against them. Not awaited with the rows above — pricing must not wait on a
-  // write it does not read — and its failure is swallowed here as well as
-  // inside, because an unawaited promise that rejects takes the whole tick down
-  // rather than the browse it belongs to.
   replaceStoredOrders(marketLocation, prices.orders, prices.refreshedAt)
     .then(() => onOrdersStored?.(marketLocation))
     .catch(() => {});
 
-  // Before any waiter, as the served transport does: a reader woken by one of
-  // them reads the rows against the clock they arrived with.
-  if (recordSourceClock(marketLocation, prices.refreshedAt)) {
-    onClocksMoved?.({ sources: [marketLocation], adjusted: false });
-  }
+  onMarketsRefreshed?.({
+    markets: [{ marketLocation, refreshedAt: prices.refreshedAt }],
+  });
 
   return prices;
 }
@@ -329,84 +272,63 @@ function rejectWant(want, error) {
 }
 
 /**
- * Records every clock an answer carried, and reports the markets walked again
- * since the rows held for them arrived.
- *
- * Every answer is a clock reading, whatever it was asked for — which is why
- * nothing polls for one. A market named in a request reports its clock in the
- * reply, so a request made to read one type's price also settles whether every
- * other row held for that market is still good.
+ * Announces the refresh time every market in an answer carried, per market asked
+ * for rather than per block answered.
  *
  * @param {import("../../Endpoints/Public/marketPricesQuery").MarketPricesQueryResult} answer
- * @returns {{sources: string[], adjusted: boolean}} Markets that moved, and
- *   whether the adjusted block did
  */
-function recordClocks(answer, wants) {
-  const moved = [];
-
-  // Recorded per want rather than per answer block, because two markets an
-  // account saved can sit at one station and are asked for under the same id:
-  // keyed by what was asked, one would take the other's clock and the market
-  // that lost it would serve a superseded price until the tab closed.
+function announceRefreshTimes(answer, wants) {
+  const markets = [];
   const asked = new Set();
   const answered = new Set();
+
   for (const want of wants ?? []) {
     answered.add(transportIDFor(want.source));
     if (asked.has(want.marketLocation)) continue;
     asked.add(want.marketLocation);
 
-    const block = answer?.sources?.[transportIDFor(want.source)];
-    if (recordSourceClock(want.marketLocation, block?.refreshedAt)) {
-      moved.push(want.marketLocation);
-    }
+    markets.push({
+      marketLocation: want.marketLocation,
+      refreshedAt: answer?.sources?.[transportIDFor(want.source)]?.refreshedAt,
+    });
   }
-
-  // A market the answer named that nothing asked for still states its clock,
-  // under the only id there is for it here.
   for (const [marketLocation, block] of Object.entries(answer?.sources ?? {})) {
     if (answered.has(marketLocation)) continue;
-    if (recordSourceClock(marketLocation, block?.refreshedAt))
-      moved.push(marketLocation);
+    markets.push({ marketLocation, refreshedAt: block?.refreshedAt });
   }
 
-  const adjustedMoved = answer?.adjusted
-    ? recordAdjustedClock(answer.adjusted.refreshedAt)
-    : false;
-
-  if (moved.length > 0 || adjustedMoved) {
-    onClocksMoved?.({ sources: moved, adjusted: adjustedMoved });
-  }
-
-  return { sources: moved, adjusted: adjustedMoved };
+  onMarketsRefreshed?.({
+    markets,
+    adjustedRefreshedAt: answer?.adjusted?.refreshedAt,
+  });
 }
 
-/** @type {((moved: {sources: string[], adjusted: boolean}) => void)|null} */
-let onClocksMoved = null;
+/**
+ * @typedef {object} MarketsRefreshed
+ * @property {Array<{marketLocation: string, refreshedAt: number|undefined}>}
+ *   markets - Each market an answer named, with the refresh time it stated
+ * @property {number} [adjustedRefreshedAt]
+ */
+
+/** @type {((refreshed: MarketsRefreshed) => void)|null} */
+let onMarketsRefreshed = null;
 
 /**
- * Sets what to tell when a market has been walked again.
+ * Sets what to tell when a market has answered. The loader announces and the
+ * cache decides, holding the prices a refresh supersedes.
  *
- * The cache holds the rows a moved clock makes stale, and the loader is what
- * learns the clock moved — so the loader announces and the cache acts, rather
- * than the loader reaching up into the cache it sits beneath.
- *
- * @param {((moved: {sources: string[], adjusted: boolean}) => void)|null} listener
+ * @param {((refreshed: MarketsRefreshed) => void)|null} listener
  */
-export function setClockMovedListener(listener) {
-  onClocksMoved = listener;
+export function setMarketRefreshedListener(listener) {
+  onMarketsRefreshed = listener;
 }
 
 /** @type {((marketLocation: string) => void)|null} */
 let onOrdersStored = null;
 
 /**
- * Sets what to tell when a market's stored orders have been replaced.
- *
- * Apart from the clock above because it is a different fact, not a second way
- * of hearing the same one: a market walked for the first time moves no clock —
- * the prices it read go to the callers waiting on them — while a surface
- * browsing its orders is waiting on nobody and would sit on an empty market for
- * as long as it stayed open.
+ * Sets what to tell when a market's stored orders have been replaced, which is a
+ * different fact from the refresh time above rather than a second way of hearing it.
  *
  * @param {((marketLocation: string) => void)|null} listener
  */
@@ -415,25 +337,18 @@ export function setOrdersStoredListener(listener) {
 }
 
 /**
- * What the answer held for one want.
- *
- * A want the answer says nothing about settles as null rather than throwing: a
- * market holding no order for a type is an answer, not a failure, and retrying
- * it would ask forever.
+ * What the answer held for one want, settling as null where it says nothing
+ * because a market holding no order is an answer.
  */
-function rowFrom(block, typeID) {
-  const row = block?.prices?.[typeID];
-  if (!row) return null;
-  return { ...row, refreshedAt: block.refreshedAt ?? 0 };
+function typePriceFrom(block, typeID) {
+  const typePrice = block?.prices?.[typeID];
+  if (!typePrice) return null;
+  return { ...typePrice, refreshedAt: block.refreshedAt ?? 0 };
 }
 
 /**
- * Forgets a tick's pending wants. For tests.
- *
- * The clock listener is deliberately left in place: the cache registers it once
- * when it is first imported and has no way to do so again, so clearing it here
- * would leave every later test in the file running without the rule it is
- * trying to exercise.
+ * Forgets a tick's pending wants, for tests, leaving the listeners in place
+ * because the cache registers them once on import and cannot do so again.
  */
 export function resetPriceLoader() {
   pending.clear();

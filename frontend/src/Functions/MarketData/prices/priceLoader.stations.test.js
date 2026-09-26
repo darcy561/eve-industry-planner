@@ -5,13 +5,10 @@ vi.mock("../../Endpoints/Public/marketPricesQuery", () => ({
   fetchMarketPricesQuery: (...args) => fetchMarketPricesQuery(...args),
 }));
 
-// The registry is the seam a reader-saved market joins at, so two stations
-// exist here the way an account's saved markets exist for a reader.
 const THE_FORGE = 10000002;
 const JITA_4_4 = 60003760;
 const RENS = 60004588;
 
-/** Set to make reading the registry throw, as a stored one could. */
 let registryFailure = null;
 
 vi.mock("../registry/marketSources.js", async () => {
@@ -39,41 +36,43 @@ vi.mock("../registry/marketSources.js", async () => {
   });
 });
 
-const { requestPrice, resetPriceLoader } = await import("./priceLoader.js");
-const { resetSourceClocks, readSourceClock } =
-  await import("./sourceClocks.js");
+const { requestPrice, resetPriceLoader, setMarketRefreshedListener } =
+  await import("./priceLoader.js");
+
+const refreshed = vi.fn();
+const announcedFor = (marketLocation) =>
+  refreshed.mock.calls
+    .flatMap(([{ markets }]) => markets)
+    .find((market) => market.marketLocation === marketLocation)?.refreshedAt;
 
 beforeEach(() => {
   registryFailure = null;
+  setMarketRefreshedListener(refreshed);
   fetchMarketPricesQuery.mockResolvedValue({ sources: {}, adjusted: null });
 });
 
 afterEach(() => {
   resetPriceLoader();
-  resetSourceClocks();
+  setMarketRefreshedListener(null);
   vi.clearAllMocks();
 });
 
 describe("a want for a station the reader saved", () => {
-  // This server prices a market an account registered, and a station id is what
-  // it was registered by — the reader's own id for it means nothing there.
   it("is asked of this server by the station it sits at", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
       sources: { [JITA_4_4]: { refreshedAt: 7, prices: { 34: { sell: 10 } } } },
       adjusted: null,
     });
 
-    const row = await requestPrice(34, "saved-station");
+    const typePrice = await requestPrice(34, "saved-station");
 
     expect(fetchMarketPricesQuery.mock.calls[0][0].wants).toEqual([
       { typeID: "34", marketLocation: String(JITA_4_4) },
     ]);
-    expect(row.sell).toBe(10);
+    expect(typePrice.sell).toBe(10);
   });
 
-  // Every row, key and clock in the cache is held under the reader's id, so an
-  // answer keyed by a station has to come back to it.
-  it("holds the clock under the reader's own id for the market", async () => {
+  it("holds the refresh time under the reader's own id for the market", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
       sources: {
         [JITA_4_4]: { refreshedAt: 99, prices: { 34: { sell: 10 } } },
@@ -83,12 +82,10 @@ describe("a want for a station the reader saved", () => {
 
     await requestPrice(34, "saved-station");
 
-    expect(readSourceClock("saved-station")).toBe(99);
-    expect(readSourceClock(String(JITA_4_4))).toBeUndefined();
+    expect(announcedFor("saved-station")).toBe(99);
+    expect(announcedFor(String(JITA_4_4))).toBeUndefined();
   });
 
-  // The same answer a hub gives by leaving the row out, rather than a price of
-  // zero, which is a figure and a wrong one.
   it("settles as nothing where the market holds no order", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
       sources: { [JITA_4_4]: { refreshedAt: 7, prices: {} } },
@@ -99,12 +96,8 @@ describe("a want for a station the reader saved", () => {
   });
 });
 
-// Nothing stops an account saving one station twice, under two names. They are
-// asked for under the same id, so a clock kept per answered market rather than
-// per want would leave one of them serving a superseded price with nothing to
-// tell it otherwise.
 describe("two markets an account saved at one station", () => {
-  it("each hold the clock under their own id", async () => {
+  it("are each announced under their own id", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
       sources: {
         [JITA_4_4]: { refreshedAt: 42, prices: { 34: { sell: 10 } } },
@@ -119,8 +112,8 @@ describe("two markets an account saved at one station", () => {
 
     expect(first.sell).toBe(10);
     expect(second.sell).toBe(10);
-    expect(readSourceClock("saved-station")).toBe(42);
-    expect(readSourceClock("same-station-again")).toBe(42);
+    expect(announcedFor("saved-station")).toBe(42);
+    expect(announcedFor("same-station-again")).toBe(42);
   });
 
   it("are asked for once, not once each", async () => {
@@ -138,8 +131,6 @@ describe("two markets an account saved at one station", () => {
 });
 
 describe("a tick naming hubs and saved markets together", () => {
-  // One transport now answers both, so they travel as one request rather than
-  // two — and each source is named by what this server knows it as.
   it("asks for them in one request", async () => {
     fetchMarketPricesQuery.mockResolvedValue({
       sources: {
@@ -177,8 +168,6 @@ describe("a tick naming hubs and saved markets together", () => {
 });
 
 describe("a market the registry cannot name", () => {
-  // The absence of anywhere to ask, which is not the same as a market holding
-  // no order — a reader whose saved market has gone needs the difference.
   it("fails rather than settling as nothing held", async () => {
     await expect(requestPrice(34, "a-market-nobody-saved")).rejects.toThrow(
       /no market source named/,

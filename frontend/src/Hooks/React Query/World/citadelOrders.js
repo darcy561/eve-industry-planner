@@ -31,7 +31,7 @@ const NO_ORDERS = Object.freeze([]);
  * at all.
  *
  * **What makes it current is the walk, not a stale time.** Walking a market
- * replaces its stored orders, and the clock-moved listener in `priceCache.js`
+ * replaces its stored orders, and the orders-stored listener in `priceCache.js`
  * invalidates this alongside the prices — so a surface left open across a
  * rotation is told, where anything waiting on age alone would sit on what it
  * read at mount.

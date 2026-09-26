@@ -33,7 +33,6 @@ describe("one type's orders at the citadels in a region", () => {
     expect(orders.map((o) => o.price)).toEqual([5, 6]);
   });
 
-  // A region may hold several saved citadels, and the view is region-wide.
   it("gathers every citadel it was given", async () => {
     heldAt({
       a: { orders: [order(34, 1, 5)] },
@@ -48,8 +47,6 @@ describe("one type's orders at the citadels in a region", () => {
     expect(orders.map((o) => o.location_id).sort()).toEqual([1, 2]);
   });
 
-  // The id survives a round trip through storage, and nothing guarantees which
-  // side of the comparison is holding text.
   it("matches a type id held as text against one asked for as a number", async () => {
     heldAt({ a: { orders: [order("34", 1, 5)] } });
 
@@ -66,8 +63,6 @@ describe("one type's orders at the citadels in a region", () => {
     expect(orders.map((o) => o.price)).toEqual([6]);
   });
 
-  // A market the rotation has not reached yet is not an error in what the rest
-  // of the region says.
   it("passes over a citadel nothing has read", async () => {
     heldAt({ a: undefined, b: { orders: [order(34, 2, 7)] } });
 
@@ -84,8 +79,6 @@ describe("one type's orders at the citadels in a region", () => {
     expect(readStoredOrders).not.toHaveBeenCalled();
   });
 
-  // Reading the store to answer about no type would spend the budget for
-  // nothing.
   it("asks nothing without a type", async () => {
     expect(await ordersForTypeAtCitadels([{ id: "a" }], undefined)).toEqual([]);
     expect(readStoredOrders).not.toHaveBeenCalled();

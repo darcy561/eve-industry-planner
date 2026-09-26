@@ -37,6 +37,8 @@ export default [
       },
     },
     rules: {
+      "no-empty": ["error", { allowEmptyCatch: true }],
+
       // A leading underscore is the tree's existing mark for a binding that
       // exists to hold a position — a Zustand `_get`, an event arg the handler
       // ignores — and must stay for arity or destructuring order.

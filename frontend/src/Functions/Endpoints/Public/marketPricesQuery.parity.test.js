@@ -157,7 +157,7 @@ describe("the answer this client reads", () => {
     }
   });
 
-  it("reads a market's row and its clock out of it", async () => {
+  it("reads a market's row and its refresh time out of it", async () => {
     fetchWithPublicHeaders.mockResolvedValue(ok(answerFromSurface()));
 
     const result = await fetchMarketPricesQuery({

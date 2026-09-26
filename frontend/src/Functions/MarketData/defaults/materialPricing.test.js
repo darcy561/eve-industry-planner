@@ -10,8 +10,6 @@ import {
 } from "./materialPricing";
 import { PRICING_RUNG } from "./pricingSide";
 
-// Prices differ per order type so a total can only come out right if the order type reached
-// the lookup; the hub is included so an override on the hub is visible too.
 const PRICES = {
   34: { jita: { buy: 5, sell: 10, buyP95: 6, sellP05: 9 } },
   35: { jita: { buy: 50, sell: 100, buyP95: 60, sellP05: 90 } },
@@ -60,7 +58,6 @@ describe("materialCostByOrderType", () => {
 
     expect(byId.sell.isCurrent).toBe(true);
     expect(byId.sell.delta).toBe(0);
-    // Buying rather than selling is 150 cheaper on these materials.
     expect(byId.buy.delta).toBe(-150);
     expect(byId.buyP95.isCurrent).toBe(false);
   });
@@ -80,8 +77,6 @@ describe("materialCostByOrderType", () => {
       }),
     );
 
-    // The overridden row stays on buy (5) whichever order type is being costed, so
-    // only the un-overridden row moves between them.
     expect(byId.sell.total).toBe(10 * 5 + 2 * 100);
     expect(byId.buyP95.total).toBe(10 * 5 + 2 * 60);
   });
@@ -133,8 +128,6 @@ describe("materialCostByOrderType", () => {
 });
 
 describe("materialPurchaseState", () => {
-  // The requirement comes from the setups on a real job, so it is passed as the
-  // constructor's second argument rather than set on the row.
   const materialBought = (required, purchases) =>
     new JobMaterial(
       { typeID: 34, name: "Tritanium", purchasing: purchases },
@@ -190,9 +183,6 @@ describe("materialPurchaseState", () => {
   });
 });
 
-// A material the setups ask for none of: purchaseComplete is false by definition
-// (it requires quantity > 0), and nothing bought against it counts, so the row is
-// an estimate of nothing rather than paid.
 describe("a material the job needs none of", () => {
   it("is an estimate with nothing outstanding and nothing counted", () => {
     const material = new JobMaterial(
@@ -259,8 +249,6 @@ describe("summariseOrderTypeUse", () => {
   });
 });
 
-// The server refreshes on a period measured in hours, and a stale figure looks
-// exactly as authoritative as a fresh one.
 describe("priceAge", () => {
   const now = Date.now();
   const refreshedAt = (byType) => (typeID) => byType[typeID];
@@ -289,9 +277,6 @@ describe("priceAge", () => {
     expect(priceAge([], refreshedAt({}))).toBeNull();
   });
 
-  // The store answers an unpriced type with a zero-filled row, so a reader
-  // taking its timestamp at face value dated the whole job to 1970 and told the
-  // player their figures were fifty-odd years old.
   it("does not read a missing price as one from the epoch", () => {
     const age = priceAge(
       [{ typeID: 34 }, { typeID: 35 }],
@@ -302,8 +287,6 @@ describe("priceAge", () => {
   });
 });
 
-// Tritanium (34) sits in Minerals, which sits in Materials. 35 has no market
-// group at all, which is the normal case for an unpublished type.
 const MARKET_GROUPS = {
   1857: { name: "Minerals", parent_id: 1849 },
   1849: { name: "Materials" },
@@ -311,9 +294,6 @@ const MARKET_GROUPS = {
 
 const GROUP_OF = { 34: 1857 };
 
-/**
- * The group rung's inputs, with both panel axes answered by the rung named.
- */
 function groupPricing(groupDefaults, rung = PRICING_RUNG.ACCOUNT) {
   return {
     marketGroups: MARKET_GROUPS,
@@ -347,7 +327,6 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     );
 
     expect(resolved.marketLocation).toBe("hek");
-    // Nothing named an order type, so the panel still answers it.
     expect(resolved.orderType).toBe("sell");
   });
 
@@ -363,8 +342,6 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     expect(resolved).toEqual({ marketLocation: "jita", orderType: "sell" });
   });
 
-  // The whole reason the rung arrives with the panel's: a group sits beneath a
-  // job's own choice, so a job that named a market keeps it on every row.
   it("yields to a job that named the axis", () => {
     const resolved = getEffectiveMaterialPriceHub(
       {},
@@ -404,13 +381,9 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     );
 
     expect(resolved.marketLocation).toBe("dodixie");
-    // The override named no order type, so the group still answers that axis.
     expect(resolved.orderType).toBe("buy");
   });
 
-  // Rung 1 clears to null rather than to an empty string — the override writers
-  // normalise that way — so an empty string is a stored value the ladder honours,
-  // unlike every rung below it. Pinned because the asymmetry is easy to "tidy".
   it("treats an empty row override as the row's answer", () => {
     const build = { materialPriceOverrides: { 34: { marketDisplay: "" } } };
 
@@ -425,9 +398,6 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     expect(resolved.marketLocation).toBe("");
   });
 
-  // Safer to lose the rung than to overrule a job that answered: a caller that
-  // knows about the walk has the rungs to hand, so a missing one is a caller that
-  // does not know, not an account default waiting to be displaced.
   it("yields where the rung that answered was not named", () => {
     const resolved = getEffectiveMaterialPriceHub({}, 34, "jita", "sell", {
       ...groupPricing({ 1857: { market: "amarr", orderType: "buy" } }),
@@ -445,8 +415,6 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
     });
   });
 
-  // A group naming an order type must not answer every candidate identically, or the
-  // comparison offers four copies of one figure.
   it("still costs each order type apart when a group names one", () => {
     const byId = orderTypeById(
       materialCostByOrderType({
@@ -459,12 +427,10 @@ describe("getEffectiveMaterialPriceHub — the market group rung", () => {
       }),
     );
 
-    // Tritanium is 10 on sell and 5 on buy; the group names neither candidate.
     expect(byId.sell.total).toBe(10 * 10 + 2 * 100);
     expect(byId.buy.total).toBe(10 * 5 + 2 * 50);
   });
 
-  // A group naming a market is not a candidate axis, so it applies to all four.
   it("keeps a group's market on every candidate order type", () => {
     const byId = orderTypeById(
       materialCostByOrderType({

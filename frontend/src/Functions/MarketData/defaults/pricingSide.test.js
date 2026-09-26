@@ -42,8 +42,6 @@ describe("resolvePricingSide", () => {
     });
   });
 
-  // A job naming a market but no order type has not chosen an order type, so the rung below
-  // still answers it. Resolving the pair together would silently take both.
   it("resolves market and order type independently", () => {
     expect(resolve({ buying: { market: "dodixie" } })).toEqual({
       marketLocation: "dodixie",
@@ -107,8 +105,6 @@ describe("setJobPricingSide", () => {
     ).toBe("dodixie");
   });
 
-  // The selling branch has no control writing to it yet, so nothing but this
-  // would notice the side argument being ignored.
   it("writes the selling side without touching the buying one", () => {
     const withBuying = setJobPricingSide(
       null,
@@ -168,7 +164,6 @@ describe("setJobPricingSide", () => {
   });
 });
 
-// Tritanium sits in Minerals, which sits in Manufacture & Research.
 const marketGroups = {
   1857: { name: "Minerals", parent_id: 1855 },
   1855: { name: "Manufacture & Research", parent_id: 1849 },
@@ -194,8 +189,6 @@ describe("resolveGroupDefault", () => {
     });
   });
 
-  // The rule every other rung uses, applied per field: a nearer group answers
-  // what it names, and leaves what it does not to the one above.
   it("lets a nearer group outrank a further one, field by field", () => {
     const answer = groupWalk({
       1849: { market: "amarr", orderType: "buy" },
@@ -212,8 +205,6 @@ describe("resolveGroupDefault", () => {
     });
   });
 
-  // An item can have a market group before the defaults map has loaded, and that
-  // is a normal early state rather than a reason to throw on every row.
   it("answers nothing when the defaults have not loaded", () => {
     expect(resolveGroupDefault({ marketGroupID: 1857, marketGroups })).toEqual({
       marketLocation: null,
@@ -240,8 +231,6 @@ describe("resolveGroupDefault", () => {
     ).toEqual({ marketLocation: "hek", orderType: null });
   });
 
-  // A cycle should not reach the published file, but this runs once per material
-  // on every row, so it cannot be the thing that hangs the page.
   it("stops rather than circling a tree that points at itself", () => {
     const circular = { 1: { parent_id: 2 }, 2: { parent_id: 1 } };
 
@@ -273,8 +262,6 @@ describe("resolvePricingSideRungs", () => {
     expect(answer.orderTypeRung).toBe(PRICING_RUNG.ACCOUNT);
   });
 
-  // The rung is per axis for the same reason the value is: a job naming a market
-  // and no order type has answered one question and left the other.
   it("names a rung per axis", () => {
     const answer = rungs({ buying: { market: "hek" } });
 
@@ -293,8 +280,6 @@ describe("resolvePricingSideRungs", () => {
     expect(answer.orderTypeRung).toBe(PRICING_RUNG.GLOBAL);
   });
 
-  // Two functions answering the same ladder is exactly how a quoted total comes
-  // to disagree with the row it quotes.
   it("resolves the same values resolvePricingSide does", () => {
     const job = { buying: { market: "dodixie" } };
 
@@ -309,9 +294,6 @@ describe("resolvePricingSideRungs", () => {
   });
 });
 
-// A side's group table is the one place this project has already recorded a
-// whole-value replacement destroying what sat beside it, so each of these is
-// about what survives a write rather than what it sets.
 describe("setGroupPricing", () => {
   const existing = {
     1857: { market: "jita", orderType: "buy" },
@@ -345,8 +327,6 @@ describe("setGroupPricing", () => {
     });
   });
 
-  // An entry naming nothing would be a row a reader can see and not use: the
-  // walk reads an empty value as no choice, so it would answer nothing.
   it("drops a group once its last field is cleared", () => {
     const next = setGroupPricing(existing, 1996, "market", "");
 
@@ -360,8 +340,6 @@ describe("setGroupPricing", () => {
     });
   });
 
-  // The side has to stop carrying `groups` at all, rather than an empty object
-  // that reads as a table answering nothing.
   it("answers undefined once the last group goes", () => {
     const one = { 1857: { market: "jita" } };
 
@@ -375,8 +353,6 @@ describe("setGroupPricing", () => {
     expect(next[1857]).not.toHaveProperty("orderType", null);
   });
 
-  // Group ids arrive as numbers from the tree and as strings from a stored
-  // document; both have to reach the same entry.
   it("reaches the same entry whether the id is a number or a string", () => {
     const byString = setGroupPricing(existing, "1857", "market", "hek");
 

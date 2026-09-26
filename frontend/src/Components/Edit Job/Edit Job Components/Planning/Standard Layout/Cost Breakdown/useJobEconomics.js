@@ -51,7 +51,7 @@ export function useJobEconomics({ rows, buyEverything = false }) {
     () => pricesWantedBy({ itemID, build }, accountPricing),
     [itemID, build, accountPricing],
   );
-  const { clocks } = useMarketPricesQuery(wants, { adjustedTypeIDs });
+  const { refreshTimes } = useMarketPricesQuery(wants, { adjustedTypeIDs });
 
   const {
     seller,
@@ -156,7 +156,7 @@ export function useJobEconomics({ rows, buyEverything = false }) {
       comparison: compareToHistory(totalsData?.history, cost.toBuild.perUnit),
       charges: { brokerFee, salesTax },
     };
-    // `clocks` is read by nothing in here on purpose. The prices are,
+    // `refreshTimes` is read by nothing in here on purpose. The prices are,
     // synchronously out of the cache, and this is what says they have moved.
     //
     // Inert while `seller` is rebuilt unmemoised by `useJobSellingContext`,
@@ -181,6 +181,6 @@ export function useJobEconomics({ rows, buyEverything = false }) {
     seller,
     sellingMarket,
     totalsData,
-    clocks,
+    refreshTimes,
   ]);
 }

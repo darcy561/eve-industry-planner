@@ -22,8 +22,6 @@ describe("showing a region and the private markets inside it as one market", () 
     expect(merged.map((o) => o.price)).toEqual([10, 9]);
   });
 
-  // ESI publishes the structures whose owners made them public, so a citadel a
-  // reader saved may already be in the region's own answer.
   it("takes the region's copy of a market it already answered for", () => {
     const merged = mergeCitadelOrders(
       [at(1035466617946, 10), at(60003760, 5)],
@@ -33,9 +31,6 @@ describe("showing a region and the private markets inside it as one market", () 
     expect(merged.map((o) => o.price)).toEqual([10, 5]);
   });
 
-  // A location id survives a round trip through storage, and nothing guarantees
-  // which side is holding text — a duplicate that slipped through would show
-  // one market at two moments.
   it("matches a place held as text against one held as a number", () => {
     const merged = mergeCitadelOrders(
       [at(1035466617946, 10)],
@@ -63,8 +58,6 @@ describe("the systems the places sit in", () => {
     ).toEqual([30000144]);
   });
 
-  // The region's own orders state their system, so asking about them again
-  // would resolve what is already in hand.
   it("passes over an order that said which system it is in", () => {
     expect(
       systemsOfPlaces([at(60003760, 10, 30000142)], {
@@ -77,8 +70,6 @@ describe("the systems the places sit in", () => {
     expect(systemsOfPlaces([at(AZBEL, 9)], {})).toEqual([]);
   });
 
-  // The caller asks for these by a key built from the list, so two renders
-  // finding the same systems have to produce the same list.
   it("settles on one order whatever order the orders arrived in", () => {
     const worldData = {
       1: { solar_system_id: 30000144 },
@@ -90,9 +81,6 @@ describe("the systems the places sit in", () => {
     );
   });
 
-  // A system stops being named the moment its orders leave the merge — a reader
-  // changing type, or one citadel's orders dropping out while another's stay —
-  // and a list that shrank would stop asking about a place still on screen.
   it("keeps a system found earlier when this round names a different one", () => {
     const found = systemsOfPlaces([at(1, 9)], {
       1: { solar_system_id: 30000144 },
@@ -145,8 +133,6 @@ describe("filling in the system an order did not state", () => {
     expect(filled[0].system_id).toBe(30000142);
   });
 
-  // The hook memoises on what comes back, and a new array every render would
-  // re-ask for every name in it.
   it("hands back the same array where there was nothing to fill in", () => {
     const orders = [at(60003760, 10, 30000142)];
 

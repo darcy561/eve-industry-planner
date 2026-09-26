@@ -23,9 +23,6 @@ beforeEach(() => {
 });
 
 describe("the markets an account may price against", () => {
-  // A caller falls back to the account's own markets until the composed set
-  // arrives, so "not read yet" and "this account has none" cannot be the same
-  // answer.
   it("is nothing at all until something has read it", () => {
     expect(readMarketLocations()).toBeUndefined();
   });
@@ -37,8 +34,6 @@ describe("the markets an account may price against", () => {
     expect(fetchMarketLocations).not.toHaveBeenCalled();
   });
 
-  // A bootstrap that could not compose the set omits the field. Holding an
-  // empty list for that would tell a reader they have no markets.
   it("holds nothing when a sign-in carried no answer", () => {
     seedMarketLocations(undefined);
 
@@ -51,8 +46,6 @@ describe("the markets an account may price against", () => {
     expect(readMarketLocations()).toEqual([]);
   });
 
-  // The update carries one owner's document; folding it in here would need the
-  // rule that collapses two rows naming one place a second time.
   it("is read again rather than merged into", async () => {
     seedMarketLocations([]);
 
@@ -63,10 +56,6 @@ describe("the markets an account may price against", () => {
   });
 });
 
-// Nothing observes this entry — it is read synchronously, the way a price row
-// is — so the cache counts it unobserved from the moment it lands. On the
-// default lifetime it would be collected within minutes and a reader would
-// quietly lose every market their organisation shares.
 describe("holding the set for the session", () => {
   it("is not collected while nothing is watching it", () => {
     seedMarketLocations([azbel]);
@@ -79,11 +68,6 @@ describe("holding the set for the session", () => {
   });
 });
 
-// The set is the server's answer, composed from every owner's settings. A
-// market the reader saves lands in their own document and is absent from that
-// answer until it is read again — and because `marketsToOffer` prefers the
-// composed set wherever there is one, a market that never triggers a re-read is
-// offered nowhere in the app at all.
 describe("reading the set again once a change has been written", () => {
   const rens = { id: "market-2", name: "Rens VI", stationID: 60004588 };
 
@@ -105,8 +89,6 @@ describe("reading the set again once a change has been written", () => {
     expect(readMarketLocations()).toEqual([azbel, rens]);
   });
 
-  // Recorded once and read once: a reader changing three things about one
-  // market before the save fires owes one read, not three.
   it("reads once for a change recorded more than once", async () => {
     seedMarketLocations([azbel]);
 
@@ -118,9 +100,6 @@ describe("reading the set again once a change has been written", () => {
     expect(fetchMarketLocations).toHaveBeenCalledTimes(1);
   });
 
-  // A read that failed leaves the set without the market that was just saved,
-  // so the change stays recorded and the next save picks it up rather than the
-  // reader being left looking for it.
   it("keeps the change recorded when the read fails", async () => {
     seedMarketLocations([azbel]);
     fetchMarketLocations.mockRejectedValueOnce(new Error("offline"));

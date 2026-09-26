@@ -7,7 +7,7 @@ vi.mock("./priceLoader", () => ({
   requestPrice: (...args) => requestPrice(...args),
   requestAdjustedPrice: (...args) => requestAdjustedPrice(...args),
   requestMarketRead: (...args) => requestMarketRead(...args),
-  setClockMovedListener: () => {},
+  setMarketRefreshedListener: () => {},
   setOrdersStoredListener: () => {},
 }));
 
@@ -20,8 +20,6 @@ vi.mock("./priceStore", () => ({
   deferMarket: (...args) => deferMarket(...args),
 }));
 
-// One market of each kind an account can save: a station this server prices as
-// it prices a hub, and a citadel the browser reads itself.
 vi.mock("../registry/marketSources.js", async () => {
   const { marketSourcesWith, savedStation, savedCitadel } =
     await import("../../../tests/marketSourceFixtures.js");
@@ -32,14 +30,13 @@ const { queryClient } = await import("../../../queryClient.js");
 const {
   fetchPrices,
   readPrice,
+  readHeldRefreshTime,
   rotateSelfReadMarkets,
-  revalidateSourceClocks,
+  revalidateMarketRefreshTimes,
 } = await import("./priceCache.js");
-const { readSourceClock, resetSourceClocks } =
-  await import("./sourceClocks.js");
 const { PRICE_ROTATION_MS } = await import("../citadels/citadelPrices");
 
-const row = (sell) => ({
+const typePrice = (sell) => ({
   buy: sell - 1,
   sell,
   buyP95: sell,
@@ -49,7 +46,6 @@ const row = (sell) => ({
 
 beforeEach(() => {
   queryClient.clear();
-  resetSourceClocks();
   vi.clearAllMocks();
   readStoredPrice.mockResolvedValue(undefined);
   readMarketFreshness.mockResolvedValue(undefined);
@@ -58,12 +54,9 @@ beforeEach(() => {
   deferMarket.mockResolvedValue(undefined);
 });
 
-// Rows are kept on a reader's device only where they cost that reader
-// something to get. A hub and a saved station are priced by this server and are
-// one request away after a reload, so neither touches the tier beneath.
 describe("a market this server prices", () => {
   it("is fetched without consulting the tier beneath", async () => {
-    requestPrice.mockResolvedValue(row(10));
+    requestPrice.mockResolvedValue(typePrice(10));
 
     await fetchPrices({
       wants: [
@@ -77,11 +70,9 @@ describe("a market this server prices", () => {
     expect(readPrice(34, "saved-station").sell).toBe(10);
   });
 
-  // A market the server walks states its own clock, and a stale row served
-  // from disk would sit in front of a figure the server has already replaced.
   it("is asked for again after a reload rather than restored", async () => {
-    readStoredPrice.mockResolvedValue(row(7));
-    requestPrice.mockResolvedValue(row(10));
+    readStoredPrice.mockResolvedValue(typePrice(7));
+    requestPrice.mockResolvedValue(typePrice(10));
 
     await fetchPrices({
       wants: [{ typeID: 34, marketLocation: "saved-station" }],
@@ -92,12 +83,11 @@ describe("a market this server prices", () => {
   });
 });
 
-// The accessor above must not be able to tell where a row came from.
 describe("every market", () => {
   const READ_BY_SURFACES = ["buy", "sell", "buyP95", "sellP05", "refreshedAt"];
 
   it("answers every field a surface reads", async () => {
-    requestPrice.mockResolvedValue(row(10));
+    requestPrice.mockResolvedValue(typePrice(10));
 
     await fetchPrices({
       wants: [
@@ -115,12 +105,9 @@ describe("every market", () => {
   });
 });
 
-// The tier exists for the one market kind a reader pays for themselves: a
-// citadel's whole market is read on their own token, so losing those rows means
-// paying for all of them again to price one type.
 describe("a market the reader reads themselves", () => {
   it("is served from the reader's device without asking for it again", async () => {
-    readStoredPrice.mockResolvedValue(row(7));
+    readStoredPrice.mockResolvedValue(typePrice(7));
 
     await fetchPrices({
       wants: [{ typeID: 34, marketLocation: "saved-citadel" }],
@@ -133,7 +120,7 @@ describe("a market the reader reads themselves", () => {
 
   it("falls through to the read when nothing is held for it", async () => {
     readStoredPrice.mockResolvedValue(undefined);
-    requestPrice.mockResolvedValue(row(10));
+    requestPrice.mockResolvedValue(typePrice(10));
 
     await fetchPrices({
       wants: [{ typeID: 34, marketLocation: "saved-citadel" }],
@@ -144,42 +131,33 @@ describe("a market the reader reads themselves", () => {
   });
 });
 
-// A reload empties the clock record and leaves the rows on disk, and a market
-// whose clock is unknown cannot be seen to move — so the read that replaces
-// those rows would look like the market's first and drop nothing.
-describe("a market whose rows come back from the reader's device", () => {
-  // Both halves in one test on purpose: the clock not moving is what the second
-  // asserts, which a cache that recorded nothing at all would also satisfy.
-  it("has its clock restored from the row, and never dragged backwards", async () => {
+describe("a market whose prices come back from the reader's device", () => {
+  it("states the refresh time its prices carry, and is never dragged backwards", async () => {
     readStoredPrice.mockResolvedValue({
-      ...row(7),
+      ...typePrice(7),
       refreshedAt: 1757003600000,
     });
     await fetchPrices({
       wants: [{ typeID: 34, marketLocation: "saved-citadel" }],
     });
 
-    expect(readSourceClock("saved-citadel")).toBe(1757003600000);
+    expect(readHeldRefreshTime("saved-citadel")).toBe(1757003600000);
 
-    // Rows outlive the tab, so a row on disk can be older than one already read.
     readStoredPrice.mockResolvedValue({
-      ...row(6),
+      ...typePrice(6),
       refreshedAt: 1757000000000,
     });
     await fetchPrices({
       wants: [{ typeID: 35, marketLocation: "saved-citadel" }],
     });
 
-    expect(readSourceClock("saved-citadel")).toBe(1757003600000);
+    expect(readHeldRefreshTime("saved-citadel")).toBe(1757003600000);
   });
 });
 
-// Asking a market the reader reads themselves for one type reads the whole
-// market, because that is the only form its orders come in — so the probe that
-// costs one row everywhere else would cost a walk here, every time it ran.
 describe("the probe and a market the reader reads themselves", () => {
   it("leaves it alone while asking the markets this server prices", async () => {
-    requestPrice.mockResolvedValue(row(10));
+    requestPrice.mockResolvedValue(typePrice(10));
     await fetchPrices({
       wants: [
         { typeID: 34, marketLocation: "jita" },
@@ -188,20 +166,14 @@ describe("the probe and a market the reader reads themselves", () => {
     });
     requestPrice.mockClear();
 
-    await revalidateSourceClocks();
+    await revalidateMarketRefreshTimes();
 
     expect(requestPrice).toHaveBeenCalledWith("34", "jita");
     expect(requestPrice).not.toHaveBeenCalledWith("34", "saved-citadel");
   });
 });
 
-// A market this server prices is re-asked one type at a time, so letting the
-// next reader pay costs them a row. A citadel's orders only come whole, so the
-// same wait is the whole market — which is what this reads ahead of them.
 describe("rotating a market the reader reads themselves", () => {
-  // Read from the device, not from what is held: the cache lets a row nothing
-  // is watching go within minutes, so a rotation paced by it would stop
-  // rotating the moment a reader looked away.
   it("reads a market whose turn has come round", async () => {
     readMarketFreshness.mockResolvedValue({
       refreshedAt: 1000,
@@ -222,10 +194,6 @@ describe("rotating a market the reader reads themselves", () => {
     expect(requestMarketRead).not.toHaveBeenCalled();
   });
 
-  // A market is saved because the reader means to price against it, so one
-  // nothing has read yet is due now rather than never — refreshing only what has
-  // been asked for leaves prices fresh where a reader has been and stale
-  // everywhere else.
   it("reads a market nothing has ever read", async () => {
     readMarketFreshness.mockResolvedValue(undefined);
 
@@ -233,8 +201,6 @@ describe("rotating a market the reader reads themselves", () => {
     expect(requestMarketRead).toHaveBeenCalledWith("saved-citadel");
   });
 
-  // A market nobody can reach any more would otherwise be walked on every
-  // probe, and every walk is a refusal per character.
   it("puts a market it could not read back to its full turn", async () => {
     readMarketFreshness.mockResolvedValue({
       refreshedAt: 1000,
@@ -264,8 +230,6 @@ describe("rotating a market the reader reads themselves", () => {
     expect(deferMarket).not.toHaveBeenCalled();
   });
 
-  // This server states a clock rather than a turn, and the probe is what asks
-  // it — rotating one of these would be a request nobody needed.
   it("leaves the markets this server prices alone", async () => {
     readMarketFreshness.mockResolvedValue({
       refreshedAt: 1000,

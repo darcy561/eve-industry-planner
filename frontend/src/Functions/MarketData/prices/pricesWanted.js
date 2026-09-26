@@ -4,16 +4,8 @@ import { resolveFor, sideDefaults } from "../defaults/priceResolution.js";
 import { materialTypeIDsOf } from "../../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
- * Which market each of a job's figures is actually priced against.
- *
- * A job does not price everything at one market. A material can carry its own
- * override, its market group can name one, and the job's own choice sits above
- * the account's — so the answer is per material, through the same resolution the
- * readers use. Asking for every type at every market instead would fetch four
- * times what anything reads, which is the cost this stage exists to remove.
- *
- * The output's own market is the selling side's, which is a different question
- * from where its materials are bought and frequently a different answer.
+ * Which market each of a job's figures is priced against, answered per material
+ * through the same resolution the readers use.
  *
  * @param {Array<Object>|Object} inputJobs
  * @param {Object} [accountPricing] - Defaults to the account's stored pricing.
@@ -31,8 +23,6 @@ export function pricesWantedBy(inputJobs, accountPricing) {
   for (const job of jobs) {
     if (!job) continue;
 
-    // Per job rather than once for the batch: a job's own choice of market is a
-    // rung, and two jobs in one call can answer it differently.
     const jobPricing = job.build?.localPricing;
     const buying = sideDefaults(PRICING_SIDE.BUYING, {
       jobPricing,
@@ -43,12 +33,8 @@ export function pricesWantedBy(inputJobs, accountPricing) {
       accountPricing,
     });
 
-    // What the job is made of, and not what it makes: the output is priced
-    // below, at the market it will be sold on rather than bought at.
     for (const typeID of materialTypeIDsOf(job.build?.materials)) {
       add(wants, typeID, resolveFor(buying, job.build, typeID).marketLocation);
-      // The install cost estimate prices materials at CCP's adjusted price,
-      // which belongs to no market and is wanted for the same set.
       adjustedTypeIDs.add(typeID);
     }
 
@@ -65,11 +51,8 @@ export function pricesWantedBy(inputJobs, accountPricing) {
 }
 
 /**
- * Which market each of a bare list of types is priced against.
- *
- * For a caller with types but no job — a shopping list, which carries no build
- * and so no per-item override. The market group rung still answers per item,
- * which is why this walks rather than resolving one market for the list.
+ * Which market each of a bare list of types is priced against, for a caller with
+ * types but no job and so no per-item override.
  *
  * @param {Iterable<number|string>} typeIDs
  * @param {string} side - One of PRICING_SIDE
@@ -91,12 +74,8 @@ function add(wants, typeID, marketLocation) {
 }
 
 /**
- * Which market each figure on the watchlist is priced against.
- *
- * A watched item is costed on both sides at once, which makes it the one surface
- * asking two markets for the same walk: its materials are bought, and the item
- * and each material are also valued at what they would fetch. So a material is
- * wanted twice, and the two answers are frequently different markets.
+ * Which market each figure on the watchlist is priced against, a watched item
+ * being costed on both sides at once and so wanted twice.
  *
  * @param {Array<Object>} items - `userWatchlist.items`
  * @param {Object} [accountPricing] - Defaults to the account's stored pricing

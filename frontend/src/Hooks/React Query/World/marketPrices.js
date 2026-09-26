@@ -3,14 +3,11 @@ import { useMemo } from "react";
 import {
   fetchPrices,
   MARKET_PRICES_QUERY_KEY,
+  readAdjustedRefreshTime,
   readPrice,
 } from "../../../Functions/MarketData/prices/priceCache.js";
 import { idsQueryKeySuffix } from "../idsQueryKey.js";
 import { wantKey } from "../../../Functions/MarketData/registry/marketSources.js";
-import {
-  readAdjustedClock,
-  readSourceClock,
-} from "../../../Functions/MarketData/prices/sourceClocks.js";
 
 export { MARKET_PRICES_QUERY_KEY };
 
@@ -71,12 +68,7 @@ export function useMarketPricesQuery(
         throw new Error("no market could be reached for any wanted price");
       }
 
-      // The clocks the rows came back with, rather than the wants that were
-      // asked. A surface reads its figures synchronously and subscribes to no
-      // row, so this value is the only thing that can re-render it — and a
-      // constant here makes a refetch invisible, leaving a reader on figures
-      // the market has already replaced.
-      return clocksFor(asked);
+      return refreshTimesFor(asked);
     },
     enabled: enabled && (asked.length > 0 || adjusted.length > 0),
     staleTime: 0,
@@ -86,37 +78,30 @@ export function useMarketPricesQuery(
   // `data` is read rather than ignored on purpose: the query tracks which of
   // its fields a caller uses and notifies only on those, so a hook that reads
   // none of it is never re-rendered when the prices behind it are replaced.
-  // Returning the clocks is what lets a caller see a market move — a surface
+  // Returning the refresh times is what lets a caller see a market move — a surface
   // that works its figures out in a `useMemo` names them among its dependencies.
   //
-  // Which is why `clocksFor` keys a market with no clock of its own per type:
+  // Which is why `refreshTimesFor` keys every price asked for separately:
   // structural sharing hands back the same object when a settle is deeply equal
   // to the last, so a value that could not tell two settles apart would leave
   // every reader on the figures the fetch had just replaced.
-  return { isLoading, isError, error, clocks: data };
+  return { isLoading, isError, error, refreshTimes: data };
 }
 
 /**
- * Each market's clock as it stands, keyed so a moved one changes the value.
+ * The refresh time each asked-for price carries, keyed per pair so a market
+ * that has refreshed changes the value.
  *
- * **A market with no clock of its own is keyed per type.** A market this server
- * walks states one clock for everything it answered; a market that has never
- * been walked states none at all, and neither does a market the reader reads
- * for themselves — their freshness is carried on each row instead. Keying those
- * by source alone reads as nothing at all, so a fetch lands rows while every
- * surface goes on showing the figures they replaced.
+ * Read from the prices rather than from anything holding refresh times apart
+ * from them: a price is stamped with the moment the walk that read it was
+ * current, which is the same fact and is already here.
  */
-function clocksFor(asked) {
-  const clocks = { adjusted: readAdjustedClock() ?? 0 };
+function refreshTimesFor(asked) {
+  const refreshTimes = { adjusted: readAdjustedRefreshTime() ?? 0 };
 
   for (const [pair, { typeID, marketLocation }] of asked) {
-    const walked = readSourceClock(marketLocation);
-    if (walked !== undefined) {
-      clocks[marketLocation] = walked;
-      continue;
-    }
-    clocks[pair] = readPrice(typeID, marketLocation)?.refreshedAt ?? 0;
+    refreshTimes[pair] = readPrice(typeID, marketLocation)?.refreshedAt ?? 0;
   }
 
-  return clocks;
+  return refreshTimes;
 }

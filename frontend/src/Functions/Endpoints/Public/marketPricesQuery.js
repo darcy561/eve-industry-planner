@@ -25,7 +25,7 @@ import { chunkArray } from "../chunkArray.js";
  *   neither of them at both
  * @param {Iterable<string|number>} [params.adjustedTypeIDs] - Types whose
  *   adjusted price is also wanted. Their own list with their own block and
- *   clock, because they belong to no market and refresh daily
+ *   refresh time, because they belong to no market and refresh daily
  * @returns {Promise<MarketPricesQueryResult>} Empty where there was nothing to
  *   ask about
  * @throws where the request could not be answered. A refusal must not settle: a
@@ -52,7 +52,7 @@ export async function fetchMarketPricesQuery({ wants, adjustedTypeIDs = [] }) {
   if (reads.length === 0) return emptyResult();
 
   // Chunked here rather than through the shared batch helper: that merges
-  // responses with one Object.assign, and this response nests its rows under
+  // responses with one Object.assign, and this response nests its prices under
   // each source — so a second chunk would replace the first source block whole
   // and take every price in it.
   //
@@ -109,10 +109,10 @@ async function askFor({ sources, adjustedTypeIDs }) {
 }
 
 /**
- * Folds one chunk's answer into the running result, merging rows per source
+ * Folds one chunk's answer into the running result, merging prices per market
  * rather than replacing a source's block.
  *
- * The clock is the source's own and is the same in every chunk, so the later one
+ * The refresh time is the source's own and is the same in every chunk, so the later one
  * simply wins.
  */
 function mergeInto(merged, answer) {

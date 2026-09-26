@@ -3,7 +3,7 @@ import {
   isReadByTheReader,
 } from "../../../../Functions/MarketData/registry/marketSources.js";
 import { readMarketFreshness } from "../../../../Functions/MarketData/prices/priceStore.js";
-import { readSourceClock } from "../../../../Functions/MarketData/prices/sourceClocks.js";
+import { readHeldRefreshTime } from "../../../../Functions/MarketData/prices/priceCache.js";
 
 /**
  * What a panel says about one market.
@@ -51,9 +51,9 @@ export function visibleBrokerFee(source) {
  * When a market was last read, for this reader.
  *
  * A market the reader reads themselves was read on this device, so the answer
- * is per device; one this server prices states one clock for every reader. The
- * in-memory clock a price answer leaves behind is empty on a fresh load, so
- * where both are held the newer wins.
+ * is per device; one this server prices states one refresh time for every
+ * reader. The prices held for it are empty on a fresh load and carry no refresh
+ * time, so where both are held the newer wins.
  *
  * @param {import("../../../../Functions/MarketData/registry/marketSources.js").MarketSource} source
  * @returns {Promise<{lastReadAt: number|undefined, readHere: boolean,
@@ -62,7 +62,7 @@ export function visibleBrokerFee(source) {
 export async function lastReadMoment(source) {
   if (!isReadByTheReader(source?.kind)) {
     return {
-      lastReadAt: newerOf(source?.pricedAt, readSourceClock(source?.id)),
+      lastReadAt: newerOf(source?.pricedAt, readHeldRefreshTime(source?.id)),
       readHere: false,
       readOutcome: undefined,
     };

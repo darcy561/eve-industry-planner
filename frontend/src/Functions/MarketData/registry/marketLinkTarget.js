@@ -6,18 +6,11 @@ import { readMarketSources } from "../../../Hooks/Static/useMarketSources";
 const { DEFAULT_REGION } = GLOBAL_CONFIG;
 
 /**
- * Which market a price link opens against.
- *
- * The market a link points at is the one the figure beside it came from, so a
- * caller that knows passes it. Where a caller has none to give, the side it is
- * pricing decides — a link beside a sale price should not open the market the
- * materials were bought on.
- *
- * A caller may hand over a source or the id of one, because the components this
- * serves accept either from their own callers.
+ * Which market a price link opens against: the one the caller gives, or the one
+ * the side it is pricing names.
  *
  * @param {object} params
- * @param {string|object|null|undefined} params.given - A row, an id, or nothing
+ * @param {string|object|null|undefined} params.given - A market, an id, or nothing
  * @param {string} params.side - One of PRICING_SIDE
  * @param {object|null|undefined} params.accountPricing - `defaultPricing`
  * @param {boolean} [params.needsRegion] - Whether the caller opens a
@@ -42,7 +35,5 @@ export function resolveMarketLinkTarget({
   const chosen = sourceIn(sources, marketLocation);
   if (chosen || !needsRegion) return chosen;
 
-  // Price history is drawn per region, so a market the registry does not carry
-  // still has to open somewhere rather than opening nothing.
   return sources.find((source) => source.regionID === DEFAULT_REGION);
 }

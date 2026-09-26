@@ -1,24 +1,9 @@
-/**
- * A price from the wire to the screen, with nothing in between replaced.
- *
- * Every other test on this path stands something in: the endpoint client, the
- * loader, or the cache. Each is right to — they are testing one piece — but the
- * result is that no test says a price actually arrives. The pieces agree with
- * their own doubles and could still disagree with each other.
- *
- * So this mocks `fetch` and nothing else. The real client parses the response,
- * the real loader batches and settles it, the real cache holds it, the real
- * accessor reads it, and a component draws it the way every priced surface does
- * — synchronously, while rendering.
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 const SAVED_STATION = 60004588;
 
-// A market an account saved, which the server prices like a hub — the registry
-// is the seam it joins at, and its station id is what the wire names it by.
 vi.mock("../registry/marketSources.js", async () => {
   const { marketSourcesWith, savedStation } =
     await import("../../../tests/marketSourceFixtures.js");
@@ -28,25 +13,18 @@ vi.mock("../registry/marketSources.js", async () => {
 });
 
 const { queryClient } = await import("../../../queryClient.js");
-const { resetSourceClocks, readSourceClock } =
-  await import("./sourceClocks.js");
 const { resetPriceLoader } = await import("./priceLoader.js");
 const { readMarketPriceForType, readPriceRefreshedAt } =
   await import("./marketPriceForType.js");
-const { revalidateSourceClocks } = await import("./priceCache.js");
+const { readHeldRefreshTime, revalidateMarketRefreshTimes } =
+  await import("./priceCache.js");
 const { useMarketPricesQuery } =
   await import("../../../Hooks/React Query/World/marketPrices.js");
 
 const WALKED_AT = 1757000000000;
 
-/**
- * Long enough for the shared retry layer to give up: four attempts at an
- * escalating 350ms base. A shorter wait reads a request still being retried as
- * one that hung.
- */
 const RETRY_WAIT = { timeout: 6000 };
 
-/** One market's answer, in the shape the API actually sends. */
 function apiResponse(sources, adjusted = null) {
   return new Response(JSON.stringify({ sources, adjusted }), {
     status: 200,
@@ -54,13 +32,6 @@ function apiResponse(sources, adjusted = null) {
   });
 }
 
-/**
- * A refusal, as a real Response.
- *
- * A plain object is not enough here: the retry layer clones the response to read
- * it, so a stand-in without `clone` fails in a way that looks like the code under
- * test rather than like the double.
- */
 function apiRefusal(status = 503) {
   return new Response(JSON.stringify({ error: "unavailable" }), { status });
 }
@@ -72,12 +43,9 @@ const priced = (sell) => ({
   sellP05: sell + 1,
 });
 
-/** Draws a figure the way a shopping list row or a cost panel does. */
 function Subject({ wants }) {
   const { isLoading, isError } = useMarketPricesQuery(wants);
   if (isLoading) return <p>pricing</p>;
-  // A surface draws what it has rather than waiting: a market that could not be
-  // reached leaves its own figures unread, and the rest are still worth showing.
   if (isError) return <p>could not price</p>;
 
   return (
@@ -103,7 +71,6 @@ let fetchMock;
 
 beforeEach(() => {
   queryClient.clear();
-  resetSourceClocks();
   resetPriceLoader();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
@@ -112,7 +79,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   queryClient.clear();
-  resetSourceClocks();
   resetPriceLoader();
 });
 
@@ -129,8 +95,6 @@ describe("a price from the wire to the screen", () => {
     expect(await screen.findByText("jita/34: 10")).toBeTruthy();
   });
 
-  // The whole point of the narrowed query: one request naming exactly what was
-  // wanted, not a market list crossed with a type list.
   it("asks once for everything a tick wanted", async () => {
     fetchMock.mockResolvedValue(
       apiResponse({
@@ -153,13 +117,11 @@ describe("a price from the wire to the screen", () => {
     expect(screen.getByText("amarr/34: 12")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // And it asked for each market only the types that market was wanted for.
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.sources).toEqual({ jita: ["34", "35"], amarr: ["34"] });
   });
 
-  // The clock arrives with the rows and is what decides they are still current.
-  it("records the market's clock on the way through", async () => {
+  it("keeps the market's refresh time on the prices it answered", async () => {
     fetchMock.mockResolvedValue(
       apiResponse({
         jita: { refreshedAt: WALKED_AT, prices: { 34: priced(10) } },
@@ -169,12 +131,10 @@ describe("a price from the wire to the screen", () => {
     show([{ typeID: 34, marketLocation: "jita" }]);
     await screen.findByText("jita/34: 10");
 
-    expect(readSourceClock("jita")).toBe(WALKED_AT);
+    expect(readHeldRefreshTime("jita")).toBe(WALKED_AT);
     expect(readPriceRefreshedAt(34, "jita")).toBe(WALKED_AT);
   });
 
-  // A type a market holds no order for is absent from the answer, and absence
-  // must read as no price rather than as a price of nothing.
   it("draws zero for a type the market holds no order for", async () => {
     fetchMock.mockResolvedValue(
       apiResponse({ jita: { refreshedAt: WALKED_AT, prices: {} } }),
@@ -183,33 +143,22 @@ describe("a price from the wire to the screen", () => {
     show([{ typeID: 34, marketLocation: "jita" }]);
 
     expect(await screen.findByText("jita/34: 0")).toBeTruthy();
-    // Nothing was learned about when this type was priced, so no age is shown.
     expect(readPriceRefreshedAt(34, "jita")).toBeUndefined();
   });
 
-  // A request that could not be made is not an answer of no orders, so nothing
-  // is written and the next reader asks again rather than being told zero
-  // forever.
   it("leaves nothing held when the request fails", async () => {
     fetchMock.mockImplementation(async () => apiRefusal());
 
     show([{ typeID: 34, marketLocation: "jita" }]);
-    // The shared retry layer makes four attempts with escalating backoff before
-    // a refusal is final, so this waits on the outcome rather than a moment.
     expect(
       await screen.findByText("could not price", {}, RETRY_WAIT),
     ).toBeTruthy();
 
-    // Nothing is written: a refusal is not an answer of no orders, so the next
-    // reader asks again rather than being told zero for the rest of the session.
     expect(readMarketPriceForType(34, "jita", "sell")).toBe(0);
     expect(readPriceRefreshedAt(34, "jita")).toBeUndefined();
-    expect(readSourceClock("jita")).toBeUndefined();
+    expect(readHeldRefreshTime("jita")).toBeUndefined();
   });
 
-  // The surface above reports the failure because it reads isError. One that
-  // only reads isLoading sits on "pricing" for ever, which is worth knowing
-  // before a panel is written that way.
   it("reports a failure rather than resolving as loaded", async () => {
     fetchMock.mockImplementation(async () => apiRefusal());
 
@@ -221,11 +170,6 @@ describe("a price from the wire to the screen", () => {
     expect(screen.queryByText("pricing")).toBeNull();
   });
 
-  // Two surfaces wanting the same material is one lookup, which is what the
-  // cache beneath the accessor is for.
-  // The suite proved the hub path and stopped there, which was honest while the
-  // browser fetched a saved market's orders itself. It does not any more: this
-  // is the same wire, the same query and the same surface.
   it("draws a saved market's price, asked for by its station", async () => {
     fetchMock.mockResolvedValue(
       apiResponse({
@@ -241,9 +185,7 @@ describe("a price from the wire to the screen", () => {
     expect(body.sources).toEqual({ [SAVED_STATION]: ["34"] });
   });
 
-  // Every clock, row and key is held under the reader's own id for the market,
-  // so an answer keyed by a station has to come back to it.
-  it("holds a saved market's clock under the id the reader asked with", async () => {
+  it("holds a saved market's refresh time under the id the reader asked with", async () => {
     fetchMock.mockResolvedValue(
       apiResponse({
         [SAVED_STATION]: { refreshedAt: WALKED_AT, prices: { 34: priced(12) } },
@@ -253,12 +195,10 @@ describe("a price from the wire to the screen", () => {
     show([{ typeID: 34, marketLocation: "saved-market" }]);
     await screen.findByText("saved-market/34: 12");
 
-    expect(readSourceClock("saved-market")).toBe(WALKED_AT);
+    expect(readHeldRefreshTime("saved-market")).toBe(WALKED_AT);
     expect(readPriceRefreshedAt(34, "saved-market")).toBe(WALKED_AT);
   });
 
-  // A hub and a saved market travel as one request now, where the saved one
-  // used to be fetched separately from ESI.
   it("asks for a hub and a saved market together", async () => {
     fetchMock.mockResolvedValue(
       apiResponse({
@@ -277,13 +217,7 @@ describe("a price from the wire to the screen", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  // Registration puts a market in the sweep, but the first walk takes minutes.
-  // A reader who asks in that window is answered with no rows and no clock, and
-  // the whole point of the probe is that the figure reaches them once the walk
-  // lands rather than at the next reload.
   it("shows a newly registered market's price once its first walk lands", async () => {
-    // A fresh Response per call: a body can only be read once, and this test
-    // deliberately asks twice.
     fetchMock.mockImplementation(async () =>
       apiResponse({ [SAVED_STATION]: { refreshedAt: 0, prices: {} } }),
     );
@@ -291,13 +225,12 @@ describe("a price from the wire to the screen", () => {
     show([{ typeID: 34, marketLocation: "saved-market" }]);
     expect(await screen.findByText("saved-market/34: 0")).toBeTruthy();
 
-    // The walk finishes, and the market starts answering with a clock.
     fetchMock.mockImplementation(async () =>
       apiResponse({
         [SAVED_STATION]: { refreshedAt: WALKED_AT, prices: { 34: priced(12) } },
       }),
     );
-    await revalidateSourceClocks();
+    await revalidateMarketRefreshTimes();
 
     expect(await screen.findByText("saved-market/34: 12")).toBeTruthy();
   });

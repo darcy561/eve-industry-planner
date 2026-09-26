@@ -64,16 +64,12 @@ beforeEach(() => {
   characters.list = [main, alt];
   resetReauthorisationReports();
   fetchMock.mockReset().mockResolvedValue(read([order()]));
-  // What the device remembers about this market: the character that read it
-  // last time.
   readCharacter.mockReset().mockResolvedValue("hash-alt");
   writeCharacter.mockReset().mockResolvedValue(undefined);
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 describe("what one read of a citadel gives", () => {
-  // The read costs the same whatever was wanted, so it answers every type on
-  // the market rather than the one that prompted it.
   it("is a price for every type on the market", async () => {
     fetchMock.mockResolvedValue(
       read([
@@ -83,15 +79,13 @@ describe("what one read of a citadel gives", () => {
       ]),
     );
 
-    const { rows } = await readCitadelPrices(source);
+    const { typePrices } = await readCitadelPrices(source);
 
-    expect([...rows.keys()].sort()).toEqual(["34", "35"]);
-    expect(rows.get("34")).toMatchObject({ sell: 10, buy: 8 });
-    expect(rows.get("35")).toMatchObject({ sell: 50, buy: 0 });
+    expect([...typePrices.keys()].sort()).toEqual(["34", "35"]);
+    expect(typePrices.get("34")).toMatchObject({ sell: 10, buy: 8 });
+    expect(typePrices.get("35")).toMatchObject({ sell: 50, buy: 0 });
   });
 
-  // The moment the orders carried says how current they are; when to read the
-  // market again is this app's decision, and a far longer one than ESI's.
   it("carries the moment the orders were current, and its own next turn", async () => {
     fetchMock.mockResolvedValue(
       read([order()], { refreshedAt: 42, expiresAt: 99 }),
@@ -104,9 +98,6 @@ describe("what one read of a citadel gives", () => {
     expect(prices.expiresAt).toBeGreaterThanOrEqual(before + PRICE_ROTATION_MS);
   });
 
-  // The endpoint answers for one structure, so this only bites if ESI ever
-  // returns something else — and pricing another place's orders as this
-  // market's would be invisible in the figure.
   it("counts only the orders at this market", async () => {
     fetchMock.mockResolvedValue(
       read([
@@ -115,21 +106,18 @@ describe("what one read of a citadel gives", () => {
       ]),
     );
 
-    const { rows } = await readCitadelPrices(source);
+    const { typePrices } = await readCitadelPrices(source);
 
-    expect(rows.get("34").sell).toBe(10);
+    expect(typePrices.get("34").sell).toBe(10);
   });
 
   it("holds nothing for a market with no orders on it", async () => {
     fetchMock.mockResolvedValue(read([]));
 
-    expect((await readCitadelPrices(source)).rows.size).toBe(0);
+    expect((await readCitadelPrices(source)).typePrices.size).toBe(0);
   });
 });
 
-// No ESI call says who may dock where, so the answer is the one found by
-// trying — and asking the character that worked last time first is what makes
-// the ordinary case a single request.
 describe("which character reads it", () => {
   it("is the one the device recorded for that market", async () => {
     await readCitadelPrices(source);
@@ -138,20 +126,18 @@ describe("which character reads it", () => {
     expect(fetchMock.mock.calls[0][1]).toBe(alt);
   });
 
-  // Docking rights move: a corporation loses them, a character leaves. Stopping
-  // at the record would make the market go quiet with nothing saying why.
   it("falls back to the others when the recorded one is refused", async () => {
     fetchMock.mockImplementation(async (_id, character) =>
       character === alt ? { refused: true } : read([order()]),
     );
 
-    const { rows } = await readCitadelPrices(source);
+    const { typePrices } = await readCitadelPrices(source);
 
     expect(fetchMock.mock.calls.map(([, character]) => character)).toEqual([
       alt,
       main,
     ]);
-    expect(rows.get("34").sell).toBe(10);
+    expect(typePrices.get("34").sell).toBe(10);
   });
 
   it("tries every character when nothing is recorded for the market", async () => {
@@ -170,8 +156,6 @@ describe("which character reads it", () => {
 
     await readCitadelPrices(source);
 
-    // A record naming nobody on the account neither reorders the account's own
-    // list nor drops anyone from it.
     expect(fetchMock.mock.calls.map(([, character]) => character)).toEqual([
       main,
       alt,
@@ -179,9 +163,6 @@ describe("which character reads it", () => {
   });
 });
 
-// Kept on the device rather than for the session: the walk across every
-// character is the cost this avoids, and a record that died with the tab would
-// pay it again on every visit.
 describe("recording who could read it", () => {
   it("keeps the character a fallback found", async () => {
     fetchMock.mockImplementation(async (_id, character) =>
@@ -207,22 +188,22 @@ describe("recording who could read it", () => {
     expect(writeCharacter).toHaveBeenCalledWith(source.id, "hash-main");
   });
 
-  // Storage is allowed to fail or be absent; it costs a walk, not a price.
   it("reads the market anyway when the device remembers nothing", async () => {
     readCharacter.mockResolvedValue(undefined);
     characters.list = [main];
 
-    expect((await readCitadelPrices(source)).rows.get("34").sell).toBe(10);
+    expect((await readCitadelPrices(source)).typePrices.get("34").sell).toBe(
+      10,
+    );
   });
 
-  // The price is already in hand, and losing the record costs one extra walk.
   it("still answers when the record cannot be saved", async () => {
     writeCharacter.mockRejectedValue(new Error("storage is blocked"));
     characters.list = [main];
 
-    const { rows } = await readCitadelPrices(source);
+    const { typePrices } = await readCitadelPrices(source);
 
-    expect(rows.get("34").sell).toBe(10);
+    expect(typePrices.get("34").sell).toBe(10);
   });
 
   it("records nothing for a market nobody could read", async () => {
@@ -236,8 +217,6 @@ describe("recording who could read it", () => {
 });
 
 describe("a market the account cannot see", () => {
-  // Not an empty market: settling a refusal as "no orders here" would price
-  // every type at nothing and look exactly like a real answer.
   it("fails rather than pricing every type at nothing", async () => {
     fetchMock.mockResolvedValue({ refused: true });
 

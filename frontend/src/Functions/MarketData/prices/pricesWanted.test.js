@@ -33,18 +33,12 @@ const marketsFor = (wants, typeID) =>
 
 beforeEach(() => {
   accountPricing = {
-    // Deliberately different sides: a fixture whose sides agree cannot tell a
-    // caller asking for the wrong one.
     buying: { market: "jita", orderType: "sell" },
     selling: { market: "amarr", exit: "listed" },
   };
 });
 
 describe("what a job needs priced", () => {
-  // A stand-in rather than a real Job, but shaped like one: what a job is made
-  // of sits under `build.materials`, keyed by type. A fixture naming its
-  // materials any other way is one no caller supplies, and the fetch would ask
-  // for nothing without the case noticing.
   const job = ({ materials = [34, 35], build = {}, ...overrides } = {}) => ({
     itemID: 99,
     ...overrides,
@@ -63,8 +57,6 @@ describe("what a job needs priced", () => {
     expect(marketsFor(wants, 99)).toEqual(["amarr"]);
   });
 
-  // CCP's adjusted price belongs to no market and is read by the install cost
-  // estimate for the materials only, never for the output.
   it("wants an adjusted price for the materials and not the output", () => {
     const { adjustedTypeIDs } = pricesWantedBy(job());
 
@@ -77,8 +69,6 @@ describe("what a job needs priced", () => {
     expect(marketsFor(wants, 100)).toEqual(["amarr"]);
   });
 
-  // The market is a per-job rung, so two jobs in one call can answer it
-  // differently and the batch must carry both answers.
   it("keeps two jobs' different markets apart in one call", () => {
     const { wants } = pricesWantedBy([
       job({ materials: [34], itemID: 98 }),
@@ -92,10 +82,6 @@ describe("what a job needs priced", () => {
     expect(marketsFor(wants, 34)).toEqual(["hek", "jita"]);
   });
 
-  // The callers hand this real jobs out of the store, not the plain shape the
-  // cases above use, and a job carries what it makes as well as what it is made
-  // of. Asking for the output on the buying side as well would price it twice,
-  // at two different markets.
   it("asks for the output once, even for a job out of the store", () => {
     const stored = new Job({
       jobID: "job-1",
@@ -158,8 +144,6 @@ describe("what the watchlist needs priced", () => {
     ...overrides,
   });
 
-  // The one surface reading both sides at once: a material is bought as part of
-  // the item and also valued at what it would fetch on its own row.
   it("wants each material at both the buying and the selling market", () => {
     const { wants } = pricesWantedByWatchlist([
       watched({ materials: [{ typeID: 34, materials: [] }] }),
@@ -174,9 +158,6 @@ describe("what the watchlist needs priced", () => {
     expect(marketsFor(wants, 99)).toEqual(["amarr"]);
   });
 
-  // A material's own components are only ever bought — nothing values them on
-  // their own — so asking for them at the selling market would fetch rows
-  // nothing reads.
   it("wants a material's components only where they are bought", () => {
     const { wants } = pricesWantedByWatchlist([
       watched({
@@ -199,7 +180,7 @@ describe("what the watchlist needs priced", () => {
     expect(marketsFor(wants, 99)).toEqual(["dodixie"]);
   });
 
-  it("walks past a row that is missing or has no type", () => {
+  it("walks past an entry that is missing or has no type", () => {
     const { wants } = pricesWantedByWatchlist([
       null,
       watched({ typeID: undefined }),

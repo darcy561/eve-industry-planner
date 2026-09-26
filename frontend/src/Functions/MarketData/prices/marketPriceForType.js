@@ -1,14 +1,6 @@
 import { readAdjustedPrice, readPrice } from "./priceCache";
 
 /**
- * Every price a surface reads comes through here.
- *
- * One accessor so that a caller asks for a figure and never learns how it is
- * held — which market it came from decides who fetched it and where it lives,
- * and that is the loader's business rather than any surface's.
- */
-
-/**
  * One material's price at a market, on one of the four bases the server
  * publishes.
  *

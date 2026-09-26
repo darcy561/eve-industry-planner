@@ -54,8 +54,6 @@ describe("where a type is priced", () => {
     expect(resolved.marketLocation).toBe("jita");
   });
 
-  // Rung 2. It is resolved into the side's defaults rather than per type, so a
-  // caller that forgot to pass it would silently fall back to the account's.
   it("lets the job's own choice outrank the account", () => {
     setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
 
@@ -70,8 +68,6 @@ describe("where a type is priced", () => {
     expect(resolved.marketLocation).toBe("amarr");
   });
 
-  // Rung 1, which is per type and so answered by resolveFor rather than by the
-  // side's defaults.
   it("lets a material's own override outrank the job", () => {
     setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
 
@@ -87,10 +83,6 @@ describe("where a type is priced", () => {
   });
 });
 
-// The fetch and the read must resolve identically: a fetch that warmed one
-// market while the reader looked at another would show a zero with nothing
-// reporting a problem. These assert the two agree rather than trusting that they
-// were written the same way.
 describe("what is fetched is what is read", () => {
   it("agrees for a job whose own choice is not the account's", () => {
     setAccount({ buying: { market: "jita", orderType: "sell" }, selling: {} });
@@ -130,7 +122,6 @@ describe("what is fetched is what is read", () => {
     );
   });
 
-  // The shopping list carries no job, and resolves through the same pair.
   it("agrees for a list with no job at all", () => {
     setAccount({
       buying: { market: "dodixie", orderType: "sell" },
@@ -144,7 +135,6 @@ describe("what is fetched is what is read", () => {
     expect(wants[0].marketLocation).toBe("dodixie");
   });
 
-  // The output is sold, not bought, and the two sides routinely differ.
   it("asks for the output at the selling market", () => {
     setAccount({
       buying: { market: "jita", orderType: "sell" },

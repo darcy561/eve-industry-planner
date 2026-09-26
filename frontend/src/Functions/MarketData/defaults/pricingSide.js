@@ -4,9 +4,8 @@ import { EXIT_ROUTE } from "../../Job/returns";
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 
 /**
- * Which side of a job is being priced. Not which side of the order book — that
- * is the order type, and the two disagree: materials being bought are normally priced
- * from the sell side, because the ask is what buying costs.
+ * Which side of a job is being priced, which is not which side of the order book
+ * — that is the order type, and the two disagree.
  */
 export const PRICING_SIDE = {
   BUYING: "buying",
@@ -14,12 +13,8 @@ export const PRICING_SIDE = {
 };
 
 /**
- * Which side of the book each route out reads.
- *
- * The selling side names a route rather than an order type because a route answers two
- * questions an order type cannot answer alone: which side of the book a figure comes
- * from, and whether a broker fee is charged. Listing pays fee and tax; selling
- * into bids pays tax only, because nothing is listed.
+ * Which side of the book each route out reads, a route also saying whether a
+ * broker fee is charged where an order type cannot.
  */
 const ORDER_TYPE_FOR_EXIT = {
   [EXIT_ROUTE.LISTED]: "sell",
@@ -27,11 +22,8 @@ const ORDER_TYPE_FOR_EXIT = {
 };
 
 /**
- * The order type a route prices on.
- *
- * The selling side stores a route rather than an order type, so this is the one place
- * that turns one into the other — a second copy would let a quoted price
- * disagree with the fee quoted beside it.
+ * The order type a route prices on, this being the one place that turns one into
+ * the other.
  *
  * @param {string|null|undefined} exit - One of EXIT_ROUTE
  * @returns {string|undefined}
@@ -42,8 +34,7 @@ export function orderTypeForExit(exit) {
 
 /**
  * The sides a control offers, named for what is being priced rather than for the
- * side itself: an order type is also called buy or sell, so "buying market" beside a
- * order type of "Sell Orders" reads as a contradiction when it is the normal case.
+ * side itself, an order type being called buy or sell too.
  */
 export const PRICING_SIDES = [
   { side: PRICING_SIDE.BUYING, noun: "Materials" },
@@ -51,11 +42,8 @@ export const PRICING_SIDES = [
 ];
 
 /**
- * Which rung of the ladder answered an axis.
- *
- * Only the rungs `resolvePricingSideRungs` itself walks are named: the row
- * override above it and the group walk below are applied by the caller holding
- * the data for them, so neither is ever returned from here.
+ * Which rung of the ladder answered an axis, naming only the rungs
+ * `resolvePricingSideRungs` itself walks.
  */
 export const PRICING_RUNG = {
   JOB: "job",
@@ -65,12 +53,7 @@ export const PRICING_RUNG = {
 
 /**
  * Where one side of a job is priced: the job's own choice, then the account's
- * default, then the global one.
- *
- * Market and order type resolve independently, so a job naming a market without a
- * order type keeps the account's order type rather than losing it. An empty value is not a
- * choice at any rung — that rule is what lets a stored document leave a field out
- * rather than having to carry a placeholder.
+ * default, then the global one, each axis resolving independently.
  *
  * @param {object} params
  * @param {object|null|undefined} params.jobPricing - `build.localPricing`
@@ -89,17 +72,8 @@ export function resolvePricingSide({ jobPricing, accountPricing, side }) {
 }
 
 /**
- * Which rung answered each axis, alongside the value it answered with.
- *
- * A caller that has a rung of its own to insert underneath — the market group
- * walk, which outranks the account default but not the job's own choice — cannot
- * work from the resolved value alone: "jita" says nothing about whether the job
- * named it or the account did, and the group rung must beat one and not the
- * other. So the rung is reported and the caller decides, rather than every rung
- * being collapsed here.
- *
- * The value is still resolved for a caller that has nothing to insert, so the two
- * can never disagree about the ladder.
+ * Which rung answered each axis, alongside the value it answered with, for a
+ * caller that has a rung of its own to insert underneath.
  *
  * @param {object} params
  * @param {object|null|undefined} params.jobPricing - `build.localPricing`
@@ -117,9 +91,6 @@ export function resolvePricingSideRungs({ jobPricing, accountPricing, side }) {
     account?.market,
     DEFAULT_MARKET_OPTION,
   );
-  // The selling side answers its order type with a route; the buying side stores one
-  // directly. A job's own order type still outranks either, because a job that named
-  // one has answered for itself.
   const orderTypeAnswer = answer(
     job?.orderType,
     account?.orderType || orderTypeForExit(account?.exit),
@@ -142,10 +113,8 @@ function answer(job, account, global) {
 }
 
 /**
- * A job's pricing override with one field of one side set.
- *
- * Returns null once the last choice is cleared, so a job that has chosen nothing
- * carries no override at all rather than an empty pair on every document.
+ * A job's pricing override with one field of one side set, and null once the last
+ * choice is cleared.
  *
  * @param {object|null|undefined} jobPricing - `build.localPricing`
  * @param {string} side - One of PRICING_SIDE
@@ -166,13 +135,8 @@ export function setJobPricingSide(jobPricing, side, key, value) {
 }
 
 /**
- * A side's group table with one group's field set.
- *
- * Returns undefined once the last choice is cleared, at either level: a group
- * that names nothing is dropped from the table, and a table with nothing in it is
- * dropped from the side. An empty entry would otherwise sit in the stored
- * document answering nothing, and the walk reads an empty value as no choice
- * anyway — so keeping it would be a row a reader could see and not use.
+ * A side's group table with one group's field set, and undefined once the last
+ * choice is cleared, at either level.
  *
  * @param {Object<string, {market?: string, orderType?: string}>|null|undefined} groups
  * @param {number|string} groupID
@@ -196,21 +160,14 @@ export function setGroupPricing(groups, groupID, key, value) {
 }
 
 /**
- * How far a walk may climb before it stops looking.
- *
- * EVE's market tree is a handful of levels deep, so a walk longer than this has
- * met a cycle the published data should not contain. Stopping is better than
- * hanging on a row that renders once per material.
+ * How far a walk may climb before it stops looking. EVE's market tree is a
+ * handful of levels deep.
  */
 const MAX_GROUP_DEPTH = 32;
 
 /**
- * The nearest market group default above an item, for one side of a job.
- *
- * Market and order type are answered separately and each stops at the first group
- * that names it, so a group naming a market without an order type narrows one axis and
- * leaves the other to whatever answers next. A nearer group outranks a further
- * one, which is the same rule every other rung uses.
+ * The nearest market group default above an item, for one side of a job, each
+ * axis stopping at the first group that names it.
  *
  * @param {object} params
  * @param {number|undefined} params.marketGroupID - The item's own market group
@@ -231,11 +188,6 @@ export function resolveGroupDefault({
     const chosen = groupDefaults[String(id)];
     if (chosen) {
       answer.marketLocation ||= chosen.market || null;
-      // A group answers its side's own axis: the selling side names a route out,
-      // which decides the order type, and the buying side names the order type directly.
-      // Both reach the caller as an order type, because that is what a price is read
-      // on — the route's other half, the broker fee, belongs to the side rather
-      // than to a group beneath it.
       answer.orderType ||=
         chosen.orderType || orderTypeForExit(chosen.exit) || null;
       if (answer.marketLocation && answer.orderType) return answer;

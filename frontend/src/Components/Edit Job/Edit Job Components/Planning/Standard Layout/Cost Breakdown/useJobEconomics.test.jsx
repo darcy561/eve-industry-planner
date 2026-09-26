@@ -3,17 +3,17 @@ import { renderHook } from "@testing-library/react";
 
 const readMarketPriceForType = vi.fn();
 
-// The clocks the prices came back with. The figures below are read out of the
+// The refresh times the prices came back with. The figures below are read out of the
 // cache rather than subscribed to, so this is what tells this hook they moved —
 // mocked, rather than run behind `tests/pricedSurface.jsx`, only in the one case
 // that drives it.
-let clocks = { jita: 1 };
+let refreshTimes = { jita: 1 };
 vi.mock("../../../../../../Hooks/React Query/World/marketPrices", () => ({
   useMarketPricesQuery: () => ({
     isLoading: false,
     isError: false,
     error: null,
-    clocks,
+    refreshTimes,
   }),
 }));
 const useSellingRates = vi.fn();
@@ -299,7 +299,7 @@ describe("a job whose output is owed to a parent", () => {
   //
   // This asserts the figures move, not which dependency moves them: the memo
   // recomputes on every render today regardless, because `seller` is rebuilt
-  // unmemoised by `useJobSellingContext`. Naming the clocks is what keeps this
+  // unmemoised by `useJobSellingContext`. Naming the refresh times is what keeps this
   // true if that is ever fixed.
   it("takes up the figures once the prices have settled", () => {
     readMarketPriceForType.mockReturnValue(0);
@@ -309,7 +309,7 @@ describe("a job whose output is owed to a parent", () => {
     ).revenue;
 
     readMarketPriceForType.mockReturnValue(500);
-    clocks = { jita: 2 };
+    refreshTimes = { jita: 2 };
     rerender();
 
     const afterTheyLanded = result.current.returns.routes.find(

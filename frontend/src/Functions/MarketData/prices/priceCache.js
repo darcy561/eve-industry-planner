@@ -11,7 +11,7 @@ import {
   requestAdjustedPrice,
   requestMarketRead,
   requestPrice,
-  setClockMovedListener,
+  setMarketRefreshedListener,
   setOrdersStoredListener,
 } from "./priceLoader";
 import {
@@ -20,7 +20,6 @@ import {
   readStoredPrice,
 } from "./priceStore";
 import { PRICE_ROTATION_MS } from "../citadels/citadelPrices.js";
-import { readSourceClock, recordSourceClock } from "./sourceClocks";
 import {
   outcomeOfFailedRead,
   readerCanAct,
@@ -28,42 +27,23 @@ import {
 import { CITADEL_ORDERS_QUERY_KEY } from "../citadels/ordersAtCitadels.js";
 
 /**
- * Where a price is held, and the two halves of getting one.
- *
- * **Reading and asking are separate.** The readers below answer from what is
- * held and report absence rather than waiting — a shopping list row and an order type
- * comparison both read a price inside a reduce, and neither can await.
- *
- * One entry per type at one market, so a market that fails fails against itself
- * rather than leaving a hole in one view's set. The client is the module-level
- * one because most callers here are not components.
- */
-
-/**
- * A held row never goes stale by age — its market's clock decides. Any duration
- * here would re-ask for prices that have not moved and still miss the moment
- * they do.
+ * How long a held price counts as fresh. Never stale by age: its market's
+ * refresh time decides.
  *
  * @type {number}
  */
 const PRICE_STALE_TIME = Infinity;
 
 /**
- * How long a row with nothing watching it is kept.
- *
- * Nothing subscribes to a row — surfaces read them synchronously — so every
- * entry is unobserved the moment it lands and this is in effect how long one
- * lives. Long enough that a reader moving between screens finds the prices
- * still there, short enough that a tab left open does not hold a market's whole
- * set for the day.
+ * How long a price is kept. Nothing watches one, so this is how long it lives,
+ * and it sits below the rotation.
  *
  * @type {number}
  */
 const PRICE_CACHE_TIME = 30 * 60 * 1000;
 
 /**
- * Every market key is built from this, so dropping a whole market's rows and
- * reading one of them cannot disagree about where they are held.
+ * Where a market's prices are held. Every key for one is built from this.
  *
  * @param {string} marketLocation
  * @returns {string[]}
@@ -78,9 +58,16 @@ const marketPricesKey = (marketLocation) => [
 const ADJUSTED_PRICES_QUERY_KEY = ["market", "adjusted"];
 
 /**
- * What a surface waiting on a set of prices is keyed under. Here beside the rows
- * it stands over, because this module and the hook that builds the full key both
- * need it.
+ * Where the adjusted block's own refresh time is held, its prices being bare
+ * numbers that carry none.
+ *
+ * @type {string[]}
+ */
+const ADJUSTED_REFRESHED_AT_KEY = ["market", "adjustedRefreshedAt"];
+
+/**
+ * What a surface waiting on a set of prices is keyed under. Here because this
+ * module and the hook above it both build on it.
  *
  * @type {string[]}
  */
@@ -99,9 +86,8 @@ export const adjustedQueryKey = (typeID) => [
 ];
 
 /**
- * One type's row at one market, or undefined where the cache holds none —
- * covering both "not asked for yet" and "the market holds no order", which a
- * caller reading a price cannot act differently on.
+ * One type's price at one market, or undefined where none is held — whether
+ * unasked or holding no order.
  *
  * @param {number|string} typeID
  * @param {string} marketLocation
@@ -125,18 +111,8 @@ export function readAdjustedPrice(typeID) {
 }
 
 /**
- * Asks for each type at the market it is priced against, and resolves once every
- * want has settled.
- *
- * **Wants are pairs, not a cross product.** A job prices most materials against
- * one market and some against another, and asking for every type at every market
- * would fetch what nothing reads — which is the cost this whole stage exists to
- * remove. The caller works out the pairs; `pricesWantedBy` does it for a job.
- *
- * The wants of one tick reach the loader together and leave as a single request;
- * a want the cache already holds and considers fresh is not asked about at all.
- * A market holding no order settles as null, which is an answer — only a request
- * that could not be made is an error, and that is not written to the cache.
+ * Asks for each type at the market it is priced against, taking pairs rather
+ * than a cross product, and resolves once every want has settled.
  *
  * @param {object} params
  * @param {Iterable<{typeID: number|string, marketLocation: string}>} params.wants
@@ -179,8 +155,6 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
     );
   }
 
-  // A market that could not be reached must not stop the rest: the view draws
-  // what resolved rather than nothing.
   const settled = await Promise.allSettled(asked);
 
   return {
@@ -190,15 +164,8 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
 }
 
 /**
- * One row, from whichever tier can answer for it.
- *
- * **The only seam the persistent tier enters at.** Everything above asks for a
- * price and learns nothing about where it came from, which is what lets a market
- * the reader reads themselves behave like a hub everywhere else.
- *
- * What is kept is written by the read that fetched it rather than here: that
- * read takes a whole market at once, and one resolved row shows neither what
- * every type is worth nor which have stopped trading.
+ * One price, from whichever tier can answer for it, and the only seam the
+ * persistent tier enters at.
  */
 async function resolvePrice(typeID, marketLocation) {
   const source = sourceIn(allMarketSources(), marketLocation);
@@ -208,67 +175,119 @@ async function resolvePrice(typeID, marketLocation) {
   }
 
   const stored = await readStoredPrice(marketLocation, typeID);
-  if (stored) {
-    // A reload leaves rows on disk and no clock, and a market with no clock
-    // cannot be seen to move: the next read would count as its first.
-    recordSourceClock(marketLocation, stored.refreshedAt);
-    return stored;
-  }
+  if (stored) return stored;
 
   return requestPrice(typeID, marketLocation);
 }
 
 /**
- * Drops every row held for a market that has been walked again — the whole
- * market at once, because the whole of it was walked at once, and leaving the
- * rest would show a reader two moments side by side.
- *
- * **Removed, not invalidated.** Entries here never go stale by age, so
- * `ensureQueryData` hands back an invalidated one as readily as a fresh one and
- * the new figures are never fetched.
+ * Drops the prices each announced refresh superseded, removing rather than
+ * invalidating them, and wakes the surfaces drawing them.
  */
-setClockMovedListener(({ sources, adjusted }) => {
-  for (const marketLocation of sources) {
-    queryClient.removeQueries({ queryKey: marketPricesKey(marketLocation) });
+setMarketRefreshedListener(({ markets, adjustedRefreshedAt }) => {
+  let moved = false;
+
+  for (const { marketLocation, refreshedAt } of markets ?? []) {
+    if (dropPricesOlderThan(marketLocation, refreshedAt)) moved = true;
   }
 
-  if (adjusted) {
+  if (adjustedHasMovedPast(adjustedRefreshedAt)) {
     queryClient.removeQueries({ queryKey: ADJUSTED_PRICES_QUERY_KEY });
+    moved = true;
   }
 
-  // Dropping rows reaches nobody on its own: a priced surface subscribes to no
-  // row entry, only to the query it waits on.
-  queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
+  if (moved)
+    queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
 });
 
 /**
- * Tells a surface browsing a market's orders that they have been replaced.
+ * Drops each price a market holds that was read before the refresh it has just
+ * announced, and says whether any went.
+ */
+function dropPricesOlderThan(marketLocation, refreshedAt) {
+  if (!Number.isFinite(refreshedAt) || refreshedAt <= 0) return false;
+
+  let dropped = false;
+
+  for (const entry of queryClient.getQueryCache().findAll({
+    queryKey: marketPricesKey(marketLocation),
+  })) {
+    if (!supersededBy(entry, refreshedAt)) continue;
+    queryClient.removeQueries({ queryKey: entry.queryKey, exact: true });
+    dropped = true;
+  }
+
+  return dropped;
+}
+
+/**
+ * Whether a settled price was read before a refresh. One carrying no refresh
+ * time at all was, having come from before its market was walked.
+ */
+function supersededBy(entry, refreshedAt) {
+  if (entry.state.status !== "success") return false;
+
+  const held = entry.state.data?.refreshedAt;
+
+  return !Number.isFinite(held) || held < refreshedAt;
+}
+
+/**
+ * When the adjusted block last refreshed, or undefined before it has answered.
  *
- * A browsing surface waits on nobody — the orders it draws come from the device
- * rather than from a request it made — so without this it holds whatever was
- * stored when it opened, including nothing at all for a market that had not
- * been walked yet.
+ * @returns {number|undefined}
+ */
+export function readAdjustedRefreshTime() {
+  return queryClient.getQueryData(ADJUSTED_REFRESHED_AT_KEY);
+}
+
+/**
+ * Records the moment the adjusted block states and answers whether it moved,
+ * ignoring an older moment rather than writing it.
+ */
+function adjustedHasMovedPast(refreshedAt) {
+  if (!Number.isFinite(refreshedAt) || refreshedAt <= 0) return false;
+
+  const held = queryClient.getQueryData(ADJUSTED_REFRESHED_AT_KEY);
+  if (held !== undefined && refreshedAt <= held) return false;
+
+  queryClient.setQueryData(ADJUSTED_REFRESHED_AT_KEY, refreshedAt);
+
+  return held !== undefined;
+}
+
+/**
+ * The market's own refresh time, read from the newest its held prices carry, or
+ * undefined where none carries one.
+ *
+ * @param {string} marketLocation
+ * @returns {number|undefined}
+ */
+export function readHeldRefreshTime(marketLocation) {
+  let newest;
+
+  for (const entry of queryClient.getQueryCache().findAll({
+    queryKey: marketPricesKey(marketLocation),
+  })) {
+    const refreshedAt = entry.state.data?.refreshedAt;
+    if (!Number.isFinite(refreshedAt)) continue;
+    if (newest === undefined || refreshedAt > newest) newest = refreshedAt;
+  }
+
+  return newest;
+}
+
+/**
+ * Tells a surface browsing a market's orders that they have been replaced, that
+ * surface waiting on nobody.
  */
 setOrdersStoredListener(() => {
   queryClient.invalidateQueries({ queryKey: CITADEL_ORDERS_QUERY_KEY });
 });
 
 /**
- * Reads again, before anybody asks, every market the reader reads themselves
- * whose turn has come round.
- *
- * **This is what stops a reader paying for a whole market read on the render
- * that needs one price.** A citadel's orders only come whole, so the wait a
- * hub's next reader pays — one row — is the whole market here.
- *
- * **Due-ness is read from the device, not from memory.** The cache lets an
- * unwatched row go long before the market is due, so a rotation paced by what
- * is in it would stop rotating the moment a reader looked away — precisely when
- * reading ahead is worth anything.
- *
- * **Every market the reader saved is on it**, not only the ones they have
- * priced against, so one nothing has read yet is due now. Refreshing only what
- * has been asked for would leave prices fresh exactly where a reader has been.
+ * Reads again, before anybody asks, every market the reader saved whose turn has
+ * come round, taking due-ness from the device rather than from memory.
  *
  * @param {number} [now]
  * @returns {Promise<number>} How many markets were read again
@@ -298,20 +317,8 @@ export async function rotateSelfReadMarkets(now = Date.now()) {
 }
 
 /**
- * Reads each market, and says which of them settled on something the reader
- * would want to know about.
- *
- * All of them at once: a structure's market is on an ESI allowance of its own
- * rather than the one a region's orders draw on, so reading several does not
- * take anything from the prices this server serves.
- *
- * **Only an answer about the market is reported back**, not every failure. Being
- * refused, or having nobody to ask with, is an answer and is worth waiting out;
- * a read that failed says nothing — ESI may be down, or the account's characters
- * may not all have arrived yet, as they have not when a cloud account signs in
- * and its roster is still filling. Putting a market's turn back for an hour on
- * the strength of that would leave a readable market unread on nothing more than
- * bad timing.
+ * Reads every market at once, and says which of them answered something about
+ * the market itself rather than merely failing.
  *
  * @param {string[]} marketLocations
  * @returns {Promise<Array<{marketLocation: string, outcome: string}>>}
@@ -333,78 +340,41 @@ async function readEach(marketLocations) {
   return settled;
 }
 
+/**
+ * Whether a market's turn has come. Nothing on record is a market never read,
+ * which is due now.
+ */
 function isDue(freshness, now) {
-  // Nothing on record is a market never read, which is due now rather than
-  // never: its turn cannot have passed if it has never had one.
   return !freshness || !(freshness.expiresAt > now);
 }
 
 /**
- * Asks each market holding rows for one type it already holds, so that market
- * reports its clock — the whole of how a moved clock is noticed, since a price
- * answer carries one and nothing polls for it.
- *
- * **Every market this server prices is asked, not only those that have reported
- * a clock.** A market just registered has none until its first walk, and its
- * rows read as nothing held — asking only the clocked ones would leave a reader
- * on "no price here" for as long as the tab stayed open.
- *
- * **A market the reader reads themselves is not asked**: its orders only come
- * whole, so there is no cheap question. Its turn on the rotation is what
- * replaces its rows.
+ * Asks every market this server prices for one type it already holds, the answer
+ * carrying the refresh time that is how a refresh is noticed.
  *
  * @returns {Promise<void>}
  */
-export async function revalidateSourceClocks() {
+export async function revalidateMarketRefreshTimes() {
   const sources = allMarketSources();
   const wants = [];
 
-  for (const marketLocation of sourcesHoldingRows()) {
-    // Asking one of these for one type reads its whole market, so the question
-    // that is cheap everywhere else is a walk here.
+  for (const marketLocation of marketsHoldingPrices()) {
     if (!answersAPerTypeProbe(sourceIn(sources, marketLocation)?.kind))
       continue;
 
     const typeID = anyHeldTypeAt(marketLocation);
-    if (typeID === undefined) continue;
-    wants.push({
-      typeID,
-      marketLocation,
-      unwalked: readSourceClock(marketLocation) === undefined,
-    });
+    if (typeID !== undefined) wants.push({ typeID, marketLocation });
   }
-
-  if (wants.length === 0) return;
 
   await Promise.allSettled(
     wants.map(({ typeID, marketLocation }) =>
       requestPrice(typeID, marketLocation),
     ),
   );
-
-  // A first clock is not a move, so nothing announced it — but the rows held
-  // were answered before the market had been walked and all say it holds no
-  // price, and a reader who asked too early would sit on that for the tab's life.
-  const walkedAtLast = wants.filter(
-    ({ marketLocation, unwalked }) =>
-      unwalked && readSourceClock(marketLocation) !== undefined,
-  );
-  if (walkedAtLast.length === 0) return;
-
-  for (const { marketLocation } of walkedAtLast) {
-    queryClient.removeQueries({ queryKey: marketPricesKey(marketLocation) });
-  }
-  queryClient.invalidateQueries({ queryKey: MARKET_PRICES_QUERY_KEY });
 }
 
-/**
- * Every market the cache holds a row for.
- *
- * Read from the rows rather than from the clocks, because a market waiting on
- * its first walk has rows and no clock, and that is exactly the market that has
- * to be asked again.
- */
-function sourcesHoldingRows() {
+/** Every market the cache holds an entry for, answered or not. */
+function marketsHoldingPrices() {
   const held = new Set();
 
   for (const entry of queryClient
@@ -416,13 +386,7 @@ function sourcesHoldingRows() {
   return [...held];
 }
 
-/**
- * One type this market has an entry for, whichever comes first.
- *
- * Any held type answers the clock as well as any other, so there is nothing to
- * choose between them and no reason for a sentinel type id that would be a
- * magic constant in the bargain.
- */
+/** One type this market has an entry for, whichever comes first. */
 function anyHeldTypeAt(marketLocation) {
   const [entry] = queryClient.getQueryCache().findAll({
     queryKey: marketPricesKey(marketLocation),

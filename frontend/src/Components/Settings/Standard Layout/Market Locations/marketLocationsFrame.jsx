@@ -153,7 +153,7 @@ function useMarketRows(markets) {
 /**
  * A market before it has been asked when it was last read.
  *
- * A market the server prices already carries its clock, so it is shown straight
+ * A market the server prices already carries its refresh time, so it is shown straight
  * away rather than reading as unwalked until the disk answers about a market the
  * disk holds nothing for anyway.
  */

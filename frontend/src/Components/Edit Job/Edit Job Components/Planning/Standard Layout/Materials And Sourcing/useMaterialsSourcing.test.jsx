@@ -38,19 +38,19 @@ vi.mock(
   }),
 );
 
-// The clocks the prices came back with. The panel reads the figures out of the
+// The refresh times the prices came back with. The panel reads the figures out of the
 // cache rather than subscribing to a row, so this is what tells it they moved.
 //
 // Mocked rather than run behind `tests/pricedSurface.jsx`, which is what every
 // other test of a priced surface uses: this file is the one testing the signal
-// itself, and a clock cannot be moved through a real fetch deterministically.
-let clocks = { jita: 1 };
+// itself, and a market cannot be made to refresh through a real fetch deterministically.
+let refreshTimes = { jita: 1 };
 let asked = [];
 
 vi.mock("../../../../../../Hooks/React Query/World/marketPrices", () => ({
   useMarketPricesQuery: (wants) => {
     asked = wants;
-    return { isLoading: false, isError: false, error: null, clocks };
+    return { isLoading: false, isError: false, error: null, refreshTimes };
   },
 }));
 // Set per test rather than remocked, so a case with linked children does not
@@ -197,7 +197,7 @@ describe("prices that land after the rows were built", () => {
       jita: { sell: 10, buy: 8, buyP95: 9, sellP05: 11 },
       amarr: { sell: 20, buy: 16, buyP95: 18, sellP05: 22 },
     };
-    clocks = { jita: 1 };
+    refreshTimes = { jita: 1 };
   });
 
   // The signal is half of it. A panel asking the wrong market is the other, and
@@ -238,7 +238,7 @@ describe("prices that land after the rows were built", () => {
     expect(result.current.rows[0].buyPrice).toBe(0);
 
     heldPrices = { jita: { sell: 10 } };
-    clocks = { jita: 2 };
+    refreshTimes = { jita: 2 };
     rerender();
 
     expect(result.current.rows[0].buyPrice).toBe(10);

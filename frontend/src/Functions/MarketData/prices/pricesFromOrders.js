@@ -1,16 +1,4 @@
 /**
- * What a market's orders come to: the four prices it is read on.
- *
- * The server derives these for the markets it walks, and this derives them for
- * a market the browser reads on the reader's own token. A figure from either
- * sits in the same column, so the two must agree, and nothing connects them at
- * runtime. `testing/fixtures/market-derivation/orders.json`
- * is written from the server's own derivation and read by the parity test beside
- * this file, so a change to one side without the other fails rather than quietly
- * giving one market a different meaning.
- */
-
-/**
  * Below this many orders on a side, the percentile degenerates towards the best
  * price, so the best price is reported instead.
  */
@@ -28,13 +16,8 @@ const SELL_PERCENTILE = 0.05;
  */
 
 /**
- * The four prices for every type in a set of orders.
- *
- * Per type rather than for one, because that is how both sides read a market:
- * every order at a market arrives at once and every type is priced from the same
- * pass.
- * A type with no order at the location is absent rather than zero — the
- * difference between "nothing is trading here" and a figure.
+ * The four prices for every type in a set of orders, a type with no order at the
+ * location being absent rather than zero.
  *
  * @param {Array<{price: number, type_id: number|string, is_buy_order: boolean,
  *   location_id: number|string}>} orders - Orders as ESI returns them, for any
@@ -72,12 +55,8 @@ export function pricesByType(orders, locationID) {
 }
 
 /**
- * The four figures, from the prices already sorted onto each side.
- *
- * Separate from the filtering above because a caller walking a whole region
- * sorts its orders by station and type as it reads each page, and arrives here
- * holding the sides already — asking it to keep the orders instead, so they
- * could be filtered again, is what this exists to avoid.
+ * The four figures, for a caller that sorted the prices onto each side as it
+ * read them and holds no orders to filter.
  *
  * @param {number[]} buyPrices
  * @param {number[]} sellPrices
@@ -109,7 +88,6 @@ function percentilePrice(prices, percentile, fallback) {
 
   const sorted = [...prices].sort((a, b) => a - b);
 
-  // Nearest-rank: ceil(p * N) as a 1-based rank, clamped into the array.
   let rank = Math.ceil(percentile * sorted.length) - 1;
   rank = Math.max(rank, 0);
   rank = Math.min(rank, sorted.length - 1);

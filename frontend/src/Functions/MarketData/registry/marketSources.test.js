@@ -35,16 +35,12 @@ beforeEach(() => {
 });
 
 describe("the market source registry", () => {
-  // Every surface that offers a market reads this, so a registry that lost the
-  // hubs would empty every picker in the app at once.
   it("carries every hub the app is configured with", () => {
     expect(allMarketSources().map((source) => source.id)).toEqual(
       GLOBAL_CONFIG.MARKET_OPTIONS.map((hub) => hub.id),
     );
   });
 
-  // A reader who saves a market expects to be offered it wherever a market is
-  // offered, and every such surface reads this one function.
   it("carries the NPC stations a reader has saved", () => {
     markets = [
       {
@@ -61,8 +57,6 @@ describe("the market source registry", () => {
       name: "Jita IV-4",
       regionID: 10000002,
       stationID: 60003760,
-      // The kind decides transport and cache tier: a saved station's prices are
-      // read by the browser and held on the reader's device.
       kind: SOURCE_KIND.STATION,
     });
   });
@@ -82,13 +76,10 @@ describe("the market source registry", () => {
     expect(saved).toMatchObject({
       name: "Perimeter Azbel",
       structureID: 1035466617946,
-      // Read on the reader's own token and held on their device, both of which
-      // follow from the kind and from nothing else.
       kind: SOURCE_KIND.CITADEL,
     });
   });
 
-  // A market with no place named is a market with nowhere to ask about it.
   it("does not carry a saved market that names no place", () => {
     markets = [
       {
@@ -101,8 +92,6 @@ describe("the market source registry", () => {
     expect(sourceIn(allMarketSources(), "citadelMarket-2")).toBeUndefined();
   });
 
-  // The region and station are what a price is fetched and filtered by, so a
-  // source that dropped them would look right in a picker and price nothing.
   it("keeps what a source is priced by", () => {
     for (const hub of GLOBAL_CONFIG.MARKET_OPTIONS) {
       expect(sourceIn(allMarketSources(), hub.id)).toMatchObject({
@@ -113,8 +102,6 @@ describe("the market source registry", () => {
     }
   });
 
-  // The kind is how the price layer will decide who fetches a source and where
-  // it is held. Everything the server prices is marked as its own.
   it("marks every hub as one the server holds", () => {
     for (const source of allMarketSources()) {
       expect(source.kind).toBe(SOURCE_KIND.HUB);
@@ -144,8 +131,6 @@ describe("reading one source out of a registry", () => {
     expect(sourceIn(sources, "rens")).toBeUndefined();
   });
 
-  // Callers read the registry before it can be guaranteed to exist — a reducer
-  // built from stored state, a helper handed whatever a component had.
   it("answers nothing rather than throwing on no registry", () => {
     expect(sourceIn(undefined, "jita")).toBeUndefined();
     expect(sourceIn(null, "jita")).toBeUndefined();
@@ -162,8 +147,6 @@ describe("the citadels saved in one region", () => {
     { id: "elsewhere", kind: "citadel", regionID: 10000043 },
   ];
 
-  // A region-wide view wants every private market in it, not the one a picker
-  // happens to be set to.
   it("finds every citadel in the region", () => {
     expect(citadelsInRegion(sources, forge).map((s) => s.id)).toEqual([
       "perimeter",
@@ -171,8 +154,6 @@ describe("the citadels saved in one region", () => {
     ]);
   });
 
-  // A hub and an NPC station are priced by the server from the region's own
-  // orders, which the caller already has.
   it("leaves out the markets that are not read here", () => {
     expect(
       citadelsInRegion(sources, forge).every((s) => s.kind === "citadel"),
@@ -185,8 +166,6 @@ describe("the citadels saved in one region", () => {
     ]);
   });
 
-  // A region id survives a round trip through stored settings and a route
-  // param, and nothing guarantees which side is holding text.
   it("matches a region id held as text against one asked for as a number", () => {
     expect(
       citadelsInRegion(
@@ -196,9 +175,6 @@ describe("the citadels saved in one region", () => {
     ).toHaveLength(1);
   });
 
-  // A caller reaching for a region it does not have yet is asking about nowhere,
-  // and the reader's whole set would have a surface quietly showing markets from
-  // everywhere.
   it("answers nothing without a region rather than every citadel", () => {
     expect(citadelsInRegion(sources, undefined)).toEqual([]);
   });
@@ -216,7 +192,6 @@ describe("every citadel a reader has saved", () => {
     { id: "elsewhere", kind: "citadel", regionID: 10000043 },
   ];
 
-  // The markets a job can sell from, wherever they are.
   it("takes them from every region", () => {
     expect(savedCitadels(sources).map((s) => s.id)).toEqual([
       "perimeter",
@@ -224,8 +199,6 @@ describe("every citadel a reader has saved", () => {
     ]);
   });
 
-  // A hub and an NPC station are priced by the server from a region's own
-  // orders, and neither is read on the reader's token.
   it("leaves out the markets that are not read here", () => {
     expect(savedCitadels(sources).every((s) => s.kind === "citadel")).toBe(
       true,
@@ -244,18 +217,12 @@ describe("naming a source", () => {
     expect(sourceNameIn(sources, "jita")).toBe("Jita");
   });
 
-  // A market a reader chose and then removed still labels its figures. Showing
-  // the id is what lets them recognise the stale choice; a blank would not.
   it("falls back to the id for a market it does not carry", () => {
     expect(sourceNameIn(sources, "rens")).toBe("rens");
     expect(sourceNameIn(undefined, "rens")).toBe("rens");
   });
 });
 
-// Three questions, one table. They line up for the kinds there are today, which
-// is exactly why they are asked separately: a kind this server prices but the
-// reader must authenticate for would split them, and one predicate standing in
-// for three would be wrong in three places at once.
 describe("what follows from a kind", () => {
   const ASKED = {
     persistsAcrossSessions,
@@ -273,8 +240,6 @@ describe("what follows from a kind", () => {
     expect(answersAPerTypeProbe(kind)).toBe(probes);
   });
 
-  // A kind nothing knows about is treated as the cheapest thing to be wrong
-  // about: fetched again rather than served from a tier nothing wrote.
   it.each(Object.entries(ASKED))(
     "answers %s safely for a kind it does not know",
     (_name, ask) => {
@@ -289,10 +254,6 @@ describe("what follows from a kind", () => {
   });
 });
 
-// What a reader may price against is composed by the server: their own markets
-// plus the ones each organisation they belong to has shared. The account's own
-// lane answers until that arrives, so a reader part-way through signing in is
-// offered the markets they saved rather than none.
 describe("the markets the server composed", () => {
   it("are what the registry offers once they have arrived", () => {
     markets = [{ id: "own", name: "Mine", regionID: 1, stationID: 60003760 }];
@@ -312,8 +273,6 @@ describe("the markets the server composed", () => {
     expect(allMarketSources().map((source) => source.id)).toContain("own");
   });
 
-  // An account that genuinely has none is an answer, not an absence: falling
-  // back to its own lane here would offer markets the server did not compose.
   it("offer nothing for an account the server says has none", () => {
     markets = [{ id: "own", name: "Mine", regionID: 1, stationID: 60003760 }];
     composed = [];

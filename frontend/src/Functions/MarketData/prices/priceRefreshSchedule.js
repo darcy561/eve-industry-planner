@@ -1,22 +1,12 @@
-/**
- * Keeps held prices in step with the markets they came from, for the life of the
- * page.
- *
- * Nothing here belongs to a screen: a price is read by panels, classes and
- * reducers alike, so what keeps prices current cannot be owned by a component
- * that happens to be mounted.
- */
-
-import { rotateSelfReadMarkets, revalidateSourceClocks } from "./priceCache.js";
+import {
+  rotateSelfReadMarkets,
+  revalidateMarketRefreshTimes,
+} from "./priceCache.js";
 import { dropUnreadMarkets } from "./priceStore.js";
 
 /**
- * How often a tick comes round.
- *
- * Not the server's publishing cadence — it walks a hub's orders once an hour —
- * but how promptly a market whose own turn has come is noticed. A market the
- * reader reads is due on the hour, and a tick four times that often means it
- * waits a quarter of an hour at worst rather than a whole one.
+ * How often a tick comes round: not the server's publishing cadence, but how
+ * promptly a market whose own turn has come is noticed.
  *
  * @type {number}
  */
@@ -46,23 +36,15 @@ async function probe() {
 
   try {
     await rotateSelfReadMarkets();
-  } catch {
-    /* empty */
-  }
+  } catch {}
 
-  // After the rotation, so a market whose turn has just come is refreshed
-  // rather than thrown away and read again from nothing.
   try {
     await dropUnreadMarkets();
-  } catch {
-    /* empty */
-  }
+  } catch {}
 
   try {
-    await revalidateSourceClocks();
-  } catch {
-    /* empty */
-  }
+    await revalidateMarketRefreshTimes();
+  } catch {}
 }
 
 /** @returns {void} */
@@ -73,13 +55,8 @@ function probeOnWake() {
 }
 
 /**
- * A probe at sign-in, which is both when a reader's saved markets are first
- * known and when a machine that has been away comes back. Waiting for the first
- * tick would leave them a quarter of an hour behind, and a week's absence would
- * open on the prices they left.
- *
- * Nothing waits on it: a reader is not held up by a market they have not looked
- * at yet.
+ * A probe at sign-in, when a reader's saved markets are first known and when a
+ * machine that has been away comes back. Nothing waits on it.
  *
  * @returns {void}
  */
@@ -99,8 +76,6 @@ export function startPriceRefresh() {
 
   timer = setInterval(() => void probe(), PROBE_INTERVAL_MS);
 
-  // A backgrounded tab's timers are throttled, so a reader coming back would
-  // otherwise sit on whatever the clock said when the interval last fired.
   document.addEventListener("visibilitychange", probeOnWake);
   stopListening = () => {
     document.removeEventListener("visibilitychange", probeOnWake);

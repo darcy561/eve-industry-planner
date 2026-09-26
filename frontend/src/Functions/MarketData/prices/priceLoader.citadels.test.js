@@ -21,8 +21,6 @@ vi.mock("./priceStore", () => ({
 const AZBEL = 1035466617946;
 const ASTRAHUS = 1035466617947;
 
-// Two saved citadels, because the unit a read covers is the market: wants at
-// one market share a read and wants at two do not.
 vi.mock("../registry/marketSources.js", async () => {
   const { marketSourcesWith, savedCitadel } =
     await import("../../../tests/marketSourceFixtures.js");
@@ -40,13 +38,11 @@ const {
   requestMarketRead,
   requestPrice,
   resetPriceLoader,
-  setClockMovedListener,
+  setMarketRefreshedListener,
 } = await import("./priceLoader.js");
-const { readSourceClock, recordSourceClock, resetSourceClocks } =
-  await import("./sourceClocks.js");
 
-const priced = (rows, extra = {}) => ({
-  rows: new Map(rows),
+const priced = (typePrices, extra = {}) => ({
+  typePrices: new Map(typePrices),
   orders: [{ order_id: 1, type_id: 34, price: 10, is_buy_order: false }],
   refreshedAt: 1757000000000,
   ...extra,
@@ -55,34 +51,28 @@ const priced = (rows, extra = {}) => ({
 beforeEach(() => {
   fetchMarketPricesQuery.mockResolvedValue({ sources: {}, adjusted: null });
   readCitadelPrices.mockResolvedValue(priced([["34", { sell: 10, buy: 9 }]]));
-  // Resolved rather than bare: the loader does not await this write but does
-  // attach a catch to it, so a stub returning undefined would fail the tick on
-  // a path production never takes.
   replaceStoredPrices.mockResolvedValue(undefined);
   replaceStoredOrders.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
   resetPriceLoader();
-  resetSourceClocks();
-  setClockMovedListener(null);
+  setMarketRefreshedListener(null);
   vi.clearAllMocks();
 });
 
 describe("a tick wanting prices at a citadel", () => {
   it("reads the market rather than asking this server", async () => {
-    const row = await requestPrice(34, "azbel");
+    const typePrice = await requestPrice(34, "azbel");
 
     expect(readCitadelPrices).toHaveBeenCalledTimes(1);
     expect(readCitadelPrices.mock.calls[0][0]).toMatchObject({
       structureID: AZBEL,
     });
     expect(fetchMarketPricesQuery).not.toHaveBeenCalled();
-    expect(row).toMatchObject({ sell: 10, refreshedAt: 1757000000000 });
+    expect(typePrice).toMatchObject({ sell: 10, refreshedAt: 1757000000000 });
   });
 
-  // The whole point of the kind: one read answers every want at that market,
-  // however many types a panel asked for.
   it("reads it once however many types were wanted", async () => {
     readCitadelPrices.mockResolvedValue(
       priced([
@@ -116,37 +106,30 @@ describe("a tick wanting prices at a citadel", () => {
     expect(astrahus.sell).toBe(20);
   });
 
-  // The same answer a hub gives by leaving the row out, rather than a price of
-  // zero, which is a figure and a wrong one.
   it("settles as nothing for a type the market holds no order for", async () => {
     expect(await requestPrice(99, "azbel")).toBeNull();
   });
 });
 
 describe("what a read is kept as", () => {
-  // A read of a whole market is a statement about every type on it, so what is
-  // kept is the set — a type that stopped trading goes, and the next reader to
-  // want any type already has it without a second read.
   it("is the whole market, not the types this tick wanted", async () => {
-    const rows = new Map([
+    const typePrices = new Map([
       ["34", { sell: 10 }],
       ["35", { sell: 20 }],
     ]);
     readCitadelPrices.mockResolvedValue(
-      priced(rows, { refreshedAt: 42, expiresAt: 99 }),
+      priced(typePrices, { refreshedAt: 42, expiresAt: 99 }),
     );
 
     await requestPrice(34, "azbel");
 
-    expect(replaceStoredPrices).toHaveBeenCalledWith("azbel", rows, {
+    expect(replaceStoredPrices).toHaveBeenCalledWith("azbel", typePrices, {
       refreshedAt: 42,
       expiresAt: 99,
     });
   });
 
-  // When the market is next due is the market's own affair, recorded once for
-  // it; a row carries only the moment the walk that read it was current.
-  it("carries the moment of the read on the row, and no expiry", async () => {
+  it("carries the moment of the read on the prices, and no expiry", async () => {
     readCitadelPrices.mockResolvedValue(
       priced([["34", { sell: 10 }]], { refreshedAt: 42, expiresAt: 99 }),
     );
@@ -157,10 +140,6 @@ describe("what a read is kept as", () => {
     });
   });
 
-  // Announcing the move drops this market's held rows and wakes every surface
-  // reading them — and what they read through is the store. Announcing first
-  // sends them to the rows this read is about to replace, and they would hold
-  // those until something else moved the market.
   it("is written to the device before the market is said to have moved", async () => {
     let finishWriting;
     replaceStoredPrices.mockImplementationOnce(
@@ -169,58 +148,30 @@ describe("what a read is kept as", () => {
           finishWriting = resolve;
         }),
     );
-    const moved = vi.fn();
-    setClockMovedListener(moved);
-    recordSourceClock("azbel", 1);
+    const refreshed = vi.fn();
+    setMarketRefreshedListener(refreshed);
 
     const asked = requestPrice(34, "azbel");
     await vi.waitFor(() => expect(replaceStoredPrices).toHaveBeenCalled());
 
-    // Written, not merely started: a surface woken by the move reads the store,
-    // so the rows have to be in it by the time the move is announced.
-    expect(moved).not.toHaveBeenCalled();
+    expect(refreshed).not.toHaveBeenCalled();
 
     finishWriting();
     await asked;
 
-    expect(moved).toHaveBeenCalledTimes(1);
+    expect(refreshed).toHaveBeenCalledTimes(1);
   });
 
-  it("is held under the reader's own id for the market", async () => {
+  it("announces the read under the reader's own id", async () => {
+    const refreshed = vi.fn();
+    setMarketRefreshedListener(refreshed);
+
     await requestPrice(34, "azbel");
 
     expect(replaceStoredPrices.mock.calls[0][0]).toBe("azbel");
-    expect(readSourceClock("azbel")).toBe(1757000000000);
-    expect(readSourceClock(String(AZBEL))).toBeUndefined();
-  });
-
-  // A market read again is a market whose held rows are superseded, and the
-  // cache above only learns that from this.
-  it("reports the market as moved when it has been read again", async () => {
-    const moved = vi.fn();
-    setClockMovedListener(moved);
-
-    await requestPrice(34, "azbel");
-    resetPriceLoader();
-    readCitadelPrices.mockResolvedValue(
-      priced([["34", { sell: 11 }]], { refreshedAt: 1757003600000 }),
-    );
-    await requestPrice(34, "azbel");
-
-    expect(moved).toHaveBeenCalledTimes(1);
-    expect(moved).toHaveBeenCalledWith({
-      sources: ["azbel"],
-      adjusted: false,
+    expect(refreshed).toHaveBeenCalledWith({
+      markets: [{ marketLocation: "azbel", refreshedAt: 1757000000000 }],
     });
-  });
-
-  it("says nothing moved on the first read of a market", async () => {
-    const moved = vi.fn();
-    setClockMovedListener(moved);
-
-    await requestPrice(34, "azbel");
-
-    expect(moved).not.toHaveBeenCalled();
   });
 });
 
@@ -241,8 +192,6 @@ describe("a citadel that cannot be read", () => {
     expect(replaceStoredPrices).not.toHaveBeenCalled();
   });
 
-  // The two transports are independent: a market nobody can see must not take
-  // the tick's hub prices with it.
   it("does not take the hub prices in the same tick with it", async () => {
     readCitadelPrices.mockRejectedValue(new Error("nobody can dock there"));
     fetchMarketPricesQuery.mockResolvedValue({
@@ -261,16 +210,7 @@ describe("a citadel that cannot be read", () => {
   });
 });
 
-// A rotation and a panel are set off by the same thing — this market having
-// gone stale — so wanting it at the same moment is ordinary, not a corner.
 describe("a rotation and a reader wanting the same market", () => {
-  /**
-   * A read that does not settle until it is let go.
-   *
-   * Without this the two never overlap: a mocked read settles before the second
-   * asker has been scheduled, and the test would pass on a guard that does
-   * nothing.
-   */
   function heldOpen({ failing = false } = {}) {
     let release;
     readCitadelPrices.mockImplementation(
@@ -311,8 +251,6 @@ describe("a rotation and a reader wanting the same market", () => {
     expect(readCitadelPrices).toHaveBeenCalledTimes(2);
   });
 
-  // The sharing lasts as long as the work and not a moment longer, which is
-  // what makes a market refreshable at all.
   it("are not answered from work that has already finished", async () => {
     await requestMarketRead("azbel");
     await requestMarketRead("azbel");
@@ -339,8 +277,6 @@ describe("a rotation and a reader wanting the same market", () => {
   });
 });
 
-// ESI has no per-type form of a structure's market, so this read is the only
-// copy of a market's orders anything gets without asking for all of them again.
 describe("the orders behind the prices", () => {
   it("is kept beside them, with the moment it was read", async () => {
     const orders = [
@@ -355,8 +291,6 @@ describe("the orders behind the prices", () => {
     expect(replaceStoredOrders).toHaveBeenCalledWith("azbel", orders, 42);
   });
 
-  // Pricing must not wait on it and must not fail with it: a reader whose quota
-  // will not take the orders still gets the four figures derived from it.
   it("does not hold up the prices when it cannot be written", async () => {
     replaceStoredOrders.mockRejectedValue(new Error("quota exceeded"));
 

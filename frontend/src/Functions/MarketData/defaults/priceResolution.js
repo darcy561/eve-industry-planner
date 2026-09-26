@@ -4,20 +4,6 @@ import { getEffectiveMaterialPriceHub } from "./materialPricing";
 import { resolvePricingSideRungs } from "./pricingSide.js";
 
 /**
- * Which market and order type one side of a job prices against.
- *
- * **One place answers this for every caller outside render.** Deciding what to
- * fetch and reading it back are two paths that must agree exactly: a fetch that
- * resolved one market while the reader resolved another would warm a cache entry
- * nothing looks at and hand the reader a zero, with nothing anywhere reporting a
- * problem. Written twice they agreed on the day and nothing held them to it.
- *
- * The React path composes the same pieces through `useEffectiveMarketHub`
- * and `useMaterialGroupPricing`, which exist to re-render when a rung moves; both
- * end in the same `getEffectiveMaterialPriceHub`.
- */
-
-/**
  * @typedef {object} SideDefaults
  * @property {string} marketLocation - What the side prices against before any
  *   nearer rung answers
@@ -27,17 +13,8 @@ import { resolvePricingSideRungs } from "./pricingSide.js";
  */
 
 /**
- * Resolves one side's rungs once, ready to answer per type.
- *
- * **The job's own choice belongs here, not in the per-type call.**
- * `getEffectiveMaterialPriceHub` answers rungs 1 and 3 — a material's override
- * and its market group — and takes everything beneath them as already resolved.
- * A caller that left `jobPricing` out would price a job against the account's
- * market while every surface read it at the job's, which is the fetch and the
- * read disagreeing silently.
- *
- * The account's default and its group table are resolved here rather than per
- * material: only the group walk is a per-item question.
+ * Resolves one side's rungs once, ready to answer per type, the job's own choice
+ * belonging here rather than in the per-type call.
  *
  * @param {string} side - One of PRICING_SIDE
  * @param {object} [params]

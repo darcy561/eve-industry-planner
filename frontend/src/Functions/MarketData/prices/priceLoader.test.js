@@ -9,14 +9,19 @@ const {
   requestPrice,
   requestAdjustedPrice,
   resetPriceLoader,
-  setClockMovedListener,
+  setMarketRefreshedListener,
 } = await import("./priceLoader.js");
-const { readSourceClock, readAdjustedClock, resetSourceClocks } =
-  await import("./sourceClocks.js");
 
-const row = (sell) => ({ buy: sell - 1, sell, buyP95: sell, sellP05: sell });
+const typePrice = (sell) => ({
+  buy: sell - 1,
+  sell,
+  buyP95: sell,
+  sellP05: sell,
+});
 
 const answer = (sources, adjusted = null) => ({ sources, adjusted });
+
+const byMarket = (a, b) => a.marketLocation.localeCompare(b.marketLocation);
 
 const byPair = (a, b) =>
   `${a.marketLocation}|${a.typeID}`.localeCompare(
@@ -25,21 +30,19 @@ const byPair = (a, b) =>
 
 afterEach(() => {
   resetPriceLoader();
-  resetSourceClocks();
-  // This file never imports the cache, so nothing else has registered here and
-  // clearing it simply undoes whatever a test stood in.
-  setClockMovedListener(null);
+  setMarketRefreshedListener(null);
   fetchMarketPricesQuery.mockReset();
 });
 
 describe("a tick's worth of wants", () => {
-  // The whole reason the loader exists: an entry per type and source, but not a
-  // request per entry.
   it("becomes one request carrying exactly the pairs it saw", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
       answer({
-        jita: { refreshedAt: 1, prices: { 34: row(10), 35: row(20) } },
-        amarr: { refreshedAt: 2, prices: { 34: row(30) } },
+        jita: {
+          refreshedAt: 1,
+          prices: { 34: typePrice(10), 35: typePrice(20) },
+        },
+        amarr: { refreshedAt: 2, prices: { 34: typePrice(30) } },
       }),
     );
 
@@ -51,7 +54,6 @@ describe("a tick's worth of wants", () => {
 
     expect(fetchMarketPricesQuery).toHaveBeenCalledTimes(1);
     const asked = fetchMarketPricesQuery.mock.calls[0][0];
-    // Three pairs, not four: nothing wanted 35 at Amarr, so nothing asks for it.
     expect([...asked.wants].sort(byPair)).toEqual([
       { typeID: "34", marketLocation: "amarr" },
       { typeID: "34", marketLocation: "jita" },
@@ -65,7 +67,7 @@ describe("a tick's worth of wants", () => {
 
   it("asks once for a want two callers raised", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
-      answer({ jita: { refreshedAt: 1, prices: { 34: row(10) } } }),
+      answer({ jita: { refreshedAt: 1, prices: { 34: typePrice(10) } } }),
     );
 
     const [first, second] = await Promise.all([
@@ -81,8 +83,8 @@ describe("a tick's worth of wants", () => {
   it("keeps the same type at two markets apart", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
       answer({
-        jita: { refreshedAt: 1, prices: { 34: row(10) } },
-        amarr: { refreshedAt: 1, prices: { 34: row(30) } },
+        jita: { refreshedAt: 1, prices: { 34: typePrice(10) } },
+        amarr: { refreshedAt: 1, prices: { 34: typePrice(30) } },
       }),
     );
 
@@ -95,11 +97,9 @@ describe("a tick's worth of wants", () => {
     expect(amarr.sell).toBe(30);
   });
 
-  // A later tick is a new batch, or a panel opened after the first would wait
-  // forever on a flush that already happened.
   it("starts a new batch after the first has flushed", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
-      answer({ jita: { refreshedAt: 1, prices: { 34: row(10) } } }),
+      answer({ jita: { refreshedAt: 1, prices: { 34: typePrice(10) } } }),
     );
 
     await requestPrice(34, "jita");
@@ -110,8 +110,6 @@ describe("a tick's worth of wants", () => {
 });
 
 describe("what a want settles on", () => {
-  // A market holding no order for a type is an answer rather than a failure;
-  // throwing would have the cache retry it forever.
   it("settles as nothing where the market holds no order", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
       answer({ jita: { refreshedAt: 1, prices: {} } }),
@@ -126,10 +124,11 @@ describe("what a want settles on", () => {
     expect(await requestPrice(34, "jita")).toBeNull();
   });
 
-  // The clock belongs to the market, and every row from it shares it.
-  it("carries the market's clock onto each row", async () => {
+  it("carries the market's refresh time onto every price", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
-      answer({ jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } } }),
+      answer({
+        jita: { refreshedAt: 1757000000000, prices: { 34: typePrice(10) } },
+      }),
     );
 
     expect((await requestPrice(34, "jita")).refreshedAt).toBe(1757000000000);
@@ -146,7 +145,7 @@ describe("adjusted prices", () => {
   it("ride the same batch and are asked for only when wanted", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
       answer(
-        { jita: { refreshedAt: 1, prices: { 34: row(10) } } },
+        { jita: { refreshedAt: 1, prices: { 34: typePrice(10) } } },
         { refreshedAt: 2, prices: { 34: 4.9 } },
       ),
     );
@@ -166,7 +165,7 @@ describe("adjusted prices", () => {
 
   it("is not asked for when nothing wanted one", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
-      answer({ jita: { refreshedAt: 1, prices: { 34: row(10) } } }),
+      answer({ jita: { refreshedAt: 1, prices: { 34: typePrice(10) } } }),
     );
 
     await requestPrice(34, "jita");
@@ -174,8 +173,6 @@ describe("adjusted prices", () => {
     expect(fetchMarketPricesQuery.mock.calls[0][0].adjustedTypeIDs).toEqual([]);
   });
 
-  // They belong to no market, so a tick wanting only an adjusted price names
-  // none — it used to have to name an arbitrary one to be answered at all.
   it("names no market when only an adjusted price was wanted", async () => {
     fetchMarketPricesQuery.mockResolvedValue(
       answer({}, { refreshedAt: 2, prices: { 34: 4.9 } }),
@@ -186,87 +183,64 @@ describe("adjusted prices", () => {
   });
 });
 
-describe("the clock every answer carries", () => {
-  // Nothing polls for a clock. Whatever a request was asked for, its answer
-  // reports where each market named in it had got to.
-  it("is recorded for each market the answer named", async () => {
+describe("the refresh time every answer carries", () => {
+  it("is announced for every market the answer named", async () => {
+    const refreshed = vi.fn();
+    setMarketRefreshedListener(refreshed);
     fetchMarketPricesQuery.mockResolvedValue(
       answer({
-        jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } },
-        amarr: { refreshedAt: 1757003600000, prices: { 34: row(30) } },
+        jita: { refreshedAt: 1757000000000, prices: { 34: typePrice(10) } },
+        amarr: { refreshedAt: 1757003600000, prices: { 34: typePrice(30) } },
       }),
     );
 
     await Promise.all([requestPrice(34, "jita"), requestPrice(34, "amarr")]);
 
-    expect(readSourceClock("jita")).toBe(1757000000000);
-    expect(readSourceClock("amarr")).toBe(1757003600000);
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    const { markets } = refreshed.mock.calls[0][0];
+    expect([...markets].sort((a, b) => byMarket(a, b))).toEqual([
+      { marketLocation: "amarr", refreshedAt: 1757003600000 },
+      { marketLocation: "jita", refreshedAt: 1757000000000 },
+    ]);
   });
 
-  it("records the adjusted block's clock apart from any market", async () => {
+  it("announces the adjusted block's refresh time apart from any market", async () => {
+    const refreshed = vi.fn();
+    setMarketRefreshedListener(refreshed);
     fetchMarketPricesQuery.mockResolvedValue(
       answer({}, { refreshedAt: 1757086400000, prices: { 34: 4.9 } }),
     );
 
     await requestAdjustedPrice(34);
 
-    expect(readAdjustedClock()).toBe(1757086400000);
-    expect(readSourceClock("jita")).toBeUndefined();
+    expect(refreshed).toHaveBeenCalledWith({
+      markets: [],
+      adjustedRefreshedAt: 1757086400000,
+    });
   });
 
-  it("says nothing on the first answer from a market", async () => {
-    const moved = vi.fn();
-    setClockMovedListener(moved);
-    fetchMarketPricesQuery.mockResolvedValue(
-      answer({ jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } } }),
-    );
-
-    await requestPrice(34, "jita");
-
-    expect(moved).not.toHaveBeenCalled();
-  });
-
-  it("says nothing when a market answers with the clock already held", async () => {
-    fetchMarketPricesQuery.mockResolvedValue(
-      answer({ jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } } }),
-    );
-    await requestPrice(34, "jita");
-
-    const moved = vi.fn();
-    setClockMovedListener(moved);
-    await requestPrice(35, "jita");
-
-    expect(moved).not.toHaveBeenCalled();
-  });
-
-  it("names the markets that were walked again", async () => {
+  it("announces per market asked for, not per block answered", async () => {
+    const refreshed = vi.fn();
+    setMarketRefreshedListener(refreshed);
     fetchMarketPricesQuery.mockResolvedValue(
       answer({
-        jita: { refreshedAt: 1757000000000, prices: { 34: row(10) } },
-        amarr: { refreshedAt: 1757000000000, prices: { 34: row(30) } },
+        jita: { refreshedAt: 42, prices: { 34: typePrice(10) } },
       }),
     );
-    await Promise.all([requestPrice(34, "jita"), requestPrice(34, "amarr")]);
 
-    const moved = vi.fn();
-    setClockMovedListener(moved);
-    fetchMarketPricesQuery.mockResolvedValue(
-      answer({
-        jita: { refreshedAt: 1757003600000, prices: { 34: row(11) } },
-        amarr: { refreshedAt: 1757000000000, prices: { 34: row(30) } },
-      }),
-    );
-    await Promise.all([requestPrice(34, "jita"), requestPrice(34, "amarr")]);
+    await Promise.all([requestPrice(34, "jita"), requestPrice(35, "jita")]);
 
-    expect(moved).toHaveBeenCalledTimes(1);
-    expect(moved).toHaveBeenCalledWith({ sources: ["jita"], adjusted: false });
+    expect(refreshed.mock.calls[0][0].markets).toEqual([
+      { marketLocation: "jita", refreshedAt: 42 },
+    ]);
   });
 
-  // A request that could not be made says nothing about where a market got to.
-  it("records no clock from a request that failed", async () => {
+  it("announces nothing from a request that failed", async () => {
+    const refreshed = vi.fn();
+    setMarketRefreshedListener(refreshed);
     fetchMarketPricesQuery.mockRejectedValue(new Error("offline"));
 
     await expect(requestPrice(34, "jita")).rejects.toThrow("offline");
-    expect(readSourceClock("jita")).toBeUndefined();
+    expect(refreshed).not.toHaveBeenCalled();
   });
 });

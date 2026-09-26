@@ -96,7 +96,7 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
     () => pricesWantedBy({ build }, accountPricing),
     [build, accountPricing],
   );
-  const { clocks } = useMarketPricesQuery(wants, { adjustedTypeIDs });
+  const { refreshTimes } = useMarketPricesQuery(wants, { adjustedTypeIDs });
 
   return useMemo(() => {
     // Sorted here rather than held sorted: the job keys its materials by type
@@ -198,7 +198,7 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
         groupPricing,
       }),
     };
-    // `clocks` is read by nothing in here on purpose. The prices are,
+    // `refreshTimes` is read by nothing in here on purpose. The prices are,
     // synchronously out of the cache, and this is what says they have moved.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -214,7 +214,7 @@ export function useMaterialsSourcing({ displayType = "all" } = {}) {
     childJobEdits,
     speculativeChildJobs,
     temporaryChildJobs,
-    clocks,
+    refreshTimes,
   ]);
 }
 

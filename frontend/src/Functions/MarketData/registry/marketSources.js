@@ -3,8 +3,8 @@ import { sameID } from "../../Helper/ids";
 import { marketsToOffer } from "./marketLocations";
 
 /**
- * Where a price can come from. A caller names a source and never learns its
- * kind; the kind decides who fetches it and where it is held.
+ * Where a price can come from. The kind decides who fetches it and where it is
+ * held.
  *
  * @enum {string}
  */
@@ -18,28 +18,19 @@ export const SOURCE_KIND = {
 };
 
 /**
- * What follows from a kind, and the one place any of it is decided.
- *
- * Three questions are asked of a kind — where its rows live, who reads it, and
- * what it can be asked about its freshness — and for the kinds there are today
- * the answers happen to line up. They are kept apart anyway: a kind that is
- * priced by this server *and* needs the reader's own token would split them, and
- * one predicate standing in for three would be wrong in three places at once
- * rather than missing a row here.
- *
- * A kind with no entry falls to the safe answer to each: session-only, read by
- * this server, asked like a hub.
+ * What follows from a kind, and the one place any of it is decided. A kind with
+ * no entry falls to session-only, read by this server, asked like a hub.
  */
 const KIND_TRAITS = {
   [SOURCE_KIND.HUB]: {
     tier: "session",
     readBy: "server",
-    freshness: "clock",
+    freshness: "refreshTime",
   },
   [SOURCE_KIND.STATION]: {
     tier: "session",
     readBy: "server",
-    freshness: "clock",
+    freshness: "refreshTime",
   },
   [SOURCE_KIND.CITADEL]: {
     tier: "persistent",
@@ -51,7 +42,7 @@ const KIND_TRAITS = {
 const traitsOf = (kind) => KIND_TRAITS[kind] ?? {};
 
 /**
- * Whether this kind's rows outlive the tab, and so whether there is a tier
+ * Whether this kind's prices outlive the tab, and so whether there is a tier
  * beneath the cache to read them from.
  *
  * @param {string|undefined} kind - One of SOURCE_KIND
@@ -74,8 +65,7 @@ export function isReadByTheReader(kind) {
 
 /**
  * Whether asking this kind for one type it already holds reports its freshness
- * cheaply. A market whose orders only come whole answers no such question — its
- * turn on the rotation is what decides when it is read again.
+ * cheaply. A market whose orders only come whole answers no such question.
  *
  * @param {string|undefined} kind - One of SOURCE_KIND
  * @returns {boolean}
@@ -98,10 +88,8 @@ export function answersAPerTypeProbe(kind) {
  */
 
 /**
- * The hubs this server prices, as sources.
- *
- * From the constant rather than a request: they are static configuration, held
- * to the server's list by `global-config-app.parity.test.js`.
+ * The hubs this server prices, taken from the constant rather than a request
+ * because they are static configuration.
  *
  * @returns {MarketSource[]}
  */
@@ -113,19 +101,8 @@ function serverHeldSources() {
 }
 
 /**
- * The markets a reader may price against, as sources. Which kind a row is
- * follows from the place it names; one naming neither has nowhere to ask and is
- * left out.
- *
- * **The stored row with its kind on it**, rather than a narrower copy of it. A
- * caller wanting a citadel's rate, or which owner shared a market, would
- * otherwise have to go back to the lane for a second list of the same markets —
- * and one of them was reading both, choosing per market which to believe.
- *
- * The composed set where the server has answered with one — the account's own
- * markets plus what each organisation it belongs to has shared. The account's
- * own lane until then, so a reader who has not finished signing in is offered
- * the markets they saved rather than none.
+ * The markets a reader may price against: the stored market with its kind on
+ * it, one naming no place at all being left out.
  *
  * @returns {MarketSource[]}
  */
@@ -140,7 +117,7 @@ function readerSavedSources() {
 
 /**
  * Every market a price may be asked for. Read this rather than the hub list, so
- * a reader saving a market reaches every surface without any of them changing.
+ * a reader saving a market reaches every surface.
  *
  * @returns {MarketSource[]}
  */
@@ -149,12 +126,8 @@ export function allMarketSources() {
 }
 
 /**
- * What names one type at one of these markets, wherever a pair has to be told
- * apart from another: batching a tick's asks, skipping a want the cache already
- * holds, and keying a surface's query on what it asked for.
- *
- * Here because all three are the same question, and four spellings of it would
- * agree until one of them changed.
+ * What names one type at one market, wherever a pair has to be told apart from
+ * another.
  *
  * @param {string} marketLocation
  * @param {number|string} typeID
@@ -175,11 +148,7 @@ export function sourceIn(sources, id) {
 }
 
 /**
- * The citadels a reader has saved.
- *
- * What a citadel source looks like is decided here rather than at each caller,
- * so every surface asking for the markets only the reader can read asks the
- * same question.
+ * The citadels a reader has saved, decided here rather than at each caller.
  *
  * @param {MarketSource[]} sources
  * @returns {MarketSource[]}
@@ -191,17 +160,8 @@ export function savedCitadels(sources) {
 }
 
 /**
- * The citadels a reader has saved in one region.
- *
- * A saved market carries the region it sits in, so a surface that knows which
- * region it is showing needs nothing else passed to it to find the private
- * markets inside that region. Several may be saved in one region, and a
- * region-wide view wants all of them rather than whichever one a picker
- * happens to be set to.
- *
- * **No region is no answer, not every citadel.** A caller reaching for a region
- * it does not have yet is asking about nowhere, and handing it the reader's
- * whole set would have a surface quietly showing markets from everywhere.
+ * Every citadel a reader has saved in one region. No region is no answer rather
+ * than every citadel.
  *
  * @param {MarketSource[]} sources
  * @param {number|string} regionID
@@ -216,8 +176,8 @@ export function citadelsInRegion(sources, regionID) {
 }
 
 /**
- * What a source is called, falling back to its id — a source the registry has
- * lost is still named, so a reader can recognise a stale choice and change it.
+ * What a market is called, falling back to its id so one the registry has lost
+ * is still named.
  *
  * @param {MarketSource[]} sources
  * @param {string} id

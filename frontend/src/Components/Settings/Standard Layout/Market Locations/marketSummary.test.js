@@ -5,9 +5,12 @@ vi.mock("../../../../Functions/MarketData/prices/priceStore.js", () => ({
   readMarketFreshness: (...args) => readMarketFreshness(...args),
 }));
 
+const readHeldRefreshTime = vi.fn();
+vi.mock("../../../../Functions/MarketData/prices/priceCache.js", () => ({
+  readHeldRefreshTime: (...args) => readHeldRefreshTime(...args),
+}));
+
 const { lastReadMoment, summariseMarket } = await import("./marketSummary.js");
-const { recordSourceClock, resetSourceClocks } =
-  await import("../../../../Functions/MarketData/prices/sourceClocks");
 const { SOURCE_KIND } =
   await import("../../../../Functions/MarketData/registry/marketSources");
 const { MARKET_READ_OUTCOME } =
@@ -21,13 +24,13 @@ const citadel = {
 const hub = { id: "jita", name: "Jita", kind: SOURCE_KIND.HUB };
 
 beforeEach(() => {
-  resetSourceClocks();
+  readHeldRefreshTime.mockReset().mockReturnValue(undefined);
   readMarketFreshness.mockReset().mockResolvedValue(undefined);
 });
 
 // Two questions wearing one name. A market the reader reads themselves was read
 // on this device, at a moment only this device knows; a market this server
-// prices states one clock for every reader.
+// prices states one refresh time for every reader.
 describe("when a market was last read", () => {
   it("is this device's own moment for a market the reader reads", async () => {
     readMarketFreshness.mockResolvedValue({ readAt: 1700, expiresAt: 9999 });
@@ -49,8 +52,8 @@ describe("when a market was last read", () => {
     });
   });
 
-  it("is the server's clock for a market the server prices", async () => {
-    recordSourceClock("jita", 4242);
+  it("is the server's refresh time for a market the server prices", async () => {
+    readHeldRefreshTime.mockReturnValue(4242);
 
     expect(await lastReadMoment(hub)).toEqual({
       lastReadAt: 4242,
@@ -96,7 +99,7 @@ describe("a market this server prices", () => {
   };
 
   // A market only just saved is registered and has not come round on the walk
-  // yet, so the server sends no clock for it either.
+  // yet, so the server sends no refresh time for it either.
   it("has no moment until the server has walked it", async () => {
     expect(await lastReadMoment(station)).toEqual({
       lastReadAt: undefined,
@@ -105,9 +108,9 @@ describe("a market this server prices", () => {
     });
   });
 
-  // The clock the market arrived with, so a fresh load says when the server
+  // The refresh time the market arrived with, so a fresh load says when the server
   // last walked it rather than claiming nothing has ever been priced there.
-  it("takes the clock the market carried", async () => {
+  it("takes the refresh time the market carried", async () => {
     expect(await lastReadMoment({ ...station, pricedAt: 4000 })).toEqual({
       lastReadAt: 4000,
       readHere: false,
@@ -115,8 +118,8 @@ describe("a market this server prices", () => {
     });
   });
 
-  it("takes the clock that came back with the prices", async () => {
-    recordSourceClock("saved-station", 5150);
+  it("takes the refresh time that came back with the prices", async () => {
+    readHeldRefreshTime.mockReturnValue(5150);
 
     expect(await lastReadMoment(station)).toEqual({
       lastReadAt: 5150,
@@ -125,10 +128,10 @@ describe("a market this server prices", () => {
     });
   });
 
-  // The market's own clock is as old as the last time the set was read, and a
-  // price answered since then has walked past it.
+  // The market's own refresh time is as old as the last time the set was read,
+  // and a price answered since then has walked past it.
   it("prefers a price answered since the set was read", async () => {
-    recordSourceClock("saved-station", 5150);
+    readHeldRefreshTime.mockReturnValue(5150);
 
     expect(await lastReadMoment({ ...station, pricedAt: 4000 })).toEqual({
       lastReadAt: 5150,
@@ -138,9 +141,9 @@ describe("a market this server prices", () => {
   });
 
   // The other way round is the ordinary case on a fresh load: the set carries a
-  // clock and nothing has asked for a price yet this session.
-  it("keeps the market's clock when no price has been answered since", async () => {
-    recordSourceClock("saved-station", 4000);
+  // refresh time and nothing has asked for a price yet this session.
+  it("keeps the market's refresh time when no price has been answered since", async () => {
+    readHeldRefreshTime.mockReturnValue(4000);
 
     expect(await lastReadMoment({ ...station, pricedAt: 5150 })).toEqual({
       lastReadAt: 5150,

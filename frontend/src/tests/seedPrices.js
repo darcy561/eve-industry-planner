@@ -3,11 +3,6 @@ import {
   adjustedQueryKey,
   priceQueryKey,
 } from "../Functions/MarketData/prices/priceCache.js";
-import {
-  recordAdjustedClock,
-  recordSourceClock,
-  resetSourceClocks,
-} from "../Functions/MarketData/prices/sourceClocks.js";
 
 /**
  * Puts prices into the cache as though they had already been fetched.
@@ -30,15 +25,15 @@ export default function seedPrices(
   prices,
   { adjusted = {}, refreshedAt = Date.now() } = {},
 ) {
-  for (const [marketLocation, rows] of Object.entries(prices)) {
-    for (const [typeID, row] of Object.entries(rows)) {
+  for (const [marketLocation, typePrices] of Object.entries(prices)) {
+    for (const [typeID, typePrice] of Object.entries(typePrices)) {
       queryClient.setQueryData(priceQueryKey(typeID, marketLocation), {
         buy: 0,
         sell: 0,
         buyP95: 0,
         sellP05: 0,
         refreshedAt,
-        ...row,
+        ...typePrice,
       });
     }
   }
@@ -46,20 +41,9 @@ export default function seedPrices(
   for (const [typeID, price] of Object.entries(adjusted)) {
     queryClient.setQueryData(adjustedQueryKey(typeID), price);
   }
-
-  // The clock beside the rows, not just on them: a market's clock is what
-  // decides whether rows held for it survive, so seeding rows without one
-  // leaves a market the freshness rule cannot see.
-  for (const marketLocation of Object.keys(prices)) {
-    recordSourceClock(marketLocation, refreshedAt);
-  }
-  if (Object.keys(adjusted).length > 0) {
-    recordAdjustedClock(refreshedAt);
-  }
 }
 
 /** Forgets everything seeded, so one test's prices are not another's. */
 export function clearSeededPrices() {
   queryClient.removeQueries({ queryKey: ["market"] });
-  resetSourceClocks();
 }
