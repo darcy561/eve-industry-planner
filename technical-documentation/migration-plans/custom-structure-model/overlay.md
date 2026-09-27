@@ -832,6 +832,35 @@ the structure's, and § What must not be lost has required that since Stage B. `
 in `Helper/` for the opposite reason: it is a numeric rule with consumers across the app, and only the
 percentage rule on top of it belongs here.
 
+### One file knows about rigs
+
+`Functions/Custom Structures/rigs.js` is it. `rigSlotBonuses.js` and `rigSlotLabel.js` were two files
+either side of the same subject — both read a rig out of its kind's table and answer something about the
+pair of slots — and they are one module with named exports now: `getRigInfoFromID`, `rigSlotBonuses`,
+`rigSlotLabel` and `rigsCompete`.
+
+Two pieces of rig knowledge that lived elsewhere came with them.
+
+- **Reading a rig from the table.** `getRigInfoFromID` was one of four lookups in `getStructureInfo.js`.
+  It is here, and that file keeps the three that are not about rigs — a structure type, a system's
+  security and an implant. Every caller that wanted a rig now asks the rigs file: the rig picker, the
+  watchlist editor, reprocessing's bonuses and the material calculation.
+- **Whether two rigs compete.** The predicate was inline in `Hooks/useRigSlots.js` — the same rig, or one
+  that names the other in its `relatedTo`. It is `rigsCompete` here, so what a rig *is* stays with rigs
+  and the hook holds only the slot state and the refusal it shows.
+
+**What deliberately did not move.** Reprocessing's `rigBonusFor` stays in
+`Functions/Reprocessing/structureBonuses.js`: it reads a rig against the ore, gas or ice being worked on,
+which is reprocessing's question rather than the rig's, and § What must not be lost has required that
+since Stage B. The rig tables stay in `Context/defaultValues.jsx` with every other table the SPA reads.
+The two blueprint calculations keep composing their own figures from `rigSlotBonuses` — the material one
+prefers a required rig where the time one does not, and that asymmetry is
+[plan.md](./plan.md) § Stage BR3's to settle, not something to unify while moving files.
+
+`rigs.test.js` is the merged suite plus the table read and `rigsCompete`. Three tests in
+`Blueprint Calculations` were stubbing a rig read their subject never makes, left over from an older
+shape; those stubs are gone.
+
 ### The rig-conflict rule has one home
 
 `Hooks/useRigSlots.js` answers which slot takes which rig and which choice is refused, and its caller

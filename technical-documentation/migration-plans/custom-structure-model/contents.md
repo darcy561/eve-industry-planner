@@ -77,6 +77,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know why every rig applies to all items, and what reading one against an item would take | [plan.md](./plan.md) § Stage BR2, [overlay.md](./overlay.md) § What a rig applies to |
 | Know why a rig's security multipliers, and a structure's legality rules, do not belong in the requirements table | [plan.md](./plan.md) § Stage BR3 |
 | Know why the SPA stopped holding a structure as a class, and what replaced it | [plan.md](./plan.md) § Stage E, [overlay.md](./overlay.md) § Stage E |
+| Find what knows about rigs, and what deliberately does not | [overlay.md](./overlay.md) § One file knows about rigs |
 | Find the one owner of a rule about a saved structure | [overlay.md](./overlay.md) § The rig-conflict rule has one home, § What a setup takes from a structure is written once, § One predicate answers whether a setup's structure is gone |
 | Know what a deleted structure shows on a setup, and why | [overlay.md](./overlay.md) § One reading of whether a setup uses a saved structure |
 | Know which modules live in the custom structures folder, and what deliberately does not | [overlay.md](./overlay.md) § One folder holds what a custom structure is |

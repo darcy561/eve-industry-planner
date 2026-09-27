@@ -1,11 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 const structureTime = { value: 0 };
-const rigTime = { value: 0 };
 
 vi.mock("../Custom Structures/getStructureInfo", () => ({
   getStructureInfoFromID: () => ({ time: structureTime.value }),
-  getRigInfoFromID: () => ({ time: rigTime.value }),
 }));
 
 const { default: manufacturingTimeModifierCalculation } =
@@ -25,7 +23,6 @@ const skills = (levels = {}) =>
 /** Nothing trained, no structure or rig bonus: the modifier should be 1. */
 function baseline(overrides = {}) {
   structureTime.value = overrides.structure ?? 0;
-  rigTime.value = overrides.rig ?? 0;
   return manufacturingTimeModifierCalculation(
     overrides.te ?? 0,
     overrides.structureID ?? 0,

@@ -10,7 +10,7 @@ import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames"
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
-import rigSlotLabel from "../../../../../../Functions/Custom Structures/rigSlotLabel";
+import { rigSlotLabel } from "../../../../../../Functions/Custom Structures/rigs";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 import {
   setupHasOrphanedCustomStructure,

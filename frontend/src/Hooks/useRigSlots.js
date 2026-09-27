@@ -1,10 +1,12 @@
 import { useState } from "react";
 
+import { rigsCompete } from "../Functions/Custom Structures/rigs";
+
 const errorText = "Cannot have the same rig or related rigs in both slots";
 
 /**
- * The two rig slots a structure carries, and the rule that they cannot hold rigs
- * competing for the same purpose.
+ * The two rig slots a structure carries, refusing a rig that competes with the one
+ * in the other slot and marking the slot it refused.
  *
  * @param {{rigSlot1: number, rigSlot2: number}} slots - What is fitted now
  * @param {(slot: string, rigID: number, selectedEntry: object) => void} onChoose - Applies a slot's new rig
@@ -21,10 +23,7 @@ export default function useRigSlots(slots, onChoose) {
       chosen = 0;
       setSlot1Error(false);
       setSlot2Error(false);
-    } else if (
-      otherSlotValue === selectedEntry.id ||
-      selectedEntry.relatedTo?.includes(otherSlotValue)
-    ) {
+    } else if (rigsCompete(selectedEntry, otherSlotValue)) {
       chosen = 0;
       setThisError(true);
     } else {

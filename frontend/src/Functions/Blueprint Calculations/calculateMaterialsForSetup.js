@@ -1,11 +1,8 @@
 import { jobTypes } from "../../Context/defaultValues";
 import manufacturingFormulaCalculation from "./manufacturingMaterialCalculation";
 import reactionFormulaCalculation from "./reactionMaterialCalculation";
-import {
-  getStructureInfoFromID,
-  getRigInfoFromID,
-} from "../Custom Structures/getStructureInfo";
-import rigSlotBonuses from "../Custom Structures/rigSlotBonuses";
+import { getStructureInfoFromID } from "../Custom Structures/getStructureInfo";
+import { getRigInfoFromID, rigSlotBonuses } from "../Custom Structures/rigs";
 
 /**
  * The material count a setup's configuration calls for, built from its job's raw

@@ -2,21 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   getImplantFromID,
-  getRigInfoFromID,
   getStructureInfoFromID,
   getSystemTypeFromID,
 } from "./getStructureInfo";
 import {
   Implants,
   jobTypes,
-  rigTypeMap,
   structureTypeMap,
   systemTypeMap,
 } from "../../Context/defaultValues";
 
 const lookups = [
   ["a structure type", getStructureInfoFromID, structureTypeMap],
-  ["a rig", getRigInfoFromID, rigTypeMap],
   ["a system security", getSystemTypeFromID, systemTypeMap],
   ["an implant", getImplantFromID, Implants],
 ];

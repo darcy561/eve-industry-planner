@@ -15,7 +15,7 @@ import TaxPercentageTextField from "../../../../../Styled Components/Textfield/t
 import useUsersStore from "../../../../../Zustand/usersStore";
 import { setupShowsManualStructureFields } from "../../../../../Functions/Custom Structures/customStructureSetup";
 import useRigSlots from "../../../../../Hooks/useRigSlots";
-import { getRigInfoFromID } from "../../../../../Functions/Custom Structures/getStructureInfo";
+import { getRigInfoFromID } from "../../../../../Functions/Custom Structures/rigs";
 
 export function WatchListSetupOptions_WatchlistDialogue({
   watchlistItemRequest,

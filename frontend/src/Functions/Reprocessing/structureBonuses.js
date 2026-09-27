@@ -1,8 +1,6 @@
 import { reprocessingItemTypes } from "../../Context/defaultValues";
-import {
-  getRigInfoFromID,
-  getStructureInfoFromID,
-} from "../Custom Structures/getStructureInfo";
+import { getStructureInfoFromID } from "../Custom Structures/getStructureInfo";
+import { getRigInfoFromID } from "../Custom Structures/rigs";
 import { fieldsForKind } from "../Custom Structures/customStructure";
 
 /**
