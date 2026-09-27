@@ -337,8 +337,21 @@ class Setup {
    * @param {Object} rigObject - Rig object with ID and optional requirementID
    */
   updateRigID(rigObject) {
+    this.updateRigSlot("rigSlot1", rigObject);
+  }
+
+  /**
+   * Fits a rig to one of the two slots, the first slot also carrying whatever
+   * requirement the rig names.
+   *
+   * @param {"rigSlot1"|"rigSlot2"} slot - The slot to fit it to
+   * @param {Object} rigObject - Rig object with ID and optional requirementID
+   */
+  updateRigSlot(slot, rigObject) {
     if (!rigObject || !Object.hasOwn(rigObject, "material")) return;
-    this.rigSlot1 = rigObject.id;
+    this[slot] = rigObject.id;
+
+    if (slot !== "rigSlot1") return;
     this.manageRequirements(
       Object.hasOwn(rigObject, "requirementID")
         ? rigObject.requirementID

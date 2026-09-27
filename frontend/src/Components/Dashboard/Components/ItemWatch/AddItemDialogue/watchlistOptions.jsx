@@ -14,6 +14,8 @@ import SystemTypeSelect from "../../../../../Styled Components/Select/systemType
 import TaxPercentageTextField from "../../../../../Styled Components/Textfield/tax";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import { setupShowsManualStructureFields } from "../../../../../Functions/Custom Structures/customStructureSetup";
+import useRigSlots from "../../../../../Hooks/useRigSlots";
+import { getRigInfoFromID } from "../../../../../Functions/Custom Structures/getStructureInfo";
 
 export function WatchListSetupOptions_WatchlistDialogue({
   watchlistItemRequest,
@@ -42,6 +44,12 @@ export function WatchListSetupOptions_WatchlistDialogue({
     );
     setMaterialJobs(changed);
   };
+
+  const rigSlots = useRigSlots(jobSetup, (slot, rigID) =>
+    changeSetup((setup) =>
+      setup.updateRigSlot(slot, getRigInfoFromID(jobSetup.jobType, rigID)),
+    ),
+  );
 
   return (
     <Grid container spacing={2} sx={{ width: "100%" }}>
@@ -91,9 +99,16 @@ export function WatchListSetupOptions_WatchlistDialogue({
             <RigTypeSelect
               value={jobSetup.rigSlot1}
               jobType={jobSetup.jobType}
-              onChange={(selectedEntry) =>
-                changeSetup((setup) => setup.updateRigID(selectedEntry))
-              }
+              error={rigSlots.slot1.error}
+              onChange={rigSlots.slot1.onChange}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
+            <RigTypeSelect
+              value={jobSetup.rigSlot2}
+              jobType={jobSetup.jobType}
+              error={rigSlots.slot2.error}
+              onChange={rigSlots.slot2.onChange}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>

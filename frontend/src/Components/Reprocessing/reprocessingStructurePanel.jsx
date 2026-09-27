@@ -61,9 +61,10 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageState.selectedUser, skillsLoading, skillsError]);
 
-  const rigSlots = useRigSlots(
-    pageState.currentStructure,
-    pageActions.setCurrentStructure,
+  const rigSlots = useRigSlots(pageState.currentStructure, (slot, rigID) =>
+    pageActions.setCurrentStructure(
+      updateStructure(pageState.currentStructure, { [slot]: rigID }),
+    ),
   );
 
   return (

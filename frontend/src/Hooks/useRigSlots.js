@@ -1,18 +1,16 @@
 import { useState } from "react";
 
-import { updateStructure } from "../Functions/Custom Structures/customStructure";
-
 const errorText = "Cannot have the same rig or related rigs in both slots";
 
 /**
- * The two rig slots a structure carries, and the rule that they cannot hold
- * rigs competing for the same purpose.
+ * The two rig slots a structure carries, and the rule that they cannot hold rigs
+ * competing for the same purpose.
  *
- * @param {object} structure - The structure being edited
- * @param {(structure: object) => void} onChange - Called with the structure a slot moved on
+ * @param {{rigSlot1: number, rigSlot2: number}} slots - What is fitted now
+ * @param {(slot: string, rigID: number, selectedEntry: object) => void} onChoose - Applies a slot's new rig
  * @returns {{slot1: object, slot2: object}} A field's `error` and `onChange` per slot
  */
-export default function useRigSlots(structure, onChange) {
+export default function useRigSlots(slots, onChoose) {
   const [slot1Error, setSlot1Error] = useState(false);
   const [slot2Error, setSlot2Error] = useState(false);
 
@@ -34,17 +32,17 @@ export default function useRigSlots(structure, onChange) {
       setSlot2Error(false);
     }
 
-    onChange(updateStructure(structure, { [slot]: chosen }));
+    onChoose(slot, chosen, selectedEntry);
   };
 
   return {
     slot1: {
       error: { isError: slot1Error, errorText },
-      onChange: choose("rigSlot1", setSlot1Error, structure.rigSlot2),
+      onChange: choose("rigSlot1", setSlot1Error, slots.rigSlot2),
     },
     slot2: {
       error: { isError: slot2Error, errorText },
-      onChange: choose("rigSlot2", setSlot2Error, structure.rigSlot1),
+      onChange: choose("rigSlot2", setSlot2Error, slots.rigSlot1),
     },
   };
 }

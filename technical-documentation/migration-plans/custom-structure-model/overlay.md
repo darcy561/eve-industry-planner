@@ -820,7 +820,27 @@ the structure's, and § What must not be lost has required that since Stage B. `
 in `Helper/` for the opposite reason: it is a numeric rule with consumers across the app, and only the
 percentage rule on top of it belongs here.
 
-### The rig-conflict rule has one home
+### The rig-conflict rule has one home, and it holds the rule alone
+
+`Hooks/useRigSlots.js` answers which slot takes which rig and which choice is refused, and its caller
+applies the answer to whatever it is editing: `onChoose(slot, rigID)`. It was written against a custom
+structure row and called `updateStructure` itself, which is why it could not serve a job setup — a
+setup's rig choice also has to run `manageRequirements`, and a setup names its other fields
+differently. Holding the rule and nothing else is what lets one hook serve three editors.
+
+**A watched item can be given both its rigs.** The watchlist options offered one `RigTypeSelect` bound
+to `rigSlot1`, so `rigSlot2` could not be set or cleared by hand on that surface at all — while
+`rigSlotBonuses` counted it and the setup card printed it, which meant a reader who took a two-rig
+custom structure and then edited by hand carried a rig they could not see, still moving their material
+and time. The second picker is there, both go through the hook, and `Setup.updateRigSlot(slot, rig)`
+writes either slot. Slot 1 keeps the requirement handling `updateRigID` always did; slot 2 writes the id
+only, because what a second rig's requirement should do to a setup that already applied the first one's
+is a question nobody has answered. `updateRigID` remains as the slot 1 call, which is what the Edit Job
+setup panel still uses.
+
+**The Edit Job setup panel is still one picker.** It has the same gap and is not fixed here.
+
+### What the hook's one home covers
 
 `Hooks/useRigSlots.js` holds it, and both screens that fit rigs use it: the settings form and the
 Reprocessing page's structure panel. The panel had its own inline copy, once per slot, and the

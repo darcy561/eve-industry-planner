@@ -77,7 +77,9 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
   const change = (changes) =>
     setStructure((current) => updateStructure(current, changes));
 
-  const rigSlots = useRigSlots(structure, setStructure);
+  const rigSlots = useRigSlots(structure, (slot, rigID) =>
+    change({ [slot]: rigID }),
+  );
 
   /**
    * A preset structure type carries the rest of its setup with it, so choosing
