@@ -50,7 +50,7 @@ function GroupPageFrame() {
     if (pv && pv !== state.pageView) {
       actions.setPageView(pv);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- actions object is recreated each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.pageView, state.pageView]);
 
   const groupReadOnly = useGroupLockReadOnly(groupID);
@@ -91,11 +91,9 @@ function GroupPageFrame() {
     };
   }, [groupID, navigate]);
 
-  // Arriving, not hovering: the route's loader also runs on a preload, and a reader
-  // passing over a group card must keep what they have selected on the planner.
   useEffect(() => {
     clearMultiSelect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the action is stable; this runs per group opened
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupID]);
 
   useWarnBeforeUnload();

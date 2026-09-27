@@ -40,9 +40,8 @@ let parkedForMaintenance = false;
 const PING_MS = 45_000;
 
 /**
- * Normalises doc.lock fan-out into the `eip-document-lock` detail shape.
- * The server always emits the flat envelope `{ type: "document_lock", event, …fields }`
- * (see `services/websocket/server/natslogic/locks.go::BuildDocumentLockWire`).
+ * Normalises a document-lock fan-out message into the `eip-document-lock` detail
+ * shape.
  *
  * @param {Record<string, unknown>} parsed
  * @returns {Record<string, unknown>|null}
@@ -122,7 +121,6 @@ function wsUrl() {
   if (sid) {
     u.searchParams.set("planner_session_id", sid);
   }
-  // Optional bake hint for ops/logs; ws-router prefers newest slots regardless.
   try {
     const baked =
       typeof __APP_VERSION__ !== "undefined" ? String(__APP_VERSION__) : "";
@@ -247,9 +245,6 @@ export function connectWebsocket(params) {
             JSON.stringify({
               type: "session_resume",
               previousClientID: sessionResumePreviousId,
-              // How far this tab had applied. The server answers whether it may
-              // keep what it holds by comparing this with what was published
-              // while the socket was down.
               position: useUsersStore
                 .getState()
                 .websocketSync.actions.getHighestPosition(),
@@ -273,11 +268,6 @@ export function connectWebsocket(params) {
 
       if (socket !== ws) return;
 
-      /**
-       * Loads `users` + `application_settings` after (re)open when the in-store `sessionID`
-       * changed, or when we attempted `session_resume` but did not receive `resume_ack.skipDocumentLoad`
-       * (handoff uncertain). Same-session reconnect with a matched handoff skips duplicate GETs.
-       */
       const sessionIdentityChanged =
         prevOpenSessionId == null || prevOpenSessionId !== sessionIdForWs;
       const shouldSync =
@@ -287,8 +277,6 @@ export function connectWebsocket(params) {
         void loadAccountDocuments();
       }
 
-      // Events during a reconnect gap are lost, so re-load the planner from the
-      // API when the session id changed (not on first open).
       const shouldReloadPlanner =
         prevOpenSessionId != null && prevOpenSessionId !== sessionIdForWs;
       if (shouldReloadPlanner) {
@@ -300,7 +288,6 @@ export function connectWebsocket(params) {
         });
       }
 
-      // A new connection starts on the session's grants, not the chosen planner.
       restoreActivePlanner();
 
       pingTimer = window.setInterval(() => {
@@ -338,9 +325,7 @@ export function connectWebsocket(params) {
         }
         if (parsed.type === "connected") {
           setWsClientID(parsed.clientID);
-          // app_version here is process bake (slot identity) — do NOT feed the
-          // advertised-version snackbar path (that would clear "outdated" on OLD).
-          // eslint-disable-next-line no-console -- ops/test: which Swarm websocket slot hosts us
+          // eslint-disable-next-line no-console
           console.info("[websocket] connected", {
             clientID: parsed.clientID,
             slot: parsed.slot,
@@ -349,8 +334,7 @@ export function connectWebsocket(params) {
           return;
         }
         if (parsed.type === "please_reconnect") {
-          // Drain / evacuate (#8 / #21): console only — makes ops moves easy to follow in DevTools.
-          // eslint-disable-next-line no-console -- intentional ops/test visibility for slot moves
+          // eslint-disable-next-line no-console
           console.info(
             "[websocket] please_reconnect:",
             typeof parsed.message === "string" && parsed.message
@@ -415,8 +399,6 @@ export function connectWebsocket(params) {
       if (!p) {
         return;
       }
-      // A refused handshake reaches the browser as a close with no status, so
-      // app-config is asked why rather than the retry schedule guessing.
       if (!opened) {
         requestAppConfigRecheck();
       }
@@ -464,7 +446,6 @@ export function disconnectWebsocket() {
   connectKey = null;
   lastConnectParams = null;
   lastSuccessfulOpenSessionId = null;
-  // A new sign-in must not inherit the last session's planner.
   useUsersStore.getState().activePlanner.actions.setActivePlannerOwner(null);
   /** New session should not inherit exponential backoff from prior failures. */
   reconnectAttempt = 0;
@@ -504,18 +485,14 @@ export function unsubscribeDocIDs(collection, docIds) {
 }
 
 /**
- * Tells the server which planner this connection is working in.
- *
- * The server replaces the planner it delivers rather than adding to it. The
- * account's own documents stay live either way.
+ * Tells the server which planner this connection is working in, replacing the one
+ * it delivers rather than adding to it.
  *
  * @param {string} ownerHandle - `kind:id`, from the planners listing
  * @returns {boolean} true if the message was queued on the socket
  */
 export function sendActivePlanner(ownerHandle) {
   if (!ownerHandle) return false;
-  // Held only once the connection has it: a store naming a planner the socket
-  // never heard of would scope reads to one planner and receive another.
   if (!writeActivePlanner(ownerHandle)) return false;
   useUsersStore
     .getState()
@@ -524,10 +501,8 @@ export function sendActivePlanner(ownerHandle) {
 }
 
 /**
- * Re-sends the active planner after a reconnect.
- *
- * A new connection derives its scopes from the session and knows nothing of a
- * planner chosen before the socket dropped, so the client names it again.
+ * Re-sends the active planner after a reconnect, which a new connection knows
+ * nothing about.
  */
 export function restoreActivePlanner() {
   const owner = useUsersStore.getState().activePlanner.owner;
@@ -594,8 +569,6 @@ export function requestDocumentLockLockStateBatchOverWebsocket(params = {}) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return Promise.reject(new Error("websocket not connected"));
   }
-  // Rejecting sends the caller to the HTTP path, which resolves the planner from
-  // the request headers and so needs nothing named here.
   const owner = activePlannerOwnerHandle();
   if (!owner) {
     return Promise.reject(new Error("no active planner"));

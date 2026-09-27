@@ -114,4 +114,5 @@ enforced by `store-partials/no-whole-state-spread`.
 | Market Locations tab test depth — the registry, the panel, adding/editing/saving, read-outcome wording | [settings.md](./settings.md) |
 | Market data test depth — the registry, the price cache and loader, freshness, the two tiers, the citadel walk | [market-data.md](./market-data.md) |
 | Pricing defaults test depth — the ladder, the account's two sides, market group defaults | [pricing.md](./pricing.md) |
+| Returns and selling test depth — the two exit routes, broker fee and standings, the sale location choice | [selling.md](./selling.md) |
 | _(add rows as topic files land — e.g. document-lock, planner)_ | |

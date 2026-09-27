@@ -43,11 +43,9 @@ export function useAuthUrlLogin() {
         return;
       }
 
-      // Carries where the guard was sending them, so signing in returns them to the
-      // page they asked for rather than to `/auth`.
       await redirectToFullEveLogin(state);
     }
     void run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once; login flow is idempotent and must not re-run on hook identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

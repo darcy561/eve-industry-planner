@@ -7,8 +7,8 @@ The shared app-shell atoms a panel is built from, under
 on under [`frontend/src/Context/appShell`](../../../frontend/src/Context/appShell): the panel and
 inset surfaces, the two card atoms, the row anatomy a list of things is built from, the overflow
 action menu, the figure and status atoms, labelled-field shells, the scrolling-table behaviour, the
-control that assembles an item's market actions, and how a picture from EVE's image server is asked
-for and drawn.
+control that assembles an item's market actions, how a control that needs explaining says so, and how
+a picture from EVE's image server is asked for and drawn.
 
 ## Does not own
 
@@ -31,4 +31,5 @@ for and drawn.
 | Change a labelled control or an on/off row | [forms.md](./forms.md) |
 | Make a table fit the panel it sits in | [tables.md](./tables.md) |
 | Change an item's market-data, price-history or assets actions | [item-actions.md](./item-actions.md) |
+| Explain a control a reader cannot work out from its label, or make that explanation reachable by keyboard | [tooltips.md](./tooltips.md) |
 | Ask EVE's image server for a picture, or change what a missing one shows | [avatars.md](./avatars.md) |

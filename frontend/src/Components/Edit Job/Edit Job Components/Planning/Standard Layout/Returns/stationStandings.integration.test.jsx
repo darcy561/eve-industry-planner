@@ -4,22 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
-/**
- * A station's broker fee, from the ESI reads through to the figure on screen.
- *
- * Every other test on this path fakes one of the layers: the cached accessors,
- * the rate hooks, or the queries. Standings have now been reported wrong twice
- * for reasons no unit test could see — a lookup keyed on the wrong id, then a
- * subscription that started for the wrong character — so this fakes only what
- * leaves the browser and runs the real query layer, the real enable gate, and
- * the real rate arithmetic.
- */
-
 const fetched = [];
 
 vi.mock("../../../../../../Functions/EveESI/fetchWithCustomHeaders", () => ({
-  // The queries read the rate-limit bucket from this module before fetching, so
-  // the mock has to carry it as well as the fetch itself.
   getESIRateLimitStatus: () => null,
   default: async (url) => {
     fetched.push(url);
@@ -53,11 +40,9 @@ vi.mock("../../../../../../Functions/EveESI/fetchWithCustomHeaders", () => ({
                 { race_id: 4, alliance_id: 500003, name: "Amarr" },
               ]
             : url.includes("/universe/stations/60008494")
-              ? // Amarr VIII: built by Amarr (race 4), owned by Emperor Family.
-                { race_id: 4, owner: 1000086, station_id: 60008494 }
+              ? { race_id: 4, owner: 1000086, station_id: 60008494 }
               : url.includes("/universe/stations/")
-                ? // Jita 4-4: built by Caldari (race 1), owned by Caldari Navy.
-                  { race_id: 1, owner: 1000035, station_id: 60003760 }
+                ? { race_id: 1, owner: 1000035, station_id: 60003760 }
                 : {};
 
     return {
@@ -101,8 +86,7 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
           brokerFee: 1.5,
         },
       ],
-      // The citadel this case starts at, which the account sells from until the
-      // reader switches the job to the station.
+
       defaultPricing: { selling: { market: "citadelMarket-1" } },
       actions: { getCurrentLocale: () => "en-GB" },
     },
@@ -139,10 +123,8 @@ function Block({ locationID }) {
   );
 }
 
-/* eslint-disable testing-library/prefer-screen-queries -- see below: these
-   queries are scoped on purpose, and `screen` is the thing being avoided. */
-// Scoped to its own container: two renders in one file otherwise both answer a
-// document-wide query, and a figure from the previous case reads as this one's.
+/* eslint-disable testing-library/prefer-screen-queries */
+
 const show = (locationID) =>
   within(
     render(
@@ -155,7 +137,7 @@ const show = (locationID) =>
 beforeEach(() => {
   fetched.length = 0;
   queryClient.clear();
-  // The gate every ESI query passes: signed in, and Tranquility known to be up.
+
   queryClient.setQueryData(TRANQUILITY_SERVER_STATUS_QUERY_KEY, {
     online: true,
     playerCount: 1,
@@ -176,8 +158,6 @@ describe("a station's broker fee, end to end", () => {
   it("takes both standings off the rate", async () => {
     const block = show("jita");
 
-    // 3% base, less 1.5 for Broker Relations V, less 0.03x8 of faction standing
-    // and 0.02x5 of corporation standing.
     expect(await block.findByText("1.16%")).toBeInTheDocument();
   });
 
@@ -192,19 +172,13 @@ describe("a station's broker fee, end to end", () => {
   });
 });
 
-// The list offers NPC stations as well as citadels, and the one chosen is not
-// always the hub the materials are priced against. The fee has to come from the
-// station picked — its own faction and its own owner.
 describe("choosing an NPC station other than the pricing hub", () => {
   it("quotes the chosen station's standings, not the pricing hub's", async () => {
     const block = show("amarr");
 
-    // Amarr Empire standing 2 at 0.03, and nothing with Emperor Family:
-    // 3 - 1.5 - 0.06 = 1.44%.
     expect(await block.findByText("1.44%")).toBeInTheDocument();
     expect(block.getByText("2.00 with Amarr Empire")).toBeInTheDocument();
-    // Named and stated as the zero it read, so a reader can tell this from a
-    // lookup pointed at the wrong entity, and from one that failed.
+
     expect(block.getByText("0.00 with Emperor Family")).toBeInTheDocument();
     expect(block.queryByText("could not be read")).not.toBeInTheDocument();
   });
@@ -221,10 +195,6 @@ describe("choosing an NPC station other than the pricing hub", () => {
   });
 });
 
-// The reported flow: the block opens on the account's default citadel, whose fee
-// is a flat rate with no working, and the player changes it to an NPC station.
-// A citadel's terms are empty, so the switch has to produce a fresh set — a
-// stale empty one reads as a seller with no standings anywhere.
 describe("switching from the default citadel to an NPC station", () => {
   function Switchable() {
     const [plan, setPlan] = useState({ saleLocationID: null });
@@ -262,7 +232,6 @@ describe("switching from the default citadel to an NPC station", () => {
       ).container,
     );
 
-    // Opens on the citadel: its owner's rate, with no working behind it.
     expect(await block.findByText("1.50%")).toBeInTheDocument();
 
     await userEvent.click(block.getByLabelText("Where this job sells from"));

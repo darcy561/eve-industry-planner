@@ -90,7 +90,7 @@ When implementing under an active migration project, **code comments** (and othe
 
 | Do | Don’t |
 |----|--------|
-| Comment ownership, invariants, and call-site rules for the live code | Reference `#N`, overlay filenames, roadmap sections, or “Section N” in product comments |
+| Say what the live code owns, within the two lines a doc comment allows (master § One comment, and it is two lines) | Reference `#N`, overlay filenames, roadmap sections, or “Section N” in product comments |
 | Keep ticket/section narrative in the project overlay / roadmap | Use comments as a second migration change log |
 
 Same bar applies to stack YAML comments and operator-facing copy produced by the change. Process detail → [`technical-rules.md`](./technical-rules.md).

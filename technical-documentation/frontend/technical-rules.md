@@ -227,8 +227,12 @@ flat config) and formatted by **Prettier** ([`frontend/.prettierrc.json`](../../
 [`.github/workflows/test.yml`](../../.github/workflows/test.yml) runs them beside the Vitest suite.
 Fix what they report in the area you are editing. Where a rule is genuinely wrong for the code in
 front of you — a chart asserted by selector because its marks carry no name, a clock the rule cannot
-see the dependency for — disable it at the narrowest scope that covers the case and write the reason
-on the disable. What is not wanted is a disable that exists to avoid the work.
+see the dependency for — disable it at the narrowest scope that covers the case. The directive is the
+whole comment: a disable carries the rule's name and nothing else, because the prose after a `--` is
+prose like any other and the repository allows none of it outside a two-line doc comment
+([`../technical-rules.md`](../technical-rules.md) § One comment, and it is two lines). A disable that
+needs explaining is explained in `technical-documentation`. What is not wanted is a disable that
+exists to avoid the work.
 
 The rule set is **`@eslint/js` recommended plus `eslint-plugin-react-hooks`**, with
 `jsx-a11y` on the SPA and the Vitest and Testing Library plugins on `*.test.*`. React-specific
@@ -255,8 +259,9 @@ this SPA types through JSDoc.
 this tree is usually deliberate — a memo that must not recompute when an unrelated reducer dispatch
 returns a new state object, a callback TanStack requires to stay referentially stable. Completing
 such an array is a behaviour or performance change wearing a lint fix's clothes. Read the effect and
-its tests, then either fix it properly or leave a `// eslint-disable-next-line` **carrying the
-reason**.
+its tests, then either fix it properly or leave a bare `// eslint-disable-next-line` naming the rule.
+Why a particular list is narrow is recorded in `technical-documentation`, not on the disable — see
+[`../technical-rules.md`](../technical-rules.md) § One comment, and it is two lines.
 
 A leading underscore (`_get`, `_ev`) marks a binding kept for arity or destructuring position;
 `no-unused-vars` ignores those and will not ignore anything else.

@@ -6,11 +6,8 @@ import ContentDialogue from "./ContentDialogue";
 const theme = createTheme();
 const bodyRenders = { count: 0 };
 
-/** Counts renders, so a body that is merely hidden is not mistaken for one that
- * was never built. Counting is the whole point here, and it can only happen
- * while rendering. */
 function Body() {
-  // eslint-disable-next-line react-hooks/immutability -- the count is what this test observes
+  // eslint-disable-next-line react-hooks/immutability
   bodyRenders.count += 1;
   return <p>what the reader came for</p>;
 }

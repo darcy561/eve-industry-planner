@@ -37,8 +37,6 @@ vi.mock("../../../Functions/Endpoints/Private/userDocument", () => ({
   saveUserAccountDocument: (...args) => saveUserAccountDocument(...args),
 }));
 
-// The three steps stand in for themselves: this file covers the shell that
-// moves between them, and each step is tested beside its own component.
 vi.mock("../planner-setup/FirstLoginPlannerSetupStep", () => ({
   FirstLoginPlannerSetupStep: () => <div>planner setup step</div>,
 }));
@@ -49,7 +47,6 @@ vi.mock("../support/FirstLoginSupportStep", () => ({
   FirstLoginSupportStep: () => <div>support step</div>,
 }));
 
-/** Steps swap through a CSSTransition, so the arriving one is awaited. */
 async function expectStep(text) {
   expect(await screen.findByText(text)).toBeInTheDocument();
 }
@@ -77,7 +74,7 @@ describe("the first login page shell", () => {
     expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
   });
 
-  // eslint-disable-next-line vitest/expect-expect -- asserts through expectStep
+  // eslint-disable-next-line vitest/expect-expect
   it("walks forward through the steps and back again", async () => {
     const user = userEvent.setup();
     render(<FirstLoginPage />);
