@@ -1,14 +1,3 @@
-/**
- * Reprocessing Reducer Hook for EVE Industry Planner.
- *
- * Custom React hook that provides state management for the reprocessing page component.
- * Uses useReducer with a custom reducer to handle complex reprocessing calculations,
- * skill management, structure configuration, market settings, and ore filtering.
- *
- * @fileoverview Custom hook for reprocessing page state management
- * @author EVE Industry Planner Team
- */
-
 import { useReducer } from "react";
 import {
   PRICING_SIDE,
@@ -27,12 +16,7 @@ import { useAdvanceWhenFollowingAppDefault } from "../../../Hooks/Planner/useAdv
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 
 /**
- * Custom hook for managing reprocessing page state.
- *
- * Provides a reducer-based state management solution for the reprocessing page,
- * including initial state creation based on user settings, action dispatching,
- * and state access. The hook manages complex reprocessing operations including
- * calculations, skill management, structure configuration, and market settings.
+ * The Reprocessing page's state, seeded from the reader's settings.
  *
  * @returns {Object} Hook return object
  * @returns {Object} returns.state - Current page state
@@ -75,27 +59,6 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
  * @returns {Function} returns.actions.setInputModified - Set input modification flag
  * @returns {Function} returns.actions.setRequestedMinerals - Set requested minerals
  * @returns {Function} returns.actions.setReprocessingCalculationSettings - Set calculation settings
- *
- * @example
- * function ReprocessingPage() {
- *   const { state, actions } = useReprocessingReducer();
- *
- *   const handleCalculate = (data) => {
- *     actions.setReprocessingObjects(data);
- *   };
- *
- *   const handleSkillChange = (skillId, level) => {
- *     actions.setSingleSkill(skillId, level);
- *   };
- *
- *   return (
- *     <div>
- *       Output type: {state.toMinerals ? 'Minerals' : 'Materials'}
- *       Advanced view: {state.displayAdvancedView ? 'On' : 'Off'}
- *       Loading: {state.isPageLoading ? 'Yes' : 'No'}
- *     </div>
- *   );
- * }
  */
 export default function useReprocessingReducer() {
   const getDefaultReprocessingStructure = useUsersStore(
@@ -121,9 +84,10 @@ export default function useReprocessingReducer() {
     toMinerals: true,
     displayAdvancedView: false,
     isPageLoading: false,
-    currentStructure:
-      getDefaultReprocessingStructure(jobTypes.reprocessing) ||
-      new Structure(undefined, jobTypes.reprocessing),
+    currentStructure: new Structure(
+      getDefaultReprocessingStructure(jobTypes.reprocessing) ?? undefined,
+      jobTypes.reprocessing,
+    ),
     activeSkills: {},
     selectedUser:
       getDefaultReprocessingCharacter(characters)?.CharacterHash ||
@@ -167,20 +131,12 @@ export default function useReprocessingReducer() {
     advanceActionType: REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION,
   });
 
-  /**
-   * Action dispatchers for the reprocessing page state.
-   *
-   * Provides convenient methods to dispatch actions to the reducer,
-   * abstracting away the action creation and dispatch logic.
-   */
+  /** What the page's controls call to change that state. */
   const actions = {
     /**
      * Sets the reprocessing calculation results.
      *
      * @param {Array} data - Reprocessing calculation results
-     *
-     * @example
-     * actions.setReprocessingObjects(reprocessingResults);
      */
     setReprocessingObjects: (data) => {
       dispatch({
@@ -192,9 +148,6 @@ export default function useReprocessingReducer() {
      * Sets the processed input data.
      *
      * @param {Array} data - Processed input data
-     *
-     * @example
-     * actions.setProcessedInput(processedData);
      */
     setProcessedInput: (data) => {
       dispatch({
@@ -206,9 +159,6 @@ export default function useReprocessingReducer() {
      * Sets the raw input text.
      *
      * @param {string} data - Raw input text
-     *
-     * @example
-     * actions.setInputText("Tritanium\t1000\nPyerite\t500");
      */
     setInputText: (data) => {
       dispatch({
@@ -218,9 +168,6 @@ export default function useReprocessingReducer() {
     },
     /**
      * Toggles between minerals and materials output.
-     *
-     * @example
-     * actions.toggleToMinerals();
      */
     toggleToMinerals: () => {
       dispatch({
@@ -231,10 +178,6 @@ export default function useReprocessingReducer() {
      * Sets the page loading state.
      *
      * @param {boolean} data - Loading state value
-     *
-     * @example
-     * actions.setPageLoading(true); // Start loading
-     * actions.setPageLoading(false); // Stop loading
      */
     setPageLoading: (data) => {
       dispatch({
@@ -244,9 +187,6 @@ export default function useReprocessingReducer() {
     },
     /**
      * Toggles the advanced view display.
-     *
-     * @example
-     * actions.toggleDisplayAdvancedView();
      */
     toggleDisplayAdvancedView: () => {
       dispatch({
@@ -257,9 +197,6 @@ export default function useReprocessingReducer() {
      * Sets the current reprocessing structure.
      *
      * @param {Object} data - Reprocessing structure object
-     *
-     * @example
-     * actions.setCurrentStructure(new Structure(undefined, jobTypes.reprocessing));
      */
     setCurrentStructure: (data) => {
       dispatch({
@@ -272,9 +209,6 @@ export default function useReprocessingReducer() {
      *
      * @param {number} id - Skill ID
      * @param {number} level - Skill level (0-5)
-     *
-     * @example
-     * actions.setSingleSkill(3385, 5); // Set Reprocessing to level 5
      */
     setSingleSkill: (id, level) => {
       dispatch({
@@ -286,9 +220,6 @@ export default function useReprocessingReducer() {
      * Sets all skills at once and resets manual modification flag.
      *
      * @param {Object} skills - Skills object with skill IDs as keys and levels as values
-     *
-     * @example
-     * actions.setAllSkills({ 3385: 5, 3386: 4, 3387: 3 });
      */
     setAllSkills: (skills) => {
       dispatch({
@@ -300,9 +231,6 @@ export default function useReprocessingReducer() {
      * Sets the selected user character and resets manual modification flag.
      *
      * @param {string} userHash - User character hash
-     *
-     * @example
-     * actions.setSelectedUser('character-hash-123');
      */
     setSelectedUser: (userHash) => {
       dispatch({
@@ -314,9 +242,6 @@ export default function useReprocessingReducer() {
      * Sets the manual skill modification flag.
      *
      * @param {boolean} modified - Whether skills were manually modified
-     *
-     * @example
-     * actions.setSkillsManuallyModified(true);
      */
     setSkillsManuallyModified: (modified) => {
       dispatch({
@@ -328,9 +253,6 @@ export default function useReprocessingReducer() {
      * Loads character skills and resets manual modification flag.
      *
      * @param {Object} skills - Character skills object
-     *
-     * @example
-     * actions.loadCharacterSkills({ 3385: 5, 3386: 4 });
      */
     loadCharacterSkills: (skills) => {
       dispatch({
@@ -342,9 +264,6 @@ export default function useReprocessingReducer() {
      * Sets rig slot validation errors.
      *
      * @param {Object} errors - Rig slot errors object
-     *
-     * @example
-     * actions.setRigSlotErrors({ slot1: true, slot2: false });
      */
     setRigSlotErrors: (errors) => {
       dispatch({
@@ -356,9 +275,6 @@ export default function useReprocessingReducer() {
      * Adds an ore ID to the ignore list.
      *
      * @param {number} id - Ore type ID to ignore
-     *
-     * @example
-     * actions.addOreIDToBeIgnored(12345); // Ignore specific ore type
      */
     addOreIDToBeIgnored: (id) => {
       dispatch({
@@ -370,9 +286,6 @@ export default function useReprocessingReducer() {
      * Removes an ore ID from the ignore list.
      *
      * @param {number} id - Ore type ID to remove from ignore list
-     *
-     * @example
-     * actions.removeOreIDToBeIgnored(12345);
      */
     removeOreIDToBeIgnored: (id) => {
       dispatch({
@@ -382,9 +295,6 @@ export default function useReprocessingReducer() {
     },
     /**
      * Clears all ignored ore IDs.
-     *
-     * @example
-     * actions.clearOreIDsToBeIgnored();
      */
     clearOreIDsToBeIgnored: () => {
       dispatch({
@@ -395,9 +305,6 @@ export default function useReprocessingReducer() {
      * Sets the market location for pricing.
      *
      * @param {string} location - Market location (e.g., 'jita', 'amarr')
-     *
-     * @example
-     * actions.setMarketLocation('jita');
      */
     setMarketLocation: (location) => {
       dispatch({
@@ -409,9 +316,6 @@ export default function useReprocessingReducer() {
      * Sets the market order type (buy/sell).
      *
      * @param {string} orderType - Market order type ('buy' or 'sell')
-     *
-     * @example
-     * actions.setMarketOrderType('sell');
      */
     setMarketOrderType: (orderType) => {
       dispatch({
@@ -423,9 +327,6 @@ export default function useReprocessingReducer() {
      * Sets the input modification flag.
      *
      * @param {boolean} modified - Whether input has been modified
-     *
-     * @example
-     * actions.setInputModified(true);
      */
     setInputModified: (modified) => {
       dispatch({
@@ -437,9 +338,6 @@ export default function useReprocessingReducer() {
      * Sets the requested minerals data.
      *
      * @param {Object} minerals - Requested minerals object
-     *
-     * @example
-     * actions.setRequestedMinerals({ 34: 1000, 35: 500 });
      */
     setRequestedMinerals: (minerals) => {
       dispatch({
@@ -451,12 +349,6 @@ export default function useReprocessingReducer() {
      * Sets the reprocessing calculation settings.
      *
      * @param {Object} settings - Calculation settings object
-     *
-     * @example
-     * actions.setReprocessingCalculationSettings({
-     *   includeWaste: true,
-     *   useSkills: true
-     * });
      */
     setReprocessingCalculationSettings: (settings) => {
       dispatch({

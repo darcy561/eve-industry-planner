@@ -731,6 +731,33 @@ there rather than taken as a consequence of the read existing.
 [market-price-delivery](../market-price-delivery/plan.md) § Stage G built — measured against every
 market region in New Eden. What this project owed it was the saved row, which it has.
 
+## Stage E — A structure is plain data
+
+**In progress.** The conversion itself has not started; what has landed is the defect that made the
+stage worth its own slice.
+
+### The Reprocessing page holds its own copy of the structure it opens with
+
+`useReprocessingReducer` seeds `currentStructure` through `new Structure(...)`, so the page starts from a
+copy of the reader's saved default rather than from the stored row. The panel edits that copy in place as
+it always has, and nothing it does reaches the settings store.
+
+Before this, the seed took what `getDefaultCustomStructureWithJobType` returned, which is the row held in
+`applicationSettings.customStructures` itself. Trying a different rig or structure type to compare yields
+therefore rewrote the reader's saved structure: for the session always, and on disk whenever the same
+visit also changed a reprocessing setting, because that panel schedules a settings save. Selecting a
+structure from the page's dropdown was never affected — that path already copied.
+
+The fallback for a reader who has saved none is unchanged: a blank reprocessing structure. It is now
+expressed as the same construction rather than a second one behind `||`, because a copy of nothing is
+what a blank structure is.
+
+`useReprocessingReducer.test.js` covers all three: the copy, that editing it leaves the saved row alone,
+and the blank fallback. Two of the three fail against the previous seed.
+
+**The rest of the stage is unstarted** — `Classes/structure.js` is still a class, and the aliasing this
+removed at one seed is still possible anywhere a row is handed from the store to a screen.
+
 ## Missing live SoT found on the way
 
 *Nothing recorded yet.* Live documentation gaps discovered while working land here first and are

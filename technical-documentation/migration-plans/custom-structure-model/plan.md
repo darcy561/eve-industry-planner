@@ -1,9 +1,10 @@
 # Custom structure model — plan
 
 **Status:** Stages A, B, C, BR and D have landed, including the prerelease steps that convert stored
-documents, stored rig ids and a saved structure's rig. **Stage E is open** — the model is right and the
-class holding it is not, and one reader-facing defect follows from that. Stage BR2 remains and is named
-here for what it inherits rather than owned here.
+documents, stored rig ids and a saved structure's rig. **Stage E is in progress** — the model is right and
+the class holding it is not. The reader-facing defect that followed from that is fixed: the Reprocessing
+page no longer edits the reader's saved structure. The conversion itself is unstarted. Stage BR2 remains
+and is named here for what it inherits rather than owned here.
 
 **Promotion waits on Stage E**, which is a change to the same sentence the promotion drafts would write:
 whether a structure is a class with setters or a row and a set of functions. The drafts do not exist yet,
@@ -405,11 +406,15 @@ it, because it seeds itself with the row out of the settings store and the panel
 given. The chain, its two consequences and why the dropdown path is safe are measured in
 [measurements.md](./measurements.md) § The reprocessing page edits the saved structure.
 
-**The one-line copy at the seed lands first, on its own.** It is a defect with a live consequence and it
-should not wait on a refactor. It also leaves the conversion free to be a change that moves no figure and
-fixes nothing, which is the shape a refactor should have. The milder variant the measurement records in
-`addCustomStructure` is closed by the conversion rather than ahead of it: nothing a reader sees depends on
-it.
+**The one-line copy at the seed has landed, ahead of the conversion.** It was a defect with a live
+consequence and should not have waited on a refactor, and it leaves the conversion free to be a change
+that moves no figure and fixes nothing — the shape a refactor should have. `useReprocessingReducer` seeds
+from a copy, with `useReprocessingReducer.test.js` covering the copy, the saved row surviving an edit, and
+the blank fallback; two of its three cases fail against the previous seed. See
+[overlay.md](./overlay.md) § The Reprocessing page holds its own copy of the structure it opens with.
+
+The milder variant the measurement records in `addCustomStructure` is closed by the conversion rather than
+ahead of it: nothing a reader sees depends on it.
 
 **What regular use looks like afterwards: the same.** A name is sanitised on the keystroke it is today, a
 tax still settles on blur through `coerceTaxPercentage`, the rig-conflict rule still clears the slot it
