@@ -93,6 +93,5 @@ export function refreshMarketLocations() {
     queryKey: MARKET_LOCATIONS_QUERY_KEY,
     queryFn: fetchMarketLocations,
     staleTime: 0,
-    gcTime: Infinity,
   });
 }

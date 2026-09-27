@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
 import {
+  overrideUnlessDefault,
   PRICING_SIDE,
   resolvePricingSide,
 } from "../../Functions/MarketData/defaults/pricingSide";
@@ -36,9 +37,9 @@ export function useStripRedundantJobMarketHubOverrides(
       const { marketLocation: canonMarket, orderType: canonOrderType } =
         resolvePricingSide({ accountPricing, side });
 
-      const market = chosen.market === canonMarket ? null : chosen.market;
+      const market = overrideUnlessDefault(chosen.market, canonMarket) ?? null;
       const orderType =
-        chosen.orderType === canonOrderType ? null : chosen.orderType;
+        overrideUnlessDefault(chosen.orderType, canonOrderType) ?? null;
 
       if (market !== (chosen.market ?? null)) changed = true;
       if (orderType !== (chosen.orderType ?? null)) changed = true;

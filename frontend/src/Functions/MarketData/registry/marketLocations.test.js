@@ -66,6 +66,16 @@ describe("holding the set for the session", () => {
 
     expect(entry?.gcTime).toBe(Infinity);
   });
+
+  it("is not collected when the set was read rather than seeded", async () => {
+    await refreshMarketLocations();
+
+    const [entry] = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: MARKET_LOCATIONS_QUERY_KEY });
+
+    expect(entry?.gcTime).toBe(Infinity);
+  });
 });
 
 describe("reading the set again once a change has been written", () => {

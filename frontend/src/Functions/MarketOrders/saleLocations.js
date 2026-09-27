@@ -6,6 +6,10 @@ import {
   savedCitadels,
   sourceIn,
 } from "../MarketData/registry/marketSources.js";
+import {
+  PRICING_SIDE,
+  resolvePricingSide,
+} from "../MarketData/defaults/pricingSide";
 
 /**
  * The kinds of place a job can be sold from.
@@ -65,13 +69,15 @@ export function getSaleCitadels() {
  * @returns {SaleStructure|null}
  */
 export function getDefaultSaleStructure() {
+  const { marketLocation } = resolvePricingSide({
+    accountPricing: useUsersStore.getState().applicationSettings.defaultPricing,
+    side: PRICING_SIDE.SELLING,
+  });
+
   const sources = allMarketSources();
-  const chosen =
-    useUsersStore.getState().applicationSettings.defaultPricing?.selling
-      ?.market;
 
   return (
-    sourceIn(sources, chosen) ??
+    sourceIn(sources, marketLocation) ??
     sourceIn(sources, GLOBAL_CONFIG.DEFAULT_MARKET_OPTION) ??
     null
   );
