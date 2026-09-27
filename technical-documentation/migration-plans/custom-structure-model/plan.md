@@ -19,7 +19,8 @@ Removing a field nothing reads looks like cleanup; this one is the source the co
 **Code in scope:** [`frontend/src/Functions/Custom Structures/`](../../../frontend/src/Functions/Custom%20Structures/) —
 every module about a custom structure, gathered there by Stage E: `customStructure.js`,
 `addCustomStructure.js`, `customStructuresFromServer.js`, `customStructureSetup.js`,
-`getStructureInfo.js`, `rigSlotBonuses.js`, `rigSlotLabel.js` and `coerceTaxPercentage.js`;
+`getStructureInfo.js` and `rigs.js`;
+[`frontend/src/Functions/Helper/coerceTaxPercentage.js`](../../../frontend/src/Functions/Helper/coerceTaxPercentage.js);
 [`frontend/src/Classes/`](../../../frontend/src/Classes/) — `jobSetup.js`, `reprocessingItem.js`;
 [`frontend/src/Hooks/useRigSlots.js`](../../../frontend/src/Hooks/useRigSlots.js);
 [`frontend/src/Context/defaultValues.jsx`](../../../frontend/src/Context/defaultValues.jsx) — the rig tables;

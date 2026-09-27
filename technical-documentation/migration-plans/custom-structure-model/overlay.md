@@ -215,7 +215,7 @@ was nowhere stated, and **every JSDoc block said the opposite**: `Tax rate (0-1)
 ever stored. Those are corrected, because JSDoc is the SPA's only type surface and a wrong annotation
 is worse than none.
 
-`Functions/Custom Structures/coerceTaxPercentage.js` owns the rule so it is applied identically rather than
+`Functions/Helper/coerceTaxPercentage.js` owns the rule so it is applied identically rather than
 restated per class. It settles the figure the way `coerceFiniteNumber` does and **clamps a negative to
 zero**: a structure charges or it does not, and a negative would pay a job to run. None of the three
 classes clamped, so all three would store one — that is the second place the fold deliberately
@@ -814,11 +814,15 @@ control.
 ### One folder holds what a custom structure is
 
 `Functions/Custom Structures/` is the home for the subject, named as the settings screen that edits one
-already is. `Functions/Structure/` is gone, and the modules that described a custom structure from
-`Functions/Helper/` are in it: the settings read (`customStructuresFromServer`), the rig tables'
-readers (`getStructureInfo`, `rigSlotBonuses`, `rigSlotLabel`), what a job setup asks about the
-structure it references (`customStructureSetup`), and the tax rule (`coerceTaxPercentage`), whose only
-consumer is the module beside it.
+already is. `Functions/Structure/` is gone, and the modules that **know something about a custom
+structure** are in it: the settings read (`customStructuresFromServer`), the tables a structure's fields
+index into (`getStructureInfo`, `rigs`), and what a job setup asks about the structure it references
+(`customStructureSetup`).
+
+**What the subject calls is not what the folder holds.** `coerceTaxPercentage` came in on the first pass
+and went back to `Functions/Helper/`: clamping a number and reading a percentage out of what a text field
+gave you is arithmetic, wanted by any rate, and it belongs beside the `coerceFiniteNumber` it is built on
+rather than split from it. Being the folder's only caller today was the wrong test.
 
 **`describeMarketLocation` moved the other way**, to `Functions/MarketOrders/`. It was in the structures
 folder because Stage D put the market kind inside this model, and
@@ -956,7 +960,7 @@ Every module and surface the model owns has a test beside it, and the gaps an au
 | The tables a structure's fields index into | `getStructureInfo.test.js` |
 | Two rigs per axis, and the combinations the slots replaced | `rigSlotBonuses.test.js` |
 | How a setup's rigs read on a card | `rigSlotLabel.test.js` |
-| The tax percentage rule | `coerceTaxPercentage.test.js` |
+| The tax percentage rule | `Functions/Helper/coerceTaxPercentage.test.js` |
 | Reading either stored shape from the server | `customStructuresFromServer.test.js` |
 | The system index a new structure asks for, and announcing a save once | `addCustomStructure.test.js` |
 | Whether a setup's structure is gone, and what a setup takes from one | `customStructureSetup.test.js` |
