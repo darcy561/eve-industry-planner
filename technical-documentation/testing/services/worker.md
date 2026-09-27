@@ -9,7 +9,6 @@ Live SoT for test depth under [`services/worker`](../../../services/worker). Beh
 | Service tree | From `services/`: `go test ./worker/...` | No Docker; live Mongo tests skip unless gated |
 | ESI tasks | `go test ./worker/tasks/esi/` | Market / indexes / grants |
 | SDE update | `go test ./worker/tasks/sde/...` | Update + conversion + publish |
-| Rate limiter | `go test ./worker/ratelimiter/` | Bucket / ESI client Do |
 | Worker end to end | `go test ./worker/` | In-process NATS + Redis; no Docker |
 | Live Mongo, cloud ESI (opt-in) | `bash scripts/testing/live-mongo.sh ./worker/tasks/maintenance` | Runs in a container on the stack network — [harness.md](../harness.md) § Live Mongo |
 
@@ -27,7 +26,6 @@ are thin or missing.
 
 | Area | What the tests cover |
 |------|----------------------|
-| `ratelimiter` | Token bucket / flood exhaustion & recovery; concurrent stress; cleanup goroutine; ESI client Do/429; group naming & token parsing; error typing |
 | `tasks/esi` — system indexes | Stream industry systems (304, gzip, JSON errors, retry, rate-limit); task paths (lock, ETag, not-modified) |
 | `tasks/esi` — region market orders, the walk | `TestRegionMarketOrdersWalksEveryPage`; 304 page replay from object storage (`TestRegionMarketOrdersReplaysFromStorageWhenPagesAreUnchanged`, and the two `A304With…` cases covering no page store and a page that turns out not to be held); a missing page count treated as one page; a walk with no page store still delivers every order |
 | `tasks/esi` — region market orders, percentile maths | Payload validation; sample floor, nearest rank, outlier trimming, empty sides |
@@ -68,4 +66,5 @@ are thin or missing.
 - Depth labels → [contents.md](./contents.md) § Depth labels.
 - When changing a task family, run that package tree (`./worker/tasks/esi/`, `./worker/tasks/sde/...`) before the full `./worker/...` suite.
 - Planner session upkeep is not the worker's: the orphan refresh-token sweep runs on a `core` singleton lease — see [core.md](./core.md) and [shared.md](./shared.md).
+- The ESI rate limiter is not the worker's: the buckets, the allowance learned from headers and the slot ledger live in `services/shared/esiclient` — see [shared.md](./shared.md).
 - The market lifecycle test is what an object-store-backed test needed a `MemoryBackend` to run at all — package tests under `services/shared/core/objectstore` skip without a live store; see [shared.md](./shared.md).

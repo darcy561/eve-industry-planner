@@ -30,7 +30,7 @@ the footer, the offer strip — reads its output rather than recomputing.
 
 The panel header carries the **pricing order type** (`buy`, `sell`, `buyP95`, `sellP05`) and the **hub**
 together, since both decide what a row's buy figure is. `Styled Components/Select/pricingOrderType.jsx`
-shows each mode with what it does to this job's total; `Functions/MarketData/materialPricing.js`
+shows each mode with what it does to this job's total; `Functions/MarketData/defaults/materialPricing.js`
 computes those totals, honouring a row's own override on every candidate, and reports the age of the
 stalest price behind the total — the server refreshes on a period of hours, so a total is only as
 fresh as its oldest input.

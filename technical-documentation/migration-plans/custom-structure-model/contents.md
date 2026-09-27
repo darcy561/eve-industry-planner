@@ -23,8 +23,8 @@ in the browser on the reader's own characters.
 **A market has left this model.** [market-locations](../market-locations/contents.md) moved a saved
 market onto its own lane with its own panel — a reversal of where a market row lives, not of this
 project's finding that the four build kinds belong in one class. That project has promoted, which is
-what this one waited on: see [plan.md](./plan.md) § What it waits on. What is left here is the four
-build kinds.
+what this one waited on, so the gate has cleared and this one is ready to promote — see
+[plan.md](./plan.md) § Status. What is left here is the four build kinds.
 
 **Not live SoT** until this project is complete and promotion is approved.
 
@@ -41,8 +41,9 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   and not scheduled by this project.
 - **Pricing against a saved market**, including whether a citadel can be a market source and what
   `priceHub` means once a structure can be priced directly →
-  [market-price-delivery/contents.md](../market-price-delivery/contents.md). That project waits on a
-  saved location being able to *be* a market, which is a kind this model makes expressible.
+  [market-price-delivery/contents.md](../market-price-delivery/contents.md). That project waited on a
+  saved location being able to *be* a market, which is a kind this model made expressible, and has
+  since promoted.
 - **What a sale costs** — broker fees, sales tax, the owner's rate →
   [planning-stage-panels/contents.md](../planning-stage-panels/contents.md), which handed the
   `SaleStructure` shape over as a proposal rather than a decision.

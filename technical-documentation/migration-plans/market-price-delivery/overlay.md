@@ -39,7 +39,7 @@ and a station to filter to, and `DEFAULT_MARKET_OPTION` names one of the markets
 
 ### A2-A4 — The registry, and what reads it
 
-`Functions/MarketData/marketSources.js` owns the registry. `allMarketSources()` is what every caller
+`Functions/MarketData/registry/marketSources.js` owns the registry. `allMarketSources()` is what every caller
 reads; `sourceIn` and `sourceNameIn` are the questions asked of it, and `SOURCE_KIND` marks which
 kind a source is. `Hooks/Static/useMarketSources.js` wraps it for components and offers
 `readMarketSources()` for callers outside render — the same hook-plus-imperative pair
@@ -241,7 +241,7 @@ nothing here reintroduces it.
 Any held type answers the clock as well as any other, so the probe takes whichever the cache lists
 first rather than naming a sentinel type id that would be a magic constant.
 
-`Functions/MarketData/priceRefreshSchedule.js` paces it, started from `index.jsx` beside
+`Functions/MarketData/prices/priceRefreshSchedule.js` paces it, started from `index.jsx` beside
 `startStaticDataSync` and **not owned by any component**. A price is read by panels, by classes and by
 reducers that never render, so what keeps prices current cannot belong to whichever screen happens to
 be mounted — it runs whether or not anything is looking, and a route change that unmounts the shell
@@ -338,7 +338,7 @@ accessor and the two ways of asking, and what became of `worldData.marketData` a
 
 ### D1 — The tier beneath the cache
 
-`Functions/MarketData/priceStore.js` holds rows for reader-saved markets on `idb-keyval`, and it sits
+`Functions/MarketData/prices/priceStore.js` holds rows for reader-saved markets on `idb-keyval`, and it sits
 **beneath** the query cache rather than beside it: a miss falls through to disk before reaching the
 network, and a resolve writes both. `resolvePrice` in `priceCache.js` is the only seam it enters at,
 so the accessor, the wrapper query and Stage C's clock machinery all carry on knowing nothing about
@@ -397,7 +397,7 @@ running app reaches a saved source until Stage F stores one.
 
 ### E1 — The derivation, held to the server's by a fixture
 
-`Functions/MarketData/pricesFromOrders.js` turns a market's orders into the four
+`Functions/MarketData/prices/pricesFromOrders.js` turns a market's orders into the four
 prices: the location filter, the buy and sell split, best bid and ask, and the
 nearest-rank percentiles with the under-five fallback.
 `testing/fixtures/market-derivation/orders.json` is written from the server's own
@@ -502,7 +502,7 @@ to one function without touching the loader.
 Every other test on this path stands something in — the endpoint client, the
 loader, the cache or the accessor. Each is right to, but the result was that
 nothing said a price actually arrives:
-`Functions/MarketData/priceDelivery.e2e.test.jsx` mocks `fetch` and nothing else,
+`Functions/MarketData/prices/priceDelivery.e2e.test.jsx` mocks `fetch` and nothing else,
 so the real client parses, the real loader batches, the real cache holds, and a
 component draws synchronously the way every priced surface does.
 
@@ -950,10 +950,11 @@ one station. Without that, § G1's "a worker without object storage still works"
 decoded leniently, so a walk queued by the previous release still runs — the field is ignored and the
 region is walked. `routing_test.go` decodes that old payload deliberately, for that reason.
 
-**Still open in Stage G:** a station is tracked only by the scheduler seeding the hubs. Registering a
-reader-saved station on first ask, sweeping every region a reader has asked about rather than
-`DefaultMarketLocations`, and the retention callers (`DropStationsAskedBefore` and
-`DropRegionsOlderThan` have no caller yet) are the next slice.
+**What was open at G2 closed in G3**, and is recorded there: a station was tracked only by the
+scheduler seeding the hubs, the sweep read `DefaultMarketLocations` rather than the regions a reader
+had asked about, and `DropStationsAskedBefore` and `DropRegionsOlderThan` had no caller. Registration
+now happens where the account is known, the sweep reads the tracked-region registry, and
+`retireUnaskedMarkets` calls both.
 
 ### G3 — A market is tracked because an account saved it
 
@@ -1148,7 +1149,7 @@ market holds.
 
 ### H2 — One type's orders, selected from what is held
 
-`Functions/MarketData/ordersAtCitadels.js` selects a type out of the stored orders;
+`Functions/MarketData/citadels/ordersAtCitadels.js` selects a type out of the stored orders;
 `Hooks/React Query/World/citadelOrders.js` puts a surface behind it, shaped like `useMarketData` is
 for a region so a surface drawing both is handed the same thing twice.
 
@@ -1176,7 +1177,7 @@ says.
 
 ### H3 — A region and the private markets inside it, shown as one market
 
-`Functions/MarketData/regionOrderMerge.js` merges the two, and `useMarketData` is where they meet —
+`Functions/MarketData/citadels/regionOrderMerge.js` merges the two, and `useMarketData` is where they meet —
 in the hook rather than in the dialogue, so everything drawing a region's orders is handed the whole
 region rather than its public half. The Market Data dialogue, its only caller, changed not at all.
 

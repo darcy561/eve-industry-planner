@@ -418,6 +418,9 @@ somewhere else to be managed, so the move (Stage B) and the panel (Stage C) are 
 **So the order is A, B and C here, then custom-structure-model promotes** describing the four build
 kinds it actually keeps. Stage D can follow that promotion.
 
+**That order has run.** A, B, C and D have landed and this project has promoted, so nothing stands in
+front of custom-structure-model's promotion any longer — its plan says so in § Status.
+
 **[market-price-delivery](../market-price-delivery/contents.md) is coupled more loosely and is not a
 gate.** Its registry reads saved markets out of `customStructures` today, so Stage B changes where
 `allMarketSources()` looks — one fact in that project's overlay rather than its substance, which is

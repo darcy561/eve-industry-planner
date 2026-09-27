@@ -88,7 +88,7 @@ from the market panel's kebab menu, and the resolved pair still prints as captio
 
 What has landed is the replacement, unmounted. `Styled Components/Select/pricingOrderType.jsx` is a header
 control that offers the four modes each with its own total and how far that sits from the mode in
-effect, so a percentile stops reading as jargon. `Functions/MarketData/materialPricing.js` computes
+effect, so a percentile stops reading as jargon. `Functions/MarketData/defaults/materialPricing.js` computes
 those totals — honouring a row's own override on every candidate, since an override outranks the panel
 default — and answers whether a row is an estimate, part paid, or paid in full.
 

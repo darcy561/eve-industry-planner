@@ -37,8 +37,9 @@ been read it falls back to the account's own lane, so a reader part-way through 
 offered the markets they saved rather than none — but the steady state includes what a corporation
 or alliance shared with them, and a surface offering markets gets those without knowing it.
 
-`Hooks/Static/useMarketSources.js` wraps it for components; `readMarketSources()` is the imperative
-form for a caller outside render — a class, a reducer, anything that cannot call a hook. `sourceIn`
+`Hooks/Static/useMarketSources.js` wraps it for components, so a surface re-renders when the set
+moves. A caller outside render — a class, a reducer, anything that cannot call a hook — calls
+`allMarketSources()` itself, which is a plain function and needs no imperative twin. `sourceIn`
 and `sourceNameIn` answer questions about the registry; `SOURCE_KIND` marks which kind a source is.
 
 **Nothing in the store holds this list.** `allMarketSources()` is a plain function, not a Zustand

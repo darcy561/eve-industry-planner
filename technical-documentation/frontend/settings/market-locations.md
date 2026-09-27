@@ -139,7 +139,7 @@ constant, on the pattern the trading-hub list already uses.
 | `Functions/MarketData/registry/marketSources.js` | `SOURCE_KIND`, `allMarketSources`, kind traits |
 | `Functions/MarketData/registry/marketLocations.js` | The composed-set cache entry, `marketsToOffer`, `refreshMarketLocationsAfterWrite` |
 | `Functions/MarketData/registry/marketReadOutcome.js` | The four read outcomes, and which a reader can act on |
-| `Hooks/Static/useMarketSources.js` | `useMarketSources`, `readMarketSources` |
+| `Hooks/Static/useMarketSources.js` | `useMarketSources`, the subscribing read for components |
 | `Components/Settings/Standard Layout/Market Locations/marketLocationsFrame.jsx` | The tab: table, add form, priced-against, unsaved-citadel fee |
 | `.../marketRows.js` | Wording a row: labels, `readProblem` |
 | `.../marketSummary.js` | `summariseMarket`, `lastReadMoment` |

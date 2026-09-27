@@ -381,7 +381,7 @@ but nothing above the registry may assume the set is those four, or that a sourc
 
    | Reader | |
    |--------|--|
-   | `Functions/MarketData/marketLinkTarget.js` | **New, and the reason the count fell.** The market data and market history icon and typography components each resolved their own link target; they now all call this |
+   | `Functions/MarketData/registry/marketLinkTarget.js` | **New, and the reason the count fell.** The market data and market history icon and typography components each resolved their own link target; they now all call this |
    | `Zustand/worldDataSlice/marketData.js` | |
    | `Styled Components/Select/marketLocation.jsx` | |
    | `Styled Components/LineGraph/priceHistory.jsx` | |
@@ -545,7 +545,7 @@ a second one.
    scope, and refuses to cache a transient failure as an answer. One clock for the whole source.
 4. ~~Each source refreshed on its own ESI expiry rather than on demand, so a panel pricing its first
    material does not pay for a whole-market walk. **Its home exists:**
-   `Functions/MarketData/priceRefreshSchedule.js`, started from `index.jsx` and owned by no component
+   `Functions/MarketData/prices/priceRefreshSchedule.js`, started from `index.jsx` and owned by no component
    — see [overlay.md](./overlay.md) § C2. Add each source's expiry there rather than building a second
    mechanism beside the fetching.~~ Done, in that home: a citadel is read again on its own turn, once
    an hour, and one moment recorded per market is what the tick reads to decide whose turn has come —

@@ -24,7 +24,5 @@ beneath them. The behaviour itself is
 
 ## What is not covered
 
-`useWatchlistPricing` and `Styled Components/Select/applicationSettingsMarketUtils.js` have no test of
-their own; both are exercised only through their callers — the watchlist panel and the two
-application-settings select variants respectively — so a mistake in either is caught only if a caller
-happens to render a value that depends on it.
+`useWatchlistPricing` has no test of its own; it is exercised only through its caller, the watchlist
+panel, so a mistake in it is caught only if that panel happens to render a value depending on it.

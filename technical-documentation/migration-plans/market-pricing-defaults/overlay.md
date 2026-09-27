@@ -31,7 +31,7 @@ a schema step, and what stops writing the single pair.
 
 ### A2 — Asking for a side
 
-`resolvePricingSide({jobPricing, accountPricing, side})` in `Functions/MarketData/pricingSide.js` is
+`resolvePricingSide({jobPricing, accountPricing, side})` in `Functions/MarketData/defaults/pricingSide.js` is
 the whole ladder below a material's own override: the job's choice, then the account's, then the
 global default. Market and order type resolve independently, so a job naming a market without an order type keeps
 the account's order type rather than losing it, and an empty value is not a choice at any rung.
@@ -220,7 +220,7 @@ did before the rung existed rather than answering from half the data.
 browser before anything read it.
 
 **The rung needs a synchronous read, so the tree is held outside React Query.**
-`Functions/MarketData/marketGroupData.js` holds the tree and the item list, primed once from
+`Functions/MarketData/defaults/marketGroupData.js` holds the tree and the item list, primed once from
 `useFetchStaticDataFiles` beside the existing refresh. Reading is then a plain lookup that reports
 absence. This is not a second cache of the files — it is a synchronous view onto the same Cache API
 payloads, which the rung cannot do without: the walk runs per material on every row of every job, and
@@ -389,7 +389,7 @@ Work the stages left behind, folded back together once the surface had settled.
 The four price-link components — `Typography/marketData`, `IconButton/marketData` and the two
 `marketHistory` twins — each carried a verbatim copy of the same fallback: no market given, so resolve
 the account's default for the side being priced, then look the id up in `MARKET_OPTIONS`. Comment
-included. That rule now lives once, in `Functions/MarketData/marketLinkTarget.js`, which the four call.
+included. That rule now lives once, in `Functions/MarketData/registry/marketLinkTarget.js`, which the four call.
 
 It matters beyond tidiness because [market-price-delivery](../market-price-delivery/contents.md) retires
 `MARKET_OPTIONS` for a source registry admitting reader-saved markets. That change had four landing

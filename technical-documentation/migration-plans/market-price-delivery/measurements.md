@@ -62,7 +62,7 @@ Components/Edit Job/.../Materials And Sourcing/Helpers/marketLabelHelpers.js
 Components/Edit Job/.../Returns/saleLocationRates.jsx
 Components/Edit Job/.../Market Costs Panel/marketCostsPanel.jsx
 Components/Reprocessing/basicMineralOutput.jsx
-Functions/MarketData/marketPriceForType.js
+Functions/MarketData/prices/marketPriceForType.js
 Functions/MarketOrders/saleLocations.js
 Styled Components/IconButton/marketData.jsx
 Styled Components/IconButton/marketHistory.jsx

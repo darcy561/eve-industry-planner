@@ -1440,7 +1440,7 @@ panel on the page has asked about.
 Stage J retired the mobile panel, which is what left the four shared helpers with one consumer each and
 so with a home to go to. `Material Prices/` and `Resources Panel/` are both gone.
 
-`marketPriceHelpers` became `Functions/MarketData/marketPriceForType.js` — it is a store lookup rather
+`marketPriceHelpers` became `Functions/MarketData/prices/marketPriceForType.js` — it is a store lookup rather
 than a component helper, and three panel folders read it. The other three went to
 `Materials And Sourcing/Helpers/`, where every consumer now lives.
 
