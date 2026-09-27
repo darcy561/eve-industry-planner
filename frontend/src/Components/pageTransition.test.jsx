@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
-import { useEffect } from "react";
+import { startTransition, useEffect } from "react";
+import { stubViewTransitions } from "../tests/viewTransitions";
 import PageTransition, { usePageKey } from "./pageTransition";
 
 function view(key, body) {
@@ -13,8 +14,6 @@ describe("swapping full-page content", () => {
     vi.useRealTimers();
   });
 
-  // A page being left must unmount at once: holding it through a fade keeps its
-  // effects running and its document locks held.
   test("the outgoing content is gone as soon as the key changes", () => {
     const { rerender } = render(view("/a", <div>page a</div>));
     expect(screen.getByText("page a")).toBeTruthy();
@@ -25,8 +24,6 @@ describe("swapping full-page content", () => {
     expect(screen.getByText("page b")).toBeTruthy();
   });
 
-  // Opening a child job from an open one changes a param, not the page; the
-  // route keeps its mount rather than tearing down and re-running its setup.
   test("content changing under the same key is not remounted", () => {
     const mounted = vi.fn();
     function Child({ label }) {
@@ -41,11 +38,7 @@ describe("swapping full-page content", () => {
     expect(mounted).not.toHaveBeenCalled();
   });
 
-  // The arriving page must not be the thing that gets faded out. Sharing a
-  // surface across the swap hands it the opacity the page before it left
-  // behind, so the only route to a hidden frame is to animate the new page
-  // away and bring it back — which shows it, takes it away, and returns it.
-  test("the incoming content is not the thing being faded", () => {
+  test("the incoming content is not the surface the outgoing content used", () => {
     const { rerender } = render(view("/a", <div>page a</div>));
     const leaving = screen.getByText("page a").parentElement;
 
@@ -53,16 +46,73 @@ describe("swapping full-page content", () => {
     const arriving = screen.getByText("page b").parentElement;
 
     expect(arriving).not.toBe(leaving);
-    expect(arriving.style.opacity).not.toBe("0");
   });
 
-  test("the incoming content ends up visible", () => {
+  test("the incoming content is visible as soon as it renders", () => {
+    const { rerender } = render(view("/a", <div>page a</div>));
+    rerender(view("/b", <div>page b</div>));
+
+    expect(screen.getByText("page b")).toBeVisible();
+  });
+
+  test("the incoming content is still visible once any animation is over", () => {
     const { rerender } = render(view("/a", <div>page a</div>));
     rerender(view("/b", <div>page b</div>));
 
     act(() => vi.advanceTimersByTime(1000));
 
-    expect(screen.getByText("page b").parentElement.style.opacity).toBe("1");
+    expect(screen.getByText("page b")).toBeVisible();
+  });
+});
+
+describe("what animates the swap", () => {
+  let viewTransitions;
+
+  beforeEach(() => {
+    viewTransitions = stubViewTransitions();
+  });
+  afterEach(() => viewTransitions.restore());
+
+  async function navigate(rerender, to) {
+    await act(async () => {
+      startTransition(() => rerender(view(to, <div>{to}</div>)));
+    });
+  }
+
+  test("a navigation runs one view transition", async () => {
+    const { rerender } = render(view("/a", <div>/a</div>));
+
+    await navigate(rerender, "/b");
+
+    expect(viewTransitions.started).toHaveLength(1);
+  });
+
+  test("the surface holding the outgoing page is the thing it animates", async () => {
+    const { rerender } = render(view("/a", <div>/a</div>));
+    const leaving = screen.getByText("/a").parentElement;
+
+    await navigate(rerender, "/b");
+
+    expect(viewTransitions.started[0].namedBefore).toEqual([leaving]);
+  });
+
+  test("the surface holding the incoming page is named too", async () => {
+    const { rerender } = render(view("/a", <div>/a</div>));
+
+    await navigate(rerender, "/b");
+    const arriving = screen.getByText("/b").parentElement;
+
+    expect(viewTransitions.started[0].namedAfter).toEqual([arriving]);
+  });
+
+  test("a change under the same key is not a page swap", async () => {
+    const { rerender } = render(view("/a", <div>/a</div>));
+
+    await act(async () => {
+      startTransition(() => rerender(view("/a", <div>/a</div>)));
+    });
+
+    expect(viewTransitions.started).toHaveLength(0);
   });
 });
 
@@ -83,7 +133,6 @@ describe("the page key", () => {
     return seen;
   }
 
-  // Opening a child job from an open one changes the path but not the page.
   test("is the route pattern, so a param change is not a page change", () => {
     expect(keyFor([{ routeId: "/editjob/$jobID" }])).toBe("/editjob/$jobID");
   });

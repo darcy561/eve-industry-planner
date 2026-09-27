@@ -1,4 +1,5 @@
 import CssBaseline from "@mui/material/CssBaseline";
+import GlobalStyles from "@mui/material/GlobalStyles";
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { PlannerDnDProvider } from "./Context/PlannerDnDProvider";
@@ -11,8 +12,9 @@ import { appRouter } from "./appRouter";
 import { enableGa4WebVitals } from "./analytics/googleAnalytics";
 import useUsersStore from "./Zustand/usersStore";
 import { ThemeProvider } from "./Context/ThemeContext";
+import { viewTransitionStyles } from "./Context/viewTransitionStyles";
 
-// Lazy load React Query DevTools when ENVIRONMENT=development (see vite.config define + root .env)
+/** React Query's devtools, loaded only in a development build. */
 const ReactQueryDevtools =
   import.meta.env.ENVIRONMENT === "development"
     ? lazy(() =>
@@ -28,7 +30,6 @@ export function AppWrapper() {
   useEffect(() => {
     if (accountID) {
       const id = String(accountID);
-      // Sentry often labels events as "Anonymous" when only `id` is set; `username` drives display.
       setUser({ id, username: id });
     } else {
       setUser(null);
@@ -41,10 +42,9 @@ export function AppWrapper() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Above the router: it renders a pending screen while the root route's own
-          guard is still running, and that screen is the reader's app too. */}
       <ThemeProvider>
         <CssBaseline />
+        <GlobalStyles styles={viewTransitionStyles} />
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <PlannerDnDProvider>
             <RouterProvider router={appRouter} />

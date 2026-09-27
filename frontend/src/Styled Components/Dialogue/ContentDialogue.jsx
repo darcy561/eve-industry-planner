@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import {
   Box,
   Dialog,
@@ -290,38 +290,40 @@ export default function ContentDialogue({
     : null;
 
   const dialogueNode = (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth={maxWidth}
-      fullWidth={fullWidth}
-      sx={[appShellDialogueSx, dialogueSx]}
-      slotProps={mergedSlotProps}
-      {...rest}
-    >
-      {title ? (
-        <DialogTitle
-          color={useAppShellDesign ? "text.primary" : "primary"}
-          align="center"
-          sx={{
-            ...(useAppShellDesign
-              ? {
-                  px: { xs: 2, md: 3 },
-                  py: 2,
-                  borderBottom: (theme) =>
-                    `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                }
-              : {}),
-            ...dialogueTitleProps?.sx,
-          }}
-          {...dialogueTitleProps}
-        >
-          {title}
-        </DialogTitle>
-      ) : null}
-      {helper}
-      {body}
-    </Dialog>
+    <ViewTransition enter="none" update="none">
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth={maxWidth}
+        fullWidth={fullWidth}
+        sx={[appShellDialogueSx, dialogueSx]}
+        slotProps={mergedSlotProps}
+        {...rest}
+      >
+        {title ? (
+          <DialogTitle
+            color={useAppShellDesign ? "text.primary" : "primary"}
+            align="center"
+            sx={{
+              ...(useAppShellDesign
+                ? {
+                    px: { xs: 2, md: 3 },
+                    py: 2,
+                    borderBottom: (theme) =>
+                      `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                  }
+                : {}),
+              ...dialogueTitleProps?.sx,
+            }}
+            {...dialogueTitleProps}
+          >
+            {title}
+          </DialogTitle>
+        ) : null}
+        {helper}
+        {body}
+      </Dialog>
+    </ViewTransition>
   );
 
   if (withSuspense) {

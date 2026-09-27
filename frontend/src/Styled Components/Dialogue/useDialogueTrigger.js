@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { startTransition, useCallback, useMemo, useState } from "react";
 
 /**
  * Open state for a dialogue driven by the component that owns it, as
@@ -14,7 +14,7 @@ export function useDialogueTrigger() {
   const [isOpen, setIsOpen] = useState(false);
 
   const open = useCallback(() => setIsOpen(true), []);
-  const close = useCallback(() => setIsOpen(false), []);
+  const close = useCallback(() => startTransition(() => setIsOpen(false)), []);
 
   return useMemo(
     () => ({

@@ -1,7 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { act, render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import ContentDialogue from "./ContentDialogue";
+import { useState } from "react";
+import ContentDialogue, {
+  DialogueCloseAction,
+  useDialogueTrigger,
+} from "./ContentDialogue";
+import { stubViewTransitions } from "../../tests/viewTransitions";
 
 const theme = createTheme();
 const bodyRenders = { count: 0 };
@@ -66,5 +71,84 @@ describe("the shared dialogue shell", () => {
     show({ open: true, actions: <button>Close</button> });
 
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+});
+
+describe("what animates a dialogue", () => {
+  let viewTransitions;
+
+  beforeEach(() => {
+    viewTransitions = stubViewTransitions();
+  });
+  afterEach(() => viewTransitions.restore());
+
+  function Harness() {
+    const dialogue = useDialogueTrigger();
+    const [note, setNote] = useState("one");
+    return (
+      <>
+        <button onClick={dialogue.open}>open it</button>
+        <ContentDialogue
+          {...dialogue.dialogueProps}
+          title="A Dialogue"
+          actions={<DialogueCloseAction onClose={dialogue.close} />}
+        >
+          <p>{note}</p>
+          <button onClick={() => setNote("two")}>change it</button>
+        </ContentDialogue>
+      </>
+    );
+  }
+
+  async function press(name) {
+    await act(async () => screen.getByRole("button", { name }).click());
+  }
+
+  function showHarness() {
+    return render(
+      <ThemeProvider theme={theme}>
+        <Harness />
+      </ThemeProvider>,
+    );
+  }
+
+  it("leaves the opening to MUI", async () => {
+    showHarness();
+
+    await press("open it");
+
+    expect(viewTransitions.started).toHaveLength(0);
+  });
+
+  it("does not animate a dialogue that is only changing", async () => {
+    showHarness();
+    await press("open it");
+
+    await press("change it");
+
+    expect(screen.getByText("two")).toBeInTheDocument();
+    expect(viewTransitions.started).toHaveLength(0);
+  });
+
+  it("animates the closing dialogue as one surface, backdrop included", async () => {
+    showHarness();
+    await press("open it");
+    const paper = document.querySelector(".MuiDialog-paper");
+
+    await press("Close");
+
+    expect(viewTransitions.started).toHaveLength(1);
+    const [named] = viewTransitions.started[0].namedBefore;
+    expect(named).toHaveClass("MuiDialog-root");
+    expect(named.contains(paper)).toBe(true);
+  });
+
+  it("has taken the dialogue away by the time it animates", async () => {
+    showHarness();
+    await press("open it");
+
+    await press("Close");
+
+    expect(screen.queryByText("one")).toBeNull();
   });
 });
