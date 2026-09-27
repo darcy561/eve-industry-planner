@@ -883,6 +883,33 @@ install costs was missing. A reader with no saved structure of that kind saw it 
 The predicate already drew the distinction the row needed: no id at all is not an orphan. Its test
 covers all three states, and the middle one fails against the previous reading.
 
+### One reading of whether a setup uses a saved structure
+
+`setupShowsManualStructureFields` decides it everywhere a setup's structure is shown or edited. The
+Planning setup card and the Purchasing info frame each branched on `customStructureID !== ""` instead,
+which disagreed with it about a **deleted** structure: those two treated the reference as live and
+printed "Missing Structure" in place of a name, while the Edit Setup panel and the watchlist treated it
+as manual and showed the fields.
+
+**What a deleted structure shows now:** the figures the job was built with — its structure type, both
+rigs, security and system, which are still stored on the setup — plus a warning beside them saying the
+structure has been deleted and that these are the values it was built with. Neither of the previous
+readings did that: one hid the figures behind a label naming nothing, the other said nothing was wrong.
+`Styled Components/Item/missingStructureNotice.jsx` is the one copy of that warning, and the
+"Missing Structure" literal is gone from both frames — the custom-structure branch now only renders when
+the structure resolves, so it has no missing case to name. The picker's own "(missing structure)" row
+stays: a picker has to show *something* for a value it cannot name.
+
+**It also took a crash out of reach.** Sending a deleted reference down the default-fields path meant
+those fields had to survive ids the tables do not carry, and they did not — `structureTypeData.label`
+and `systemTypeData.label` were read straight off a lookup that answers `null`. Both read as "Unknown"
+now, which is the same rule the SPA already applies to a location it cannot name.
+
+`tests/editJobFixtures.js` was describing a setup that cannot exist: no `systemTypeID`, no
+`customStructureID`, and a `rigID` that Stage BR removed. It carries both rig slots, its kind's system
+type and an empty structure reference, which is what a real stored setup holds. The setup card's own
+figure is unchanged, the fixture charging no facility tax.
+
 ### Still open in this stage's area
 
 **A cross-kind structure reference reads two ways, and nothing can create one.**

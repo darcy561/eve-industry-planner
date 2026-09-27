@@ -82,3 +82,54 @@ describe("a card for one of the job's setups", () => {
     ]);
   });
 });
+
+const SAVED = {
+  id: "manStruct-saved",
+  jobType: 1,
+  name: "Sotiyo",
+  structureType: 0,
+  systemType: 0,
+  rigSlot1: 0,
+  rigSlot2: 0,
+  tax: 0,
+};
+
+function savedStructures(rows) {
+  const { customStructures } = useUsersStore.getState().applicationSettings;
+  customStructures.length = 0;
+  customStructures.push(...rows);
+}
+
+function notice() {
+  return screen.queryByTestId("WarningAmberIcon");
+}
+
+describe("which structure a setup card says it was built in", () => {
+  it("names the saved structure while it is still saved", () => {
+    savedStructures([SAVED]);
+
+    show({ ...storedSetup(), customStructureID: SAVED.id });
+
+    expect(screen.getByText(SAVED.name)).toBeInTheDocument();
+    expect(notice()).not.toBeInTheDocument();
+  });
+
+  it("shows what the job was built with, and flags it, once the structure is deleted", () => {
+    savedStructures([]);
+
+    show({ ...storedSetup(), customStructureID: SAVED.id });
+
+    expect(screen.queryByText(SAVED.name)).not.toBeInTheDocument();
+    expect(screen.getByText("NPC Station")).toBeInTheDocument();
+    expect(notice()).toBeInTheDocument();
+  });
+
+  it("flags nothing when the setup never named a structure", () => {
+    savedStructures([]);
+
+    show({ ...storedSetup(), customStructureID: "" });
+
+    expect(screen.getByText("NPC Station")).toBeInTheDocument();
+    expect(notice()).not.toBeInTheDocument();
+  });
+});

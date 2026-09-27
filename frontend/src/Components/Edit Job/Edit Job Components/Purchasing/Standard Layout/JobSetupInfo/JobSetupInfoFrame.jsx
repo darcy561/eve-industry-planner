@@ -12,6 +12,13 @@ import { formatNumberForLocale } from "../../../../../../Functions/Helper/number
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
 import rigSlotLabel from "../../../../../../Functions/Custom Structures/rigSlotLabel";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
+import {
+  setupHasOrphanedCustomStructure,
+  setupShowsManualStructureFields,
+} from "../../../../../../Functions/Custom Structures/customStructureSetup";
+import MissingStructureNotice from "../../../../../../Styled Components/Item/missingStructureNotice";
+
+const UNREADABLE = "Unknown";
 
 export default function JobSetupInfoFrame() {
   const setups = useJobDraft((job) => job.build.setup);
@@ -59,6 +66,8 @@ export default function JobSetupInfoFrame() {
 }
 
 function JobSetupItem({ setupEntry }) {
+  const { getCustomStructureWithID } =
+    useUsersStore.getState().applicationSettings.actions;
   const itemsProducedPerRun = useJobDraft((job) => job.itemsProducedPerRun);
   const quantityProduced =
     itemsProducedPerRun * setupEntry.runCount * setupEntry.jobCount;
@@ -168,10 +177,13 @@ function JobSetupItem({ setupEntry }) {
             </Box>
           </Box>
 
-          {setupEntry.customStructureID !== "" ? (
-            <UseCustomStructure setupEntry={setupEntry} />
-          ) : (
+          {setupShowsManualStructureFields(
+            setupEntry,
+            getCustomStructureWithID,
+          ) ? (
             <UseDefaultStructures setupEntry={setupEntry} />
+          ) : (
+            <UseCustomStructure setupEntry={setupEntry} />
           )}
 
           <Box>
@@ -220,9 +232,7 @@ function UseCustomStructure({ setupEntry }) {
             typography: STANDARD_TEXT_FORMAT,
           }}
         >
-          {assignedStructureData
-            ? assignedStructureData.name
-            : "Missing Structure"}
+          {assignedStructureData.name}
         </Typography>
       </Tooltip>
     </Box>
@@ -230,6 +240,13 @@ function UseCustomStructure({ setupEntry }) {
 }
 
 function UseDefaultStructures({ setupEntry }) {
+  const { getCustomStructureWithID } =
+    useUsersStore.getState().applicationSettings.actions;
+  const structureWasDeleted = setupHasOrphanedCustomStructure(
+    setupEntry,
+    getCustomStructureWithID,
+  );
+
   const structureTypeData = getStructureInfoFromID(
     setupEntry.jobType,
     setupEntry.structureID,
@@ -266,6 +283,11 @@ function UseDefaultStructures({ setupEntry }) {
         justifyContent: "space-between",
       }}
     >
+      {structureWasDeleted && (
+        <Box sx={{ display: "flex", justifyContent: "center" }}>
+          <MissingStructureNotice />
+        </Box>
+      )}
       <Box
         sx={{
           display: "flex",
@@ -276,12 +298,12 @@ function UseDefaultStructures({ setupEntry }) {
       >
         <Box sx={{ flex: "1 1 calc(33.333% - 12px)", minWidth: 0 }}>
           <Typography align="center" sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {systemTypeData.label}
+            {systemTypeData?.label ?? UNREADABLE}
           </Typography>
         </Box>
         <Box sx={{ flex: "1 1 calc(33.333% - 12px)", minWidth: 0 }}>
           <Typography align="center" sx={{ typography: STANDARD_TEXT_FORMAT }}>
-            {structureTypeData.label}
+            {structureTypeData?.label ?? UNREADABLE}
           </Typography>
         </Box>
         <Box sx={{ flex: "1 1 calc(33.333% - 12px)", minWidth: 0 }}>

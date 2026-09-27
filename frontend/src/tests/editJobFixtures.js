@@ -141,17 +141,20 @@ export function plannerJob(
 }
 
 /**
- * One of the job's build setups, carrying what the setup card reads: the panel
- * looks its structure and system up in maps keyed on the setup's own job type,
- * so a setup without one resolves to nothing and the card throws.
+ * One of the job's build setups, carrying what the setup card reads: its
+ * structure, both rig slots and its system are looked up by the setup's own kind.
  */
 export function setupFixture(id) {
   return {
     id,
     jobType: 1,
+    customStructureID: "",
     structureID: 0,
-    rigID: 0,
+    rigSlot1: 0,
+    rigSlot2: 0,
+    systemTypeID: 0,
     systemID: 0,
+    taxValue: 0,
     selectedCharacter: "builder",
     rawTime: 10000,
     TE: 0,
