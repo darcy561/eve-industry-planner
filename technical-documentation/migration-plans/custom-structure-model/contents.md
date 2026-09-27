@@ -42,6 +42,9 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   data never recorded a family. Giving manufacturing an item-family vocabulary and reading a rig
   against what is being built is [plan.md](./plan.md) § Stage BR2 — named there for what it inherits,
   and not scheduled by this project.
+- **What a requirement is, and where it is read.** Replacing the `requirements` table with per-rig
+  security maps and a declared constraint list is [plan.md](./plan.md) § Stage BR3 — named there the
+  same way, for what it inherits, and not scheduled by this project.
 - **Pricing against a saved market**, including whether a citadel can be a market source and what
   `priceHub` means once a structure can be priced directly →
   [market-price-delivery/contents.md](../market-price-delivery/contents.md). That project waited on a
@@ -73,6 +76,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know why a structure carries two rig slots rather than one combined rig | [plan.md](./plan.md) § Stage BR, [overlay.md](./overlay.md) § Rigs became slots on every kind |
 | Find the UI and job-setup work the rig change still needs | [plan.md](./plan.md) § Stage BR |
 | Know why every rig applies to all items, and what reading one against an item would take | [plan.md](./plan.md) § Stage BR2, [overlay.md](./overlay.md) § What a rig applies to |
+| Know why a rig's security multipliers, and a structure's legality rules, do not belong in the requirements table | [plan.md](./plan.md) § Stage BR3 |
 | Know why the SPA stops holding a structure as a class, and what replaces it | [plan.md](./plan.md) § Stage E |
 | Understand how the Reprocessing page came to edit a saved structure | [measurements.md](./measurements.md) § The reprocessing page edits the saved structure |
 | Size what the conversion touches | [measurements.md](./measurements.md) § What holds a structure as an instance |

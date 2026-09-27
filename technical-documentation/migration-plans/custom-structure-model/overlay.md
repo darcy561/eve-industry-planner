@@ -433,11 +433,10 @@ calculations, and the tax and rig rules.
 
 ### Still to do
 
-*Nothing outstanding in Stages A to D.* **Stage E is open**: the array is right and the class holding
-each row is not, and the Reprocessing page edits the reader's saved structure in place because of it —
-[plan.md](./plan.md) § Stage E, measured in [measurements.md](./measurements.md) § The reprocessing page
-edits the saved structure. What is written below describes the class while it is still what the SPA
-holds; it is rewritten as that stage lands. Stage BR2 remains and is not scheduled here.
+*Nothing outstanding in Stages A to E.* Stage E has landed, so a structure is a row read and changed by
+functions and no class holds one — what this stage's sections say about the class is what the SPA held
+while it did, and § Stage E carries what replaced it. Stages BR2 and BR3 remain and are not scheduled
+here.
 
 ### The surfaces that write a rig
 
@@ -884,8 +883,8 @@ type are the ones no setup can reference, which is the finding above. The two ar
 
 ### The Reprocessing page holds its own copy of the structure it opens with
 
-`useReprocessingReducer` seeds `currentStructure` through `new Structure(...)`, so the page starts from a
-copy of the reader's saved default rather than from the stored row. The panel edits that copy in place as
+`useReprocessingReducer` seeds `currentStructure` through `structureFromDocument(...)`, so the page starts
+from a copy of the reader's saved default rather than from the stored row. The panel edits that copy in place as
 it always has, and nothing it does reaches the settings store.
 
 Before this, the seed took what `getDefaultCustomStructureWithJobType` returned, which is the row held in
@@ -901,8 +900,8 @@ what a blank structure is.
 `useReprocessingReducer.test.js` covers all three: the copy, that editing it leaves the saved row alone,
 and the blank fallback. Two of the three fail against the previous seed.
 
-**The rest of the stage is unstarted** — `Classes/structure.js` is still a class, and the aliasing this
-removed at one seed is still possible anywhere a row is handed from the store to a screen.
+This seed was fixed before the rest of the stage, which then removed the aliasing everywhere else by
+taking the class away — § What each caller does instead.
 
 ## Missing live SoT found on the way
 

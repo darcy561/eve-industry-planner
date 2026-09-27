@@ -3,8 +3,8 @@
 **Status:** Stages A, B, C, BR and D have landed, including the prerelease steps that convert stored
 documents, stored rig ids and a saved structure's rig. **Stage E has landed**: a structure is plain data,
 `Classes/structure.js` is deleted, and the reader-facing defect that came of a shared mutable row — the
-Reprocessing page editing the reader's saved structure — is fixed. Stage BR2 remains and is named here
-for what it inherits rather than owned here.
+Reprocessing page editing the reader's saved structure — is fixed. Stages BR2 and BR3 remain and are named
+here for what they inherit rather than owned here.
 
 **It is ready to promote**, and the drafts do not exist yet. Stage E was what promotion waited on,
 because it changes the same sentence those drafts would write about what the SPA holds; that sentence is
@@ -240,6 +240,58 @@ Two things it inherits and must handle: readers have been told by the form's own
 built as a workaround for the missing support; and a reader who fitted a generic rig means "I do not
 know which", not "it applies to everything".
 
+**Stage BR3 — A requirement belongs to the thing it describes.** `requirementID` points into a flat
+table of three entries and hangs off four different kinds of thing — a structure, a rig, a system type,
+and a system id through `systemStructureRequirements`. Those three entries do three unrelated jobs: two
+are legality constraints (The Fulcrum takes no rigs and sits in one system; an NPC station takes no
+rigs), and one is per-rig security data — rig 9's `alternativeSystemValue`, which ESI publishes as dogma
+attributes 2355/2356/2357 on type 45641.
+
+Two execution models read that table. `applyRequirements` writes the requirement's fields onto the
+stored setup at selection time and persists `appliedRequirementID`; `gatherRequirements` is meant to
+re-derive them at calculation time, letting the structure, the rig and the system each contribute. The
+first **persists game-derived facts**, which
+[planning-stage-panels/plan.md](../planning-stage-panels/plan.md) § What is stored, and where forbids —
+game constants live in the SPA, the player's choices live in the document. The second **does not work at
+all**: the rig axis is dead, so rig 9's security data reaches no calculation today —
+[job-document-drafts/plan.md](../job-document-drafts/plan.md) § A defect this found, which the cutover
+does not fix has why.
+
+And the rule is written twice: `Setup` holds one implementation and the Custom Structures
+`structureForm.jsx` holds its own `applyRequirements` beside it, while `virtualisedSystemSearch.jsx`
+reads the second table to decide which systems to offer.
+
+What would replace it:
+
+- **Security multipliers onto the rig row**, as a `security: { 0, 1, 2 }` map matching ESI's
+  `hiSecModifier` / `lowSecModifier` / `nullSecModifier`. `getSystemData` then reads the rig before the
+  system type, requirement 1 disappears, and the lookup that is missing has nothing left to find.
+  Carried **per axis** with `rigSlotBonuses`' winner, because each rig has its own modifier and one
+  figure for the whole setup is not what the game does.
+- **Constraints as one declared list** keyed on what a reader picks — `{ label, when, forces }` —
+  evaluated by a read-time selector rather than written onto the setup. One entry point instead of four,
+  nothing game-derived stored, and the same declaration locks the fields it forces so an illegal
+  combination is unreachable; today nothing stops a reader choosing The Fulcrum and then changing the
+  system.
+- **`systemStructureRequirements` derived** as the reverse index of that list rather than kept as a
+  second table, which is what removes the duplicate implementation in the settings form and the picker.
+- **`appliedRequirementID` removed** from the stored shape in both languages — it is written, persisted
+  and read by nothing.
+- **`manSystem` back to three security buckets.** Entry 3 "Zarzakh" conflates one system with a
+  security class. What the axis needs is the three buckets ESI names; Zarzakh's specialness is a
+  legality rule and belongs in the constraint list with the rest.
+
+**Wire:** the constraint list and the rig `security` maps are SPA-only. `appliedRequirementID` is a
+stored-shape removal and needs a prerelease step. **Stored `materialCount` moves**, because making rig
+9's multiplier reachable changes the material quantity a saved setup already holds — which is the gate
+that kept the defect from being taken during the job cutover. Recalculating is a `prepareRelease` step
+over stored setups, not an upgrader.
+
+**Not scheduled here, and it inherits three open questions.** Whether Zarzakh's rig multiplier is really
+1 rather than null sec's figure; whether EVE applies a security modifier per rig or one per structure,
+which the shape above assumes is per rig; and the two `taxValue: 0.25` entries, which could not be
+verified because ESI does not publish them.
+
 **Stage D — The kind that is a market. Done.** A saved location can be a market rather than only a
 selling point priced from a hub: the `jobType` value, the fields it needs, and the surface for saving
 one. This is the stage [market-price-delivery](../market-price-delivery/contents.md) was shelved on,
@@ -361,18 +413,18 @@ functions in `Functions/Custom Structures/customStructure.js`, with reprocessing
 `Functions/Reprocessing/structureBonuses.js` — [overlay.md](./overlay.md) § Stage E, which also records
 what was deleted rather than converted and the one duplicated rule left in the area.
 
-The model landed as one shape and one array, and
-`Classes/structure.js` is the last part of it still holding a row as a class instance with setters. The
-store holds instances, the screens that edit one mutate it and re-wrap it to force a render, and the
-write path re-wraps a row it already holds because it cannot assume what the store carries. One
-reader-facing defect follows directly from that, and is the reason this stage is worth its own slice
-rather than being left as tidying — § The defect this closes.
+Why the stage was needed: the model had landed as one shape and one array, and `Classes/structure.js`
+was the last part of it still holding a row as a class instance with setters. The store held instances,
+the screens that edited one mutated it and re-wrapped it to force a render, and the write path re-wrapped
+a row it already held because it could not assume what the store carried. One reader-facing defect
+followed directly from that, which is why this was its own slice rather than tidying — § The defect this
+closes.
 
 **This is not a sweep against classes.** [job-document-drafts](../job-document-drafts/plan.md) converted
 `Job` because `jobArray` held instances app-wide, which is what stopped an inbound delta being applied to
 the store, and that plan is explicit that row classes are the last to go and may not need to: they are
-cheap and read only their own fields. `Structure` fails that exemption on one specific count — it is
-**held in the store and edited by two screens**, so a mutable row is shared between them.
+cheap and read only their own fields. `Structure` failed that exemption on one specific count — it was
+**held in the store and edited by two screens**, so a mutable row was shared between them.
 
 **The module**, in `Functions/Custom Structures/customStructure.js`, mirroring `jobDocument.js`'s shape rather
 than inventing a second convention:
@@ -450,8 +502,8 @@ and `Functions/Custom Structures/addCustomStructure.js` reads `fieldsForKind` in
 
 **Done when** Stages A to E are, adding a kind of structure is a `jobType` value plus the fields it
 needs, a structure is a row and a set of functions rather than a class, and market-price-delivery can
-come off the shelf. **Stage BR2 is named here for its inheritance, not owned here** — this project closes
-without it.
+come off the shelf. **Stages BR2 and BR3 are named here for their inheritance, not owned here** — this project
+closes without them.
 
 ## Who owns what
 
