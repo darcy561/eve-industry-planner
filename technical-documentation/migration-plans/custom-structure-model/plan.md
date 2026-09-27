@@ -1,63 +1,28 @@
 # Custom structure model — plan
 
-**Status:** Stages A, B, C, BR and D have landed, including the prerelease steps that convert stored
-documents, stored rig ids and a saved structure's rig. **Stage E has landed**: a structure is plain data,
-`Classes/structure.js` is deleted, and the reader-facing defect that came of a shared mutable row — the
-Reprocessing page editing the reader's saved structure — is fixed. Stages BR2 and BR3 remain and are named
-here for what they inherit rather than owned here.
+**Status:** Every stage this project owns has landed — A, B, C, BR, D and E — with what each one
+changed in [overlay.md](./overlay.md) and § Phases below. Stages BR2 and BR3 remain, named here for what
+they inherit rather than owned here; this project closes without them.
 
 **It is ready to promote**, and the drafts do not exist yet. Stage E was what promotion waited on,
-because it changes the same sentence those drafts would write about what the SPA holds; that sentence is
-now settled, so writing them describes a shape that is not about to move.
+because it settles the sentence those drafts have to write about what the SPA holds a structure as.
+Before that it waited on [market-locations](../market-locations/contents.md), which has since promoted a
+saved market onto its own lane — the order [market-locations/plan.md](../market-locations/plan.md)
+§ This project unblocks custom-structure-model, not the other way round set out. So what promotes is the
+four build kinds this project keeps.
 
-**The gate that used to hold it has cleared.** What held promotion back before Stage E was Stage D
-having landed the market kind inside this model's one form: promoting then would have written into live
-SoT that a saved market is a custom-structure kind managed from the shared custom-structures form, which
-[market-locations](../market-locations/contents.md) was in the middle of removing. That project has
-since promoted — a saved market is on its own lane, managed from its own tab, and
-`structureKindSelection` no longer offers the kind — which is the order
-[market-locations/plan.md](../market-locations/plan.md) § This project unblocks
-custom-structure-model, not the other way round set out. So what this project promotes is the four
-build kinds it keeps, in whatever shape Stage E leaves them.
-
-**No gap is open in what has landed.** The settings store reads either stored shape; rigs are two
-slots everywhere — in the tables, the form, a stored setup, a stored structure, and the prerelease
-steps that convert both; and a setup's slots survive being saved, which the model that writes setups
-back did not allow until `RigSlot1`/`RigSlot2` replaced `RigID` on `JobSetup` and
-`TemplatePresetSetup`.
-
-**Stage BR's structure gap is closed.** Stage BR converted a stored *setup's* `rigID` and left a
-stored *structure's* `rigType` unconverted, so a manufacturing or reaction structure saved before the
-change read back with no rigs and every bonus it gave silently became zero — measured in
-[measurements.md](./measurements.md) § A stored `rigType` read after Stage BR. The prerelease step
-`foldStructureRigSlots` now converts them, reusing the same `rigSlotsByStoredID` table the setup fold
-uses, and runs after the lane fold whose array shape it reads.
-
-`models.CustomStructure.RigType` stays until that step has run everywhere: it is the last copy of the
-data, because `Structure.toDocument()` writes `rigSlot1: 0, rigSlot2: 0` over it on the next save.
+**One thing must survive promotion as a live constraint.** `models.CustomStructure.RigType` cannot be
+removed until the prerelease step `foldStructureRigSlots` has run everywhere: it is the last copy of that
+data, because a structure's document is written with `rigSlot1: 0, rigSlot2: 0` over it on the next save.
 Removing a field nothing reads looks like cleanup; this one is the source the conversion reads.
 
-**Stage D has landed.** A reader can save a market: one form asks a structure for the fields its
-kind carries, the three per-kind forms are gone, the picker offers every kind, and a market's card
-says where it is and what listing there costs. A market is **one kind** rather than two — which sort
-it is follows from the place it holds, because `resolveLocationKind` already told them apart and
-asking a reader was asking for something known.
-
-What a saved market is **priced** by is not this project's: a station moves to the server in
-[market-price-delivery](../market-price-delivery/plan.md) § Stage G, and a citadel waits on the
-authenticated walk in that project's Stage E.
-
-**Both of Stage D's faults are closed.** The selling-rates cache is keyed on the location's broker
-fee, and a citadel's fee is resolved from the order that names where it was placed rather than from
-an account-wide default — so one sale quotes one figure.
-
-**[market-price-delivery](../market-price-delivery/contents.md)'s shelf condition is met.** What it
-waited on was a saved location being able to *be* a market, which Stage D landed; its browser-side
-remainder resumes from that project's § What to pick up when it does.
-**Code in scope:** [`frontend/src/Classes/`](../../../frontend/src/Classes/) —
-`structure.js`, `jobSetup.js`, `reprocessingItem.js`;
-[`frontend/src/Functions/Helper/`](../../../frontend/src/Functions/Helper/) — `rigSlotBonuses.js`,
-`coerceTaxPercentage.js`; [`frontend/src/Context/defaultValues.jsx`](../../../frontend/src/Context/defaultValues.jsx) — the rig tables;
+**Code in scope:** [`frontend/src/Functions/Custom Structures/`](../../../frontend/src/Functions/Custom%20Structures/) —
+every module about a custom structure, gathered there by Stage E: `customStructure.js`,
+`addCustomStructure.js`, `customStructuresFromServer.js`, `customStructureSetup.js`,
+`getStructureInfo.js`, `rigSlotBonuses.js`, `rigSlotLabel.js` and `coerceTaxPercentage.js`;
+[`frontend/src/Classes/`](../../../frontend/src/Classes/) — `jobSetup.js`, `reprocessingItem.js`;
+[`frontend/src/Hooks/useRigSlots.js`](../../../frontend/src/Hooks/useRigSlots.js);
+[`frontend/src/Context/defaultValues.jsx`](../../../frontend/src/Context/defaultValues.jsx) — the rig tables;
 [`frontend/src/Zustand/`](../../../frontend/src/Zustand/) — `applicationSettings/core.js`,
 `plannerSettings/core.js`; `frontend/src/Components/Settings/Standard Layout/Custom Structures/`;
 `frontend/src/Components/Reprocessing/`;
@@ -69,12 +34,6 @@ remainder resumes from that project's § What to pick up when it does.
 [`services/shared/models/job.go`](../../../services/shared/models/job.go) and
 [`services/shared/models/group_template.go`](../../../services/shared/models/group_template.go) — a
 stored setup's rig slots.
-
-**Added by Stage E:** [`frontend/src/Functions/Custom Structures/`](../../../frontend/src/Functions/Custom%20Structures/) —
-`customStructure.js`, the module `structure.js` becomes, and the folder every other module about a custom
-structure has since been gathered into: `addCustomStructure.js`, `customStructuresFromServer.js`,
-`customStructureSetup.js`, `getStructureInfo.js`, `rigSlotBonuses.js`, `rigSlotLabel.js` and
-`coerceTaxPercentage.js` — § Stage E in [overlay.md](./overlay.md) says what moved and what did not.
 
 **Added by Stage D:** [`frontend/src/Functions/MarketOrders/`](../../../frontend/src/Functions/MarketOrders/) —
 `saleLocations.js`, `sellingRates.js`, `calcSellingCharges.js`;
@@ -321,12 +280,9 @@ that changed.
 
 Both carry `regionID`, and both carry the `id`, `name` and `default` every kind has.
 
-**A station stores what its fee is derived from, not the fee.** The race that built it names the
-faction a standing is held against, and the owner is the corporation holding the other — the only two
-station fields the rate reads. Both are fixed for the life of the station, and `getStationData` is a
-bare fetch with no caching, so every quote was a round trip for two numbers that never change. The
-row carries them instead. That is not the same as storing the fee: the rate is still derived per
-seller, from their skills and standings.
+**A station stores what its fee is derived from, not the fee** — its race and its owner, the two fields
+the rate reads, both fixed for the station's life. [overlay.md](./overlay.md) § A sale location is an NPC
+station or a citadel has what that saved and why it is not the same as storing a rate.
 
 **The fee asymmetry is load-bearing.** A broker fee at an NPC station is derived from the seller
 character's skills and standings, and is already quoted per job against a separately chosen seller.
@@ -408,102 +364,49 @@ heading stops asking for a job type, which a market is not.
 one, the two faults above are closed, and the placeholder rows in `saleLocations.js` are gone. **All
 four hold.**
 
-**Stage E — A structure is plain data. Done.** `Classes/structure.js` is deleted and its work is four
+**Stage E — A structure is plain data. Done.** `Classes/structure.js` is deleted and its work is
 functions in `Functions/Custom Structures/customStructure.js`, with reprocessing's two calculations in
-`Functions/Reprocessing/structureBonuses.js` — [overlay.md](./overlay.md) § Stage E, which also records
-what was deleted rather than converted and the one duplicated rule left in the area.
+`Functions/Reprocessing/structureBonuses.js`. What each caller does instead, what was deleted rather
+than converted, and what a reader sees is [overlay.md](./overlay.md) § Stage E.
 
-Why the stage was needed: the model had landed as one shape and one array, and `Classes/structure.js`
-was the last part of it still holding a row as a class instance with setters. The store held instances,
-the screens that edited one mutated it and re-wrapped it to force a render, and the write path re-wrapped
-a row it already held because it could not assume what the store carried. One reader-facing defect
-followed directly from that, which is why this was its own slice rather than tidying — § The defect this
-closes.
+Why the stage existed: the model had landed as one shape and one array, and the class was the last part
+of it still holding a row as a mutable instance. The store held instances, the screens that edited one
+mutated it and re-wrapped it to force a render, and the write path re-wrapped a row it already held
+because it could not assume what the store carried. The Reprocessing page editing a reader's **saved**
+structure followed directly from that, which is why this was a slice rather than tidying — the chain is
+in [measurements.md](./measurements.md) § The reprocessing page edits the saved structure, and the fix
+landed ahead of the conversion so that the conversion itself moved no figure.
 
-**This is not a sweep against classes.** [job-document-drafts](../job-document-drafts/plan.md) converted
-`Job` because `jobArray` held instances app-wide, which is what stopped an inbound delta being applied to
-the store, and that plan is explicit that row classes are the last to go and may not need to: they are
-cheap and read only their own fields. `Structure` failed that exemption on one specific count — it was
-**held in the store and edited by two screens**, so a mutable row was shared between them.
+**This was not a sweep against classes.** [job-document-drafts](../job-document-drafts/plan.md)
+converted `Job` because `jobArray` held instances app-wide, which stopped an inbound delta being applied
+to the store, and that plan is explicit that row classes are the last to go and may not need to.
+`Structure` failed that exemption on one count — it was **held in the store and edited by two screens**,
+so a mutable row was shared between them.
 
-**The module**, in `Functions/Custom Structures/customStructure.js`, mirroring `jobDocument.js`'s shape rather
-than inventing a second convention:
+**Three decisions taken as it landed.**
 
-| Function | Replaces |
-|---|---|
-| `structureFromDocument(row, jobType)` | the constructor — settles the tax and the system id, and drops the fields the kind does not carry |
-| `fieldsForKind(jobType)` | the `fields` getter, which is one lookup in `fieldsByJobType` |
-| `toDocument(structure)` | `toDocument()` |
-| `updateStructure(structure, changes)` | all nine setters |
+- **An edit goes through `updateStructure`, not a spread.** With spreads, the knowledge that a name is
+  sanitised and a tax is clamped moves out to every call site, and the structure form alone has twelve.
+  `structureFromDocument` is the backstop for the two numbers either way.
+- **A name's sanitising stays where it is written.** The class only sanitised in `setName`, so reading
+  does not sanitise and still does not. Sanitising on read would be a hardening — nothing on the server
+  sanitises a stored name — but it changes stored data, and this stage was one that moved no figure.
+  That is its own change with its own reasoning.
+- **Two things the drafting got wrong.** A shared `blankStructure` would have had to serve both the
+  form's seeded blank and the Reprocessing page's bare one, which is zeros, so unifying them would have
+  moved a figure; the form keeps its own. And a `rigBonusesFor` would have had no caller, nothing in
+  production reading the old `rigBonuses` getter, so it is deleted rather than converted.
 
-Reprocessing's two calculations become selectors taking the row — `rigBonusFor(structure, itemType)` and
-`structureBonusFor(structure, itemType)` — which is the move that turned `rules.buyCost` into
-`(material, requirement)`. They stay reprocessing's, as § What must not be lost has required since
-Stage B.
+**Wire:** none. No stored shape moved and nothing crosses a process boundary; this was SPA-internal.
 
-**Two things the drafting of this stage got wrong, corrected as it landed.** A `blankStructure` in the
-module would have had to serve both the form's seeded blank — first entry in each picker — and the
-Reprocessing page's bare one, which is zeros; unifying them would have moved a figure, so the form keeps
-its own and builds it through `structureFromDocument`. And a `rigBonusesFor` would have had no caller:
-nothing in production read the `rigBonuses` getter, the two surfaces wanting a rig's bonuses calling
-`rigSlotBonuses` with a setup's ids instead. It is deleted rather than converted — [overlay.md](./overlay.md)
-§ Stage E.
+**Done when**, and all hold: nothing constructs `Structure`, the class is deleted rather than left as a
+wrapper, the mutating screens and the store actions work on copies, the seed defect is fixed, and
+`addCustomStructure` reads `fieldsForKind` instead of a defensive `structure.fields?.systemID`. Measured
+against [measurements.md](./measurements.md) § What holds a structure as an instance.
 
-**How an edit is expressed, chosen rather than assumed.** A call site could spread —
-`{ ...structure, tax: coerceTaxPercentage(value) }` — or go through `updateStructure`, which settles
-whatever it is handed. `updateStructure` is the choice: with spreads, the knowledge that a name is
-sanitised and a tax is clamped moves out to every call site, and the structure form alone has twelve.
-`structureFromDocument` is the backstop for the two numbers either way, so a call site that forgets
-cannot get an unsettled tax or system id into storage.
-
-**A name has no backstop today, and the stage decides whether to give it one.** The constructor only
-defaults `name` to an empty string; the sanitising is in `setName`, so it happens where a name is written
-and nowhere else. Carrying that across unchanged means `updateStructure` sanitises and
-`structureFromDocument` does not, which is today's behaviour exactly. Sanitising on read as well would be
-a hardening — nothing on the server sanitises a stored name — but it is a behaviour change on stored
-data, and this stage is otherwise one that moves no figure and changes nothing a reader sees. Taken
-as: **match today's behaviour in the conversion**, and if reading should sanitise too, that is its own
-change with its own reasoning rather than a silent rider on a refactor.
-
-### The defect this closes
-
-The Reprocessing page edits the reader's **saved** default reprocessing structure rather than a copy of
-it, because it seeds itself with the row out of the settings store and the panel then mutates what it was
-given. The chain, its two consequences and why the dropdown path is safe are measured in
-[measurements.md](./measurements.md) § The reprocessing page edits the saved structure.
-
-**The one-line copy at the seed has landed, ahead of the conversion.** It was a defect with a live
-consequence and should not have waited on a refactor, and it leaves the conversion free to be a change
-that moves no figure and fixes nothing — the shape a refactor should have. `useReprocessingReducer` seeds
-from a copy, with `useReprocessingReducer.test.js` covering the copy, the saved row surviving an edit, and
-the blank fallback; two of its three cases fail against the previous seed. See
-[overlay.md](./overlay.md) § The Reprocessing page holds its own copy of the structure it opens with.
-
-The milder variant the measurement records in `addCustomStructure` is closed by the conversion rather than
-ahead of it: nothing a reader sees depends on it.
-
-**What regular use looks like afterwards: the same.** A name is sanitised on the keystroke it is today, a
-tax still settles on blur through `coerceTaxPercentage`, the rig-conflict rule still clears the slot it
-refuses and marks it, a structure-type or system preset still fills the fields it decides, and a system
-that refuses a kind still refuses it. Render counts do not move either — `settled()` already builds a
-fresh instance on every edit. The only behaviour that changes is the defect above.
-
-**Wire:** none. No stored shape moves, `toDocument`'s output is unchanged, and nothing crosses a process
-boundary. This is SPA-internal.
-
-**Done when** nothing constructs `Structure`, `Classes/structure.js` is deleted rather than left as a
-wrapper, the two mutating screens and the three store actions work on copies, the seed defect is fixed,
-and `Functions/Custom Structures/addCustomStructure.js` reads `fieldsForKind` instead of a defensive
-`structure.fields?.systemID`. The surface inventory it is measured against is
-[measurements.md](./measurements.md) § What holds a structure as an instance.
-
-**Also in scope, found in the same path:** `addCustomStructure` and the structure form both call
-`showSnackbarSuccess`, so adding a structure toasts twice. One of the two goes.
-
-**Done when** Stages A to E are, adding a kind of structure is a `jobType` value plus the fields it
-needs, a structure is a row and a set of functions rather than a class, and market-price-delivery can
-come off the shelf. **Stages BR2 and BR3 are named here for their inheritance, not owned here** — this project
-closes without them.
+**The project is done when** Stages A to E are, adding a kind of structure is a `jobType` value plus the
+fields it needs, a structure is a row and a set of functions rather than a class, and
+market-price-delivery can come off the shelf. All hold; what is left is promotion.
 
 ## Who owns what
 

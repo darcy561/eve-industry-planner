@@ -431,12 +431,10 @@ replaced while both were in the tree, and a comparison against a deleted class i
 survives is the behaviour asserted directly: every kind's fields, the round trip, reprocessing's two
 calculations, and the tax and rig rules.
 
-### Still to do
+### What this stage's sections describe
 
-*Nothing outstanding in Stages A to E.* Stage E has landed, so a structure is a row read and changed by
-functions and no class holds one — what this stage's sections say about the class is what the SPA held
-while it did, and § Stage E carries what replaced it. Stages BR2 and BR3 remain and are not scheduled
-here.
+They describe the class while it was what the SPA held. Stage E replaced it with a row read and changed
+by functions, and says what each caller does instead.
 
 ### The surfaces that write a rig
 
@@ -514,8 +512,11 @@ tell is to assert the edit applied.
 ## Stage D — The kind that is a market
 
 **Landed.** A reader saves a market through the one form, the store and `saleLocations.js` read it,
-and the two faults this stage owns are closed. What a saved market is *priced* by is
-[market-price-delivery](../market-price-delivery/plan.md)'s — see § Still to fill.
+and the two faults this stage owns are closed. What a saved market is *priced* by belongs to
+[market-price-delivery](../market-price-delivery/plan.md), which has built both reads: a station on the
+server at its Stage G, a citadel in the browser at its Stage E. What a sale *from* a citadel is costed
+against is still the default market's figures, and moving that is a Selling-stage decision named there
+rather than a consequence of the read existing.
 
 ### One market kind, and what the place it holds decides
 
@@ -719,17 +720,6 @@ station printed `0%` as though it charged nothing.
 Names come from `useLocationNames` and are described by `describeLocation`, the helper the asset
 surfaces use, so a place that cannot be named reads as that rather than as a blank row.
 
-### Still to fill
-
-**A citadel is priced at, and still sold from at the default market's figures.**
-[market-price-delivery](../market-price-delivery/plan.md) § Stage E built the read; what a sale from
-a citadel is costed against is a decision that moves figures on the Selling stage, and it is named
-there rather than taken as a consequence of the read existing.
-
-**A saved NPC station is priced by the server**, which
-[market-price-delivery](../market-price-delivery/plan.md) § Stage G built — measured against every
-market region in New Eden. What this project owed it was the saved row, which it has.
-
 ## Stage E — A structure is plain data
 
 **Landed.** `Classes/structure.js` is deleted. A structure is an ordinary object, and what the class
@@ -737,6 +727,28 @@ did is four functions in `Functions/Custom Structures/customStructure.js`: `stru
 from a stored row or builds one empty for a kind, `fieldsForKind` says which optional fields that kind
 carries, `updateStructure` returns a structure with named fields changed, and `structureToDocument`
 says what it stores.
+
+### The Reprocessing page holds its own copy of the structure it opens with
+
+`useReprocessingReducer` seeds `currentStructure` through `structureFromDocument(...)`, so the page starts
+from a copy of the reader's saved default rather than from the stored row. The panel edits that copy in place as
+it always has, and nothing it does reaches the settings store.
+
+Before this, the seed took what `getDefaultCustomStructureWithJobType` returned, which is the row held in
+`applicationSettings.customStructures` itself. Trying a different rig or structure type to compare yields
+therefore rewrote the reader's saved structure: for the session always, and on disk whenever the same
+visit also changed a reprocessing setting, because that panel schedules a settings save. Selecting a
+structure from the page's dropdown was never affected — that path already copied.
+
+The fallback for a reader who has saved none is unchanged: a blank reprocessing structure. It is now
+expressed as the same construction rather than a second one behind `||`, because a copy of nothing is
+what a blank structure is.
+
+`useReprocessingReducer.test.js` covers all three: the copy, that editing it leaves the saved row alone,
+and the blank fallback. Two of the three fail against the previous seed.
+
+This seed was fixed before the rest of the stage, which then removed the aliasing everywhere else by
+taking the class away — § What each caller does instead.
 
 ### What each caller does instead
 
@@ -820,44 +832,39 @@ the structure's, and § What must not be lost has required that since Stage B. `
 in `Helper/` for the opposite reason: it is a numeric rule with consumers across the app, and only the
 percentage rule on top of it belongs here.
 
-### The rig-conflict rule has one home, and it holds the rule alone
+### The rig-conflict rule has one home
 
 `Hooks/useRigSlots.js` answers which slot takes which rig and which choice is refused, and its caller
-applies the answer to whatever it is editing: `onChoose(slot, rigID)`. It was written against a custom
-structure row and called `updateStructure` itself, which is why it could not serve a job setup — a
-setup's rig choice also has to run `manageRequirements`, and a setup names its other fields
-differently. Holding the rule and nothing else is what lets one hook serve three editors.
+applies the answer to whatever it is editing: `onChoose(slot, rigID)`. Three editors use it — the
+settings form, the Reprocessing page's structure panel, and the watchlist options.
+
+It holds the rule and nothing else on purpose. It was written against a custom structure row and called
+`updateStructure` itself, which is why it could not serve a job setup: a setup's rig choice also has to
+run `manageRequirements`, and a setup names its other fields differently.
+
+**What it replaced.** The Reprocessing panel had its own inline copy, once per slot, and the reducer's
+`rigSlotErrors` existed only to carry that copy's answer — both are gone, along with the
+`SET_RIG_SLOT_ERRORS` action, because the hook holds the refusal beside the slot it belongs to. The two
+copies had drifted in two ways a single rule settles. The panel read
+`selectedEntry.relatedTo.includes(...)` where the hook reads `relatedTo?.includes(...)`; every rig in the
+tables carries `relatedTo` today, so the unguarded read could not throw, but only one of the two would
+have survived a rig entry without it. And the refusal said different things on each screen — "You cannot
+have multiple rigs effecting the same material type." against the hook's "Cannot have the same rig or
+related rigs in both slots". **The hook's wording is what both screens now say**, which is a change to
+what a reader sees on the Reprocessing page: it is accurate for rigs competing on any axis rather than
+only on material type, and it is spelled correctly.
 
 **A watched item can be given both its rigs.** The watchlist options offered one `RigTypeSelect` bound
-to `rigSlot1`, so `rigSlot2` could not be set or cleared by hand on that surface at all — while
-`rigSlotBonuses` counted it and the setup card printed it, which meant a reader who took a two-rig
-custom structure and then edited by hand carried a rig they could not see, still moving their material
-and time. The second picker is there, both go through the hook, and `Setup.updateRigSlot(slot, rig)`
-writes either slot. Slot 1 keeps the requirement handling `updateRigID` always did; slot 2 writes the id
-only, because what a second rig's requirement should do to a setup that already applied the first one's
-is a question nobody has answered. `updateRigID` remains as the slot 1 call, which is what the Edit Job
-setup panel still uses.
-
-**The Edit Job setup panel is still one picker.** It has the same gap and is not fixed here.
-
-### What the hook's one home covers
-
-`Hooks/useRigSlots.js` holds it, and both screens that fit rigs use it: the settings form and the
-Reprocessing page's structure panel. The panel had its own inline copy, once per slot, and the
-reducer's `rigSlotErrors` existed only to carry that copy's answer — both are gone, along with the
-`SET_RIG_SLOT_ERRORS` action, because the hook holds the refusal beside the slot it belongs to.
-
-The two copies had drifted in two ways that a single rule settles. The panel read
-`selectedEntry.relatedTo.includes(...)` where the hook reads `relatedTo?.includes(...)`; every rig in
-the tables carries `relatedTo` today, so the unguarded read could not throw, but only one of the two
-would have survived a rig entry without it. And the refusal said different things on each screen —
-"You cannot have multiple rigs effecting the same material type." against the hook's "Cannot have the
-same rig or related rigs in both slots". **The hook's wording is what both screens now say**, which is
-a change to what a reader sees on the Reprocessing page: it is accurate for rigs that compete on any
-axis rather than only on material type, and it is spelled correctly.
+to `rigSlot1`, so `rigSlot2` could not be set or cleared by hand there at all — while `rigSlotBonuses`
+counted it and the setup card printed it, so a reader who took a two-rig custom structure and then
+edited by hand carried a rig they could not see, still moving their material and time. Both pickers go
+through the hook now, and `Setup.updateRigSlot(slot, rig)` writes either slot. Slot 1 keeps the
+requirement handling `updateRigID` always did; slot 2 writes the id only, because what a second rig's
+requirement should do to a setup that already applied the first one's is a question nobody has answered.
+`updateRigID` remains as the slot 1 call.
 
 The rule is tested directly in `Hooks/useRigSlots.test.js` — taking a rig, refusing the same rig,
-refusing a competing rig, clearing a slot, and leaving the structure it was handed unchanged.
+refusing a competing rig, clearing a slot, and naming the slot it was asked about.
 
 ### What a setup takes from a structure is written once
 
@@ -956,28 +963,6 @@ branch cannot fire, because `Setup` defaults `structureID` to `0` and the branch
 of a kind that carries no structure type would hold `structureID: undefined` — and `undefined ===
 undefined` is what that branch tests, so it would fire and answer `NaN`. The kinds without a structure
 type are the ones no setup can reference, which is the finding above. The two are one question.
-
-### The Reprocessing page holds its own copy of the structure it opens with
-
-`useReprocessingReducer` seeds `currentStructure` through `structureFromDocument(...)`, so the page starts
-from a copy of the reader's saved default rather than from the stored row. The panel edits that copy in place as
-it always has, and nothing it does reaches the settings store.
-
-Before this, the seed took what `getDefaultCustomStructureWithJobType` returned, which is the row held in
-`applicationSettings.customStructures` itself. Trying a different rig or structure type to compare yields
-therefore rewrote the reader's saved structure: for the session always, and on disk whenever the same
-visit also changed a reprocessing setting, because that panel schedules a settings save. Selecting a
-structure from the page's dropdown was never affected — that path already copied.
-
-The fallback for a reader who has saved none is unchanged: a blank reprocessing structure. It is now
-expressed as the same construction rather than a second one behind `||`, because a copy of nothing is
-what a blank structure is.
-
-`useReprocessingReducer.test.js` covers all three: the copy, that editing it leaves the saved row alone,
-and the blank fallback. Two of the three fail against the previous seed.
-
-This seed was fixed before the rest of the stage, which then removed the aliasing everywhere else by
-taking the class away — § What each caller does instead.
 
 ## Missing live SoT found on the way
 

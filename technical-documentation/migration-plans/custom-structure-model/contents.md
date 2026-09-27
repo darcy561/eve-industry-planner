@@ -12,11 +12,12 @@ row already carries, in place of four lanes filled by three classes.
   them — not what a rig applies to, which is § Does not own.
 - **The upgrade that gets there.** A schema bump and a fold, in memory and idempotent, on the pattern
   the existing `Invention` seed step set.
-- **What the SPA holds a structure as**, and where reprocessing's rig and structure bonus calculations
-  live now no class of its own holds them. The three classes became one in Stage B, and Stage E made that
-  one a row read and changed by functions, because a mutable row shared between the store and two screens
-  let one screen edit what another had saved.
-- **What a screen reads** to list structures, once there is no lane to name.
+- **What the SPA holds a structure as** — a row read and changed by functions, gathered with every other
+  module about a custom structure in `Functions/Custom Structures/` — and where reprocessing's rig and
+  structure bonus calculations live now no class holds them.
+- **What a screen reads** to list structures, once there is no lane to name, and the one owner for each
+  rule about a saved structure: the rig-conflict rule, what a setup takes from a structure, and whether
+  the structure a setup names is still there.
 
 **[market-price-delivery](../market-price-delivery/contents.md) was shelved until this project landed
 a kind that is a market.** Stage D landed it, and that project has since finished: a citadel is read
@@ -24,10 +25,8 @@ in the browser on the reader's own characters.
 
 **A market has left this model.** [market-locations](../market-locations/contents.md) moved a saved
 market onto its own lane with its own panel — a reversal of where a market row lives, not of this
-project's finding that the four build kinds belong in one shape. That project has promoted, which is
-what this one waited on, so that gate has cleared — see [plan.md](./plan.md) § Status. What is left here
-is the four build kinds. Stage E has since settled what the SPA holds a structure as — plain data, read
-and changed by functions — so **the project is ready to promote** and owes only its drafts.
+project's finding that the four build kinds belong in one shape. What is left here is those four kinds.
+Status and what promotion waits on are [plan.md](./plan.md) § Status; it is not restated here.
 
 **Not live SoT** until this project is complete and promotion is approved.
 
@@ -74,10 +73,13 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know which project owns a question about structures | [plan.md](./plan.md) § Who owns what |
 | Know what this project owes market-price-delivery, and what it must not decide for it | [plan.md](./plan.md) § Stage D |
 | Know why a structure carries two rig slots rather than one combined rig | [plan.md](./plan.md) § Stage BR, [overlay.md](./overlay.md) § Rigs became slots on every kind |
-| Find the UI and job-setup work the rig change still needs | [plan.md](./plan.md) § Stage BR |
+| Find the rig work the panel redesigns inherited | [overlay.md](./overlay.md) § Handed to the panel redesigns |
 | Know why every rig applies to all items, and what reading one against an item would take | [plan.md](./plan.md) § Stage BR2, [overlay.md](./overlay.md) § What a rig applies to |
 | Know why a rig's security multipliers, and a structure's legality rules, do not belong in the requirements table | [plan.md](./plan.md) § Stage BR3 |
-| Know why the SPA stops holding a structure as a class, and what replaces it | [plan.md](./plan.md) § Stage E |
+| Know why the SPA stopped holding a structure as a class, and what replaced it | [plan.md](./plan.md) § Stage E, [overlay.md](./overlay.md) § Stage E |
+| Find the one owner of a rule about a saved structure | [overlay.md](./overlay.md) § The rig-conflict rule has one home, § What a setup takes from a structure is written once, § One predicate answers whether a setup's structure is gone |
+| Know what a deleted structure shows on a setup, and why | [overlay.md](./overlay.md) § One reading of whether a setup uses a saved structure |
+| Know which modules live in the custom structures folder, and what deliberately does not | [overlay.md](./overlay.md) § One folder holds what a custom structure is |
 | Understand how the Reprocessing page came to edit a saved structure | [measurements.md](./measurements.md) § The reprocessing page edits the saved structure |
 | Size what the conversion touches | [measurements.md](./measurements.md) § What holds a structure as an instance |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
