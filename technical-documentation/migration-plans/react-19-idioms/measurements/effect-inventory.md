@@ -24,14 +24,14 @@ npx eslint src -f json | jq -r '.[] | .filePath as $f | .messages[]
 | | Count |
 |---|---|
 | Test files — out of scope | 3 |
-| Kept — synchronising with something outside React | 48 |
+| Kept — synchronising with something outside React | 47 |
 | Tier 1 — derive during render | 10 |
 | Tier 2 — write at the write site | 10 |
 | Tier 3 — React Query | 9 |
 | Tier 4 — routing | 3 |
 | Tier 5 — analytics from the handler | 3 |
 | Deferred to the shopping list redesign | 7 |
-| **Total** | **93** |
+| **Total** | **92** |
 
 `react-hooks/exhaustive-deps` reports **43** warnings across the SPA. They overlap this work without
 matching it: some sit on `useMemo` and `useCallback` rather than effects, and several deliberate
@@ -40,13 +40,36 @@ narrow lists are load-bearing. Fix only the ones inside a file this project is r
 ## What has been re-verified since the count
 
 The tree moves under this inventory, so an entry read here is a reading of the file as it stood, not a
-standing fact. Two kept effects have since been removed by work outside this project, which is where
-the totals above lost their two:
+standing fact. Three kept effects have since been removed by work outside this project, which is where
+the totals above lost their three:
 
 - `useFetchStaticDataFiles.js:7` — the hook is gone. Static data files are read by
   `Hooks/App/useCachedData.js`, which is React Query and carries no effect.
 - `Popover/iconButtons.jsx:69` — the file is gone. Its successors,
   `Styled Components/IconButton/{assets,marketData,marketHistory}.jsx`, carry no effects at all.
+- `pageTransition.jsx:41` — the two-frame `requestAnimationFrame` gate before the page fade. The commit
+  that gave each page its own surface removed it, and the page swap has since been rewritten again.
+
+Line numbers move under the inventory as well as entries. `AppWrapper.jsx` and the two files listed as
+out of scope have drifted since the count and are corrected here; **the rest have not been checked**.
+
+### The totals describe the sweep, not the tree as it stands
+
+A fresh `grep -rn "useEffect(" src` over `frontend/src`, excluding test files and `src/tests/`, returns
+**93** call sites. This inventory accounts for 89 outside test files. The four between them are a net of
+two gone and six never counted, so the gap runs in both directions and is more than line drift:
+
+- Two more kept effects have gone since the count and are not struck above — `AdditionalAccounts.jsx:84`,
+  in a file cut from 528 lines to 80, and `useLocationNames.js:73`, whose file is now a pure `useQueries`
+  hook. The second is Tier 2's finding 2.9 carried out by other work: the store write the tier wanted
+  moved into the query layer now lives there.
+- Six effects in the tree appear nowhere in this inventory: `editJob.jsx:99`, `industryRunList.jsx:102`,
+  `marketActions.jsx:50`, `materialsAndSourcingPanel.jsx:106`, `useJobDeletedRemotely.js:17` and
+  `useLinkCharacter.js:74`.
+
+The totals above are the correct reading of the sweep as it was taken, and every verdict in it still
+stands for the sites it names. They are **not** a current census, and nothing should be costed from them
+without re-running the count — which is Phase 10's job and is now known to have real work in it.
 
 Re-verified and still as counted: the two `FirstLoginPage.jsx` observer effects (below), and every
 site named in [idiom-inventory.md](./idiom-inventory.md) — see that file's own verification section
@@ -153,7 +176,7 @@ resolves office names inside a nested async function inside a ref-keyed guard, a
 `state.shoppingList.clearAssetQuantities()` — mutating an object held in reducer state — in several
 branches.
 
-## Kept — 48
+## Kept — 47
 
 These synchronise with something outside React, which is what effects are for. Listed so the count is
 reproducible and so a later reader does not re-litigate them.
@@ -165,12 +188,12 @@ reproducible and so a later reader does not re-litigate them.
 `useEditJobLeaveConfirm.js:305`, `useEditJobLeaveConfirm.js:357`,
 `useRegisterHeaderDocumentLockUI.js:40`.
 
-**Timers and polling (16).** `useAppConfig.jsx:60`, `useAppConfig.jsx:72`, `MaintenanceMode.jsx:13`,
+**Timers and polling (15).** `useAppConfig.jsx:60`, `useAppConfig.jsx:72`, `MaintenanceMode.jsx:13`,
 `useESIRateLimiting.js:89`, `DocumentLockHeaderControl.jsx:140`,
 `DocumentLockHeaderControl.jsx:146`, `DocumentLockHeaderControl.jsx:169`,
 `useLockExtendNudgeSnackbar.js:24`, `useLockExtendNudgeSnackbar.js:30`, `useLockExtendLoop.js:66`,
 `useLockSyncHeartbeat.js:53`, `useLockSyncHeartbeat.js:61`, `useLockAcquireRelease.js:137`,
-`useLockScopeSync.js:136`, `groupJobTreeFlow.jsx:51`, `pageTransition.jsx:41`.
+`useLockScopeSync.js:136`, `groupJobTreeFlow.jsx:51`.
 
 **Observers and layout measurement (2).** `FirstLoginPage.jsx:62` (`ResizeObserver`),
 `FirstLoginPage.jsx:47` (two-frame gate before an animation may run).
@@ -203,8 +226,8 @@ both driving React Flow's `fitView`.
 
 **Unmount-only cleanup (2).** `AdditionalAccounts.jsx:84`, `useESIRateLimiting.js:100`.
 
-**Telling an outside system something changed (5).** `AppWrapper.jsx:28` (Sentry `setUser`),
-`AppWrapper.jsx:38` (GA4 web vitals), `useLockLeaseContention.js:20` (server resync on a change of
+**Telling an outside system something changed (5).** `AppWrapper.jsx:30` (Sentry `setUser`),
+`AppWrapper.jsx:39` (GA4 web vitals), `useLockLeaseContention.js:20` (server resync on a change of
 lease pressure), `useLockVacancySnackbar.js:33` and `useLockPassiveViewerSnackbar.js:26` (snackbars on
 a lock-state transition).
 
@@ -215,7 +238,7 @@ another reason, but none of them is worth opening for that alone.
 
 ## Out of scope — test files (3)
 
-`Components/pageTransition.test.jsx:33`, `tests/editJobHarness.jsx:39`, `tests/editJobHarness.jsx:47`.
+`Components/pageTransition.test.jsx:30`, `tests/editJobHarness.jsx:50`, `tests/editJobHarness.jsx:68`.
 These exist to observe renders and to seed a harness once, which is the one thing an effect is
 uniquely able to do.
 
@@ -245,7 +268,7 @@ timeout means the losing poll keeps running after the page has navigated away.
 
 ## What the count does not say
 
-- **Forty-eight of ninety-three is a healthy result.** The question this sweep was opened to answer is not
+- **Forty-seven of ninety-two is a healthy result.** The question this sweep was opened to answer is not
   "how bad is it" but "which ones are load-bearing", and most of them are. The document lock alone
   accounts for 21 kept effects, and every one of them is attached to a websocket, a timer, a listener
   or a lease.

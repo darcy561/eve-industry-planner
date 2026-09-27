@@ -117,16 +117,21 @@ Adjacent surface, also clean:
   which is correct.
 - **No `fetch` or `axios` under `Components/`, `Hooks/`, `Styled Components/` or `routes/`.** React
   Query is the only data path.
-- **No raw MUI `Dialog` parts outside `tests/muiStyleProps.test.jsx`.** All 29 dialogues are built on
-  `ContentDialogue`, as the frontend rules require.
+- **No raw MUI `Dialog` parts outside `tests/muiStyleProps.test.jsx`.** All 22 components that build a
+  dialogue do it from `ContentDialogue`, as the frontend rules require. Six further files import the
+  module for its hooks without rendering a dialogue: three are panels that trigger one, and three are the
+  outer frame of a dialogue whose content component is already among the 22.
 - **Error boundaries are `react-error-boundary`**, not hand-written classes — `ErrorBoundary.jsx` and
   `ContentErrorBoundary.jsx`.
-- **Tests are colocated.** 345 `*.test.js(x)` sit beside the module they cover; `src/tests/` holds
-  only shared harnesses and fixtures.
-- **Dependencies are current**: React and React DOM 19.2.8, MUI 9.4, TanStack Query 5.102, TanStack
-  Router 1.170, Zustand 5.0, Vite 8.2, `eslint-plugin-react-hooks` 7.1. React 19.3.0 has since been
-  published and the SPA is one minor behind; the bump is not this project's, and nothing counted here
-  depends on it.
+- **Tests are colocated.** 562 of the 578 `*.test.js(x)` sit beside the module they cover. The other 16
+  are in `src/tests/`, which holds the shared harnesses and fixtures and the tests that belong to no
+  single module — the MUI style-prop parity check, the render-count guard, the harnesses' own tests and
+  the live cross-client suite.
+- **Dependencies are current**: React and React DOM 19.3.0, MUI 9.4, TanStack Query 5.102, TanStack
+  Router 1.170, Zustand 5.0, Vite 8.2, `eslint-plugin-react-hooks` 7.1. The React bump from 19.2.8 was
+  not this project's work and nothing counted here depends on it; what it adds — `ViewTransition`,
+  `addTransitionType` and Fragment refs — is new API rather than a new idiom, so no row of the idioms
+  table changes.
 
 ## The two defects found here, and where they went
 

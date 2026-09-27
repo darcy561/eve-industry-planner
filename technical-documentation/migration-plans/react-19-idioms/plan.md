@@ -28,7 +28,7 @@ dependency is current. All of that is recorded in
 [measurements/idiom-inventory.md](./measurements/idiom-inventory.md) § Swept and clean so nobody
 sweeps it again to find out.
 
-### The effects — 93 call sites
+### The effects — 92 call sites
 
 Every one read at its call site; the reading is
 [measurements/effect-inventory.md](./measurements/effect-inventory.md).
@@ -36,12 +36,12 @@ Every one read at its call site; the reading is
 | | Count |
 |---|---|
 | In test files — out of scope | 3 |
-| Kept: synchronising with something outside React | 48 |
+| Kept: synchronising with something outside React | 47 |
 | To change (Tiers 1–5) | 35 |
 | Deferred to the shopping list redesign | 7 |
-| **Total** | **93** |
+| **Total** | **92** |
 
-Forty-eight is the number that matters most. This is not a tree drowning in effects; it is a tree where
+Forty-seven is the number that matters most. This is not a tree drowning in effects; it is a tree where
 slightly over a third of them are doing something else, in five shapes rather than thirty-five
 separate puzzles. The document lock alone accounts for 21 of the kept, every one attached to a
 websocket, a timer, a listener or a lease.
@@ -181,6 +181,10 @@ Self-contained, no behaviour change intended, and the first use of `use()` in th
 
 Re-run both counts, confirm nothing new arrived, write the overlay, and decide what the deferred seven
 look like once the shopping list redesign has landed.
+
+The re-count is not a formality. [measurements/effect-inventory.md](./measurements/effect-inventory.md)
+§ The totals describe the sweep, not the tree as it stands already names two kept effects that have gone
+and six in the tree that were never counted, so this phase has real reading in it.
 
 ## Done when
 

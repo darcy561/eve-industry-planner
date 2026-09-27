@@ -12,7 +12,7 @@ project.
 
 ## Owns
 
-- **The effect inventory** — all 93 `useEffect` call sites in `frontend/src`, what each does, and
+- **The effect inventory** — all 92 `useEffect` call sites in `frontend/src`, what each does, and
   which survives. Counted and reproducible, not sampled.
 - **The effects that only derive**, that fetch, that fix up a write someone else made, that navigate,
   or that fire analytics — and the three defects found while reading them.
