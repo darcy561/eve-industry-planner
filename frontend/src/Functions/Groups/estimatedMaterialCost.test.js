@@ -5,7 +5,14 @@ import seedPrices, { clearSeededPrices } from "../../tests/seedPrices.js";
 
 vi.mock("../../Zustand/usersStore.js", async () => {
   const { usersStoreMock } = await import("../../tests/usersStoreHarness.js");
-  return usersStoreMock({});
+  return usersStoreMock({
+    account: {
+      actions: {
+        getMainCharacterHash: () => "me",
+        findCharacterByHash: (hash) => ({ CharacterHash: hash, isOmega: true }),
+      },
+    },
+  });
 });
 
 const captureException = vi.fn();
@@ -140,7 +147,7 @@ describe("estimatedMaterialCost install rollup", () => {
       "sell",
     );
 
-    expect(cost).toBe(100);
+    expect(cost).toBe(97.5);
   });
 });
 
@@ -163,7 +170,7 @@ describe("pricing a material several child jobs build", () => {
       "sell",
     );
 
-    expect(cost).toBe(100);
+    expect(cost).toBe(97.5);
   });
 
   it("prices at the market when no named child job can be found", () => {
@@ -231,7 +238,7 @@ describe("a child job that leads back to itself", () => {
       "sell",
     );
 
-    expect(cost).toBe(34);
+    expect(cost).toBe(33.5);
     expect(captureException).toHaveBeenCalledOnce();
   });
 });

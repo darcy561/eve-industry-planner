@@ -191,7 +191,7 @@ function findCloneValue(inputCharacterHash) {
     .getState()
     .account.actions.findCharacterByHash(inputCharacterHash);
 
-  return matchedCharacter?.isOmega ? 0 : ALPHA_CLONE_TAX / 100;
+  return matchedCharacter?.isOmega ? 0 : ALPHA_CLONE_TAX;
 }
 
 export default calculateInstallCostfromSetup;

@@ -128,7 +128,7 @@ describe("installCosts", () => {
     expect(getJobInstallCostForPlanning(job)).toBe(0);
   });
 
-  it("charges the alpha surcharge against the reader's own clone state", () => {
+  it("charges an alpha clone a quarter of the item value, on the reader's own clone state", () => {
     const job = jobWith({
       setup: { s1: { id: "s1", ...setupFields() } },
       costs: { linkedJobs: [] },
@@ -141,7 +141,7 @@ describe("installCosts", () => {
     const asOmega = calculateInstallCostfromSetup(setup);
     alpha("me");
 
-    expect(calculateInstallCostfromSetup(setup)).toBe(asOmega + 1000 * 0.0025);
+    expect(calculateInstallCostfromSetup(setup)).toBe(asOmega + 1000 * 0.25);
   });
 
   it("reads the reader's clone state when the setup names another member", () => {

@@ -1740,6 +1740,26 @@ change no figure, and this one is a pricing decision — whether the fallback sh
 the spend per unit bought, or the market price of what is left. It was in the code before this project
 and is preserved exactly.
 
+#### Two defects in the install cost, one fixed
+
+Checking the requirement tables against ESI turned up two faults in
+`Functions/Installation Costs/installCosts.js`, neither of them this project's work.
+
+**Fixed: an alpha clone was charged a hundredth of its surcharge.** `ALPHA_CLONE_TAX` is `0.25`
+meaning 25%, the way `SCC_SURCHARGE` is `0.04` meaning 4%, but `findCloneValue` divided it by 100 and
+charged 0.25%. The install cost is derived at read time and stored nowhere, so correcting it moves no
+saved figure — it was taken here rather than recorded. Its test had pinned the wrong rate
+(`1000 * 0.0025`) and now states the real one in its name.
+
+**Recorded: `findFacilityTax`'s NPC-station branch cannot fire.** It compares `structureType` against
+`structureTypeMap[jobTypes.manufacturing].id` and returns
+`structureTypeMap[jobTypes.manufacturing].defaultTax / 100`, but that map entry is the *collection* of
+manufacturing structures keyed by id, so both reads are `undefined` and the branch answers `NaN`.
+`defaultTax` is named once in the codebase, here, and defined nowhere. It is unreachable today because
+`Setup` defaults `structureID` to `0`, so it is dead rather than harmful — but it is the only trace of
+an intended rule, that an NPC station charges a fixed tax rather than the setup's own `taxValue`.
+Deleting it would erase that intent, so it wants deciding rather than tidying.
+
 #### A defect this found, which the cutover does not fix
 
 `Setup.gatherRequirements` asks for three sources of requirements and only ever gets two. It calls
