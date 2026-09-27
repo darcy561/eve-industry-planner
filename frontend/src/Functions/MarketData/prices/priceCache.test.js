@@ -17,6 +17,7 @@ vi.mock("./priceLoader", () => ({
 const { queryClient } = await import("../../../queryClient.js");
 const {
   fetchPrices,
+  priceQueryKey,
   readPrice,
   readAdjustedPrice,
   revalidateMarketRefreshTimes,
@@ -188,6 +189,18 @@ describe("freshness comes from the market's refresh time", () => {
 
     expect(requestPrice).toHaveBeenCalledTimes(2);
     expect(readPrice(34, "jita").sell).toBe(30);
+  });
+
+  it("hands back a price that was invalidated rather than asking again", async () => {
+    requestPrice.mockResolvedValue(typePrice(10));
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
+
+    requestPrice.mockClear();
+    queryClient.invalidateQueries({ queryKey: priceQueryKey(34, "jita") });
+    await fetchPrices({ wants: [{ typeID: 34, marketLocation: "jita" }] });
+
+    expect(requestPrice).not.toHaveBeenCalled();
+    expect(readPrice(34, "jita").sell).toBe(10);
   });
 
   it("drops every price a refreshed market answered, not just the one probed", async () => {

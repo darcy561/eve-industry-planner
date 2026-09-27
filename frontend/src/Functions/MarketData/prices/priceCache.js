@@ -27,12 +27,12 @@ import {
 import { CITADEL_ORDERS_QUERY_KEY } from "../citadels/ordersAtCitadels.js";
 
 /**
- * How long a held price counts as fresh. Never stale by age: its market's
- * refresh time decides.
+ * How long a held price counts as fresh. Static: never stale by age, and not by
+ * invalidation either — its market's refresh time decides.
  *
- * @type {number}
+ * @type {import("@tanstack/react-query").StaleTime}
  */
-const PRICE_STALE_TIME = Infinity;
+const PRICE_STALE_TIME = "static";
 
 /**
  * How long a price is kept. Nothing watches one, so this is how long it lives,
@@ -133,7 +133,7 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
     seen.add(key);
 
     asked.push(
-      queryClient.ensureQueryData({
+      queryClient.query({
         queryKey: priceQueryKey(typeID, marketLocation),
         queryFn: () => resolvePrice(typeID, marketLocation),
         staleTime: PRICE_STALE_TIME,
@@ -145,7 +145,7 @@ export async function fetchPrices({ wants, adjustedTypeIDs = [] }) {
 
   for (const typeID of new Set(Array.from(adjustedTypeIDs, String))) {
     asked.push(
-      queryClient.ensureQueryData({
+      queryClient.query({
         queryKey: adjustedQueryKey(typeID),
         queryFn: () => requestAdjustedPrice(typeID),
         staleTime: PRICE_STALE_TIME,

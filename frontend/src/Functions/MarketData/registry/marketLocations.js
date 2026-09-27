@@ -89,7 +89,7 @@ export async function refreshMarketLocationsAfterWrite() {
  */
 export function refreshMarketLocations() {
   keepForTheSession();
-  return queryClient.fetchQuery({
+  return queryClient.query({
     queryKey: MARKET_LOCATIONS_QUERY_KEY,
     queryFn: fetchMarketLocations,
     staleTime: 0,

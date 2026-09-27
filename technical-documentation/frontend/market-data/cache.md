@@ -43,7 +43,7 @@ outside render. Both share the one cache, so a price either path resolves is pre
 ## Freshness
 
 A market's own refresh time decides what has gone stale, not an age guess. That moment is held in
-one place: `refreshedAt` on each price, stamped as it lands. `PRICE_STALE_TIME` is `Infinity` — a held
+one place: `refreshedAt` on each price, stamped as it lands. `PRICE_STALE_TIME` is `"static"` — a held
 price never expires by age, only by its market refreshing.
 
 The loader announces the refresh time every answer carried and decides nothing else; the cache, which
@@ -54,8 +54,10 @@ than anything, and the prices the read has already written carry the moment anno
 settled as no price at all carries no moment, and came from before the market had ever been walked,
 so a first refresh does supersede those and nothing else.
 
-Prices are **removed**, not invalidated — an *invalidated* entry with an infinite stale time is still
-handed straight back, so removal is what makes the next reader ask again.
+Prices are **removed**, not invalidated — a static stale time is never stale, so an *invalidated*
+entry is still handed straight back and removal is what makes the next reader ask again. `"static"`
+rather than `Infinity` is what carries that: an infinite stale time counts an invalidated entry as
+stale and would fetch it again.
 
 **A priced surface subscribes to no price entry.** It reads figures synchronously while rendering, so
 dropping a market's prices reaches nobody on its own. What re-renders it is `useMarketPricesQuery`: the
