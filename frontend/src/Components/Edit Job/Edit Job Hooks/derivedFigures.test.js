@@ -36,7 +36,10 @@ import {
 } from "./jobSelectors";
 import { describe, expect, it } from "vitest";
 
-import Job from "../../../Classes/job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../../../Functions/JobDocuments/jobDocument";
 import Material from "../../../Classes/jobMaterial";
 import {
   boughtCost,
@@ -65,7 +68,7 @@ const setups = {
 };
 
 const aJob = (build = {}, esi = {}) =>
-  new Job({
+  jobFromDocument({
     jobID: "job-1",
     name: "Job",
     itemID: 587,
@@ -195,7 +198,7 @@ describe("the figures a job derives", () => {
       },
     },
   );
-  const document = job.toDocument();
+  const document = toDocument(job);
 
   it.each([
     [
@@ -347,13 +350,13 @@ describe("the figures a job derives", () => {
       },
     });
 
-    expect(completedMaterialCount(withSpare.toDocument())).toBe(1);
+    expect(completedMaterialCount(toDocument(withSpare))).toBe(1);
   });
 
   it("counts none where nothing has been bought", () => {
     const unbought = aJob({ materials: { [TRITANIUM]: aMaterial({}) } });
 
-    expect(completedMaterialCount(unbought.toDocument())).toBe(0);
+    expect(completedMaterialCount(toDocument(unbought))).toBe(0);
   });
 
   it("answers nothing rather than throwing for a job that is not there yet", () => {

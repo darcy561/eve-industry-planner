@@ -302,10 +302,8 @@ function JobDependencyTreeFlowInner({
  * Reusable parent/child job graph (React Flow). Pass canonical `Job` instances (or compatible objects
  * with `jobID`, `name`, `childJobIDs`, `parentJobIDs`, etc.).
  *
- * Wrap with `ReactFlowProvider` is included in the default export.
- *
  * @param {object} props
- * @param {import("../../Classes/job").default[]} props.jobs
+ * @param {object[]} props.jobs
  * @param {ReadonlySet<string>|Set<string>|null|undefined} [props.completeJobIds]
  * @param {ReadonlySet<string>|Set<string>|null|undefined} [props.chainHighlightJobIds] — non-empty: dim outside set; these nodes get “selected” ring/pulse
  * @param {{jobID: string|number, at?: string|number}|null} [props.focusRequest] — job to fit and emphasise; `at` tells two requests for the same job apart

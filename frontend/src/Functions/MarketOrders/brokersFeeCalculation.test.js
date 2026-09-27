@@ -1,3 +1,4 @@
+import { toDocument } from "../JobDocuments/jobDocument.js";
 import { totalBrokersFees } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { describe, expect, it, vi } from "vitest";
 import { testQueryClient } from "../../tests/queryClients.js";
@@ -46,7 +47,7 @@ const { default: calcSellingCharges } = await import("./calcSellingCharges.js");
 const client = () => testQueryClient();
 const { default: findBrokersFeeEntry } =
   await import("./findBrokersFeeEntry.js");
-const { default: Job } = await import("../../Classes/job.js");
+const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 const { addMarketOrder } =
   await import("../../Components/Edit Job/Edit Job Hooks/jobCommands.js");
 const { esiOrderIDs } =
@@ -126,7 +127,7 @@ describe("what listing an order costs", () => {
 describe("the fee that reaches the job", () => {
   function jobWithOrder(feeAmount, entries) {
     journal.data = entries ? { 2117000001: entries } : {};
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -157,7 +158,7 @@ describe("the fee that reaches the job", () => {
     const job = jobWithOrder(1500000, null);
 
     expect(totalBrokersFees(job)).toBe(1500000);
-    expect(esiOrderIDs(job.toDocument()).has(900)).toBe(true);
+    expect(esiOrderIDs(toDocument(job)).has(900)).toBe(true);
     expect(job.esi.marketOrders["900"].feeDate).toBe(ISSUED);
   });
 
@@ -166,7 +167,7 @@ describe("the fee that reaches the job", () => {
       { id: 55, ref_type: "brokers_fee", date: ISSUED },
     ]);
 
-    const order = job.toDocument().esi.marketOrders["900"];
+    const order = toDocument(job).esi.marketOrders["900"];
     expect(order.fee).toBe(1500000);
     expect(order.salesTax).toBe(0);
     expect(order.feeDate).toBe(ISSUED);

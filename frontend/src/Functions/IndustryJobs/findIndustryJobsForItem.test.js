@@ -7,7 +7,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 
 const { default: findIndustryJobsForItem } =
   await import("./findIndustryJobsForItem.js");
-const { default: Job } = await import("../../Classes/job.js");
+const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 
 function run(job_id, overrides = {}) {
   return {
@@ -22,7 +22,7 @@ function run(job_id, overrides = {}) {
 }
 
 function job() {
-  return new Job({
+  return jobFromDocument({
     jobID: "job-1",
     itemID: 587,
     jobType: 1,
@@ -32,13 +32,11 @@ function job() {
 
 const ids = (runs) => runs.map((r) => r.job_id);
 
-/** What the matcher reads of a job: its item, and the runs it already holds. */
 const linkable = (job) => ({
   itemID: job.itemID,
   industryJobs: job.esi.industryJobs,
 });
 
-/** The same, for a job already holding these runs. */
 const holding = (...runs) => ({
   itemID: 587,
   industryJobs: Object.fromEntries(
@@ -58,8 +56,6 @@ describe("the industry runs a job can link", () => {
     ).toEqual([1]);
   });
 
-  // ESI reports a corporation run once per character holding the role, so the
-  // same run arrives several times in one list.
   it("offers a run once however many times ESI reported it", () => {
     const reported = [run(1), { ...run(1) }, { ...run(1), installer_id: 99 }];
 
@@ -82,8 +78,6 @@ describe("the industry runs a job can link", () => {
     expect(ids(offered)).toEqual([2]);
   });
 
-  // Unlinking is pending until the job saves, so a run on its way out is
-  // available again straight away.
   it("offers a run that is being unlinked elsewhere", () => {
     const offered = findIndustryJobsForItem([run(1), run(2)], linkable(job()), {
       linkedAcrossAccount: new Set([1]),
@@ -93,8 +87,6 @@ describe("the industry runs a job can link", () => {
     expect(ids(offered)).toEqual([1, 2]);
   });
 
-  // A run this job holds stays hidden even while it is queued for removal:
-  // it is already on the job, and the panel lists it as linked.
   it("keeps a run this job holds out of the list", () => {
     const offered = findIndustryJobsForItem([run(1)], holding(run(1)), {
       beingRemoved: [1],

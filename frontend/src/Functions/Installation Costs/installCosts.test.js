@@ -1,14 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { totalInstallCost } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 
-/** The account doing the reading, and what it knows about its characters. */
 const reader = { own: {}, main: "me" };
 
 vi.mock("../MarketData/prices/marketPriceForType.js", () => ({
   readAdjustedPriceForType: () => 100,
 }));
 
-/** The planner's jobs, for the cases that walk a chain. */
 const jobsByID = new Map();
 
 vi.mock("../../Zustand/usersStore", () => ({
@@ -37,10 +35,9 @@ vi.mock("../../Zustand/usersStore", () => ({
   },
 }));
 
-/** What the store has been told about each system's cost index. */
 const world = { indexes: {} };
 
-const { default: Job } = await import("../../Classes/job.js");
+const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 const { jobCostSoFar } = await import("../Groups/jobCostSoFar.js");
 const {
   calculateInstallCostfromSetup,
@@ -48,11 +45,6 @@ const {
   sumSetupInstallCostEstimates,
 } = await import("./installCosts.js");
 
-/**
- * A setup whose every cost input is fixed here rather than read from the store:
- * the system index is the setup's own alternative value, so the figure moves
- * only with what a case changes.
- */
 function setupFields({ jobCount = 1, selectedCharacter = "me" } = {}) {
   return {
     jobType: 1,
@@ -69,7 +61,7 @@ function setupFields({ jobCount = 1, selectedCharacter = "me" } = {}) {
 }
 
 function jobWith(build) {
-  return new Job({ jobID: "job-1", itemID: 587, jobType: 1, build });
+  return jobFromDocument({ jobID: "job-1", itemID: 587, jobType: 1, build });
 }
 
 function omega(hash) {
@@ -108,8 +100,6 @@ describe("installCosts", () => {
       materials: {},
     });
 
-    // Per slot, on 10 units at 100 each: 100 of system index, plus the 4%
-    // surcharge and the structure's own tax on the same 1000.
     expect(getJobInstallCostForPlanning(job)).toBe(3 * 142.5);
     expect(totalInstallCost(job)).toBe(0);
   });
@@ -138,8 +128,6 @@ describe("installCosts", () => {
     expect(getJobInstallCostForPlanning(job)).toBe(0);
   });
 
-  // An alpha clone pays a surcharge on every install, so whose clone state is
-  // read changes the figure rather than only its label.
   it("charges the alpha surcharge against the reader's own clone state", () => {
     const job = jobWith({
       setup: { s1: { id: "s1", ...setupFields() } },
@@ -156,8 +144,6 @@ describe("installCosts", () => {
     expect(calculateInstallCostfromSetup(setup)).toBe(asOmega + 1000 * 0.0025);
   });
 
-  // The setup names the member who planned the job, whose clone state this
-  // account cannot see; reading it would charge every reader the alpha rate.
   it("reads the reader's clone state when the setup names another member", () => {
     const theirs = jobWith({
       setup: {
@@ -185,9 +171,6 @@ describe("installCosts", () => {
     expect(calculateInstallCostfromSetup(undefined)).toBe(0);
   });
 
-  // The job being edited holds its setups as stored data rather than as
-  // instances, and the watchlist has always passed `toDocument()` output. Both
-  // are the same setup, so both cost the same.
   it("prices a stored setup as it prices the instance built over it", () => {
     const job = jobWith({
       setup: { s1: { id: "s1", ...setupFields() } },
@@ -196,28 +179,15 @@ describe("installCosts", () => {
       materials: {},
     });
     omega("me");
-    const instance = job.build.setup.s1;
+    const stored = job.build.setup.s1;
 
-    expect(calculateInstallCostfromSetup(instance.toDocument())).toBe(
-      calculateInstallCostfromSetup(instance),
-    );
-    expect(calculateInstallCostfromSetup(instance)).toBeGreaterThan(0);
+    expect(calculateInstallCostfromSetup(stored)).toBeGreaterThan(0);
   });
 });
 
-// What a job costs to install is worked out from its system's index and its
-// materials' adjusted prices. The chain walk reaches every job beneath the one
-// being costed, so every one of them has to have been fetched for — which is
-// what `loadAllRelatedJobs` is for on the two screens that open a chain.
 describe("costing a chain deeper than one link", () => {
-  /**
-   * @param {string} jobID
-   * @param {number} systemID
-   * @param {number} materialTypeID
-   * @param {string|null} childID
-   */
   function link(jobID, systemID, materialTypeID, childID) {
-    const built = new Job({
+    const built = jobFromDocument({
       jobID,
       itemID: 587,
       jobType: 1,

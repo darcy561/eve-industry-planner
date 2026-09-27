@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import Job from "../../../Classes/job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../../../Functions/JobDocuments/jobDocument";
 import {
   childJobIDs,
   childJobIDsAfterEdits,
@@ -22,7 +25,7 @@ import {
 } from "./jobSelectors";
 
 const jobWith = (setup, setupToEdit) =>
-  new Job({
+  jobFromDocument({
     jobID: "job-1",
     name: "Job",
     itemID: 34,
@@ -39,25 +42,25 @@ describe("the setup the reader has open", () => {
   it("is the one being edited, as the job says", () => {
     const job = jobWith(twoSetups, "setup-2");
 
-    expect(selectedSetup(job.toDocument()).id).toBe("setup-2");
+    expect(selectedSetup(toDocument(job)).id).toBe("setup-2");
   });
 
   it("is nothing where the job names a setup it does not hold", () => {
     const job = jobWith(twoSetups, "setup-9");
 
-    expect(selectedSetup(job.toDocument())).toBeUndefined();
+    expect(selectedSetup(toDocument(job))).toBeUndefined();
   });
 
   it("is nothing where the job names none", () => {
     const job = jobWith(twoSetups, undefined);
 
-    expect(selectedSetup(job.toDocument())).toBeUndefined();
+    expect(selectedSetup(toDocument(job))).toBeUndefined();
   });
 
   it("is nothing for a job with no setups at all", () => {
     const job = jobWith({}, undefined);
 
-    expect(selectedSetup(job.toDocument())).toBeUndefined();
+    expect(selectedSetup(toDocument(job))).toBeUndefined();
   });
 });
 
@@ -65,25 +68,25 @@ describe("the setup a new one continues from", () => {
   it("is the one open, as the job says", () => {
     const job = jobWith(twoSetups, "setup-2");
 
-    expect(setupToBuildFrom(job.toDocument()).id).toBe("setup-2");
+    expect(setupToBuildFrom(toDocument(job)).id).toBe("setup-2");
   });
 
   it("falls back to the first where none is open, as the job says", () => {
     const job = jobWith(twoSetups, undefined);
 
-    expect(setupToBuildFrom(job.toDocument()).id).toBe("setup-1");
+    expect(setupToBuildFrom(toDocument(job)).id).toBe("setup-1");
   });
 
   it("falls back where the job names a setup it does not hold", () => {
     const job = jobWith(twoSetups, "setup-9");
 
-    expect(setupToBuildFrom(job.toDocument()).id).toBe("setup-1");
+    expect(setupToBuildFrom(toDocument(job)).id).toBe("setup-1");
   });
 
   it("is nothing for a job with no setups at all", () => {
     const job = jobWith({}, undefined);
 
-    expect(setupToBuildFrom(job.toDocument())).toBeUndefined();
+    expect(setupToBuildFrom(toDocument(job))).toBeUndefined();
   });
 });
 

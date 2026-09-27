@@ -2,12 +2,8 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import Group from "./group.js";
-import Job from "./job.js";
+import { jobFromDocument } from "../Functions/JobDocuments/jobDocument";
 
-// The shared case file, read from the repo root rather than copied here: the
-// backend (shared/groupshape) reads the same file, and a rule may not change on
-// one side alone. Read by path rather than imported so it is not pulled through
-// the bundler from outside the app root.
 const corpusPath = resolve(
   process.cwd(),
   "../testing/fixtures/group-derivation/cases.json",
@@ -16,7 +12,7 @@ const corpus = JSON.parse(readFileSync(corpusPath, "utf8"));
 
 describe("group derivation corpus", () => {
   test.for(corpus.cases)("$name", (testCase) => {
-    const jobs = testCase.jobs.map((document) => new Job(document));
+    const jobs = testCase.jobs.map((document) => jobFromDocument(document));
 
     const group = new Group({ groupID: "group-1" });
     group.createGroup(jobs);

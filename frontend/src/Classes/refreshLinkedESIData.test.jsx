@@ -35,10 +35,11 @@ vi.mock("../Zustand/usersStore.js", async () => {
 
 const { useRefreshLinkedESIData } =
   await import("../Components/Edit Job/Hooks/useRefreshLinkedESIData.js");
-const { default: Job } = await import("./job.js");
+const { jobFromDocument, toDocument } =
+  await import("../Functions/JobDocuments/jobDocument.js");
 
 function jobWithOrder(overrides = {}) {
-  return new Job({
+  return jobFromDocument({
     jobID: "job-1",
     itemID: 34,
     jobType: 1,
@@ -62,10 +63,6 @@ function jobWithOrder(overrides = {}) {
   });
 }
 
-/**
- * Opens the job and hands back what came out: the commands the refresh ran, and
- * the job they leave behind.
- */
 function openJob(job) {
   const actions = commandActions();
   function Editor() {
@@ -75,12 +72,10 @@ function openJob(job) {
   render(<Editor />);
   return {
     actions,
-    // A command that changes nothing records no patches, so a refresh that
-    // found nothing new is a run that recorded nothing.
     changed: commandsRun(actions).filter(
-      (command) => !unchangedBy(command, job.toDocument()),
+      (command) => !unchangedBy(command, toDocument(job)),
     ),
-    refreshed: appliedTo(actions, job.toDocument()),
+    refreshed: appliedTo(actions, toDocument(job)),
   };
 }
 
@@ -107,8 +102,6 @@ describe("opening a job refreshes what ESI last said", () => {
     expect(refreshed.esi.marketOrders["900"].item_price).toBe(5.5);
   });
 
-  // Opening a job must not write it for nothing: an unchanged order would
-  // otherwise mark every job modified on every visit.
   it("leaves an unchanged job alone", () => {
     const job = jobWithOrder();
     characterOrders.data = {
@@ -130,8 +123,6 @@ describe("opening a job refreshes what ESI last said", () => {
     expect(changed).toEqual([]);
   });
 
-  // The dashboard usually warms the cache, but a cold one must not fetch or
-  // wipe what the job holds.
   it("does nothing when the cache has not loaded", () => {
     const job = jobWithOrder();
     characterOrders.data = {};

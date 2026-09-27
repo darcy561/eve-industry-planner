@@ -3,9 +3,6 @@ import { materialPurchaseState } from "../MarketData/defaults/materialPricing.js
 /**
  * One row of Materials & Sourcing: what a material costs to buy, what it costs
  * to build, and which of those the plan is on.
- *
- * The comparison is the row's reason to exist, so the delta and the plan are
- * computed here rather than left to the reader to diff by eye.
  */
 
 /**
@@ -54,7 +51,7 @@ export const MATERIAL_PLAN = {
  * Builds the row for one material.
  *
  * @param {object} params
- * @param {object} params.material - A JobMaterial instance; its totals are getters
+ * @param {object} params.material - A material row as the job stores it
  * @param {number} params.buyPrice - Unit price at the resolved hub and orderType
  * @param {number|null} params.buildPrice - Unit cost from linked child jobs, or null
  * @param {boolean} params.isBuildable - Whether the material has a blueprint at all
@@ -63,7 +60,7 @@ export const MATERIAL_PLAN = {
  * @param {Array<object>} [params.matchedChildJobs] - The child jobs behind it
  * @param {string} [params.marketLocation] - The market the row resolved to
  * @param {string} [params.orderType] - The order type the row is priced from
- * @param {number} [params.quantity] - Overrides the material's own requirement,
+ * @param {number} [params.quantity] - How many of it the job's setups call for,
  *   for a row stating one setup's need rather than the whole job's
  * @param {import("../Groups/childJobCoverage").ChildJobCoverage} [params.coverage]
  * @returns {MaterialSourcingRow}
@@ -82,8 +79,8 @@ export function buildMaterialSourcingRow({
   quantity: quantityOverride,
   coverage = null,
 }) {
-  const quantity = quantityOverride ?? material?.quantity ?? 0;
-  const purchase = materialPurchaseState(material);
+  const quantity = quantityOverride ?? 0;
+  const purchase = materialPurchaseState(material, quantity);
 
   const buy = Number.isFinite(buyPrice) ? buyPrice : null;
   const build =
@@ -132,8 +129,6 @@ export function priceDelta(buyPrice, buildPrice) {
  * @returns {string} One of MATERIAL_PLAN
  */
 function planFor({ purchase, isBuildable, isLinked, build }) {
-  // Already bought outranks everything: there is a real price on the row, and
-  // quoting an estimate beside it would invite a decision that has been made.
   if (purchase.kind === "paid") return MATERIAL_PLAN.PAID;
   if (!isBuildable) return MATERIAL_PLAN.BASE;
   if (isLinked && build !== null) return MATERIAL_PLAN.BUILD;
@@ -143,10 +138,6 @@ function planFor({ purchase, isBuildable, isLinked, build }) {
 /**
  * Whether a row is leaving money on the table: building it would cost less, and
  * the plan is still to buy it.
- *
- * The panel marks these rows and offers to switch them, and the summary totals
- * what that would save. Both read this so the mark and the figure cannot
- * disagree about which rows they mean.
  *
  * @param {MaterialSourcingRow} row
  * @returns {boolean}
@@ -170,15 +161,6 @@ export function hasSavingAvailable(row) {
 /**
  * The figures the panel states above and below its table.
  *
- * The saving counts only rows that are cheaper to build **and** not already
- * building, since offering to apply a change that is already applied reads as a
- * figure the panel cannot back up.
- *
- * `buildable` and `costed` are separate because a row has a blueprint long
- * before anything works out what building it would cost. Counting buildable
- * rows by whether they carry a price conflates the two, and the panel then
- * states a total smaller than the number of rows it is talking about.
- *
  * @param {MaterialSourcingRow[]} rows
  * @returns {SourcingSummary}
  */
@@ -191,9 +173,6 @@ export function summariseSourcing(rows) {
   for (const row of list) {
     if (!hasSavingAvailable(row)) continue;
     cheaperToBuild += 1;
-    // Only what is still to source can move to a build plan. Counting the whole
-    // requirement offers a saving on units already bought, which applying the
-    // change cannot deliver.
     savingAvailable +=
       (row.buyPrice - row.buildPrice) * (row.remainingQuantity ?? row.quantity);
   }

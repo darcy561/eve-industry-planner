@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import Group from "../../Classes/group";
-import Job from "../../Classes/job";
 import { stepBackward, stepForward } from "./Edit Job Hooks/jobCommands";
 import { editJobStore } from "../../tests/editJobFixtures";
 
@@ -65,17 +64,18 @@ describe("what the reader changes on a job, end to end", () => {
     expect(editJob.current.jobModified).toBe(true);
   });
 
-  it("hands back a job, not a plain object, after a layout change", () => {
-    const { editJob } = renderOverEditJob(
-      storedJob({ jobStatus: 2 }),
-      ({ state, actions }) => (
-        <TabPanel_Building state={state} actions={actions} jobMatches={[]} />
-      ),
-    );
+  it("hands back the whole job after a layout change, not the part that moved", () => {
+    const stored = storedJob({ jobStatus: 2 });
+    const { editJob } = renderOverEditJob(stored, ({ state, actions }) => (
+      <TabPanel_Building state={state} actions={actions} jobMatches={[]} />
+    ));
 
     fireEvent.click(screen.getByRole("tab", { name: /Available ESI Job/i }));
 
-    expect(editJob.current.activeJob).toBeInstanceOf(Job);
+    const job = editJob.current.activeJob;
+    expect(job.layout.esiJobTab).toBe("0");
+    expect(job.jobID).toBe(stored.jobID);
+    expect(job.build.setup).toEqual(stored.build.setup);
   });
 
   it("marks a grouped job ready for sale and moves it on a step", () => {
@@ -146,16 +146,17 @@ describe("stepping a job through the planner, end to end", () => {
     expect(editJob.current.activeJob.jobStatus).toBe(1);
   });
 
-  it("hands back a job either way, not a plain object", () => {
-    const { editJob } = renderOverEditJob(
-      storedJob({ jobStatus: 1 }),
-      ({ actions }) => (
-        <button onClick={() => actions.run(stepForward())}>next step</button>
-      ),
-    );
+  it("hands back the whole job when a stage moves, not the part that moved", () => {
+    const stored = storedJob({ jobStatus: 1 });
+    const { editJob } = renderOverEditJob(stored, ({ actions }) => (
+      <button onClick={() => actions.run(stepForward())}>next step</button>
+    ));
 
     fireEvent.click(screen.getByRole("button", { name: "next step" }));
 
-    expect(editJob.current.activeJob).toBeInstanceOf(Job);
+    const job = editJob.current.activeJob;
+    expect(job.jobStatus).toBe(2);
+    expect(job.jobID).toBe(stored.jobID);
+    expect(job.build.setup).toEqual(stored.build.setup);
   });
 });

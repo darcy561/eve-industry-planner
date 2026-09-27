@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { jobWriteEnvelope } from "./jobWriteEnvelope.js";
+import { toDocument } from "./jobDocument.js";
 
 const corpusPath = resolve(
   process.cwd(),
@@ -11,13 +12,7 @@ const corpusPath = resolve(
 const corpus = JSON.parse(readFileSync(corpusPath, "utf8"));
 
 function job() {
-  return {
-    jobID: corpus.job.jobID,
-    includedInGroup: corpus.job.includedInGroup,
-    groupID: corpus.job.groupID,
-    _meta: { revision: corpus.revision },
-    toDocument: () => structuredClone(corpus.job),
-  };
+  return structuredClone(corpus.job);
 }
 
 describe("the write envelope the corpus states", () => {
@@ -26,9 +21,10 @@ describe("the write envelope the corpus states", () => {
   });
 
   it("leaves the revision out of a whole-document write", () => {
-    const write = jobWriteEnvelope(job(), null);
+    const built = job();
+    const write = jobWriteEnvelope(built, null);
 
     expect(write).not.toHaveProperty("revision");
-    expect(write.document).toEqual(corpus.job);
+    expect(write.document).toEqual(toDocument(built));
   });
 });

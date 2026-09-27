@@ -5,7 +5,7 @@ import useUsersStore from "../../Zustand/usersStore.js";
  *
  * @param {number|string} requestedMaterialID — material `typeID`
  * @param {string} requestedGroupID
- * @returns {import("../../Classes/job").default|null}
+ * @returns {object|null}
  */
 export function findMaterialJobInGroup(requestedMaterialID, requestedGroupID) {
   if (!requestedMaterialID || !requestedGroupID) return null;

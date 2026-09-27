@@ -1,4 +1,5 @@
 import { Typography, Grid } from "@mui/material";
+import { materialRequirementOf } from "../../../../../Edit Job Hooks/jobSelectors";
 import { estimatedMaterialCost } from "../../../../../../../Functions/Groups/estimatedMaterialCost.js";
 import { SMALL_TEXT_FORMAT } from "../../../../../../../Context/defaultValues";
 import { formatNumberForLocale } from "../../../../../../../Functions/Helper/numberParser";
@@ -10,8 +11,6 @@ export function ChildJobMaterials({
   marketLocation,
   orderType,
 }) {
-  // The child jobs built on this page but not saved, which are what a material
-  // of the job on show may itself be built by.
   const temporaryChildJobs = useUsersStore(
     (store) => store.editSession.temporaryChildJobs,
   );
@@ -27,6 +26,7 @@ export function ChildJobMaterials({
 
     const calculatedMaterialPrice = estimatedMaterialCost(
       material,
+      materialRequirementOf(row.build?.setup, material.typeID),
       childJobIds,
       temporaryChildJobs?.[material.typeID],
       marketLocation,

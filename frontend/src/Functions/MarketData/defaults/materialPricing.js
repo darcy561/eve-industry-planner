@@ -1,3 +1,8 @@
+import {
+  purchaseComplete,
+  purchasedCost,
+  quantityPurchased,
+} from "../../../Components/Edit Job/Edit Job Hooks/materialSelectors";
 import { ORDER_TYPES } from "../../../Context/defaultValues";
 import { MATERIAL_PLAN } from "../../Job/materialSourcingRow.js";
 import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
@@ -186,17 +191,16 @@ export function summariseOrderTypeUse(rows, marketLocation, orderType) {
  * Whether a row is still an estimate, reports what was actually paid, or is both
  * where the material was bought in part.
  *
- * @param {object} material - A JobMaterial instance; its totals are getters, so a
- *   spread of one loses them and must not be passed here
+ * @param {object} material - A material row as the job stores it
+ * @param {number} requirement - How many of it the job's setups call for
  * @returns {MaterialPurchaseState}
  */
-export function materialPurchaseState(material) {
-  const paidQuantity = material?.quantityPurchased ?? 0;
-  const paidCost = material?.purchasedCost ?? 0;
-  const required = material?.quantity ?? 0;
-  const remainingQuantity = Math.max(0, required - paidQuantity);
+export function materialPurchaseState(material, requirement = 0) {
+  const paidQuantity = quantityPurchased(material, requirement);
+  const paidCost = purchasedCost(material, requirement);
+  const remainingQuantity = Math.max(0, requirement - paidQuantity);
 
-  if (material?.purchaseComplete) {
+  if (purchaseComplete(material, requirement)) {
     return { kind: "paid", paidCost, paidQuantity, remainingQuantity: 0 };
   }
   if (paidQuantity > 0) {

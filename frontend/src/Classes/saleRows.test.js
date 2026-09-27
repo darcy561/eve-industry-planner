@@ -11,7 +11,10 @@ import { describe, expect, it } from "vitest";
 import BrokerFee from "./brokerFee";
 import MarketOrder from "./marketOrder";
 import Transaction from "./transaction";
-import Job from "./job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../Functions/JobDocuments/jobDocument";
 import InventionEntry from "./inventionEntry";
 import {
   addMarketOrder,
@@ -358,7 +361,7 @@ describe("BrokerFee", () => {
 
 describe("linking a market order", () => {
   it("keeps the order when no broker fee entry was found", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -370,15 +373,15 @@ describe("linking a market order", () => {
       addMarketOrder({ order_id: 1, price: 5, volume_total: 10 }, null),
     );
 
-    expect(esiOrderIDs(listed.toDocument()).has(1)).toBe(true);
+    expect(esiOrderIDs(toDocument(listed)).has(1)).toBe(true);
 
     expect(listed.esi.marketOrders["1"].fee).toBe(0);
     expect(listed.esi.marketOrders["1"].feeDate).toBeNull();
-    expect(totalBrokersFees(listed.toDocument())).toBe(0);
+    expect(totalBrokersFees(toDocument(listed))).toBe(0);
   });
 
   it("records the fee alongside the order when there is one", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -393,14 +396,14 @@ describe("linking a market order", () => {
       ),
     );
 
-    expect(esiOrderIDs(listed.toDocument()).has(1)).toBe(true);
-    expect(totalBrokersFees(listed.toDocument())).toBe(1200);
+    expect(esiOrderIDs(toDocument(listed)).has(1)).toBe(true);
+    expect(totalBrokersFees(toDocument(listed))).toBe(1200);
 
     expect(listed.esi.marketOrders["1"].fee).toBe(1200);
   });
 
   it("holds a stored fee on its order and writes it back", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -423,16 +426,16 @@ describe("linking a market order", () => {
 
     expect(job.esi.marketOrders["1"].fee).toBe(1200);
     expect(job.esi.marketOrders["1"].feeDate).toBe("2026-01-01T00:00:00Z");
-    expect(totalBrokersFees(job.toDocument())).toBe(1200);
+    expect(totalBrokersFees(toDocument(job))).toBe(1200);
 
-    const document = job.toDocument();
+    const document = toDocument(job);
     expect(document.esi.marketOrders["1"]).not.toHaveProperty("complete");
     expect(document.esi.marketOrders["1"].fee).toBe(1200);
-    expect(totalBrokersFees(new Job(document).toDocument())).toBe(1200);
+    expect(totalBrokersFees(toDocument(jobFromDocument(document)))).toBe(1200);
   });
 
   it("removes a fee with the order it was charged for", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -456,13 +459,13 @@ describe("linking a market order", () => {
       removeMarketOrder({ order_id: 1, location_id: 60003760 }),
     );
 
-    expect(totalBrokersFees(unlisted.toDocument())).toBe(800);
+    expect(totalBrokersFees(toDocument(unlisted))).toBe(800);
   });
 });
 
 describe("which order a linked sale is attributed to", () => {
   const jobSellingThrough = (orders) =>
-    new Job({
+    jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -510,7 +513,7 @@ describe("which order a linked sale is attributed to", () => {
 
 describe("tax expected on orders that have not sold", () => {
   const jobWith = ({ fees = [], transactions = [] }) =>
-    new Job({
+    jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -530,7 +533,7 @@ describe("tax expected on orders that have not sold", () => {
       fees: [{ order_id: 1, amount: 1200, salesTax: 500 }],
     });
 
-    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(500);
+    expect(estimatedSalesTaxOutstanding(toDocument(job))).toBe(500);
   });
 
   it("stops counting it once the order has sold", () => {
@@ -539,9 +542,9 @@ describe("tax expected on orders that have not sold", () => {
       transactions: [{ order_id: 1, transaction_id: 9, tax: 480, amount: 100 }],
     });
 
-    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(0);
+    expect(estimatedSalesTaxOutstanding(toDocument(job))).toBe(0);
 
-    expect(totalTransactionFees(job.toDocument())).toBe(480);
+    expect(totalTransactionFees(toDocument(job))).toBe(480);
   });
 
   it("counts only the orders still open when some have sold", () => {
@@ -553,7 +556,7 @@ describe("tax expected on orders that have not sold", () => {
       transactions: [{ order_id: 1, transaction_id: 9, tax: 480, amount: 100 }],
     });
 
-    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(300);
+    expect(estimatedSalesTaxOutstanding(toDocument(job))).toBe(300);
   });
 
   it("stays out of the job's total cost", () => {
@@ -567,31 +570,31 @@ describe("tax expected on orders that have not sold", () => {
   it("counts nothing for rows stored before estimates existed", () => {
     const job = jobWith({ fees: [{ order_id: 1, amount: 1200 }] });
 
-    expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(0);
+    expect(estimatedSalesTaxOutstanding(toDocument(job))).toBe(0);
   });
 });
 
 describe("what meta group a job belongs to", () => {
   it("takes it from the recipe it was built from", () => {
-    const job = new Job({ jobType: 1, name: "Item", metaGroupID: 2 });
+    const job = jobFromDocument({ jobType: 1, name: "Item", metaGroupID: 2 });
 
     expect(job.metaLevel).toBe(2);
   });
 
   it("takes it from a stored job's own field", () => {
-    const job = new Job({ jobType: 1, name: "Item", metaLevel: 14 });
+    const job = jobFromDocument({ jobType: 1, name: "Item", metaLevel: 14 });
 
     expect(job.metaLevel).toBe(14);
   });
 
   it("carries it back into the document", () => {
-    const job = new Job({ jobType: 1, name: "Item", metaGroupID: 53 });
+    const job = jobFromDocument({ jobType: 1, name: "Item", metaGroupID: 53 });
 
-    expect(job.toDocument().metaLevel).toBe(53);
+    expect(toDocument(job).metaLevel).toBe(53);
   });
 
   it("has none for an item that belongs to no meta group", () => {
-    expect(new Job({ jobType: 1, name: "Item" }).metaLevel).toBeNull();
+    expect(jobFromDocument({ jobType: 1, name: "Item" }).metaLevel).toBeNull();
   });
 });
 

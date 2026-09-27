@@ -2,7 +2,7 @@
  * Coalesces rapid `job_documents` WS deliveries into fewer Zustand updates.
  */
 
-import Job from "../../Classes/job.js";
+import { jobFromDocument, toDocument } from "../JobDocuments/jobDocument.js";
 import { USER_JOB_DOCUMENTS_COLLECTION } from "../Endpoints/Private/jobDocuments.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 import { createCoalesceFlush } from "./helpers/createCoalesceFlush.js";
@@ -91,11 +91,11 @@ function flush() {
     actions.removePendingInboundNewJobSkeletons(entries.map(([id]) => id));
     const arrived = entries.map(([jobID, held]) => [
       jobID,
-      new Job(held.document),
+      jobFromDocument(held.document),
     ]);
     actions.updateOrAddJobsToJobArray(arrived.map(([, job]) => job));
     for (const [jobID, job] of arrived) {
-      editSession.actions.documentArrived(jobID, job.toDocument());
+      editSession.actions.documentArrived(jobID, toDocument(job));
     }
     rs.setPositionBatch(
       entries

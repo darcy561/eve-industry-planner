@@ -3,6 +3,11 @@ import { screen, fireEvent, within } from "@testing-library/react";
 import Group from "../../Classes/group";
 import { TRITANIUM, editJobStore } from "../../tests/editJobFixtures";
 import { snackbarSpies } from "../../tests/snackbarHarness.js";
+import { materialRequirementOf } from "./Edit Job Hooks/jobSelectors";
+import {
+  purchasedCost,
+  quantityPurchased,
+} from "./Edit Job Hooks/materialSelectors";
 
 const { store, readOnly, pasted } = vi.hoisted(() => ({
   store: { current: null },
@@ -59,7 +64,6 @@ beforeEach(() => {
   store.current = editJobStore({ group });
 });
 
-/** A job needing a quantity of one material, with nothing bought yet. */
 function needing(quantity, { purchasing = {} } = {}) {
   return storedJob({
     jobStatus: 2,
@@ -92,6 +96,13 @@ function materialOf(state) {
   return Object.values(state.activeJob.build.materials)[0];
 }
 
+function needOf(state) {
+  return materialRequirementOf(
+    state.activeJob.build.setup,
+    materialOf(state).typeID,
+  );
+}
+
 describe("costing the materials a job needs, end to end", () => {
   it("charges the job for what was bought", () => {
     const { editJob } = renderOverEditJob(needing(100), ({ state }) => (
@@ -116,8 +127,6 @@ describe("costing the materials a job needs, end to end", () => {
     expect(Object.values(material.purchasing)[0].itemCost).toBe(5);
   });
 
-  // Buying more than the job needs is allowed, but the job is only charged for
-  // what it needed.
   it("does not charge the job for more than it needed", () => {
     const { editJob } = renderOverEditJob(needing(100), ({ state }) => (
       <AddMaterialCost_Purchasing
@@ -136,10 +145,8 @@ describe("costing the materials a job needs, end to end", () => {
     fireEvent.submit(screen.getByLabelText("Quantity").closest("form"));
 
     const material = materialOf(editJob.current);
-    // The whole purchase is kept — a reader who bought 150 bought 150 — but the
-    // job is only charged for the 100 it needed.
     expect(Object.values(material.purchasing)[0].itemCount).toBe(150);
-    expect(material.quantityPurchased).toBe(100);
+    expect(quantityPurchased(material, needOf(editJob.current))).toBe(100);
   });
 
   it("takes a purchase back off the job", () => {
@@ -170,12 +177,7 @@ describe("costing the materials a job needs, end to end", () => {
   });
 });
 
-// A job keys its materials by type id, so the paste has to walk them as a
-// collection rather than an array — reading them as one threw where a reader
-// pressed the button.
 describe("importing costs pasted from the game, end to end", () => {
-  // The tooltip supplies the button's accessible name, so it is found by the
-  // words on it rather than by role and name.
   const importCosts = () =>
     fireEvent.click(screen.getByText("Import Costs From Multibuy"));
 
@@ -190,9 +192,13 @@ describe("importing costs pasted from the game, end to end", () => {
     importCosts();
 
     await vi.waitFor(() =>
-      expect(materialOf(editJob.current).quantityPurchased).toBe(100),
+      expect(
+        quantityPurchased(materialOf(editJob.current), needOf(editJob.current)),
+      ).toBe(100),
     );
-    expect(materialOf(editJob.current).purchasedCost).toBe(500);
+    expect(
+      purchasedCost(materialOf(editJob.current), needOf(editJob.current)),
+    ).toBe(500);
   });
 
   it("says so when the paste names nothing the job needs", async () => {
@@ -210,13 +216,12 @@ describe("importing costs pasted from the game, end to end", () => {
         "No Matching Items Found",
       ),
     );
-    expect(materialOf(editJob.current).quantityPurchased).toBe(0);
+    expect(
+      quantityPurchased(materialOf(editJob.current), needOf(editJob.current)),
+    ).toBe(0);
   });
 });
 
-// The buying market and order type are the job's own choice, stored on it. They were
-// the last controls on this panel still calling an action the session no longer
-// has, so pressing one threw.
 describe("choosing where the job buys, end to end", () => {
   const openPanel = () =>
     renderOverEditJob(needing(100), () => <PurchasingDataPanel_EditJob />);
@@ -233,9 +238,6 @@ describe("choosing where the job buys, end to end", () => {
     const [, second] = within(screen.getByRole("listbox")).getAllByRole(
       "option",
     );
-    // The option's own value rather than its label: a hub's id matches its name
-    // today, but a saved structure's does not, so the label would be asserting a
-    // coincidence.
     const chosen = second.getAttribute("data-value");
     fireEvent.click(second);
 

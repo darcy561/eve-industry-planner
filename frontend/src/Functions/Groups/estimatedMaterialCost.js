@@ -2,16 +2,14 @@ import useUsersStore from "../../Zustand/usersStore.js";
 import { getJobInstallCostForPlanning } from "../Installation Costs/installCosts.js";
 import { readMarketPriceForType } from "../MarketData/prices/marketPriceForType.js";
 import { materialCostThroughChildJobs } from "./childJobCostWalk.js";
+import { purchasedCost } from "../../Components/Edit Job/Edit Job Hooks/materialSelectors.js";
 
 /**
  * What a material is likely to cost, counting a linked child job as the way it
  * will be obtained and the market as the way everything else will be.
  *
- * This is the estimate the planner prices a build from before any of it has
- * been bought. Its counterpart, `jobCostSoFar`, answers what has actually been
- * spent and so never reaches for a market figure.
- *
  * @param {object} inputMaterial
+ * @param {number} requirement - How many of it the owning job's setups call for
  * @param {string[]} childJobs - The child jobs building this material, if any
  * @param {object|object[]} [alternativeJobLocation] - Speculative jobs not yet in the planner
  * @param {string} marketLocation - The market the caller resolved for its side
@@ -20,6 +18,7 @@ import { materialCostThroughChildJobs } from "./childJobCostWalk.js";
  */
 export function estimatedMaterialCost(
   inputMaterial,
+  requirement,
   childJobs,
   alternativeJobLocation = [],
   marketLocation,
@@ -39,14 +38,13 @@ export function estimatedMaterialCost(
 
   return materialCostThroughChildJobs(
     inputMaterial,
+    requirement,
     childJobs,
     {
       findJob: (jobID) => jobsByID.get(jobID),
-      // Nothing was fetched at this market where it holds no row, so falling
-      // back to what the reader already paid beats pricing the line at nothing.
-      buyCost: (material) =>
+      buyCost: (material, need) =>
         (readMarketPriceForType(material.typeID, marketLocation, orderType) ||
-          material.purchasedCost) * material.quantity,
+          purchasedCost(material, need)) * need,
       installCost: getJobInstallCostForPlanning,
     },
     new Set(),

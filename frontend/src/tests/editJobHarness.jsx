@@ -7,9 +7,11 @@ import {
   useJobActions,
   useJobDraft,
 } from "../Components/Edit Job/Edit Job Hooks/useJobDraft";
-import { jobLens } from "../Components/Edit Job/Edit Job Hooks/jobLens";
 import { hasChanges } from "../Components/Edit Job/Edit Job Hooks/jobDraftStore";
-import Job from "../Classes/job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../Functions/JobDocuments/jobDocument";
 import seedLocationNames from "./seedLocationNames";
 import { testQueryClient } from "./queryClients.js";
 
@@ -27,11 +29,6 @@ const theme = createTheme({
 /**
  * Mounts a piece of the Edit Job page over the real edit session, so a test can
  * press what a reader presses and then read the job that came out of it.
- *
- * Nothing here is mocked: the control runs a real command, the real store
- * records it, and `editJob.current` is the job derived from the layers. That is
- * the join these tests exist to cover — a control and a command can each be
- * right on their own and still disagree about what the reader asked for.
  *
  * @param {Object} props
  * @param {Object} props.job - Job fields to start from, as stored.
@@ -51,19 +48,14 @@ export function EditJobHarness({ job, children, editJobRef, locationNames }) {
   const session = useUsersStore((store) => store.editSession);
 
   useEffect(() => {
-    const seeded = new Job(job);
-    actions.openJob(seeded.jobID, seeded.toDocument());
+    const seeded = jobFromDocument(job);
+    actions.openJob(seeded.jobID, toDocument(seeded));
     return () => actions.closeSession();
-    // Seeded once, from the job this harness was given.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* The page itself reads the job in parts, out of the store. A test asserts on
-   * the whole of it, so the harness is where the session is assembled — and the
-   * job is handed over as a class, because a test asks it for figures the page
-   * reads through selectors. */
   const state = {
-    activeJob: jobLens(openJob),
+    activeJob: openJob,
     jobModified: hasChanges(session.draft),
     temporaryChildJobs: session.temporaryChildJobs,
     speculativeChildJobs: session.speculativeChildJobs,

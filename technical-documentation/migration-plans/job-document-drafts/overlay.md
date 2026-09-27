@@ -240,9 +240,8 @@ rows reads its figure without the job.
 
 ## Stage 5 — `jobArray` goes plain and the lens is deleted
 
-**Part landed: nothing outside the class asks an instance for anything.** `jobArray` still holds `Job`
-instances and `toDocument()` is still the persistence contract, so the cutover itself has not been
-taken.
+**Landed, all four steps.** `jobArray` holds plain job documents, `Classes/job.js` and the lens are
+deleted, and nothing in the SPA holds a `Job`.
 
 What has landed is everything that had to happen before it could be. Three steps:
 
@@ -264,22 +263,33 @@ agreeing with the class member it replaced, so each of those assertions now stat
 Three call-site files had no tests at all; those were written first, against the old implementation, so
 that they pass unchanged across the conversion rather than recording whatever it produced.
 
-`Classes/job.js` is 533 lines, from 929. What is left on it is the constructor, `buildJobObject`,
-`toDocument`, a private `#materialRequirement` the constructor hands to each material row, and three
-members with both a live caller and a command equivalent — `importPurchaseToMaterial`,
-`attachNewSetupToJob`, `recalculateSelectedSetup`.
+`Classes/job.js` went 1,405 lines to 929 to 533 to nothing. Its four remaining jobs are functions in
+[`Functions/JobDocuments/jobDocument.js`](../../../frontend/src/Functions/JobDocuments/jobDocument.js):
+`jobFromDocument(json, buildRequest)` reads a job from a stored document or from what the SDE gives a new
+one, `applyRecipeToJob` fills a new job in from its recipe, `toDocument(job)` says what a job stores, and
+`copyOfJob(job)` is a job something may change without disturbing the one it came from.
 
 ### What a document may share with the job it came from
 
-`toDocument()` is what a job is copied through: `new Job(source.toDocument())` is how a merge, a delete,
-a mass build and a planner move each clone one before changing it, and every one of them relies on the
-copy leaving the planner alone until its writes have landed. Every member is rebuilt on the way out
-except four — `parentJobs`, `rawData`, `skills` and `materialPriceOverrides` — which are still handed
-out live. They are safe only because every mutator replaces them rather than changing them in place. A
-mutator that changes one in place needs it copied on the way out too, the way `childJobs` already is;
-without that, a change to the copy reaches the job it was copied from, and a write that fails still
-leaves the planner altered.
+`copyOfJob(job)` is what a job is copied through: a merge, a delete, a mass build and a planner move each
+take one before changing it, and every one relies on the copy leaving the planner alone until its writes
+have landed. It is `structuredClone(toDocument(job))`, so the copy shares nothing — which is a stronger
+guarantee than the class gave. Under the class, four members were handed out live — `parentJobs`,
+`rawData`, `skills` and `materialPriceOverrides` — and were safe only because every mutator replaced them
+rather than changing them in place. `copiedChildJobs` still copies the child job lists inside
+`toDocument`, because a document handed out for reading must not share them either.
 
-Owed here: the cutover. What the store holds, how a job reaches the save path, and confirmation the lens
-is gone rather than kept as a wrapper. `moveItemsOnPlanner.js` is the one caller known to break on it —
-it clones through `new Job(source.toDocument())`, and `toDocument()` is the call that goes.
+### What the row classes are for now
+
+The row classes stay, and a job never holds one. `jobSetup`, `jobMaterial`, `marketOrder`,
+`linkedESIJob`, `transaction`, `extraCost`, `inventionEntry` and `brokerFee` are where a row's defaults
+and its shape live, so a caller that stores a new row builds it through the class and stores what
+`toDocument()` says — the rule Stage 3 set for commands, now the rule everywhere. A caller that needs a
+row's behaviour wraps it, acts, and stores the row back: `applySetupChange`, `recalculateSetupMaterials`,
+`applyLatestOrderData` and the watchlist dialogue all read this way.
+
+A figure derived from a row is a selector taking the row and the requirement — `purchasedCost(material,
+requirement)` — because the requirement belongs to the setups and a row cannot know it. Where a caller
+holds the job that is `materialRequirementOf(job.build.setup, typeID)`; where it does not, the
+requirement travels with the material, which is why `materialCostThroughChildJobs` takes it as its second
+argument and `rules.buyCost` is `(material, requirement)`.

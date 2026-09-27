@@ -16,11 +16,14 @@ import {
   totalTransactionFees,
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 import { describe, expect, test } from "vitest";
-import Job from "./job.js";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../Functions/JobDocuments/jobDocument";
 import Setup from "./jobSetup.js";
 
 function jobWith({ materials = [], invention = 0, totalQuantity = 10 }) {
-  return new Job({
+  return jobFromDocument({
     jobID: "job-1",
     itemID: 587,
     jobType: 1,
@@ -139,8 +142,8 @@ describe("invention is its own cost", () => {
 
 describe("what the job cost in total", () => {
   function sold(job, { fees = [], taxes = [], sales = [] }) {
-    const document = job.toDocument();
-    return new Job({
+    const document = toDocument(job);
+    return jobFromDocument({
       ...document,
       esi: {
         ...document.esi,
@@ -171,7 +174,7 @@ describe("what the job cost in total", () => {
     expect(buildCost(job)).toBe(108);
     expect(totalBrokersFees(job)).toBe(3);
     expect(totalTransactionFees(job)).toBe(0.75);
-    expect(totalSales(job.toDocument())).toBe(250);
+    expect(totalSales(toDocument(job))).toBe(250);
     expect(totalCost(job)).toBe(111.75);
   });
 
@@ -179,14 +182,14 @@ describe("what the job cost in total", () => {
     const job = jobWith({ materials: [100] });
 
     expect(totalCost(job)).toBe(buildCost(job));
-    expect(totalSales(job.toDocument())).toBe(0);
+    expect(totalSales(toDocument(job))).toBe(0);
   });
 });
 
 describe("reading a job's figures", () => {
   function sold(job) {
-    const document = job.toDocument();
-    return new Job({
+    const document = toDocument(job);
+    return jobFromDocument({
       ...document,
       esi: {
         ...document.esi,
@@ -202,7 +205,7 @@ describe("reading a job's figures", () => {
   test("the sale totals read as values", () => {
     const job = sold(jobWith({ materials: [100] }));
 
-    expect(totalSales(job.toDocument())).toBe(250);
+    expect(totalSales(toDocument(job))).toBe(250);
     expect(totalBrokersFees(job)).toBe(3);
     expect(totalTransactionFees(job)).toBe(0.75);
   });

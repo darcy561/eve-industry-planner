@@ -3,11 +3,10 @@ import getAllRelatedJobs from "../../../Functions/Helper/getAllRelatedJobs";
 /**
  * Resolves the same data the edit job page would pass to
  * `openJobDependencyTreeDialogue` — pool (group or planner), `getAllRelatedJobs`,
- * and edit-navigation hints — so callers can send only a job id + search hints.
  *
  * @param {string|number|undefined} jobId
  * @param {string|null|undefined} searchActiveGroup
- * @param {import("../../../Classes/job").default[]} jobArray
+ * @param {object[]} jobArray
  * @param {(g: string) => object | null | undefined} getGroupObject
  * @returns {null | { jobIds: string[]; depTreeGroupId: string | null; initialFocusJobId: string; activeGroupForEdit: string | null }}
  */

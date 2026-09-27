@@ -10,12 +10,13 @@ vi.mock("../../../Zustand/usersStore", async () => {
 
 const { default: applyParentChildChanges } =
   await import("./applyParentChildChanges.js");
-const { default: Job } = await import("../../../Classes/job.js");
+const { jobFromDocument } =
+  await import("../../../Functions/JobDocuments/jobDocument.js");
 
 const TRITANIUM = 34;
 
 function editedJob() {
-  return new Job({
+  return jobFromDocument({
     jobID: "edited",
     itemID: 587,
     parentJobs: [],
@@ -27,7 +28,12 @@ function editedJob() {
 }
 
 function otherJob(jobID, itemID = 587, childJobs = {}) {
-  return new Job({ jobID, itemID, parentJobs: [], build: { childJobs } });
+  return jobFromDocument({
+    jobID,
+    itemID,
+    parentJobs: [],
+    build: { childJobs },
+  });
 }
 
 const noChanges = (over = {}) => ({

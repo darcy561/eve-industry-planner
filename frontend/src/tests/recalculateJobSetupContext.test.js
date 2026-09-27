@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The recalculating user's settings: a different structure, a different default
-// ME and a different main character from the ones the job below was built with.
 const RECALCULATING_USER = {
   customStructureID: "manufacturing-theirs",
   structureID: 35827,
@@ -13,7 +11,6 @@ const RECALCULATING_USER = {
   defaultME: 5,
 };
 
-// The job's own build context, as stored on its setup.
 const JOB_AS_BUILT = {
   customStructureID: "manufacturing-the-jobs-own",
   structureID: 35825,
@@ -26,7 +23,6 @@ const JOB_AS_BUILT = {
   TE: 20,
 };
 
-// Read lazily: RECALCULATING_USER is declared below this hoisted factory.
 vi.mock("../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("./usersStoreHarness.js");
@@ -63,9 +59,6 @@ vi.mock("../Zustand/usersStore", async () => {
             systemID: RECALCULATING_USER.systemID,
             tax: RECALCULATING_USER.taxValue,
           }),
-          // Only the recalculating user's own structure resolves. The job's is
-          // absent from their settings, which is exactly a member opening
-          // another's job — and what makes stamping their id onto it a defect.
           findPredefinedSystemIndex: () => null,
           getCustomStructureWithID: (id) =>
             id === RECALCULATING_USER.customStructureID
@@ -77,8 +70,6 @@ vi.mock("../Zustand/usersStore", async () => {
   );
 });
 
-// The blueprints the recalculating user holds: none, which is what makes the derived ME fall back
-// to their own default rather than the job's stored value.
 vi.mock("../Hooks/EveEsi/useBlueprintIndex", () => ({
   BLUEPRINT_SCOPE: { ALL: "all" },
   getCachedBlueprintIndex: () => ({
@@ -92,9 +83,6 @@ const { default: recalculateJobForNewTotal } =
   await import("../Functions/JobPlanner/recalculateJobForNewTotal");
 const { default: Setup } = await import("../Classes/jobSetup");
 
-const { default: Job } = await import("../Classes/job");
-
-/** A job with one setup, built in a structure the recalculating user does not own. */
 function jobBuiltByAnotherMember({ maxProductionLimit = 10, perRun = 1 } = {}) {
   const setup = new Setup({
     runCount: 5,
@@ -111,9 +99,7 @@ function jobBuiltByAnotherMember({ maxProductionLimit = 10, perRun = 1 } = {}) {
     jobType: 1,
   });
 
-  // A real Job: recalculation reads activeSetup off it, and a plain object would
-  // pass the tests while the app took a different path.
-  const job = Object.create(Job.prototype);
+  const job = {};
   job.jobType = 1;
   job.blueprintTypeID = 1234;
   job.maxProductionLimit = maxProductionLimit;
@@ -128,9 +114,6 @@ function jobBuiltByAnotherMember({ maxProductionLimit = 10, perRun = 1 } = {}) {
   return job;
 }
 
-// A query client that holds nothing: the figures a setup derives from skills and
-// prices are not what these tests are about, and an empty cache exercises the same
-// paths the app takes before those queries resolve.
 function emptyQueryClient() {
   return {
     getQueryState: () => undefined,
@@ -149,8 +132,6 @@ describe("recalculating a job's setups", () => {
     vi.clearAllMocks();
   });
 
-  // The job is made where it was made, by whoever it was made by, whatever the
-  // recalculating user's own settings say.
   it("keeps the job's own build context", () => {
     const job = jobBuiltByAnotherMember();
 
@@ -168,8 +149,6 @@ describe("recalculating a job's setups", () => {
     expect(setup.TE).toBe(JOB_AS_BUILT.TE);
   });
 
-  // A job with no setups has no context to keep, so it derives one. This is the
-  // path every newly built job takes, and it must not change.
   it("derives a context for a job that has no setups yet", () => {
     const job = jobBuiltByAnotherMember();
     job.build.setup = {};
@@ -184,8 +163,6 @@ describe("recalculating a job's setups", () => {
     expect(setup.ME).toBe(RECALCULATING_USER.defaultME);
   });
 
-  // The layout is the part recalculation is for, and it is correct today: a new
-  // quantity produces a new split. Nothing about the fix may change this.
   it("splits a new quantity across setups by the job's max run limit", () => {
     const job = jobBuiltByAnotherMember({ maxProductionLimit: 10, perRun: 1 });
 
@@ -208,9 +185,6 @@ describe("recalculating a job's setups", () => {
     expect(job.layout.setupToEdit).toBe(Object.keys(job.build.setup)[0]);
   });
 
-  // The group template path: buildJob restores setups from a saved template, then
-  // recalculates if the quantity differs. What the template supplied has to
-  // survive that, or a saved template silently does not apply.
   it("keeps a restored template's context when the quantity differs", () => {
     const job = jobBuiltByAnotherMember({ maxProductionLimit: 10, perRun: 1 });
     const restored = onlySetup(job);
@@ -223,8 +197,6 @@ describe("recalculating a job's setups", () => {
     );
   });
 
-  // A quantity that needs more setups than the job has: whatever the fix does
-  // about context, every setup in the new layout has to be given one.
   it("gives every setup in a larger layout the same build context", () => {
     const job = jobBuiltByAnotherMember({ maxProductionLimit: 10, perRun: 1 });
 
@@ -245,8 +217,6 @@ describe("recalculating a job's setups", () => {
     expect(contexts.size).toBe(1);
   });
 
-  // The alternative system index is a per-setup override a user set deliberately,
-  // so it belongs to the job rather than to whoever recalculates it.
   it("keeps a setup's alternative system index override", () => {
     const job = jobBuiltByAnotherMember();
     const setup = onlySetup(job);
@@ -260,9 +230,6 @@ describe("recalculating a job's setups", () => {
     expect(rebuilt.alternativeSystemIndexValue).toBe(0.042);
   });
 
-  // The layout is chosen by a calculator, and a second one exists for splitting a
-  // total across the blueprint originals a user owns. It is selectable rather
-  // than the default, so nothing changes for callers that do not ask for it.
   it("takes the layout from the calculator it is given", () => {
     const job = jobBuiltByAnotherMember({ maxProductionLimit: 10, perRun: 1 });
     const calculateSetupQuantities = vi.fn(() => [
@@ -277,7 +244,6 @@ describe("recalculating a job's setups", () => {
     expect(calculateSetupQuantities).toHaveBeenCalledOnce();
     const setups = Object.values(job.build.setup);
     expect(setups).toHaveLength(2);
-    // Still the job's context, whichever calculator produced the layout.
     expect(
       setups.every(
         (s) => s.customStructureID === JOB_AS_BUILT.customStructureID,
@@ -295,7 +261,6 @@ describe("recalculating a job's setups", () => {
 
     recalculateJobForNewTotal(job, 5, emptyQueryClient());
 
-    // The material count is the blueprint's list, not the previous setup's.
     const rebuilt = onlySetup(job);
     expect(rebuilt.materialCount[34].rawQuantity).toBe(10);
     expect(rebuilt.materialCount[35]).toBeUndefined();
@@ -342,8 +307,6 @@ describe("recalculating a job's setups", () => {
 });
 
 describe("adding a setup to a job that already has one", () => {
-  // A second setup on a job is another run of the same production line, so it is
-  // made where the first one is made.
   it("copies the build context of the setup being edited", async () => {
     const existing = new Setup({
       runCount: 5,
@@ -360,7 +323,7 @@ describe("adding a setup to a job that already has one", () => {
       jobType: 1,
     });
 
-    const job = Object.create(Job.prototype);
+    const job = {};
     job.jobType = 1;
     job.blueprintTypeID = 1234;
     job.maxProductionLimit = 10;
@@ -376,11 +339,7 @@ describe("adding a setup to a job that already has one", () => {
     const { attachNewSetupToJob } =
       await import("../Components/Edit Job/Edit Job Hooks/jobCommands");
 
-    // Both halves of what the Setup panel's add button does: build the setup
-    // from the one being edited, then put it on the job.
     const client = emptyQueryClient();
-    // The fake job stands in for the parts the helpers read; the command needs
-    // only the two the panel's button changes.
     const document = {
       build: { setup: { ...job.build.setup } },
       layout: { ...job.layout },
@@ -405,16 +364,12 @@ describe("adding a setup to a job that already has one", () => {
     expect(added.structureID).toBe(JOB_AS_BUILT.structureID);
     expect(added.ME).toBe(JOB_AS_BUILT.ME);
     expect(added.selectedCharacter).toBe(JOB_AS_BUILT.character);
-    // Sized for one run, though the setup it copies is set to five.
     expect(added.runCount).toBe(1);
     expect(added.jobCount).toBe(1);
   });
 });
 
 describe("building a job for the first time", () => {
-  // buildJob passes the system and character a build request named. Those are an
-  // explicit choice for this job, so they outrank both the inherited context and
-  // the current settings.
   it("lets a build request outrank the setup it is based on", async () => {
     const {
       buildSetupContextForJob,
@@ -458,7 +413,6 @@ describe("building a job for the first time", () => {
 
     expect(setup.systemID).toBe(30000001);
     expect(setup.selectedCharacter).toBe("hash-from-the-build-request");
-    // What the request did not name still comes from the inherited context.
     expect(setup.customStructureID).toBe(JOB_AS_BUILT.customStructureID);
   });
 
@@ -505,27 +459,28 @@ describe("building a job for the first time", () => {
     expect(setup.structureID).toBe(7);
     expect(setup.taxValue).toBe(0.1);
     expect(setup.customStructureID).toBe(JOB_AS_BUILT.customStructureID);
-    // The row names the character under the stored field's other name.
     expect(setup.selectedCharacter).toBe(JOB_AS_BUILT.character);
   });
 });
 
-// Every efficiency field in the editor recalculates the setup in place rather
-// than rebuilding the job's layout, so this is the path an edit actually takes.
 describe("recalculating one setup in place", () => {
-  it("recomputes its materials from the blueprint's list", () => {
+  it("recomputes its materials from the blueprint's list", async () => {
+    const { recalculateSetupMaterials } =
+      await import("../Functions/JobPlanner/setupBuildHelpers");
     const job = jobBuiltByAnotherMember();
-    const setup = onlySetup(job);
-    job.recalculateSelectedSetup(setup.id);
-    const atFullEfficiency = setup.materialCount[34].quantity;
+    const setupID = onlySetup(job).id;
 
-    setup.updateMEValue(0);
-    job.recalculateSelectedSetup(setup.id);
+    recalculateSetupMaterials(job, setupID);
+    const atFullEfficiency =
+      job.build.setup[setupID].materialCount[34].quantity;
 
-    // Rebuilt from the blueprint's list, so the map holds exactly its rows.
-    expect(Object.keys(setup.materialCount)).toEqual(["34"]);
-    expect(setup.materialCount[34].rawQuantity).toBe(10);
-    expect(setup.materialCount[34].quantity).toBeGreaterThan(atFullEfficiency);
+    job.build.setup[setupID].ME = 0;
+    recalculateSetupMaterials(job, setupID);
+
+    const row = job.build.setup[setupID];
+    expect(Object.keys(row.materialCount)).toEqual(["34"]);
+    expect(row.materialCount[34].rawQuantity).toBe(10);
+    expect(row.materialCount[34].quantity).toBeGreaterThan(atFullEfficiency);
   });
 });
 
@@ -548,8 +503,6 @@ describe("calculating materials for a job type", () => {
     manufacturing.recalculateMaterials(raw);
     reaction.recalculateMaterials(raw);
 
-    // The reaction formula reads neither the structure bonus nor ME, so it
-    // cannot land on the manufacturing figure for the same fields.
     expect(reaction.materialCount[34].quantity).toBeGreaterThan(
       manufacturing.materialCount[34].quantity,
     );

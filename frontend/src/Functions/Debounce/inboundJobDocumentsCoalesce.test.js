@@ -23,17 +23,6 @@ vi.mock("../../Zustand/usersStore.js", async () => {
   return usersStoreMock(() => usersStoreState(storeState));
 });
 
-vi.mock("../../Classes/job.js", () => ({
-  default: class {
-    constructor(doc) {
-      Object.assign(this, doc);
-    }
-    toDocument() {
-      return { ...this };
-    }
-  },
-}));
-
 const {
   enqueueInboundJobDocumentChange,
   clearInboundJobDocumentCoalesce,

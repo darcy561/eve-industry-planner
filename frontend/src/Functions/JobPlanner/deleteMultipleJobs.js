@@ -8,7 +8,7 @@ import {
   esiOrderIDs,
   esiTransactionIDs,
 } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
-import Job from "../../Classes/job";
+import { copyOfJob } from "../JobDocuments/jobDocument";
 import Group from "../../Classes/group";
 import {
   deleteJobDocumentsFromApi,
@@ -69,7 +69,7 @@ export default async function deleteMultipleJobs(inputJobIDs) {
     if (!source) {
       return null;
     }
-    const cloned = new Job(source.toDocument());
+    const cloned = copyOfJob(source);
     workingJobsByID.set(jobID, cloned);
     return cloned;
   };

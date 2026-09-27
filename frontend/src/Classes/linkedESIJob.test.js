@@ -4,7 +4,10 @@ import {
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import LinkedESIJob from "./linkedESIJob.js";
-import Job from "./job.js";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../Functions/JobDocuments/jobDocument";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -124,7 +127,7 @@ describe("taking the latest from ESI", () => {
 
 describe("a job's linked runs", () => {
   function jobWithLinkedRuns(...runs) {
-    return new Job({
+    return jobFromDocument({
       jobID: "job-1",
       itemID: 587,
       jobType: 1,
@@ -144,10 +147,11 @@ describe("a job's linked runs", () => {
   test("are hydrated as linked jobs and serialise back to rows", () => {
     const job = jobWithLinkedRuns(esiJob());
 
-    expect(job.esi.industryJobs["900001"]).toBeInstanceOf(LinkedESIJob);
+    const stored = job.esi.industryJobs["900001"];
+    expect(Object.getPrototypeOf(stored)).toBe(Object.prototype);
 
-    const reloaded = new Job(job.toDocument());
-    expect(reloaded.esi.industryJobs["900001"]).toBeInstanceOf(LinkedESIJob);
+    const reloaded = jobFromDocument(toDocument(job));
+    expect(reloaded.esi.industryJobs["900001"]).toEqual(stored);
     expect(totalInstallCost(reloaded)).toBe(1500);
   });
 

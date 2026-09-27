@@ -31,19 +31,19 @@ vi.mock("../../Zustand/usersStore", async () => {
 });
 
 const { default: deleteMultipleJobs } = await import("./deleteMultipleJobs.js");
-const { default: Job } = await import("../../Classes/job.js");
+const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 const { default: Group } = await import("../../Classes/group.js");
 
 const TRITANIUM = 34;
 
 function linkedPair() {
-  const child = new Job({
+  const child = jobFromDocument({
     jobID: "child",
     name: "Tritanium",
     itemID: TRITANIUM,
     parentJobs: ["parent"],
   });
-  const parent = new Job({
+  const parent = jobFromDocument({
     jobID: "parent",
     name: "Rifter",
     itemID: 587,
@@ -169,7 +169,7 @@ describe("deleting a job that is not held", () => {
 
 describe("deleting a job that belongs to a group", () => {
   function groupedJob() {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "grouped",
       itemID: 587,
       groupID: "group-1",
@@ -180,7 +180,11 @@ describe("deleting a job that belongs to a group", () => {
       groupName: "A group",
       includedJobIDs: ["grouped", "kept"],
     });
-    const kept = new Job({ jobID: "kept", itemID: 588, groupID: "group-1" });
+    const kept = jobFromDocument({
+      jobID: "kept",
+      itemID: 588,
+      groupID: "group-1",
+    });
     return { job, kept, group };
   }
 

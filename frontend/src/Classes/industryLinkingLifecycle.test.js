@@ -14,8 +14,8 @@ vi.mock("../Zustand/usersStore", async () => {
   return usersStoreMock();
 });
 
-const { default: Job } = await import("./job.js");
-const { default: LinkedESIJob } = await import("./linkedESIJob.js");
+const { jobFromDocument, toDocument } =
+  await import("../Functions/JobDocuments/jobDocument.js");
 const { default: findIndustryJobsForItem } =
   await import("../Functions/IndustryJobs/findIndustryJobsForItem.js");
 const { linkESIJob, unlinkESIJob, updateLinkedJobData } =
@@ -57,7 +57,7 @@ function esiRun(job_id, overrides = {}) {
 }
 
 function newJob() {
-  return new Job({
+  return jobFromDocument({
     jobID: "job-1",
     itemID: 587,
     jobType: 1,
@@ -70,7 +70,7 @@ describe("linking industry runs to a job", () => {
     let job = newJob();
 
     expect(totalInstallCost(job)).toBe(0);
-    expect(esiJobIDs(job.toDocument()).size).toBe(0);
+    expect(esiJobIDs(toDocument(job)).size).toBe(0);
 
     const reported = [
       esiRun(500000001),
@@ -89,14 +89,12 @@ describe("linking industry runs to a job", () => {
     );
 
     expect(totalInstallCost(job)).toBe(2000000);
-    expect(esiJobIDs(job.toDocument())).toEqual(
-      new Set([500000001, 500000002]),
-    );
+    expect(esiJobIDs(toDocument(job))).toEqual(new Set([500000001, 500000002]));
 
     expect(isReadyToStart(job)).toBe(false);
 
     const first = job.esi.industryJobs["500000001"];
-    expect(first).toBeInstanceOf(LinkedESIJob);
+    expect(Object.getPrototypeOf(first)).toBe(Object.prototype);
     expect(first.station_id).toBe(1035466617946);
     expect(first.character_id).toBe(OWNER.CharacterID);
     expect(isActive(first)).toBe(true);
@@ -120,20 +118,18 @@ describe("linking industry runs to a job", () => {
 
     expect(totalInstallCost(job)).toBe(2000000);
 
-    const document = job.toDocument();
+    const document = toDocument(job);
     expect(Object.keys(document.esi.industryJobs)).toHaveLength(2);
     expect(document.esi.industryJobs["500000001"].job_id).toBe(500000001);
 
-    const reopened = new Job(document);
+    const reopened = jobFromDocument(document);
     expect(totalInstallCost(reopened)).toBe(2000000);
-    expect(esiJobIDs(reopened.toDocument())).toEqual(
-      esiJobIDs(job.toDocument()),
-    );
+    expect(esiJobIDs(toDocument(reopened))).toEqual(esiJobIDs(toDocument(job)));
 
     const unlinked = after(reopened, unlinkESIJob({ job_id: 500000001 }));
 
     expect(totalInstallCost(unlinked)).toBe(750000);
-    expect(esiJobIDs(unlinked.toDocument())).toEqual(new Set([500000002]));
+    expect(esiJobIDs(toDocument(unlinked))).toEqual(new Set([500000002]));
   });
 
   it("links a run once however many times it is asked for", () => {

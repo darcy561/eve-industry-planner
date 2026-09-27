@@ -27,7 +27,7 @@ export function setupToPresetRow(setup) {
 }
 
 /**
- * @param {import("../../Classes/job.js").default} job
+ * @param {object} job
  * @param {Map<string, string>} jobIdToTemplateId
  * @returns {string[]}
  */
@@ -43,7 +43,7 @@ function mapParentIdsForJob(job, jobIdToTemplateId) {
 }
 
 /**
- * @param {import("../../Classes/job").default} job
+ * @param {object} job
  * @param {Map<string, string>} jobIdToTemplateId
  * @returns {Record<string, string[]>}
  */
@@ -94,7 +94,7 @@ export function hasParentCycle(templateIdToParents) {
 /**
  * @param {object} input
  * @param {string} input.groupID
- * @param {import("../../Classes/job").default[]} input.jobs — jobs belonging to `groupID` (same as group.includedJobIDs)
+ * @param {object[]} input.jobs — jobs belonging to `groupID` (same as group.includedJobIDs)
  * @param {string} [input.name]
  * @param {string} [input.description]
  * @returns {{ name: string, description: string, payload: { source?: object, jobs: object[] } }}

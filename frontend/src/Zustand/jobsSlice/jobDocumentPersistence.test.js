@@ -1,3 +1,4 @@
+import { toDocument } from "../../Functions/JobDocuments/jobDocument.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const scheduled = vi.fn();
@@ -22,7 +23,6 @@ function held(jobID, name) {
     includedInGroup: false,
     groupID: "",
     _meta: { revision: 3 },
-    toDocument: () => ({ jobID, name }),
   };
 }
 
@@ -31,7 +31,7 @@ function envelope(jobID, name) {
     jobID,
     includedInGroup: false,
     groupID: "",
-    document: { jobID, name },
+    document: toDocument(held(jobID, name)),
   };
 }
 

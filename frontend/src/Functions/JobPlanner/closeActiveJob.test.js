@@ -67,7 +67,6 @@ vi.mock("../../Zustand/usersStore.js", async () => {
 });
 
 import closeActiveJob from "./closeActiveJob.js";
-import { jobLens } from "../../Components/Edit Job/Edit Job Hooks/jobLens.js";
 import { snackbarSpies } from "../../tests/snackbarHarness.js";
 
 const { showSnackbarInfo, showSnackbarWarning } = snackbarSpies;
@@ -357,7 +356,7 @@ describe("closing a job the editor froze", () => {
       true,
     );
 
-    return { document, job: jobLens(document) };
+    return { document, job: document };
   };
 
   it("saves without writing into what the editor holds", async () => {

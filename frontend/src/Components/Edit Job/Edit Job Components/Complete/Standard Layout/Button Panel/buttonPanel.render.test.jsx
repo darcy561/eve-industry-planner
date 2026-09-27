@@ -6,8 +6,6 @@ import { renderCounts } from "../../../../../../tests/renderCounts.jsx";
 
 const { passedOver } = vi.hoisted(() => ({ passedOver: { current: null } }));
 
-// The cost pass itself is proved where it lives; what is asked here is what the
-// button hands it, which is the half a conversion can break.
 vi.mock("../../../../../../Functions/Shared/passBuildCosts", () => ({
   passBuildCostsToParentJobs: (job) => {
     passedOver.current = job;
@@ -29,8 +27,6 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
   });
 });
 
-// Enough of a group for what these buttons ask of one: which jobs in it are
-// finished, and the two ways that set is written.
 const aGroup = () => {
   const areComplete = new Set();
   return {
@@ -46,14 +42,14 @@ const { default: useUsersStore } =
 const { MarkAsCompleteButton } = await import("./markAsComplete");
 const { PassBuildCostsButton } = await import("./passBuildCosts");
 const { SellGroupJobButton } = await import("./sellGroupJob");
-const { default: Job } = await import("../../../../../../Classes/job");
+const { jobFromDocument } =
+  await import("../../../../../../Functions/JobDocuments/jobDocument.js");
 
 const session = () => useUsersStore.getState().editSession;
 const group = () => useUsersStore.getState().jobData.groupArray[0];
 
-/** A parent job on the planner that is built from what this one makes. */
 const aParent = () =>
-  new Job({
+  jobFromDocument({
     jobID: "job-2",
     itemID: 999,
     jobType: 1,
@@ -82,8 +78,6 @@ const openJob = (parentJobs = [], build = {}) =>
     },
   });
 
-// Each reads the one or two fields it draws, so an edit to the rest of the job
-// is not theirs to hear about.
 describe("the Complete stage's buttons", () => {
   beforeEach(() => {
     session().actions.closeSession();
@@ -94,11 +88,7 @@ describe("the Complete stage's buttons", () => {
         groupArray: [aGroup()],
         actions: {
           ...useUsersStore.getState().jobData.actions,
-          // The planner's own reads, as the cost pass makes them: the jobs it
-          // was given, and the parents written back where they are held.
           getActiveGroupObject: () => aGroup(),
-          // The real action rebuilds `groupArray` around the group it was
-          // handed, which is what puts the change on screen.
           updateModifiedGroups: (changed) =>
             useUsersStore.setState({
               jobData: {
@@ -145,8 +135,6 @@ describe("the Complete stage's buttons", () => {
     expect(await heldStillBy("sell", SellGroupJobButton)).toBe(0);
   });
 
-  // The other direction, which a selector answering the same thing forever would
-  // otherwise pass: a change to what the button draws reaches it.
   it("follows the field it does read", async () => {
     openJob();
     render(<SellGroupJobButton />);
@@ -183,9 +171,6 @@ describe("the Complete stage's buttons", () => {
     expect(group().areComplete.has("job-1")).toBe(false);
   });
 
-  // What it sends is a cost per item, derived from the job rather than stored
-  // on it: handed the job as the session stores it, the pass reads that figure
-  // off nothing.
   it("hands over a job the cost per item can be read from", async () => {
     openJob(["job-2"], {
       extrasCosts: { "extra-1": { id: "extra-1", extraValue: 500 } },
@@ -197,9 +182,6 @@ describe("the Complete stage's buttons", () => {
     );
 
     expect(passedOver.current.jobID).toBe("job-1");
-    // What the parent pays for this job's output is worked out from what it
-    // holds, so the job handed over has to carry it rather than a figure.
-    // 500 of extras over the ten the setup makes.
     expect(buildCostPerItem(passedOver.current)).toBe(50);
   });
 

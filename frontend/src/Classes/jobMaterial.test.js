@@ -1,9 +1,10 @@
 import { describe, expect, test } from "vitest";
 import Material from "./jobMaterial.js";
-import Job from "./job.js";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../Functions/JobDocuments/jobDocument";
 
-// The row shape is shared with models.JobMaterial on the backend, so a material
-// that goes through the class and back out must still be the same nine fields.
 const storedRow = {
   typeID: 34,
   name: "Tritanium",
@@ -31,8 +32,6 @@ describe("a material row", () => {
     expect(material.purchaseComplete).toBe(false);
   });
 
-  // The requirement moves when a setup changes, so completion is answered from
-  // the row rather than stored against the requirement it was decided under.
   test("is complete once enough has been bought, and follows the requirement", () => {
     let required = 100;
     const material = new Material(
@@ -52,8 +51,6 @@ describe("a material row", () => {
     expect(material.purchaseComplete).toBe(true);
   });
 
-  // A job whose setups call for nothing has bought nothing, which is what keeps
-  // an unconfigured job from reporting itself ready to build.
   test("a material nothing asks for is not complete", () => {
     const material = new Material({ typeID: 34 }, 0);
 
@@ -61,8 +58,6 @@ describe("a material row", () => {
     expect(material.purchaseComplete).toBe(false);
   });
 
-  // Sharing the collection would let a purchase recorded on one job appear on
-  // the document it was hydrated from.
   test("its purchases are its own", () => {
     const material = new Material(storedRow, 100);
 
@@ -74,7 +69,7 @@ describe("a material row", () => {
 
 describe("a job's materials", () => {
   test("are hydrated as materials and serialise back to rows", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 587,
       jobType: 1,
@@ -91,14 +86,14 @@ describe("a job's materials", () => {
       },
     });
 
-    expect(job.build.materials[34]).toBeInstanceOf(Material);
-    expect(job.toDocument().build.materials).toEqual({ 34: storedRow });
+    expect(job.build.materials[34]).toEqual(
+      new Material(storedRow).toDocument(),
+    );
+    expect(toDocument(job).build.materials).toEqual({ 34: storedRow });
   });
 
-  // A job that has not been built out yet holds none, which the planner tells
-  // apart from a job whose materials are all bought.
   test("hold nothing until the job is built out", () => {
-    const job = new Job({ jobID: "job-1", itemID: 587, jobType: 1 });
+    const job = jobFromDocument({ jobID: "job-1", itemID: 587, jobType: 1 });
 
     expect(job.build.materials).toEqual({});
   });
@@ -139,8 +134,6 @@ describe("recording a purchase", () => {
     expect(material.quantityImported).toBe(100);
   });
 
-  // Which material a purchase bought is the material it sits under. A row that
-  // repeated it was free to disagree with its parent, and nothing ever read it.
   test("records a purchase without repeating the material's type", () => {
     const material = needing(100);
 
@@ -150,8 +143,6 @@ describe("recording a purchase", () => {
     expect(material.purchasing.p1).not.toHaveProperty("typeID");
   });
 
-  // A single job has nowhere to pass a leftover to, so it keeps the purchase and
-  // reports the excess instead of charging the job for it.
   test("keeps what did not fit when asked to, without charging for it", () => {
     const material = needing(100);
 
@@ -176,8 +167,6 @@ describe("recording a purchase", () => {
     expect(material.quantityImported).toBe(30);
   });
 
-  // A price that cannot be read as a number would be dropped on the way in, so
-  // the caller is told nothing was taken rather than that it was.
   test("a purchase that is not numbers is refused", () => {
     const material = needing(100);
 
@@ -211,8 +200,6 @@ describe("what the job is charged for", () => {
     return material;
   }
 
-  // The dearest units are the ones left over, so the same purchases cost the
-  // same whichever order they were entered in.
   test("the cheapest purchases fill the requirement first", () => {
     const cheapFirst = bought(50, [
       ["p1", 50, 5],
@@ -242,8 +229,6 @@ describe("what the job is charged for", () => {
     expect(material.removePurchase("p1")).toBe(false);
   });
 
-  // Purchases that cannot be read as numbers are dropped rather than stored, so
-  // a bad row cannot be saved back onto the document.
   test("rows that are not numbers are not kept", () => {
     const material = needingWithRows(100, [
       { id: "bad", itemCount: Number.NaN, itemCost: 5 },
@@ -277,7 +262,6 @@ describe("what the job is charged for", () => {
     expect(material.excessQuantity).toBe(60);
   });
 
-  // A child job's output cost the child, so it is not spend on this job.
   test("what was bought leaves out anything a child job supplied", () => {
     const material = new Material({ typeID: 34 }, 100);
     material.importPurchase({ itemCount: 40, itemCost: 5 });

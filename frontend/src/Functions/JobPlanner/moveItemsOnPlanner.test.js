@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import Job from "../../Classes/job";
+import { jobFromDocument } from "../JobDocuments/jobDocument";
 import Group from "../../Classes/group";
 
 const { jobsByID, groupsByID, account, saved } = vi.hoisted(() => ({
@@ -38,7 +38,7 @@ vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
 const { default: moveItemsOnPlanner } = await import("./moveItemsOnPlanner.js");
 
 function job(jobID, jobStatus) {
-  const built = new Job({ jobID, jobStatus, itemID: 587, jobType: 1 });
+  const built = jobFromDocument({ jobID, jobStatus, itemID: 587, jobType: 1 });
   jobsByID.set(jobID, built);
   return built;
 }
@@ -95,10 +95,6 @@ describe("moving what the reader selected", () => {
     expect(saved.groups).toHaveLength(1);
   });
 
-  // An id naming neither a job nor a group is not a job by default. The job is
-  // findable under that id on purpose: treating everything that is not a group
-  // as a job would move it, and a lookup that fails anyway would hide the
-  // difference.
   it("leaves an id that names neither kind alone", async () => {
     job("something-else", 1);
     group("group-1", 1);
@@ -128,8 +124,6 @@ describe("moving what the reader selected", () => {
 });
 
 describe("what it leaves untouched", () => {
-  // The planner's own copy must not move until the write lands, so the work is
-  // done on a clone and only the clone is handed back to the store.
   it("does not step the job the planner is holding", async () => {
     const held = job("job-1", 1);
 

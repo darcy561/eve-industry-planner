@@ -1,3 +1,5 @@
+import { materialRequirementOf } from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
+import { quantityPurchased } from "../Components/Edit Job/Edit Job Hooks/materialSelectors";
 import { PRICING_SIDE } from "../Functions/MarketData/defaults/pricingSide";
 import {
   resolveFor,
@@ -5,65 +7,13 @@ import {
 } from "../Functions/MarketData/defaults/priceResolution.js";
 import { readMarketPriceForType } from "../Functions/MarketData/prices/marketPriceForType.js";
 
-/**
- * ShoppingList class for EVE Online industry material purchasing management.
- *
- * This class represents a shopping list for industry job materials:
- * - Material requirement aggregation from multiple jobs
- * - Asset quantity tracking and purchasing calculations
- * - Volume and value calculations for logistics planning
- * - Child job material visibility management
- * - Clipboard import/export functionality
- * - Asset integration for inventory management
- *
- * The ShoppingList class provides comprehensive material management:
- * - Aggregates material requirements from selected jobs
- * - Calculates quantities needed after accounting for existing assets
- * - Provides volume and value calculations for logistics
- * - Manages visibility of child job materials
- * - Supports clipboard operations for external tools
- * - Integrates with asset management systems
- *
- * @class ShoppingList
- * @example
- * // Create shopping list from jobs
- * const shoppingList = new ShoppingList([job1, job2, job3]);
- *
- * @example
- * // Calculate totals and visibility
- * shoppingList.calculateTotalVolume();
- * shoppingList.calculateVisibleItems({ displayChildJobMaterials: true });
- * shoppingList.calculateTotalValue();
- *
- * @example
- * // Export to clipboard
- * const clipboardText = shoppingList.buildStringForClipboard();
- *
- * @example
- * // Import assets
- * shoppingList.importAssetsFromClipboard(importedAssets);
- * shoppingList.applyAssetsFromMap(assetsMap, countFunction);
- */
 class ShoppingList {
-  /**
-   * Creates a new ShoppingList instance from job objects.
-   *
-   * @param {Array<Job>} [inputJobs=[]] - Array of job objects to build shopping list from
-   */
   constructor(inputJobs = []) {
     this.items = buildShoppingList(inputJobs);
     this.totalVolume = 0;
     this.totalValue = 0;
   }
 
-  /**
-   * Calculates the total volume of visible items that need to be purchased.
-   *
-   * This method calculates the total volume by:
-   * - Iterating through all visible items
-   * - Calculating volume for items that need purchasing (quantity - assets)
-   * - Summing up the total volume
-   */
   calculateTotalVolume() {
     this.totalVolume = 0;
     this.items.forEach((item) => {
@@ -74,17 +24,6 @@ class ShoppingList {
     });
   }
 
-  /**
-   * Calculates visibility of items based on display settings.
-   *
-   * This method determines which items should be visible based on:
-   * - Whether items have quantities to purchase (after accounting for assets)
-   * - Whether child job materials should be displayed
-   * - Sets the isVisible property for each item
-   *
-   * @param {Object} options - Display options
-   * @param {boolean} options.displayChildJobMaterials - Whether to show child job materials
-   */
   calculateVisibleItems({ displayChildJobMaterials }) {
     this.items.forEach((item) => {
       const quantityZeroOrLess =
@@ -108,21 +47,7 @@ class ShoppingList {
     });
   }
 
-  /**
-   * Calculates the total value of visible items that need to be purchased.
-   *
-   * This method calculates the total value by:
-   * - Getting market data for each visible item
-   * - Using default market and order settings
-   * - Calculating value based on quantity still needed (after assets), matching volume
-   * - Summing up the total value
-   *
-   */
   calculateTotalValue() {
-    // The same resolution the fetch used, so the market a row is read at is the
-    // market its price was asked for at. A list carries no job and no per-item
-    // override, so the group walk is the only rung above the account's — and it
-    // answers per item, which is why it is resolved inside the loop.
     const buying = sideDefaults(PRICING_SIDE.BUYING);
 
     this.totalValue = 0;
@@ -143,17 +68,6 @@ class ShoppingList {
     });
   }
 
-  /**
-   * Builds a string representation of visible items for clipboard export.
-   *
-   * This method creates a formatted string suitable for clipboard operations:
-   * - Filters to only visible items
-   * - Filters to only items where includeWhenCopying is true
-   * - Formats as "ItemName Quantity" per line
-   * - Uses quantity that needs to be purchased (after assets)
-   *
-   * @returns {string} Formatted string for clipboard
-   */
   buildStringForClipboard() {
     return this.items
       .filter((item) => item.isVisible && item.includeWhenCopying)
@@ -164,15 +78,6 @@ class ShoppingList {
       .join("\n");
   }
 
-  /**
-   * Imports asset quantities from clipboard data.
-   *
-   * This method updates asset quantities based on imported data:
-   * - Matches items by name
-   * - Updates assetQuantity for matching items
-   *
-   * @param {Object} [importedAssets={}] - Object mapping item names to quantities
-   */
   importAssetsFromClipboard(importedAssets = {}) {
     this.items.forEach((item) => {
       if (!importedAssets[item.name]) return;
@@ -180,36 +85,18 @@ class ShoppingList {
     });
   }
 
-  /**
-   * Applies asset quantities from a map of type IDs.
-   *
-   * This method updates asset quantities using a counting function:
-   * - Uses the provided counting function to get quantities
-   * - Updates assetQuantity for each item based on type ID
-   *
-   * @param {Map} [assetsByTypeID=new Map()] - Map of type IDs to asset quantities
-   * @param {Function} countAssetsFunction - Function to count assets by type ID
-   */
   applyAssetsFromMap(assetsByTypeID = new Map(), countAssetsFunction) {
     this.items.forEach((item) => {
       item.assetQuantity = countAssetsFunction(assetsByTypeID, item.typeID);
     });
   }
 
-  /**
-   * Clears all asset quantities, resetting them to zero.
-   */
   clearAssetQuantities() {
     this.items.forEach((item) => {
       item.assetQuantity = 0;
     });
   }
 
-  /**
-   * Toggles the includeWhenCopying flag for a specific item by type ID.
-   *
-   * @param {number} typeID - Type ID of the item to toggle
-   */
   toggleIncludeWhenCopying(typeID) {
     const item = this.items.find((item) => item.typeID === typeID);
     if (item) {
@@ -217,11 +104,6 @@ class ShoppingList {
     }
   }
 
-  /**
-   * Gets an array of all item type IDs in the shopping list.
-   *
-   * @returns {Array<number>} Array of type IDs
-   */
   getItemIDs() {
     return this.items.map((item) => {
       return item.typeID;
@@ -229,27 +111,15 @@ class ShoppingList {
   }
 }
 
-/**
- * Builds a shopping list from selected job objects.
- *
- * This function aggregates material requirements from multiple jobs:
- * - Processes materials from each job that haven't been fully purchased
- * - Groups materials by type ID and child job status
- * - Calculates total quantities needed across all jobs
- * - Sorts the final list alphabetically by name
- *
- * @param {Array<Job>} [selectedJobObjects=[]] - Array of job objects to process
- * @returns {Array<Object>} Array of shopping list item objects
- *
- * @example
- * // Build shopping list from jobs
- * const shoppingList = buildShoppingList([job1, job2, job3]);
- */
 function buildShoppingList(selectedJobObjects = []) {
   const finalShoppingList = [];
   selectedJobObjects.forEach((job) => {
     Object.values(job.build.materials).forEach((material) => {
-      if (material.quantityPurchased >= material.quantity) {
+      const requirement = materialRequirementOf(
+        job.build.setup,
+        material.typeID,
+      );
+      if (quantityPurchased(material, requirement) >= requirement) {
         return;
       }
       const childState =
@@ -258,9 +128,10 @@ function buildShoppingList(selectedJobObjects = []) {
         (item) => item.typeID === material.typeID,
       );
 
-      // If no shopping list entries, create a new one
       if (shoppingListEntries.length === 0) {
-        finalShoppingList.push(buildShoppingListObject(material, childState));
+        finalShoppingList.push(
+          buildShoppingListObject(material, requirement, childState),
+        );
         return;
       }
 
@@ -269,18 +140,17 @@ function buildShoppingList(selectedJobObjects = []) {
       );
 
       if (!childJobPresent) {
-        // if the material has no child jobs, create a new shopping list entry
-        finalShoppingList.push(buildShoppingListObject(material, childState));
+        finalShoppingList.push(
+          buildShoppingListObject(material, requirement, childState),
+        );
         return;
       } else {
-        // if the material has child jobs, add the child job quantity to the shopping list entry total
         childJobPresent.quantityToPurchase +=
-          material.quantity - material.quantityPurchased;
+          requirement - quantityPurchased(material, requirement);
       }
     });
   });
 
-  // Sort the shopping list by name
   finalShoppingList.sort((a, b) => {
     if (a.name < b.name) {
       return -1;
@@ -294,24 +164,12 @@ function buildShoppingList(selectedJobObjects = []) {
   return finalShoppingList;
 }
 
-/**
- * Builds a shopping list item object from material data.
- *
- * @param {Object} material - Material object from job
- * @param {string} material.name - Material name
- * @param {number} material.typeID - Material type ID
- * @param {number} material.quantity - Required quantity
- * @param {number} material.quantityPurchased - Already purchased quantity
- * @param {number} material.volume - Material volume
- * @param {boolean} childJobPresent - Whether this material has child jobs
- * @returns {Object} Shopping list item object
- */
-function buildShoppingListObject(material, childJobPresent) {
+function buildShoppingListObject(material, requirement, childJobPresent) {
   return {
     name: material.name,
     typeID: material.typeID,
-    quantityRequired: material.quantity,
-    quantityToPurchase: material.quantity - material.quantityPurchased,
+    quantityRequired: requirement,
+    quantityToPurchase: requirement - quantityPurchased(material, requirement),
     assetQuantity: 0,
     volume: material.volume,
     hasChild: childJobPresent,

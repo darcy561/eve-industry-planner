@@ -3,16 +3,15 @@ import useUsersStore from "../../Zustand/usersStore";
 import checkJobTypeIsBuildable from "../Helper/checkJobTypeIsBuildable";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
 import Setup from "../../Classes/jobSetup";
+import { recalculateSetupMaterials } from "./setupBuildHelpers";
 import { storeSetup } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
+import { materialRequirementOf } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
- * Applies a change to the setup being edited and works the job out again.
+ * Applies a change to the setup being edited, on a copy, and records it as a
+ * command rather than writing into what the page reads.
  *
- * The change is made on a copy: the job the page reads is a view of what the
- * session holds, so changing it in place reaches nothing. The copy is also what
- * says which system the indexes are wanted for, which the change may have moved.
- *
- * @param {Object} setupObject - The setup as it stands
+ * @param {Object} setupObject - The setup as it stands, as a stored row
  * @param {string} name - What the reader did, for the undo step
  * @param {(setup: Setup) => void} change - Makes the change on the copy
  * @param {Object} actions - The edit session's actions
@@ -23,18 +22,11 @@ export default async function applySetupChange(
   change,
   actions,
 ) {
-  const changed = new Setup(
-    typeof setupObject?.toDocument === "function"
-      ? setupObject.toDocument()
-      : setupObject,
-  );
+  const changed = new Setup(setupObject);
   change(changed);
 
   const systemIndexResults = await getSystemIndexes(changed.systemID);
 
-  // The index lands before the job does: install costs are worked out while
-  // rendering, and a job shown against an index the store has not been given
-  // yet is costed at zero.
   useUsersStore.getState().worldData.actions.addSystemIndex(systemIndexResults);
 
   actions.run(storeSetup(changed, name));
@@ -56,7 +48,7 @@ export function recalculateWatchListItemsFromSetup(
   materialObject,
   queryClient,
 ) {
-  materialObject[requestedTypeID].recalculateSelectedSetup(setupID);
+  recalculateSetupMaterials(materialObject[requestedTypeID], setupID);
 
   if (requestedTypeID !== mainTypeID) return;
 
@@ -65,6 +57,10 @@ export function recalculateWatchListItemsFromSetup(
     if (!checkJobTypeIsBuildable(material.jobType)) continue;
 
     const materialJob = materialObject[material.typeID];
-    recalculateJobForNewTotal(materialJob, material.quantity, queryClient);
+    recalculateJobForNewTotal(
+      materialJob,
+      materialRequirementOf(mainJob.build.setup, material.typeID),
+      queryClient,
+    );
   }
 }

@@ -24,18 +24,34 @@ npx eslint src -f json | jq -r '.[] | .filePath as $f | .messages[]
 | | Count |
 |---|---|
 | Test files — out of scope | 3 |
-| Kept — synchronising with something outside React | 50 |
+| Kept — synchronising with something outside React | 48 |
 | Tier 1 — derive during render | 10 |
 | Tier 2 — write at the write site | 10 |
 | Tier 3 — React Query | 9 |
 | Tier 4 — routing | 3 |
 | Tier 5 — analytics from the handler | 3 |
 | Deferred to the shopping list redesign | 7 |
-| **Total** | **95** |
+| **Total** | **93** |
 
 `react-hooks/exhaustive-deps` reports **43** warnings across the SPA. They overlap this work without
 matching it: some sit on `useMemo` and `useCallback` rather than effects, and several deliberate
 narrow lists are load-bearing. Fix only the ones inside a file this project is rewriting anyway.
+
+## What has been re-verified since the count
+
+The tree moves under this inventory, so an entry read here is a reading of the file as it stood, not a
+standing fact. Two kept effects have since been removed by work outside this project, which is where
+the totals above lost their two:
+
+- `useFetchStaticDataFiles.js:7` — the hook is gone. Static data files are read by
+  `Hooks/App/useCachedData.js`, which is React Query and carries no effect.
+- `Popover/iconButtons.jsx:69` — the file is gone. Its successors,
+  `Styled Components/IconButton/{assets,marketData,marketHistory}.jsx`, carry no effects at all.
+
+Re-verified and still as counted: the two `FirstLoginPage.jsx` observer effects (below), and every
+site named in [idiom-inventory.md](./idiom-inventory.md) — see that file's own verification section
+for the four that have since been resolved. **The remaining Tier 1–5 entries and the other kept
+effects have not been re-read**; Phase 10 re-runs the whole count.
 
 ---
 
@@ -130,14 +146,14 @@ and both are written as a sequence of early returns that set and clear a loading
 - `Components/Dialogues/Shopping List/ShoppingListDialogueContent.jsx:64`
 
 They are the worst effects in the tree and they are deliberately not in scope: the shopping list's
-logic is moving into the reducer under its own redesign. Phase 8 re-reads them once that lands.
+logic is moving into the reducer under its own redesign. Phase 10 re-reads them once that lands.
 
 Two things found while reading them, worth carrying into that redesign: `useShoppingListCorporationAssets.js:42`
 resolves office names inside a nested async function inside a ref-keyed guard, and both files call
 `state.shoppingList.clearAssetQuantities()` — mutating an object held in reducer state — in several
 branches.
 
-## Kept — 50
+## Kept — 48
 
 These synchronise with something outside React, which is what effects are for. Listed so the count is
 reproducible and so a later reader does not re-litigate them.
@@ -149,8 +165,8 @@ reproducible and so a later reader does not re-litigate them.
 `useEditJobLeaveConfirm.js:305`, `useEditJobLeaveConfirm.js:357`,
 `useRegisterHeaderDocumentLockUI.js:40`.
 
-**Timers and polling (17).** `useAppConfig.jsx:60`, `useAppConfig.jsx:72`, `MaintenanceMode.jsx:13`,
-`useFetchStaticDataFiles.js:7`, `useESIRateLimiting.js:89`, `DocumentLockHeaderControl.jsx:140`,
+**Timers and polling (16).** `useAppConfig.jsx:60`, `useAppConfig.jsx:72`, `MaintenanceMode.jsx:13`,
+`useESIRateLimiting.js:89`, `DocumentLockHeaderControl.jsx:140`,
 `DocumentLockHeaderControl.jsx:146`, `DocumentLockHeaderControl.jsx:169`,
 `useLockExtendNudgeSnackbar.js:24`, `useLockExtendNudgeSnackbar.js:30`, `useLockExtendLoop.js:66`,
 `useLockSyncHeartbeat.js:53`, `useLockSyncHeartbeat.js:61`, `useLockAcquireRelease.js:137`,
@@ -159,6 +175,25 @@ reproducible and so a later reader does not re-litigate them.
 **Observers and layout measurement (2).** `FirstLoginPage.jsx:62` (`ResizeObserver`),
 `FirstLoginPage.jsx:47` (two-frame gate before an animation may run).
 
+The observer is kept — a `ResizeObserver` is exactly what an effect is for — but **the timer beside it
+is a finding**, and it is the reason this entry is worth reading twice. The effect re-runs on
+`activeStep`, and it attaches the observer to whatever `stepPanelRef.current` holds at that moment,
+which during a step change is the panel the `CSSTransition` is still sliding out. So it schedules
+`attach` a second time, `STEP_ENTER_MS + STEP_EXIT_MS + 32` later, to catch the panel that eventually
+arrives — a re-attachment whose correctness depends on an animation constant.
+
+A ref callback attaches when the node attaches, which is the event the timer is approximating, and the
+SPA already has that shape in `Hooks/GeneralHooks/useIsScrolledOutOfView.js`: a callback ref that
+builds an observer and returns its disconnect, with no effect to keep in step and nothing to retry. The
+verdict is to measure the panel the same way, as a shared hook beside it rather than a fourth
+hand-rolled observer — `Hooks/GeneralHooks/` holds no resize equivalent today, and measuring an
+element's height is not specific to first login.
+
+Tier assignment: this is not Tier 1–5, and it is not the observer that is wrong, so it stays counted
+as kept and is fixed in the same pass as whatever else touches this file. It needs a characterisation
+test over the measured height across a step change, which the retry timer currently makes
+timing-dependent.
+
 **Imperative third-party APIs (2).** `FitViewToGraphEffect.jsx:10` and `FitViewToJobEffect.jsx:15`,
 both driving React Flow's `fitView`.
 
@@ -166,8 +201,7 @@ both driving React Flow's `fitView`.
 `useMaintenanceWebsocketPark.js:14`, `useAppConfig.jsx:52`, `useLockAcquireRelease.js:150`,
 `useLockAcquireRelease.js:223`, `useLockViewerPresence.js:25`, `useAuthUrlLogin.js:16`.
 
-**Unmount-only cleanup (3).** `AdditionalAccounts.jsx:84`, `Popover/iconButtons.jsx:69`,
-`useESIRateLimiting.js:100`.
+**Unmount-only cleanup (2).** `AdditionalAccounts.jsx:84`, `useESIRateLimiting.js:100`.
 
 **Telling an outside system something changed (5).** `AppWrapper.jsx:28` (Sentry `setUser`),
 `AppWrapper.jsx:38` (GA4 web vitals), `useLockLeaseContention.js:20` (server resync on a change of
@@ -187,7 +221,8 @@ uniquely able to do.
 
 ## The defects found here
 
-D4 and D5 are in [idiom-inventory.md](./idiom-inventory.md); the plan lists all five together.
+D4 and D5 were in [idiom-inventory.md](./idiom-inventory.md), and both have since been resolved
+outside this project; the plan lists what remains.
 
 Found by reading, not by the lint rules, and each a bug on its own merits.
 
@@ -210,7 +245,7 @@ timeout means the losing poll keeps running after the page has navigated away.
 
 ## What the count does not say
 
-- **Fifty of ninety-five is a healthy result.** The question this sweep was opened to answer is not
+- **Forty-eight of ninety-three is a healthy result.** The question this sweep was opened to answer is not
   "how bad is it" but "which ones are load-bearing", and most of them are. The document lock alone
   accounts for 21 kept effects, and every one of them is attached to a websocket, a timer, a listener
   or a lease.

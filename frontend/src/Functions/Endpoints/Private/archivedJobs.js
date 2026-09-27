@@ -1,4 +1,5 @@
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
+import { toDocument } from "../../JobDocuments/jobDocument.js";
 import requestWithPrivateHeaders, {
   privateBatchRetryConfig,
 } from "./applyPrivateHeaders.js";
@@ -11,10 +12,7 @@ const MAX_ARCHIVED_JOBS_BATCH = 100;
 /**
  * Saves archived jobs to MongoDB via `PUT /api/v1/archived-jobs`.
  *
- * Body: `{ "jobs": [ … ] }`. Ownership is taken from the Bearer token (`account_id`); the
- * server sets `_meta.accountID` for each job (same as `PUT /api/v1/jobs`).
- *
- * @param {Array<Object>} jobs - `Job` instances from `job.js` (each must implement `toDocument()`)
+ * @param {Array<Object>} jobs - The jobs to archive, as plain data
  * @returns {Promise<boolean>} `true` on success. `false` if any batch failed (after `Promise.allSettled` in the private client) or the request threw. Batches use the same retry policy as other private `PUT` calls.
  */
 async function saveArchivedJobs(jobs) {
@@ -23,7 +21,7 @@ async function saveArchivedJobs(jobs) {
     return false;
   }
 
-  const payloads = jobs.map((job) => job.toDocument());
+  const payloads = jobs.map((job) => toDocument(job));
 
   try {
     await requestWithPrivateHeaders(

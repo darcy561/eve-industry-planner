@@ -4,7 +4,7 @@ import useUsersStore from "../../../../../Zustand/usersStore";
  * BFS from `startingJob` through `build.childJobs` links, returning all reachable job IDs
  * that exist in `jobData.jobArray` (or the start job itself).
  *
- * @param {import("../../../../../Classes/job").default} startingJob
+ * @param {object} startingJob
  * @returns {Set<string>}
  */
 function findJobsToHighlight(startingJob) {

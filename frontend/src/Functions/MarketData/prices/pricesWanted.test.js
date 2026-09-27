@@ -20,7 +20,7 @@ vi.mock("../defaults/marketGroupData.js", () => ({
 }));
 
 const { PRICING_SIDE } = await import("../defaults/pricingSide");
-const { default: Job } = await import("../../../Classes/job.js");
+const { jobFromDocument } = await import("../../JobDocuments/jobDocument.js");
 const { pricesWantedBy, pricesWantedByWatchlist, pricesWantedForTypes } =
   await import("./pricesWanted.js");
 
@@ -83,7 +83,7 @@ describe("what a job needs priced", () => {
   });
 
   it("asks for the output once, even for a job out of the store", () => {
-    const stored = new Job({
+    const stored = jobFromDocument({
       jobID: "job-1",
       itemID: 99,
       jobType: 1,

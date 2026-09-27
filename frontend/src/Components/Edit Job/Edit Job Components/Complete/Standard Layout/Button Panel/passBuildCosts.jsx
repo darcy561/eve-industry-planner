@@ -11,7 +11,6 @@ import {
   jobDraftNow,
   useJobDraft,
 } from "../../../../Edit Job Hooks/useJobDraft";
-import { jobLens } from "../../../../Edit Job Hooks/jobLens";
 
 export function PassBuildCostsButton() {
   const hasParents = useJobDraft((job) => job.parentJobs.length > 0);
@@ -24,10 +23,7 @@ export function PassBuildCostsButton() {
 
   async function passCost() {
     if (jobLockReadOnly) return;
-    // What it sends is the cost per item, which is a figure derived from the
-    // job rather than one it stores — so this hands over the job as a class
-    // until those derivations are selectors.
-    const job = jobLens(jobDraftNow());
+    const job = jobDraftNow();
     const { messageText } = await passBuildCostsToParentJobs(job);
 
     if (activeGroupID) {

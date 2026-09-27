@@ -21,7 +21,6 @@ import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDoc
 import { lockReasonText } from "../../../../../DocumentLock/LockGatedTooltip";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { jobDraftNow } from "../../../../Edit Job Hooks/useJobDraft";
-import { jobLens } from "../../../../Edit Job Hooks/jobLens";
 
 export function ArchiveJobButton() {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
@@ -34,9 +33,7 @@ export function ArchiveJobButton() {
 
   const archiveJobProcess = async () => {
     if (jobLockReadOnly) return;
-    // Archiving writes the job as a document and releases the rows it holds,
-    // both of which the class answers for.
-    const job = jobLens(jobDraftNow());
+    const job = jobDraftNow();
     useUsersStore.getState().account.actions.addLinkedEsiData({
       ordersToAdd: new Set(),
       jobsToAdd: new Set(),

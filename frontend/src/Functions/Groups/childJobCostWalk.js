@@ -1,15 +1,20 @@
 import { captureException } from "@sentry/react";
 
 import {
+  materialRequirementOf,
   totalExtrasCost,
   totalQuantityProduced,
 } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
+import {
+  purchaseComplete,
+  purchasedCost,
+} from "../../Components/Edit Job/Edit Job Hooks/materialSelectors";
 import coerceFiniteNumber from "../Helper/coerceFiniteNumber";
 
 /**
  * @typedef {object} CostRules
  * @property {(jobID: string) => object|null|undefined} findJob - The job a child id names
- * @property {(material: object) => number} buyCost - What a material no child job builds costs to buy
+ * @property {(material: object, requirement: number) => number} buyCost - What a material no child job builds costs to buy
  * @property {(job: object) => number} installCost - What running a job costs
  */
 
@@ -18,6 +23,7 @@ import coerceFiniteNumber from "../Helper/coerceFiniteNumber";
  * children over their combined output and skipping one already on this path.
  *
  * @param {object} material
+ * @param {number} requirement - How many of it the owning job's setups call for
  * @param {unknown} childJobIDs - The child jobs building this material, if any
  * @param {CostRules} rules
  * @param {Set<string>} ancestry - Job ids already being walked on this path
@@ -25,17 +31,18 @@ import coerceFiniteNumber from "../Helper/coerceFiniteNumber";
  */
 export function materialCostThroughChildJobs(
   material,
+  requirement,
   childJobIDs,
   rules,
   ancestry,
 ) {
   const childIDs = Array.isArray(childJobIDs) ? childJobIDs : [];
 
-  if (material.purchaseComplete) {
-    return coerceFiniteNumber(material.purchasedCost);
+  if (purchaseComplete(material, requirement)) {
+    return coerceFiniteNumber(purchasedCost(material, requirement));
   }
   if (childIDs.length === 0) {
-    return rules.buyCost(material);
+    return rules.buyCost(material, requirement);
   }
 
   let cost = 0;
@@ -58,6 +65,7 @@ export function materialCostThroughChildJobs(
     for (const childMaterial of Object.values(childJob.build.materials ?? {})) {
       cost += materialCostThroughChildJobs(
         childMaterial,
+        materialRequirementOf(childJob.build.setup, childMaterial.typeID),
         childJob.build.childJobs?.[childMaterial.typeID],
         rules,
         branchAncestry,
@@ -66,14 +74,14 @@ export function materialCostThroughChildJobs(
   }
 
   if (produced <= 0) {
-    return rules.buyCost(material);
+    return rules.buyCost(material, requirement);
   }
   const perUnit = cost / produced;
   if (!Number.isFinite(perUnit)) {
-    return rules.buyCost(material);
+    return rules.buyCost(material, requirement);
   }
 
-  return perUnit * coerceFiniteNumber(material.quantity);
+  return perUnit * coerceFiniteNumber(requirement);
 }
 
 /**
@@ -96,6 +104,7 @@ export function jobCostPerUnit(job, rules) {
   for (const material of Object.values(job.build.materials ?? {})) {
     cost += materialCostThroughChildJobs(
       material,
+      materialRequirementOf(job.build.setup, material.typeID),
       job.build.childJobs?.[material.typeID],
       rules,
       ancestry,

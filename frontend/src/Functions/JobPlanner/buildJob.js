@@ -1,5 +1,5 @@
 import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
-import Job from "../../Classes/job";
+import { applyRecipeToJob, jobFromDocument } from "../JobDocuments/jobDocument";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 import { displayOutdatedAppVersionDialogue } from "../../Events/notificationDialogueEvents";
 import getItemRecipes from "../Job Build/getItemRecipes";
@@ -10,6 +10,10 @@ import {
   setupQuantitiesForTotal,
 } from "./setupBuildHelpers";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
+import {
+  applyCommands,
+  attachNewSetupToJob,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 
 export async function buildJob(buildRequest, options = {}) {
   const { queryClient } = options;
@@ -85,8 +89,11 @@ export function jobBuildErrors(buildRequest, newJob) {
 
 async function buildJobObject(itemJson, buildRequest, queryClient) {
   try {
-    const outputObject = new Job(itemJson, buildRequest);
-    outputObject.buildJobObject(itemJson, buildRequest);
+    const outputObject = applyRecipeToJob(
+      jobFromDocument(itemJson, buildRequest),
+      itemJson,
+      buildRequest,
+    );
     try {
       await buildSetupOptions(outputObject, buildRequest, queryClient);
       outputObject.layout.setupToEdit = Object.keys(
@@ -162,6 +169,6 @@ async function buildSetupOptions(
         },
       },
     );
-    inputJobObject.attachNewSetupToJob(newSetup);
+    applyCommands(inputJobObject, attachNewSetupToJob(newSetup));
   }
 }

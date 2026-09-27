@@ -7,13 +7,13 @@ vi.mock("../../Zustand/usersStore", async () => {
 
 const { default: buildParentChildRelationships } =
   await import("./buildParentChildRelationships.js");
-const { default: Job } = await import("../../Classes/job.js");
+const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 
 const TRITANIUM = 34;
 const PYERITE = 35;
 
 function job(jobID, itemID, materials = []) {
-  return new Job({
+  return jobFromDocument({
     jobID,
     itemID,
     parentJobs: [],

@@ -52,7 +52,10 @@ vi.mock("../Hooks/EveEsi/Character/useGetCharacterStandings", () => ({
   getCachedCharacterStandings: () => ({ data: [] }),
 }));
 
-const { default: Job } = await import("./job.js");
+const { default: MarketOrder } = await import("./marketOrder.js");
+const { default: Transaction } = await import("./transaction.js");
+const { jobFromDocument, toDocument } =
+  await import("../Functions/JobDocuments/jobDocument.js");
 const { default: calcSellingCharges } =
   await import("../Functions/MarketOrders/calcSellingCharges.js");
 
@@ -147,7 +150,7 @@ function journalFor(sales) {
 }
 
 function newJob() {
-  return new Job({
+  return jobFromDocument({
     jobID: "job-1",
     itemID: 587,
     jobType: 1,
@@ -173,10 +176,11 @@ describe("selling a job's output, from listing to a stored document", () => {
       addMarketOrder(order, findBrokersFeeEntry(order, charges, null)),
     );
 
-    expect(esiOrderIDs(job.toDocument()).has(900)).toBe(true);
-    expect(totalBrokersFees(job.toDocument())).toBe(1500000);
-    expect(job.esi.marketOrders["900"].isComplete).toBe(false);
-    expect(job.esi.marketOrders["900"].quantitySold).toBe(0);
+    expect(esiOrderIDs(toDocument(job)).has(900)).toBe(true);
+    expect(totalBrokersFees(toDocument(job))).toBe(1500000);
+    const listing = new MarketOrder(job.esi.marketOrders["900"]);
+    expect(listing.isComplete).toBe(false);
+    expect(listing.quantitySold).toBe(0);
 
     const sales = esiSales();
     const took = applyLatestOrderData(job, [
@@ -184,8 +188,9 @@ describe("selling a job's output, from listing to a stored document", () => {
     ]);
 
     expect(took).toBe(true);
-    expect(job.esi.marketOrders["900"].isComplete).toBe(true);
-    expect(job.esi.marketOrders["900"].quantitySold).toBe(100);
+    const sold = new MarketOrder(job.esi.marketOrders["900"]);
+    expect(sold.isComplete).toBe(true);
+    expect(sold.quantitySold).toBe(100);
 
     characterTransactions.data = { "hash-1": sales };
     characterJournal.data = {
@@ -202,19 +207,21 @@ describe("selling a job's output, from listing to a stored document", () => {
 
     job = after(job, addTransaction(offered));
 
-    expect(esiTransactionIDs(job.toDocument()).size).toBe(2);
+    expect(esiTransactionIDs(toDocument(job)).size).toBe(2);
     expect(
-      Object.values(job.esi.transactions).every((t) => t.belongsToOrder(900)),
+      Object.values(job.esi.transactions).every((t) =>
+        new Transaction(t).belongsToOrder(900),
+      ),
     ).toBe(true);
 
-    expect(totalSales(job.toDocument())).toBe(100000000);
-    expect(totalTransactionFees(job.toDocument())).toBeCloseTo(3600000, 6);
-    expect(totalBrokersFees(job.toDocument())).toBe(1500000);
-    expect(averageItemSalePrice(job.toDocument())).toBe(1000000);
+    expect(totalSales(toDocument(job))).toBe(100000000);
+    expect(totalTransactionFees(toDocument(job))).toBeCloseTo(3600000, 6);
+    expect(totalBrokersFees(toDocument(job))).toBe(1500000);
+    expect(averageItemSalePrice(toDocument(job))).toBe(1000000);
 
     expect(findOrderTransactions(job.esi, null)).toEqual([]);
 
-    const document = job.toDocument();
+    const document = toDocument(job);
 
     expect(Object.keys(document.esi.transactions)).toHaveLength(2);
     expect(document.esi.transactions["700"]).toBeDefined();
@@ -226,19 +233,19 @@ describe("selling a job's output, from listing to a stored document", () => {
     expect(document.esi.marketOrders["900"]).not.toHaveProperty("complete");
     expect(document.esi.marketOrders["900"].volume_remain).toBe(0);
 
-    const reopened = new Job(document);
+    const reopened = jobFromDocument(document);
 
-    expect(totalSales(reopened.toDocument())).toBe(
-      totalSales(job.toDocument()),
-    );
-    expect(totalTransactionFees(reopened.toDocument())).toBeCloseTo(
-      totalTransactionFees(job.toDocument()),
+    expect(totalSales(toDocument(reopened))).toBe(totalSales(toDocument(job)));
+    expect(totalTransactionFees(toDocument(reopened))).toBeCloseTo(
+      totalTransactionFees(toDocument(job)),
       6,
     );
-    expect(totalBrokersFees(reopened.toDocument())).toBe(
-      totalBrokersFees(job.toDocument()),
+    expect(totalBrokersFees(toDocument(reopened))).toBe(
+      totalBrokersFees(toDocument(job)),
     );
-    expect(reopened.esi.marketOrders["900"].isComplete).toBe(true);
+    expect(new MarketOrder(reopened.esi.marketOrders["900"]).isComplete).toBe(
+      true,
+    );
   });
 
   it("takes the order's fee and its sales away together when it is unlinked", async () => {
@@ -271,18 +278,18 @@ describe("selling a job's output, from listing to a stored document", () => {
     };
     job = after(job, addTransaction(findOrderTransactions(job.esi, null)));
 
-    expect(totalSales(job.toDocument())).toBe(100000000);
+    expect(totalSales(toDocument(job))).toBe(100000000);
 
     job = after(
       job,
       removeMarketOrder({ order_id: 900, location_id: CITADEL }),
     );
 
-    expect(esiOrderIDs(job.toDocument()).size).toBe(0);
-    expect(totalBrokersFees(job.toDocument())).toBe(0);
+    expect(esiOrderIDs(toDocument(job)).size).toBe(0);
+    expect(totalBrokersFees(toDocument(job))).toBe(0);
 
-    expect(totalSales(job.toDocument())).toBe(0);
-    expect(esiTransactionIDs(job.toDocument()).size).toBe(0);
+    expect(totalSales(toDocument(job))).toBe(0);
+    expect(esiTransactionIDs(toDocument(job)).size).toBe(0);
   });
 
   it("offers nothing until the journal has both entries for a sale", async () => {

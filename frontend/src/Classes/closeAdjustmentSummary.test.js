@@ -7,10 +7,11 @@ vi.mock("../Zustand/usersStore.js", async () => {
 
 const { closeAdjustmentSummary } =
   await import("../Functions/JobPlanner/closeAdjustmentSummary.js");
-const { default: Job } = await import("./job.js");
+const { jobFromDocument } =
+  await import("../Functions/JobDocuments/jobDocument.js");
 
 function job({ parents = [], children = [] } = {}) {
-  return new Job({
+  return jobFromDocument({
     jobID: "job-1",
     itemID: 587,
     jobType: 1,
@@ -25,8 +26,6 @@ describe("what closing a job reports", () => {
     expect(closeAdjustmentSummary(job(), [])).toBe("Oxygen Fuel Block Updated");
   });
 
-  // The quantity someone set by hand is replaced on the way out, so the figure
-  // that was saved is the one worth naming.
   it("says what the job now makes and why", () => {
     const summary = closeAdjustmentSummary(job({ parents: ["parent-1"] }), [
       { jobID: "job-1", name: "Oxygen Fuel Block", before: 280, after: 3440 },

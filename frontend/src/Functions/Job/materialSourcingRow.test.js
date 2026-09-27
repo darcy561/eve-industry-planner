@@ -9,21 +9,28 @@ import {
   summariseSourcing,
 } from "./materialSourcingRow";
 
-const material = (required, { purchasing = [], volume = 0.01 } = {}) =>
-  new JobMaterial(
-    { typeID: 34, name: "Tritanium", volume, purchasing },
-    required,
-  );
+const material = (required, { purchasing = [], volume = 0.01 } = {}) => ({
+  ...new JobMaterial({
+    typeID: 34,
+    name: "Tritanium",
+    volume,
+    purchasing,
+  }).toDocument(),
+  requirement: required,
+});
 
-const row = (overrides = {}) =>
-  buildMaterialSourcingRow({
-    material: material(1000),
+const row = (overrides = {}) => {
+  const subject = overrides.material ?? material(1000);
+  return buildMaterialSourcingRow({
+    material: subject,
+    quantity: subject.requirement,
     buyPrice: 10,
     buildPrice: 8,
     isBuildable: true,
     isLinked: false,
     ...overrides,
   });
+};
 
 describe("priceDelta", () => {
   it("is negative when building is cheaper", () => {
@@ -40,8 +47,6 @@ describe("priceDelta", () => {
   });
 
   it("has nothing to say when the market price is zero", () => {
-    // Dividing by it would report an infinite saving on a material the market
-    // has no price for.
     expect(priceDelta(0, 8)).toBeNull();
   });
 });
@@ -99,8 +104,6 @@ describe("a material row", () => {
   });
 
   it("does not offer a build price of zero as a comparison", () => {
-    // A child job that costs nothing has not been costed, and showing it as free
-    // would make every material look cheaper to build.
     const free = row({ buildPrice: 0, isLinked: true });
 
     expect(free.buildPrice).toBeNull();
@@ -111,10 +114,10 @@ describe("a material row", () => {
 
 describe("the summary above and below the table", () => {
   const rows = [
-    row({ buyPrice: 10, buildPrice: 8, isLinked: false }), // cheaper to build
-    row({ buyPrice: 100, buildPrice: 90, isLinked: false }), // cheaper to build
-    row({ buyPrice: 10, buildPrice: 12, isLinked: false }), // dearer to build
-    row({ isBuildable: false, buildPrice: null }), // nothing to compare
+    row({ buyPrice: 10, buildPrice: 8, isLinked: false }),
+    row({ buyPrice: 100, buildPrice: 90, isLinked: false }),
+    row({ buyPrice: 10, buildPrice: 12, isLinked: false }),
+    row({ isBuildable: false, buildPrice: null }),
   ];
 
   it("counts what the list holds", () => {
@@ -126,7 +129,6 @@ describe("the summary above and below the table", () => {
   });
 
   it("totals what switching the cheaper rows would save", () => {
-    // (10−8)×1000 + (100−90)×1000
     expect(summariseSourcing(rows)).toMatchObject({
       cheaperToBuild: 2,
       savingAvailable: 12000,
@@ -170,15 +172,9 @@ describe("the summary above and below the table", () => {
 
 describe("a row stating one setup's requirement", () => {
   it("uses the quantity it is given rather than the job's own", () => {
-    // Raw Resources let a player see the selected setup's need instead of the
-    // whole job's, and that choice came with it into this panel.
     const stated = row({ material: material(1000), quantity: 250 });
 
     expect(stated.quantity).toBe(250);
-  });
-
-  it("falls back to the job's requirement when none is given", () => {
-    expect(row({ material: material(1000) }).quantity).toBe(1000);
   });
 
   it("counts the volume of what it states, not of the whole job", () => {
@@ -193,10 +189,6 @@ describe("a row stating one setup's requirement", () => {
 
 describe("what a row can and cannot say at once", () => {
   it("cannot be priced to build and planned to buy in the same breath", () => {
-    // A build price only exists once child jobs are linked, and being linked
-    // makes the plan Build — so no row reaches the state the offer above the
-    // table looks for. Speculative child jobs are what break the tie, and they
-    // are Stage G's. Until then the offer is inert by construction.
     const linkedAndCheaper = row({
       isLinked: true,
       buildPrice: 8,
@@ -213,10 +205,6 @@ describe("what a row can and cannot say at once", () => {
   });
 });
 
-// Stage G's whole point: a row can be priced to build and still planned to buy.
-// Before speculative jobs existed, a build price only came from linked children,
-// and being linked made the plan Build — so no row was ever both, and the offer
-// to switch could never fire.
 describe("a speculatively costed row", () => {
   it("carries a build price without being planned to build", () => {
     const row = buildMaterialSourcingRow({
@@ -268,9 +256,6 @@ describe("a speculatively costed row", () => {
   });
 });
 
-// A part-paid row is still on Buy, so it counts toward the offer — but only the
-// units nobody has bought yet can move to a build plan, and the offer has to be
-// a figure applying the change can actually deliver.
 it("offers a saving only on the part of a row still to source", () => {
   const summary = summariseSourcing([
     {
@@ -289,11 +274,6 @@ it("offers a saving only on the part of a row still to source", () => {
   expect(summary.cheaperToBuild).toBe(1);
 });
 
-// A row has a blueprint long before anything works out what building it would
-// cost, so these two counts have to be able to disagree. Counting buildable
-// rows by whether they carried a price made the panel state "2 of 1": the
-// banner counted rows waiting for a price, and the total counted rows that
-// already had one, which are sets that cannot overlap.
 it("counts a row with a blueprint as buildable before it has been costed", () => {
   const withBlueprint = (typeID, buildPrice) => ({
     typeID,
@@ -324,6 +304,5 @@ it("counts a row with a blueprint as buildable before it has been costed", () =>
 
   expect(summary.buildable).toBe(3);
   expect(summary.costed).toBe(1);
-  // What the banner states, and the reason this test exists.
   expect(summary.buildable - summary.costed).toBe(2);
 });

@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const jobsById = new Map();
 
-// Read fresh each time: the tests fill `jobsById` after the mock is built.
 vi.mock("../../Zustand/usersStore.js", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../tests/usersStoreHarness.js");
@@ -27,9 +26,6 @@ vi.mock("../Installation Costs/installCosts.js", () => ({
 
 const { jobCostSoFar } = await import("./jobCostSoFar.js");
 
-/**
- * @param {object} overrides
- */
 function job({
   id,
   produced = 1,
@@ -47,7 +43,19 @@ function job({
         : {},
     },
     build: {
-      materials,
+      setup: {
+        "setup-1": {
+          id: "setup-1",
+          runCount: 1,
+          jobCount: 1,
+          materialCount: Object.fromEntries(
+            materials.map((m) => [String(m.typeID), { quantity: m.quantity }]),
+          ),
+        },
+      },
+      materials: Object.fromEntries(
+        materials.map((m) => [String(m.typeID), m]),
+      ),
       childJobs,
       extrasCosts: extras
         ? { "extra-1": { id: "extra-1", extraValue: extras } }
@@ -58,20 +66,20 @@ function job({
   return built;
 }
 
-/** A material with no child job behind it: the job bought it. */
 const bought = (typeID, cost, quantity = 1) => ({
   typeID,
   quantity,
-  purchasedCost: cost,
-  purchaseComplete: true,
+  purchasing: {
+    "p-1": { id: "p-1", itemCount: quantity, itemCost: cost / quantity },
+  },
 });
 
-/** A material the job intends to build rather than buy. */
 const toBuild = (typeID, quantity, fallbackCost = 0) => ({
   typeID,
   quantity,
-  purchasedCost: fallbackCost,
-  purchaseComplete: false,
+  purchasing: fallbackCost
+    ? { "p-1": { id: "p-1", itemCount: 1, itemCost: fallbackCost } }
+    : {},
 });
 
 beforeEach(() => {
@@ -120,7 +128,6 @@ describe("build cost from children", () => {
       childJobs: { 35: ["child-1"] },
     });
 
-    // Child costs 300 + 200 + 500 = 1000 for 100 units, so 10 units cost 100.
     expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
@@ -144,8 +151,6 @@ describe("build cost from children", () => {
       childJobs: { 36: ["child-1"] },
     });
 
-    // Grandchild: (100 + 900) / 10 = 100 per unit, so 10 units cost 1000.
-    // Child: 1000 for 10 units = 100 per unit, so 10 units cost 1000.
     expect(jobCostSoFar(outputJob)).toBe(1000);
   });
 
@@ -190,7 +195,6 @@ describe("build cost from children", () => {
       childJobs: { 35: ["child-1", "child-2"] },
     });
 
-    // 1000 across 100 units is 10 each, so 10 units cost 100.
     expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
@@ -209,11 +213,6 @@ describe("build cost from children", () => {
   });
 });
 
-/**
- * The cases below exist to make this function safe to change. They pin what it
- * does today rather than what it ought to do, including where it copes with bad
- * input and where it does not, so a rewrite can be checked against them.
- */
 describe("what it does with awkward input", () => {
   it("treats a job with no materials as costing only its own install and extras", () => {
     const outputJob = job({ produced: 2, installCost: 100, extras: 50 });
@@ -280,7 +279,6 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: ["shell", "child-1"] },
     });
 
-    // The shell contributes neither cost nor output, so the figure is child-1's.
     expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
@@ -292,8 +290,6 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: ["child-1", "child-1"] },
     });
 
-    // 1000 over 100 units is the same per unit as 500 over 50, so a duplicate
-    // does not change the rate — only a per-unit reading makes that true.
     expect(jobCostSoFar(outputJob)).toBe(100);
   });
 
@@ -324,7 +320,7 @@ describe("what it does with awkward input", () => {
       id: "loop",
       produced: 10,
       installCost: 500,
-      materials: [toBuild(35, 1, 42)],
+      materials: [toBuild(35, 2, 42)],
       childJobs: { 35: ["loop"] },
     });
     jobsById.set("loop", looping);
@@ -334,9 +330,6 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: ["loop"] },
     });
 
-    // The cycle is skipped rather than walked, so the branch still costs what
-    // the reachable part of it costs: 500 install plus the cycling material's
-    // own purchased cost, over 10 units, for 10 units.
     expect(jobCostSoFar(outputJob)).toBe(542);
     expect(captureException).toHaveBeenCalledTimes(1);
   });
@@ -350,20 +343,16 @@ describe("what it does with awkward input", () => {
     outputJob.jobID = "self";
     jobsById.set("self", outputJob);
 
-    // Nothing reachable, so the material falls to what was paid for it.
     expect(jobCostSoFar(outputJob)).toBe(777);
     expect(captureException).toHaveBeenCalledTimes(1);
   });
 
   it("stops a cycle that runs through a second job before returning", () => {
-    // A→B→A is the shape a real linking mistake takes; the self-loop above is
-    // the degenerate case. Ancestry accumulates on the way down, so B's list of
-    // A is caught without the walk ever revisiting A.
     job({
       id: "cycle-b",
       produced: 10,
       installCost: 200,
-      materials: [toBuild(34, 1, 11)],
+      materials: [toBuild(34, 2, 11)],
       childJobs: { 34: ["cycle-a"] },
     });
     job({
@@ -380,17 +369,11 @@ describe("what it does with awkward input", () => {
     });
     outputJob.jobID = "output-with-cycle";
 
-    // A costs 300, plus B's 200 and B's cycling material falling back to 11,
-    // over B's 10 units for A's 1 unit = 21.1. A's total 321.1 over 10 units is
-    // 32.11 each, for 10 units.
     expect(jobCostSoFar(outputJob)).toBeCloseTo(321.1);
     expect(captureException).toHaveBeenCalledTimes(1);
   });
 
   it("still counts a job reached down two separate branches twice", () => {
-    // The guard tracks one path, not the whole walk: a component built once for
-    // each of two children is two real costs, and collapsing them would
-    // understate the build.
     job({ id: "shared", produced: 10, installCost: 100 });
     job({
       id: "child-a",
@@ -412,7 +395,6 @@ describe("what it does with awkward input", () => {
       childJobs: { 35: ["child-a", "child-b"] },
     });
 
-    // Each child costs 100 for 10 units, so 20 units across both cost 200.
     expect(jobCostSoFar(outputJob)).toBe(200);
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -433,14 +415,11 @@ describe("what it does with awkward input", () => {
 
 describe("how often a cycle is reported", () => {
   it("reports a cycle once however many times the cost is worked out", () => {
-    // The cost is worked out inside a render, so a card showing a cyclic job
-    // re-runs this walk on every re-render. Reporting each time would fill
-    // Sentry with the same event for as long as the card stays mounted.
     const looping = job({
       id: "repeat-loop",
       produced: 10,
       installCost: 100,
-      materials: [toBuild(35, 1, 5)],
+      materials: [toBuild(35, 2, 5)],
       childJobs: { 35: ["repeat-loop"] },
     });
     jobsById.set("repeat-loop", looping);

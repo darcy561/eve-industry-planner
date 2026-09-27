@@ -128,23 +128,28 @@ describe("materialCostByOrderType", () => {
 });
 
 describe("materialPurchaseState", () => {
-  const materialBought = (required, purchases) =>
-    new JobMaterial(
-      { typeID: 34, name: "Tritanium", purchasing: purchases },
-      required,
-    );
+  const materialBought = (required, purchases) => ({
+    ...new JobMaterial({
+      typeID: 34,
+      name: "Tritanium",
+      purchasing: purchases,
+    }).toDocument(),
+    requirement: required,
+  });
 
   it("reports a fully bought material as paid, at what it cost", () => {
     const material = materialBought(100, [
       { id: "p1", itemCount: 100, itemCost: 7 },
     ]);
 
-    expect(materialPurchaseState(material)).toMatchObject({
-      kind: "paid",
-      paidQuantity: 100,
-      paidCost: 700,
-      remainingQuantity: 0,
-    });
+    expect(materialPurchaseState(material, material.requirement)).toMatchObject(
+      {
+        kind: "paid",
+        paidQuantity: 100,
+        paidCost: 700,
+        remainingQuantity: 0,
+      },
+    );
   });
 
   it("reports a partly bought material as both paid and outstanding", () => {
@@ -152,30 +157,34 @@ describe("materialPurchaseState", () => {
       { id: "p1", itemCount: 40, itemCost: 7 },
     ]);
 
-    expect(materialPurchaseState(material)).toMatchObject({
-      kind: "part-paid",
-      paidQuantity: 40,
-      paidCost: 280,
-      remainingQuantity: 60,
-    });
+    expect(materialPurchaseState(material, material.requirement)).toMatchObject(
+      {
+        kind: "part-paid",
+        paidQuantity: 40,
+        paidCost: 280,
+        remainingQuantity: 60,
+      },
+    );
   });
 
   it("reports an unbought material as an estimate", () => {
     const material = materialBought(100, []);
 
-    expect(materialPurchaseState(material)).toMatchObject({
-      kind: "estimated",
-      paidQuantity: 0,
-      paidCost: 0,
-      remainingQuantity: 100,
-    });
+    expect(materialPurchaseState(material, material.requirement)).toMatchObject(
+      {
+        kind: "estimated",
+        paidQuantity: 0,
+        paidCost: 0,
+        remainingQuantity: 100,
+      },
+    );
   });
 
   it("does not count buying more than the job needs as extra cost", () => {
     const material = materialBought(100, [
       { id: "p1", itemCount: 250, itemCost: 7 },
     ]);
-    const state = materialPurchaseState(material);
+    const state = materialPurchaseState(material, material.requirement);
 
     expect(state.kind).toBe("paid");
     expect(state.paidQuantity).toBe(100);
@@ -194,12 +203,14 @@ describe("a material the job needs none of", () => {
       0,
     );
 
-    expect(materialPurchaseState(material)).toMatchObject({
-      kind: "estimated",
-      paidQuantity: 0,
-      paidCost: 0,
-      remainingQuantity: 0,
-    });
+    expect(materialPurchaseState(material, material.requirement)).toMatchObject(
+      {
+        kind: "estimated",
+        paidQuantity: 0,
+        paidCost: 0,
+        remainingQuantity: 0,
+      },
+    );
   });
 });
 

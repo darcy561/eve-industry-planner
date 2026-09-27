@@ -5,14 +5,12 @@ vi.mock("../Zustand/usersStore", async () => {
   return usersStoreMock({ account: { accountID: "acct-store" } });
 });
 
-const { default: Job } = await import("./job");
+const { jobFromDocument, toDocument } =
+  await import("../Functions/JobDocuments/jobDocument.js");
 
-// The server owns `_meta`: it overwrites whatever is uploaded and takes identity
-// from the request headers. It also rejects unknown fields, so a stale key in a
-// PUT body is a 400 rather than a field that is quietly ignored.
 describe("Job _meta", () => {
   it("never sends an account or owner back to the server", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       _meta: {
@@ -21,7 +19,7 @@ describe("Job _meta", () => {
       },
     });
 
-    const sent = job.toDocument()._meta;
+    const sent = toDocument(job)._meta;
 
     expect(sent).not.toHaveProperty("accountID");
     expect(sent).not.toHaveProperty("owner");
@@ -30,7 +28,7 @@ describe("Job _meta", () => {
   });
 
   it("keeps the fields the client is allowed to round-trip", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       _meta: {
@@ -39,21 +37,18 @@ describe("Job _meta", () => {
       },
     });
 
-    const sent = job.toDocument()._meta;
+    const sent = toDocument(job)._meta;
 
     expect(sent.lastModified).toBe("2026-01-01T00:00:00Z");
     expect(sent.createdAt).toBe("2025-01-01T00:00:00Z");
   });
 
   it("takes lastUpdatedBy from the store when the document carries none", () => {
-    const job = new Job({ jobID: "job-1", itemID: 34 });
-    expect(job.toDocument()._meta.lastUpdatedBy).toBe("acct-store");
+    const job = jobFromDocument({ jobID: "job-1", itemID: 34 });
+    expect(toDocument(job)._meta.lastUpdatedBy).toBe("acct-store");
   });
 });
 
-// Skills are stored keyed by the typeID each row carries, and held in memory as
-// the array every reader of `job.skills` walks. The constructor is fed its own
-// output as well as stored documents, so both shapes have to arrive intact.
 describe("Job skills", () => {
   const skillRows = [
     { typeID: 22242, level: 4 },
@@ -61,7 +56,7 @@ describe("Job skills", () => {
   ];
 
   it("reads a keyed document into the keyed shape its readers walk", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       skills: {
@@ -77,17 +72,25 @@ describe("Job skills", () => {
   });
 
   it("stores them keyed by typeID", () => {
-    const job = new Job({ jobID: "job-1", itemID: 34, skills: skillRows });
+    const job = jobFromDocument({
+      jobID: "job-1",
+      itemID: 34,
+      skills: skillRows,
+    });
 
-    expect(job.toDocument().skills).toEqual({
+    expect(toDocument(job).skills).toEqual({
       22242: { typeID: 22242, level: 4 },
       3380: { typeID: 3380, level: 3 },
     });
   });
 
   it("survives being rebuilt from its own document", () => {
-    const once = new Job({ jobID: "job-1", itemID: 34, skills: skillRows });
-    const twice = new Job(once.toDocument());
+    const once = jobFromDocument({
+      jobID: "job-1",
+      itemID: 34,
+      skills: skillRows,
+    });
+    const twice = jobFromDocument(toDocument(once));
 
     expect(twice.skills).toEqual({
       22242: { typeID: 22242, level: 4 },
@@ -96,33 +99,26 @@ describe("Job skills", () => {
   });
 
   it("drops a row carrying no typeID rather than filing it under one key", () => {
-    const job = new Job({
+    const job = jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       skills: [{ level: 4 }, { level: 3 }],
     });
 
-    expect(job.toDocument().skills).toEqual({});
+    expect(toDocument(job).skills).toEqual({});
   });
 
   it("has no skills when the document carries none", () => {
-    const job = new Job({ jobID: "job-1", itemID: 34 });
+    const job = jobFromDocument({ jobID: "job-1", itemID: 34 });
 
     expect(job.skills).toEqual({});
-    expect(job.toDocument().skills).toEqual({});
+    expect(toDocument(job).skills).toEqual({});
   });
 });
 
-// The SPA half of what `models.Job`'s TestKeyedCollectionsSurviveTheWritePath
-// asserts on the backend: a collection held keyed has to be written back keyed,
-// or the first save after the reshape stores an array over a converted document.
-//
-// The instance holds each collection keyed whatever the document it was read
-// from held, so only the document says whether the write path kept it that way.
-// That is the reason this asserts on the document rather than on the instance.
 describe("Job writes keyed collections back keyed", () => {
   const job = () =>
-    new Job({
+    jobFromDocument({
       jobID: "job-1",
       itemID: 34,
       jobType: 1,
@@ -159,17 +155,14 @@ describe("Job writes keyed collections back keyed", () => {
     ["esi.marketOrders", (d) => d.esi.marketOrders],
     ["esi.transactions", (d) => d.esi.transactions],
   ])("writes %s as a keyed collection", (_name, read) => {
-    const held = read(job().toDocument());
+    const held = read(toDocument(job()));
 
     expect(Array.isArray(held)).toBe(false);
     expect(typeof held).toBe("object");
   });
 
-  // Serialised, not merely present: a collection written straight from the
-  // instance carries the live class instances, which are objects and would
-  // satisfy the check above while storing a row nothing wrote.
   it("writes plain rows rather than the instances it holds", () => {
-    const document = job().toDocument();
+    const document = toDocument(job());
 
     for (const row of [
       ...Object.values(document.build.materials),
@@ -183,10 +176,8 @@ describe("Job writes keyed collections back keyed", () => {
     }
   });
 
-  // Keyed by the row's own id, not by its position: an array written as an
-  // object would satisfy the check above and be filed under "0".
   it("files each row under the id it carries", () => {
-    const document = job().toDocument();
+    const document = toDocument(job());
 
     expect(Object.keys(document.skills)).toEqual(["22242"]);
     expect(Object.keys(document.build.materials)).toEqual(["34"]);

@@ -1712,6 +1712,34 @@ setup held on a job in place — seven call sites of the same shape, needing the
 `applySetupChange` already does, and a helper of its own because it has no edit session to run a command
 through.
 
+#### What the material rows needed, which the plan did not say
+
+Step 4 assumed the row classes were already off the job. `Material` never was: after the class went,
+**fourteen production reads of its getters** were left across seven files — the shopping list, the Price
+Entry dialogue, material pricing, `estimatedMaterialCost`, `jobCostSoFar`, `childJobCostWalk` and
+`childJobSupplyForMaterial`. Every one of them is a figure a reader sees, and every one was answering
+`undefined`.
+
+Each needs the material's requirement, which lives on the owning job's setups. Where the caller holds
+the job that is a lookup; where it does not, the requirement now travels with the material:
+`materialCostThroughChildJobs(material, requirement, childJobIDs, rules, ancestry)`, with
+`rules.buyCost` becoming `(material, requirement)` and the recursion deriving each child material's
+requirement from the child job it already holds. `estimatedMaterialCost` gained the same second
+parameter.
+
+#### A second defect, in what an estimate multiplies
+
+`estimatedMaterialCost`'s buy-cost fallback reads
+`(market price || purchasedCost(material, requirement)) * requirement`. The market price is per unit, so
+multiplying it by the requirement is right; `purchasedCost` is a **total**, so multiplying that by the
+requirement charges a part-bought material its whole spend once per unit it needs. A material needing
+five units with three ISK already spent is costed at fifteen.
+
+**Recorded rather than taken**, for the same reason as the rig requirement: the cutover is meant to
+change no figure, and this one is a pricing decision — whether the fallback should be the spend so far,
+the spend per unit bought, or the market price of what is left. It was in the code before this project
+and is preserved exactly.
+
 #### A defect this found, which the cutover does not fix
 
 `Setup.gatherRequirements` asks for three sources of requirements and only ever gets two. It calls
@@ -1746,7 +1774,7 @@ Purchasing's and the three tutorial overlays. No file under the editor reads `st
 the page has no prop-drilled session left, and an edit the frame reads nothing of
 re-renders nothing. Next: Stage 4 |
 | Stage 4 — getters become functions | **Landed.** Re-scoped first: Stage 3 took every panel off the lens, so the panel-by-panel conversion it was costed as no longer exists. 4a removed twenty members — every mutation method the commands replaced, the figures only those methods fed, and `totalSales`, which lost its last reader inside the class when `averageItemSalePrice` went. Nineteen of the twenty measured; `lastRunToFinish` stayed, being named as an input by another project, and `totalSales` came off in its place. `materialRequirement` stayed and became private. `Classes/job.js` is 1,076 lines, from 1,405. The work was in the tests: the class was their oracle, and each assertion now states its own expectation — § The oracle the tests are written against. 4b took all nine id lists, in three bites: `setupSystemIDs` and `materialIDs`, then the three ESI sets, then `parentJobIDs`, `childJobIDs`, `relatedJobIDs` and `totalQuantityProduced`. `Classes/job.js` is 985 lines, from 1,405. What the conversion kept finding is below. 4c took the cost figures — `totalInstallCost`, `totalExtrasCost`, `totalInventionCost`, `buildCost` and `buildCostPerItem` — whose production reach was seven files, most of what looked like a call site being a JSDoc name or a figure on something that is not a job. `Classes/job.js` is 919 lines, from 1,405. What is left on the class is the four summands only its own members read, `totalCostPerItem`, and the mutation methods with live callers, which are Stage 5's. The measurement the three slices were cut from: [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-21 |
-| Stage 5 — `jobArray` goes plain | **Part landed: steps 1–3.** Nothing outside `Job` asks an instance for anything any more. The figures that were still getters are selectors — some already had one of the same name and the getter was a duplicate, the rest were written and tested before the getter came off — and `boughtCost` / `purchaseComplete` were added as material selectors first, because two of them reached into `JobMaterial` rather than plain data. The eleven mutation methods are gone in favour of the Stage 3 commands, reachable outside the editor through a new `applyCommands(job, ...commands)`, which moved 42 method calls across 14 files. The work was again mostly in the tests: the oracles that proved the new path by agreeing with the class member now state their own expectations, and the three call-site files with no tests were given them first, written against the old implementation so they pass unchanged across the conversion. `Classes/job.js` is 533 lines, from 929. **Step 4, the cutover, is not taken**: `jobArray` still holds instances and `toDocument()` is still the persistence contract. See [overlay.md](./overlay.md) § Stage 5 |
+| Stage 5 — `jobArray` goes plain | **Landed.** Nothing outside `Job` asks an instance for anything any more. The figures that were still getters are selectors — some already had one of the same name and the getter was a duplicate, the rest were written and tested before the getter came off — and `boughtCost` / `purchaseComplete` were added as material selectors first, because two of them reached into `JobMaterial` rather than plain data. The eleven mutation methods are gone in favour of the Stage 3 commands, reachable outside the editor through a new `applyCommands(job, ...commands)`, which moved 42 method calls across 14 files. The work was again mostly in the tests: the oracles that proved the new path by agreeing with the class member now state their own expectations, and the three call-site files with no tests were given them first, written against the old implementation so they pass unchanged across the conversion. `Classes/job.js` is 533 lines, from 929. **Step 4, the cutover, is landed**: `Classes/job.js` and the lens are deleted, `jobArray` holds plain documents, and the class's four remaining jobs are functions in `Functions/JobDocuments/jobDocument.js`. It reached further than this plan costed it, because the plan assumed the row classes were already off the job and `Material` never was — §§ What the setups needed and What the material rows needed say what that added. Five live faults came out of it: two deleted `Job` methods still called in production (`passBuildCosts`, `buildJob`), `applyLatestOrderData` calling a `MarketOrder` method on a row, fourteen `Material` getter reads across seven files, and a missing argument in `buildShoppingList` that made a shopping list quantity `NaN` — which had no test at all and now has one. See [overlay.md](./overlay.md) § Stage 5 |
 
 ## Settled
 

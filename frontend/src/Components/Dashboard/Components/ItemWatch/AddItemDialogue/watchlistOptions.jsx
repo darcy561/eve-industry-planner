@@ -1,6 +1,7 @@
 import { Grid } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 
+import Setup from "../../../../../Classes/jobSetup";
 import { jobTypes } from "../../../../../Context/defaultValues";
 import { recalculateWatchListItemsFromSetup } from "../../../../../Functions/JobPlanner/applySetupChange";
 import VirtualisedSystemSearch from "../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
@@ -26,25 +27,33 @@ export function WatchListSetupOptions_WatchlistDialogue({
   );
   const jobSetup = Object.values(materialJobs[itemToModify]?.build?.setup)[0];
 
+  const changeSetup = (change) => {
+    const next = new Setup(jobSetup);
+    change(next);
+
+    const changed = structuredClone(materialJobs);
+    changed[itemToModify].build.setup[next.id] = next.toDocument();
+    recalculateWatchListItemsFromSetup(
+      itemToModify,
+      watchlistItemRequest,
+      next.id,
+      changed,
+      queryClient,
+    );
+    setMaterialJobs(changed);
+  };
+
   return (
     <Grid container spacing={2} sx={{ width: "100%" }}>
       <Grid size={12}>
         <CustomStructureSelect
           value={jobSetup.customStructureID}
           jobType={jobSetup.jobType}
-          onChange={(value) => {
-            jobSetup.updateCustomStructureID(value, getCustomStructureWithID);
-
-            recalculateWatchListItemsFromSetup(
-              itemToModify,
-              watchlistItemRequest,
-              jobSetup.id,
-              materialJobs,
-              queryClient,
-            );
-
-            setMaterialJobs({ ...materialJobs });
-          }}
+          onChange={(value) =>
+            changeSetup((setup) =>
+              setup.updateCustomStructureID(value, getCustomStructureWithID),
+            )
+          }
         />
       </Grid>
       {jobSetup.jobType === jobTypes.manufacturing && (
@@ -52,33 +61,17 @@ export function WatchListSetupOptions_WatchlistDialogue({
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <MaterialEfficiencySelect
               value={jobSetup.ME}
-              onChange={(value) => {
-                jobSetup.updateMEValue(value);
-                recalculateWatchListItemsFromSetup(
-                  itemToModify,
-                  watchlistItemRequest,
-                  jobSetup.id,
-                  materialJobs,
-                  queryClient,
-                );
-                setMaterialJobs({ ...materialJobs });
-              }}
+              onChange={(value) =>
+                changeSetup((setup) => setup.updateMEValue(value))
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingLeft: "10px" }}>
             <TimeEfficiencySelect
               value={jobSetup.TE}
-              onChange={(value) => {
-                jobSetup.updateTEValue(value);
-                recalculateWatchListItemsFromSetup(
-                  itemToModify,
-                  watchlistItemRequest,
-                  jobSetup.id,
-                  materialJobs,
-                  queryClient,
-                );
-                setMaterialJobs({ ...materialJobs });
-              }}
+              onChange={(value) =>
+                changeSetup((setup) => setup.updateTEValue(value))
+              }
             />
           </Grid>
         </Grid>
@@ -89,84 +82,44 @@ export function WatchListSetupOptions_WatchlistDialogue({
             <StructureTypeSelect
               value={jobSetup.structureID}
               jobType={jobSetup.jobType}
-              onChange={(selectedEntry) => {
-                jobSetup.updateStructureID(selectedEntry);
-                recalculateWatchListItemsFromSetup(
-                  itemToModify,
-                  watchlistItemRequest,
-                  jobSetup.id,
-                  materialJobs,
-                  queryClient,
-                );
-                setMaterialJobs({ ...materialJobs });
-              }}
+              onChange={(selectedEntry) =>
+                changeSetup((setup) => setup.updateStructureID(selectedEntry))
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingLeft: "10px" }}>
             <RigTypeSelect
               value={jobSetup.rigSlot1}
               jobType={jobSetup.jobType}
-              onChange={(selectedEntry) => {
-                jobSetup.updateRigID(selectedEntry);
-                recalculateWatchListItemsFromSetup(
-                  itemToModify,
-                  watchlistItemRequest,
-                  jobSetup.id,
-                  materialJobs,
-                  queryClient,
-                );
-                setMaterialJobs({ ...materialJobs });
-              }}
+              onChange={(selectedEntry) =>
+                changeSetup((setup) => setup.updateRigID(selectedEntry))
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <SystemTypeSelect
               value={jobSetup.systemTypeID}
               jobType={jobSetup.jobType}
-              onChange={(selectedEntry) => {
-                jobSetup.updateSystemType(selectedEntry);
-                recalculateWatchListItemsFromSetup(
-                  itemToModify,
-                  watchlistItemRequest,
-                  jobSetup.id,
-                  materialJobs,
-                  queryClient,
-                );
-                setMaterialJobs({ ...materialJobs });
-              }}
+              onChange={(selectedEntry) =>
+                changeSetup((setup) => setup.updateSystemType(selectedEntry))
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingLeft: "10px" }}>
             <VirtualisedSystemSearch
               selectedValue={jobSetup.systemID}
               jobType={jobSetup.jobType}
-              updateSelectedValue={(value) => {
-                jobSetup.updateSystemID(Number(value));
-                recalculateWatchListItemsFromSetup(
-                  itemToModify,
-                  watchlistItemRequest,
-                  jobSetup.id,
-                  materialJobs,
-                  queryClient,
-                );
-                setMaterialJobs({ ...materialJobs });
-              }}
+              updateSelectedValue={(value) =>
+                changeSetup((setup) => setup.updateSystemID(Number(value)))
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <TaxPercentageTextField
               initialState={jobSetup.taxValue}
-              onBlur={(value) => {
-                jobSetup.updateTaxValue(value);
-                recalculateWatchListItemsFromSetup(
-                  itemToModify,
-                  watchlistItemRequest,
-                  jobSetup.id,
-                  materialJobs,
-                  queryClient,
-                );
-                setMaterialJobs({ ...materialJobs });
-              }}
+              onBlur={(value) =>
+                changeSetup((setup) => setup.updateTaxValue(value))
+              }
             />
           </Grid>
         </Grid>

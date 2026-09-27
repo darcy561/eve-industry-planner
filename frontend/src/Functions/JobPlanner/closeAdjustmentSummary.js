@@ -7,12 +7,7 @@ import { formatNumberForLocale } from "../Helper/numberParser";
 /**
  * What to tell someone when closing a job changed it, or the jobs around it.
  *
- * Closing recalculates a job's production against what its parents need, so a
- * quantity someone set by hand can be replaced on the way out. The figures are
- * the ones that were saved, and the job the person was looking at is named
- * first.
- *
- * @param {import("../../Classes/job").default} job - The job being closed
+ * @param {object} job - The job being closed
  * @param {Array<{jobID: string, name: string, before: number, after: number}>} adjustments
  *   Jobs the close recalculated, and what they produced before and after
  * @returns {string} Snackbar text

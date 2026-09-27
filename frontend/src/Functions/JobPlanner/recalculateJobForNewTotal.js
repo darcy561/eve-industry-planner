@@ -9,7 +9,7 @@ import { setupToBuildFrom } from "../../Components/Edit Job/Edit Job Hooks/jobSe
  * Recalculates a job for a new total, replacing its setups with a layout that
  * continues from the one being rebuilt.
  *
- * @param {import("../../Classes/job").default} inputJob
+ * @param {object} inputJob
  * @param {number} requiredQuantity
  * @param {import("@tanstack/react-query").QueryClient} queryClient
  * @param {Object} [options]

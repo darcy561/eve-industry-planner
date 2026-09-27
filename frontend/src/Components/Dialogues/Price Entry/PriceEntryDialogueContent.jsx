@@ -1,3 +1,5 @@
+import { materialRequirementOf } from "../../Edit Job/Edit Job Hooks/jobSelectors";
+import { quantityPurchased } from "../../Edit Job/Edit Job Hooks/materialSelectors";
 import { useEffect, useCallback, useMemo } from "react";
 import { Box, Button, Grid, Typography } from "@mui/material";
 import { ItemPriceRow, itemPriceEntryFactory } from "./itemRow";
@@ -33,9 +35,6 @@ export function PriceEntryDialogueContent({ state, actions }) {
     (s) => s.applicationSettings.displayHelpCards,
   );
 
-  // The reader picks the market here, so the dialogue asks for the list at
-  // whichever one they land on rather than relying on what the planner happened
-  // to fetch at the account's.
   const wants = useMemo(
     () =>
       state.priceEntryList.map(({ typeID }) => ({
@@ -55,15 +54,16 @@ export function PriceEntryDialogueContent({ state, actions }) {
     for (let inputJob of requestedJobObjects) {
       Object.values(inputJob.build.materials).forEach((material) => {
         const childJobs = inputJob.build.childJobs[material.typeID];
-        if (
-          material.quantityPurchased >= material.quantity ||
-          childJobs.length > 0
-        ) {
+        const requirement = materialRequirementOf(
+          inputJob.build.setup,
+          material.typeID,
+        );
+        const purchased = quantityPurchased(material, requirement);
+        if (purchased >= requirement || childJobs.length > 0) {
           return;
         }
 
-        const remainingQuantity =
-          material.quantity - material.quantityPurchased;
+        const remainingQuantity = requirement - purchased;
         if (remainingQuantity <= 0) {
           return;
         }

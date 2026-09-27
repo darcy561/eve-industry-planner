@@ -3,7 +3,7 @@ import {
   stepBackward,
   stepForward,
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
-import Job from "../../Classes/job";
+import { copyOfJob } from "../JobDocuments/jobDocument";
 import Group from "../../Classes/group";
 import { scheduleSaveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
@@ -44,7 +44,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
     if (workingJobsByID.has(jobID)) return workingJobsByID.get(jobID);
     const source = findJobInJobArray(jobID);
     if (!source) return null;
-    const cloned = new Job(source.toDocument());
+    const cloned = copyOfJob(source);
     workingJobsByID.set(jobID, cloned);
     return cloned;
   };

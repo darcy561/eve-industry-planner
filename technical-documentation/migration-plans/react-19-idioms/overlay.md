@@ -21,8 +21,12 @@ its value now follows it — and that difference is the point of saying which is
 
 _Empty until Phase 2._
 
-One entry per defect (D1–D5, listed together in [plan.md](./plan.md)): the
+One entry per defect (D1–D3, listed together in [plan.md](./plan.md)): the
 symptom a reader could hit, what the code does now, and the test that would have caught it.
+
+D4 and D5 were fixed outside this project and owe no entry here — a reader sees the market panels follow
+prices and the link/unlink rows act at once, and those changes belong to the work that made them. What
+they owe instead is a line in the inventory saying so, which they have.
 
 ## How these parts work now
 

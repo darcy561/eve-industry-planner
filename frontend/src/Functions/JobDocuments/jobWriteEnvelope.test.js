@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { jobWriteEnvelope } from "./jobWriteEnvelope.js";
+import { toDocument } from "./jobDocument.js";
 
 const entry = (...patches) => ({ patches });
 const changed = (path, op = "replace") => ({ op, path });
@@ -17,11 +18,9 @@ const document = () => ({
 
 function job(over = {}) {
   return {
-    jobID: "job-1",
+    ...document(),
     includedInGroup: false,
     groupID: "",
-    _meta: { revision: 7 },
-    toDocument: () => document(),
     ...over,
   };
 }
@@ -56,18 +55,19 @@ describe("a write the reader's changes are known for", () => {
 
 describe("a write that cannot say what changed", () => {
   it("carries the whole document when nothing recorded the change", () => {
-    const write = jobWriteEnvelope(job(), null);
+    const built = job();
+    const write = jobWriteEnvelope(built, null);
 
-    expect(write.document).toEqual(document());
+    expect(write.document).toEqual(toDocument(built));
     expect(write).not.toHaveProperty("revision");
   });
 
   it("carries the whole document for a job that has never been written", () => {
-    const created = job({ _meta: {}, toDocument: () => ({ jobID: "job-1" }) });
+    const created = job({ _meta: {} });
 
     const write = jobWriteEnvelope(created, [entry(changed(["name"]))]);
 
-    expect(write.document).toEqual({ jobID: "job-1" });
+    expect(write.document).toEqual(toDocument(created));
     expect(write).not.toHaveProperty("revision");
   });
 });

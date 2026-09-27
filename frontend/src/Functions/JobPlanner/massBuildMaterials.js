@@ -3,7 +3,7 @@ import {
   applyCommands,
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 
-import Job from "../../Classes/job";
+import { copyOfJob } from "../JobDocuments/jobDocument";
 import useUsersStore from "../../Zustand/usersStore";
 import separateGroupAndJobIDs from "../Helper/separateGroupAndJobIDs";
 import checkJobTypeIsBuildable from "../Helper/checkJobTypeIsBuildable";
@@ -28,7 +28,7 @@ import {
  *   buildJob: Function,
  *   queryClient: import("@tanstack/react-query").QueryClient,
  *   setNumberOfVisibleSkeletonElements?: (count: number) => void,
- * }} options
+ *   }} options
  */
 export default async function massBuildMaterials(inputJobIDs, options) {
   const { buildJob, queryClient, setNumberOfVisibleSkeletonElements } =
@@ -128,7 +128,7 @@ export default async function massBuildMaterials(inputJobIDs, options) {
       if (workingParentsByID.has(jobID)) return workingParentsByID.get(jobID);
       const source = findJobInJobArray(jobID);
       if (!source) return null;
-      const cloned = new Job(source.toDocument());
+      const cloned = copyOfJob(source);
       workingParentsByID.set(jobID, cloned);
       return cloned;
     };

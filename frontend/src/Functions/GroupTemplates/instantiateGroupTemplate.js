@@ -20,7 +20,7 @@ import getMissingESIData from "../Shared/getMissingESIData";
  * @param {"newGroup"|"activeGroup"} params.mode
  * @param {import("@tanstack/react-query").QueryClient} params.queryClient
  * @param {import("../../Classes/group").default|null} [params.activeGroupOverride] — when set with `activeGroup`, add jobs to this group (e.g. current route group).
- * @returns {Promise<{ jobs: import("../../Classes/job").default[], group: import("../../Classes/group").default|null }>}
+ * @returns {Promise<{ jobs: object[], group: import("../../Classes/group").default|null }>}
  */
 export async function instantiateGroupTemplate({
   payload,
@@ -48,7 +48,7 @@ export async function instantiateGroupTemplate({
     throw new Error("Invalid template: duplicate templateJobId.");
   }
 
-  /** @type {import("../../Classes/job").default[]} */
+  /** @type {object[]} */
   const built = [];
   const templateToJob = new Map();
 

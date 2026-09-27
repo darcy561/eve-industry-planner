@@ -1,3 +1,4 @@
+import { toDocument } from "../../../../../../Functions/JobDocuments/jobDocument.js";
 import { totalInventionCost } from "../../../../Edit Job Hooks/jobSelectors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -20,21 +21,21 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 
 const { default: InventionEditor, invitesInvention } =
   await import("./inventionEditor");
-const { default: Job } = await import("../../../../../../Classes/job");
+const { jobFromDocument } =
+  await import("../../../../../../Functions/JobDocuments/jobDocument.js");
 const { default: useUsersStore } =
   await import("../../../../../../Zustand/usersStore");
 const { draftFor } =
   await import("../../../../Edit Job Hooks/jobDraftStore.js");
 
 const session = () => useUsersStore.getState().editSession;
-/** The job as it stands after what the reader did. */
-const jobNow = () => new Job(draftFor(session().draft, "job-1"));
+const jobNow = () => jobFromDocument(draftFor(session().draft, "job-1"));
 
 const jobFor = (overrides = {}) =>
-  new Job({ jobType: 1, name: "Item", itemID: 34, ...overrides });
+  jobFromDocument({ jobType: 1, name: "Item", itemID: 34, ...overrides });
 
 const show = (job) => {
-  session().actions.openJob("job-1", job.toDocument());
+  session().actions.openJob("job-1", toDocument(job));
   render(<InventionEditor />);
 };
 
@@ -43,8 +44,6 @@ beforeEach(() => {
   session().actions.closeSession();
 });
 
-// Only a T2 or T3 item is invented, and the meta group is what says so. Reading
-// it was broken for every job, so nothing was ever asked what invention cost.
 describe("which items are asked about invention", () => {
   it.each([2, 14, 53])("asks a meta group %i item", (metaGroupID) => {
     expect(invitesInvention(jobFor({ metaGroupID }))).toBe(true);
@@ -86,7 +85,6 @@ describe("recording what invention cost", () => {
       itemName: "Datacore",
       itemCost: 1500,
     });
-    // The same figure the cost breakdown counts.
     expect(totalInventionCost(changed)).toBe(1500);
   });
 

@@ -1,3 +1,4 @@
+import { toDocument } from "../../Functions/JobDocuments/jobDocument.js";
 import { esiJobIDs } from "./Edit Job Hooks/jobSelectors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent, act, waitFor } from "@testing-library/react";
@@ -41,8 +42,6 @@ vi.mock("../../Events/editJobNavigationEvents", () => ({
   requestEditJobNavigation: vi.fn(),
 }));
 
-/* What a sale costs in fees is worked out from skills, standings and the
- * structure's own rate; none of that is what these tests are about. */
 vi.mock("../../Functions/MarketOrders/calcSellingCharges", () => ({
   default: vi.fn(async () => ({ brokersFee: 100, salesTax: 50 })),
 }));
@@ -70,7 +69,6 @@ beforeEach(() => {
   store.current = editJobStore({ group });
 });
 
-// A job with room for one industry run, so the panel offers what ESI reported.
 function jobWithOneSlot({ linkedJobs = [] } = {}) {
   return storedJob({
     jobStatus: 2,
@@ -95,9 +93,6 @@ function jobWithOneSlot({ linkedJobs = [] } = {}) {
 }
 
 describe("linking the industry jobs ESI reported, end to end", () => {
-  // Both panels link on a delay, so the whole block runs on fake timers rather
-  // than each test turning them on and hoping it reaches the line that turns
-  // them off.
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -120,15 +115,14 @@ describe("linking the industry jobs ESI reported, end to end", () => {
       ),
     );
 
-    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+    expect(esiJobIDs(toDocument(editJob.current.activeJob)).has(500001)).toBe(
       false,
     );
 
-    // The card carries no name of its own; the runs it reports identify it.
     fireEvent.click(screen.getByText("3 Runs").closest(".MuiCard-root"));
     await act(async () => vi.advanceTimersByTime(1000));
 
-    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+    expect(esiJobIDs(toDocument(editJob.current.activeJob)).has(500001)).toBe(
       true,
     );
     expect(editJob.current.esiDataToLink.industryJobs.add).toContain(500001);
@@ -146,15 +140,14 @@ describe("linking the industry jobs ESI reported, end to end", () => {
         />
       ),
     );
-    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+    expect(esiJobIDs(toDocument(editJob.current.activeJob)).has(500001)).toBe(
       true,
     );
 
-    // Unlinking is the same gesture as linking: the card itself.
     fireEvent.click(screen.getByText("3 Runs").closest(".MuiCard-root"));
     await act(async () => vi.advanceTimersByTime(1000));
 
-    expect(esiJobIDs(editJob.current.activeJob.toDocument()).has(500001)).toBe(
+    expect(esiJobIDs(toDocument(editJob.current.activeJob)).has(500001)).toBe(
       false,
     );
     expect(editJob.current.esiDataToLink.industryJobs.remove).toContain(500001);
@@ -176,8 +169,6 @@ describe("linking the market orders ESI reported, end to end", () => {
 
     fireEvent.click(screen.getByTestId("AddLinkIcon").closest("button"));
 
-    // The fees are worked out before the order is linked, so the link lands a
-    // tick later than the press.
     await waitFor(() =>
       expect(editJob.current.esiDataToLink.marketOrders.add).toContain(700001),
     );
@@ -185,8 +176,6 @@ describe("linking the market orders ESI reported, end to end", () => {
     expect(orders["700001"]?.order_id).toBe(700001);
   });
 
-  // The fee a sale was charged is linked with the order it belongs to, because
-  // nothing else can work it out again afterwards.
   it("keeps the fee the order was charged", async () => {
     const { editJob } = renderOverEditJob(
       storedJob({ jobStatus: 4 }),
@@ -201,9 +190,6 @@ describe("linking the market orders ESI reported, end to end", () => {
 
     fireEvent.click(screen.getByTestId("AddLinkIcon").closest("button"));
 
-    // Which order it belongs to is the whole point of keeping it: nothing else
-    // could work out afterwards what this sale was charged. The fee is carried
-    // by that order rather than stored beside it.
     await waitFor(() =>
       expect(editJob.current.activeJob.esi.marketOrders["700001"]?.fee).toBe(
         100,
@@ -212,14 +198,12 @@ describe("linking the market orders ESI reported, end to end", () => {
   });
 });
 
-/** The unlink control carries its tooltip's name on the span around it. */
 function unlinkOrderButton() {
   return screen
     .getByLabelText("Unlink Order From Job.")
     .querySelector("button");
 }
 
-/** A job already selling through one linked market order. */
 function sellingThroughOrder(order_id) {
   return storedJob({
     jobStatus: 4,
@@ -237,8 +221,6 @@ function sellingThroughOrder(order_id) {
   });
 }
 
-// A row used to read the names the store held at the moment it rendered, so a name that resolved
-// afterwards never reached it. Both panels resolve through the names hook now.
 describe("the places these panels name", () => {
   it("names where an offered order sits", () => {
     renderOverEditJob(
@@ -268,7 +250,6 @@ describe("the places these panels name", () => {
     expect(screen.getByText("Jita IV")).toBeTruthy();
   });
 
-  // The facility, not the station holding it: ESI reports both, and they are different places.
   it("names the facility an offered industry job is running in", () => {
     renderOverEditJob(
       jobWithOneSlot(),
@@ -287,8 +268,6 @@ describe("the places these panels name", () => {
     expect(screen.getByText("Abbey Raitaru")).toBeTruthy();
   });
 
-  // The names map carries an id ESI answered about and had no name for, and such an entry has no
-  // `name` at all. A row testing the entry rather than the name renders nothing at all.
   it("says a linked job's facility is unknown when nothing could name it", () => {
     renderOverEditJob(
       jobWithOneSlot({ linkedJobs: [linkedIndustryJob(500001)] }),
@@ -300,7 +279,6 @@ describe("the places these panels name", () => {
           isError={false}
         />
       ),
-      // ESI answered about the facility and had no name for it, so the entry carries no `name`.
       { locationNames: { [JITA_IV]: { resolutionStatus: "unnamed" } } },
     );
 
@@ -343,9 +321,6 @@ describe("unlinking a market order, end to end", () => {
     expect(editJob.current.esiDataToLink.marketOrders.remove).toContain(700001);
   });
 
-  // The fee belonged to that order, so it goes with it — nothing else would
-  // ever clear it. The fee is read here rather than the order holding it,
-  // because the fee is the figure no later read could work out again.
   it("takes the order's fee with it", () => {
     const { editJob } = renderOverEditJob(
       sellingThroughOrder(700001),

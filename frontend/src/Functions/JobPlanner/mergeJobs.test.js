@@ -25,7 +25,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 });
 
 const { default: mergeJobs } = await import("./mergeJobs.js");
-const { default: Job } = await import("../../Classes/job.js");
+const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 
 const RIFTER = 587;
 
@@ -65,13 +65,15 @@ function seedStore(jobs) {
 
 function duplicates() {
   return [
-    new Job({ jobID: "old-1", name: "Rifter", itemID: RIFTER }),
-    new Job({ jobID: "old-2", name: "Rifter", itemID: RIFTER }),
+    jobFromDocument({ jobID: "old-1", name: "Rifter", itemID: RIFTER }),
+    jobFromDocument({ jobID: "old-2", name: "Rifter", itemID: RIFTER }),
   ];
 }
 
 function buildsOne() {
-  return vi.fn(async ({ itemID }) => new Job({ jobID: "merged", itemID }));
+  return vi.fn(async ({ itemID }) =>
+    jobFromDocument({ jobID: "merged", itemID }),
+  );
 }
 
 beforeEach(() => {
@@ -129,8 +131,8 @@ describe("a merge the server refused", () => {
 describe("merging jobs that build different items", () => {
   it("writes nothing, because there is nothing to merge", async () => {
     seedStore([
-      new Job({ jobID: "a", itemID: RIFTER }),
-      new Job({ jobID: "b", itemID: 588 }),
+      jobFromDocument({ jobID: "a", itemID: RIFTER }),
+      jobFromDocument({ jobID: "b", itemID: 588 }),
     ]);
 
     const outcome = await mergeJobs(["a", "b"], { buildJob: buildsOne() });
@@ -145,7 +147,7 @@ describe("what pointed at the jobs that were merged", () => {
 
   function linkedAround() {
     const merged = duplicates();
-    const parent = new Job({
+    const parent = jobFromDocument({
       jobID: "parent",
       itemID: RIFTER_PARENT,
       build: {
@@ -153,7 +155,7 @@ describe("what pointed at the jobs that were merged", () => {
         childJobs: { [RIFTER]: ["old-1", "old-2"] },
       },
     });
-    const child = new Job({
+    const child = jobFromDocument({
       jobID: "child",
       itemID: 34,
       parentJobs: ["old-1", "old-2"],

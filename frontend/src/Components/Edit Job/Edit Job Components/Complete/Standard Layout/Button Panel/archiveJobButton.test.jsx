@@ -112,22 +112,18 @@ beforeEach(() => {
 });
 
 describe("archiving a finished job", () => {
-  // The archive is written from the job as a class, because that is what says
-  // what its document is and which ESI rows it holds.
   it("writes the job away and leaves the planner", async () => {
     render(<ArchiveJobButton />);
 
     await archive();
 
     expect(archived.jobs).toHaveLength(1);
-    expect(typeof archived.jobs[0].toDocument).toBe("function");
+    expect(archived.jobs[0].build).toEqual(expect.any(Object));
     expect(archived.jobs[0].jobID).toBe("job-1");
     expect(removed).toEqual(["job-1"]);
     expect(navigated).toEqual([{ to: "/jobplanner" }]);
   });
 
-  // The job stays where it is when the server would not take it: removing it
-  // from the planner first would lose it.
   it("keeps the job when the archive is refused", async () => {
     saveOk.current = false;
     render(<ArchiveJobButton />);

@@ -1,14 +1,20 @@
 import {
   buildCostPerItem,
+  materialRequirementOf,
   totalQuantityProduced,
 } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
+import { quantityRemaining } from "../../Components/Edit Job/Edit Job Hooks/materialSelectors";
+import {
+  applyCommands,
+  importPurchaseToMaterial,
+  importedQuantities,
+} from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
  * Passes build costs from child jobs to their parent jobs.
  * Collects materials and costs from child jobs and distributes them to parent jobs
- * as purchase costs, updating Firebase with the changes.
  *
  * @param {Array|Object} jobsToPass - Job object(s) to pass costs from
  * @returns {Promise<Object>} Promise that resolves to notification text
@@ -69,9 +75,6 @@ function collectMaterialsAndParentJobs(chosenJobs) {
 
     collectedMaterials[materialID].totalQuantity += quantity;
 
-    // One entry per child job, never pooled by price: the entry's id is the
-    // child it came from, which is what the purchase row records and what stops
-    // a second import charging the same output twice.
     collectedMaterials[materialID].costs.push({
       id: job.jobID,
       cost: itemCost,
@@ -136,7 +139,6 @@ export function distributeItemCostsBetweenJobs(
     for (const materialID of Object.keys(collectedMaterials)) {
       if (!materialIDMap[materialID]?.has(job.jobID)) continue;
 
-      // Convert materialID to number for comparison (Object.keys returns strings)
       const materialIDNum = Number(materialID);
       const material = job.build.materials[String(materialIDNum)];
       if (!material) continue;
@@ -144,19 +146,28 @@ export function distributeItemCostsBetweenJobs(
       if (!materialToImport) continue;
 
       for (const costEntry of materialToImport.costs) {
-        if (material.quantityRemaining <= 0) break;
+        const remaining = quantityRemaining(
+          material,
+          materialRequirementOf(job.build.setup, materialIDNum),
+        );
+        if (remaining <= 0) break;
 
         if (costEntry.quantity <= 0) continue;
 
         if (isMaterialPurchased(material, costEntry.id, job)) continue;
 
-        const { taken, leftOver } = job.importPurchaseToMaterial(
-          materialIDNum,
-          {
-            itemCount: costEntry.quantity,
-            itemCost: costEntry.cost,
-            childID: costEntry?.id || null,
-          },
+        const purchase = {
+          id: crypto.randomUUID(),
+          itemCount: costEntry.quantity,
+          itemCost: costEntry.cost,
+          childID: costEntry?.id || null,
+        };
+        const { taken, leftOver } = importedQuantities(purchase, remaining);
+        applyCommands(
+          job,
+          importPurchaseToMaterial(materialIDNum, purchase, {
+            availableToBuy: remaining,
+          }),
         );
 
         if (taken > 0) {

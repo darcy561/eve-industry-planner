@@ -28,7 +28,7 @@ dependency is current. All of that is recorded in
 [measurements/idiom-inventory.md](./measurements/idiom-inventory.md) § Swept and clean so nobody
 sweeps it again to find out.
 
-### The effects — 95 call sites
+### The effects — 93 call sites
 
 Every one read at its call site; the reading is
 [measurements/effect-inventory.md](./measurements/effect-inventory.md).
@@ -36,32 +36,37 @@ Every one read at its call site; the reading is
 | | Count |
 |---|---|
 | In test files — out of scope | 3 |
-| Kept: synchronising with something outside React | 50 |
+| Kept: synchronising with something outside React | 48 |
 | To change (Tiers 1–5) | 35 |
 | Deferred to the shopping list redesign | 7 |
-| **Total** | **95** |
+| **Total** | **93** |
 
-Fifty is the number that matters most. This is not a tree drowning in effects; it is a tree where
+Forty-eight is the number that matters most. This is not a tree drowning in effects; it is a tree where
 slightly over a third of them are doing something else, in five shapes rather than thirty-five
 separate puzzles. The document lock alone accounts for 21 of the kept, every one attached to a
 websocket, a timer, a listener or a lease.
 
-### The rest of the table — 14 sites
+### The rest of the table — 9 sites
 
 Counted in [measurements/idiom-inventory.md](./measurements/idiom-inventory.md).
 
 | Shape | Sites | Tier |
 |-------|-------|------|
-| Store read during render with no subscription | 6 | 6 |
-| A timer standing in for a transition | 2 | 7 |
+| Store read during render with no subscription | 4 | 6 |
+| A timer standing in for a transition | 0 | 7 |
 | Context on the React 18 spelling | 2 contexts | 8 |
-| Hand-rolled pending state | 3 | 9 |
+| Hand-rolled pending state | 2 | 9 |
 | Imperative handle from `useLayoutEffect` | 1 | 10 |
 
-### Five defects
+### Three defects
 
-None of them found by a lint rule; all five found by reading. Each is a bug on its own merits rather
+None of them found by a lint rule; all found by reading. Each is a bug on its own merits rather
 than a consequence of the idiom.
+
+Two more were counted and have since been fixed outside this project: **D4**, the price panels that did
+not follow the price, and **D5**, the mutation that outlived the component. Both verdicts and what
+replaced them are in [measurements/idiom-inventory.md](./measurements/idiom-inventory.md) § The two
+defects found here, and where they went.
 
 1. **D1 — the group breakdown never updates.** `Groups/Breakdown/itemFrame.jsx` computes five totals
    into state under an empty dependency array, from a store read taken with `getState()`. Neither half
@@ -73,12 +78,6 @@ than a consequence of the idiom.
 3. **D3 — a leaked interval on the new-group path.** `Groups/New Group/newGroupPage.jsx` returns a
    cleanup function from a `Promise` executor, where nothing calls it. Its 1-second poll leaks
    whenever the 10-second timeout wins the race — the path that also navigates away.
-4. **D4 — a price panel that does not follow the price.** `marketCostsPanel.jsx` and
-   `addMaterialCosts.jsx` read market data during render through `getState()`, which subscribes to
-   nothing. Prices arrive asynchronously; a panel rendered first keeps the figure it first saw.
-5. **D5 — a mutation that outlives the component.** `linkedJobs.jsx` and `availableJobs.jsx` delay
-   linking or unlinking a job by 800ms for an animation and never clear the timer, so navigating away
-   inside that window still mutates the active job and dispatches.
 
 ## Relationship to the closed effect-state-sync project
 
@@ -107,7 +106,7 @@ Project folder, `contents.md`, this plan, both inventories, the overlay scaffold
 
 **Done.**
 
-### Phase 2 — the five defects (7 sites)
+### Phase 2 — the three defects (3 sites)
 
 Fixed first and separately from the idiom work, because each is user-visible today and none should
 wait behind a conversion.
@@ -119,13 +118,11 @@ wait behind a conversion.
   file still happens later, in Phase 5.
 - **D3**: the interval is cleared on both arms of the race, in place. The Tier 4 rewrite still happens
   later, in Phase 6, and is much larger.
-- **D4**: the two panels subscribe to the market data they render. This is the whole of 6.1 and 6.2.
-- **D5**: the two timers are cleared, or the mutation moves into the transition's own callback, which
-  is the Tier 7 answer. Doing it once, here, is better than patching the leak and rewriting later.
 
-Seven sites in total: `itemFrame.jsx`'s effect from Tier 1, findings 6.1–6.4 from Tier 6, and both of
-Tier 7. Every one is counted once — the phases below sum with these to 49, which is the 35 effects
-plus the 14 other sites.
+Three sites in total: `itemFrame.jsx`'s effect from Tier 1, and findings 6.3 and 6.4 from Tier 6. D2
+and D3 are fixes made inside files whose own effects are counted in Phases 5 and 6, so they add no
+site here. Every one is counted once — the phases below sum with these to 44, which is the 35 effects
+plus the 9 other sites.
 
 ### Phase 3 — Tier 1: derive during render (9 sites; the tenth is `itemFrame`, in Phase 2)
 
@@ -166,15 +163,14 @@ route. TanStack Router's `validateSearch` and loaders own both. `newGroupPage.js
 could fire it directly. Cheapest tier and least valuable; do them while already in those files, which
 Phases 3–6 arrange for all three.
 
-### Phase 8 — Tiers 6 and 9: subscriptions and pending state (5 sites)
+### Phase 8 — Tiers 6 and 9: subscriptions and pending state (4 sites)
 
-The two remaining store reads — 6.5 and 6.6, the main-character-hash reads — and the three
-hand-rolled pending flags. Phase 2 takes the other four: 6.1 and 6.2 are D4, and 6.3 lands there with
-6.4 because they share the read.
+The two remaining store reads — 6.5 and 6.6, the main-character-hash reads — and the two remaining
+hand-rolled pending flags. Phase 2 takes 6.3 and 6.4; 6.1 and 6.2 were D4 and are resolved.
 
-Take 9.2 and 9.3 together and **look for the duplicated panel first** — if `customStructuresFrame.jsx`
-and `FirstLoginCustomStructures.jsx` are one panel written twice, that is the finding and the pending
-state is a symptom of it.
+The duplicated panel behind 9.2 and 9.3 has already been consolidated into one `CustomStructuresForm`,
+rendered from both the settings page and the first-login step, so what is left is the pending state in
+that single component.
 
 ### Phase 9 — Tiers 8 and 10: context and the imperative handle (3 sites)
 
@@ -188,11 +184,12 @@ look like once the shopping list redesign has landed.
 
 ## Done when
 
-- Every one of the 35 effects and 14 other sites is resolved, or carries a recorded and reasoned
-  exception in its inventory.
+- Every one of the 35 effects and 9 other sites is resolved, or carries a recorded and reasoned
+  exception in its inventory. A site resolved by work outside this project counts, and says so in its
+  inventory entry.
 - Each changed file carries a characterisation test written **before** the change, and each test was
   confirmed to fail against a deliberately broken version of the fix.
-- All five defects are fixed and the overlay says what a reader sees differently.
+- The three remaining defects are fixed and the overlay says what a reader sees differently.
 - `npm run lint` and the Vitest suite pass, and no `react-hooks/exhaustive-deps` suppression was added
   without a reason written on it.
 - Both counts are re-run and the inventories' figures still describe the tree.

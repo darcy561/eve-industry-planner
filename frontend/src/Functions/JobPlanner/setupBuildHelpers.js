@@ -15,7 +15,7 @@ import {
 
 /**
  * @typedef {object} SetupQuantitiesContext
- * @property {import("../../Classes/job").default} job
+ * @property {object} job
  * @property {import("@tanstack/react-query").QueryClient} queryClient
  * @property {number} maxProductionLimit
  * @property {number} baseQuantity Output per run (`job.rawData.products[0].quantity`).
@@ -60,7 +60,6 @@ export function calculateSetupQuantitiesAcrossOwnedBlueprintOriginalsFromContext
 /**
  * Where a job is made and with what, derived from the current user's settings and
  * the blueprints they hold. The floor a setup is built on when nothing above it
- * answers a field.
  */
 export function buildSetupContextForJob(job, queryClient) {
   const { ME, TE } = findHighestMaterialEfficiencyBlueprint(
@@ -128,11 +127,11 @@ function withoutUndefined(source) {
 /**
  * Builds one setup. Precedence, highest first: the quantity, `overrides` (a build
  * request or a stored template row), `basedOn` (the setup this one continues
- * from), then the current user's settings.
  *
  * @param {Object} [sources]
- * @param {import("../../Classes/jobSetup").default} [sources.basedOn]
+ * @param {Object} [sources.basedOn] - The setup this one continues from, as a row
  * @param {Object} [sources.overrides]
+ * @returns {Object} The setup as a stored row
  */
 export function buildSetupFromQuantity(
   job,
@@ -157,5 +156,20 @@ export function buildSetupFromQuantity(
   });
 
   newSetup.recalculateMaterials(job.rawData.materials);
-  return newSetup;
+  return newSetup.toDocument();
+}
+
+/**
+ * Works out again what one of a job's setups calls for, in place.
+ *
+ * @param {Object} job - The job holding the setup, as plain data
+ * @param {string} setupID
+ */
+export function recalculateSetupMaterials(job, setupID) {
+  const row = job?.build?.setup?.[setupID];
+  if (!row) return;
+
+  const setup = new Setup(row);
+  setup.recalculateMaterials(job.rawData?.materials);
+  job.build.setup[setupID] = setup.toDocument();
 }

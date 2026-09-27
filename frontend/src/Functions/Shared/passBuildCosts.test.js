@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildCostPerItem } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
+import {
+  buildCostPerItem,
+  materialRequirementOf,
+} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
+import {
+  purchaseComplete,
+  purchasedCost,
+  quantityPurchased,
+} from "../../Components/Edit Job/Edit Job Hooks/materialSelectors.js";
 
 const store = {
   jobs: new Map(),
@@ -9,7 +17,6 @@ vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
   saveJobsViaApi: async () => {},
 }));
 
-// Read fresh each time: the tests fill `store.jobs` after the mock is built.
 vi.mock("../../Zustand/usersStore.js", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../tests/usersStoreHarness.js");
@@ -31,12 +38,10 @@ vi.mock("../../Zustand/usersStore.js", async () => {
 
 const { distributeItemCostsBetweenJobs, passBuildCostsToParentJobs } =
   await import("./passBuildCosts.js");
-const { default: Job } = await import("../../Classes/job.js");
+const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 
-// A child job producing `produced` units for `spend` ISK, so its build cost per
-// item is `spend / produced`.
 function childProducing(jobID, produced, spend) {
-  return new Job({
+  return jobFromDocument({
     jobID,
     itemID: 34,
     jobType: 1,
@@ -66,7 +71,7 @@ function childProducing(jobID, produced, spend) {
 }
 
 function parentNeeding(quantity) {
-  const job = new Job({
+  const job = jobFromDocument({
     jobID: "parent-1",
     itemID: 587,
     jobType: 1,
@@ -88,9 +93,6 @@ function parentNeeding(quantity) {
 }
 
 describe("collecting what the child jobs produced", () => {
-  // Two child jobs of the same item that happen to cost the same per unit are
-  // still two separate lots. Pooling them under one cost entry must carry both
-  // lots' quantities, or the second job's output never reaches the parent.
   it("keeps the output of both children when their per-item cost matches", async () => {
     const parent = parentNeeding(100);
     const childA = childProducing("child-1", 50, 250);
@@ -106,15 +108,16 @@ describe("collecting what the child jobs produced", () => {
     await passBuildCostsToParentJobs([childA, childB]);
 
     const material = Object.values(parent.build.materials)[0];
-    expect(material.quantityPurchased).toBe(100);
-    expect(material.purchasedCost).toBe(500);
+    const requirement = materialRequirementOf(
+      parent.build.setup,
+      material.typeID,
+    );
+    expect(quantityPurchased(material, requirement)).toBe(100);
+    expect(purchasedCost(material, requirement)).toBe(500);
   });
 });
 
 describe("importing child job costs into a parent", () => {
-  // Two child jobs of the same item that happened to cost the same per unit are
-  // still two separate lots of output. Pooling them under one cost entry must
-  // not lose the second lot's quantity.
   it("imports the output of every child job at the same per-item cost", () => {
     const job = parentNeeding(100);
     const collectedMaterials = {
@@ -132,13 +135,12 @@ describe("importing child job costs into a parent", () => {
     });
 
     const material = Object.values(job.build.materials)[0];
-    expect(material.quantityPurchased).toBe(100);
-    expect(material.purchasedCost).toBe(500);
-    expect(material.purchaseComplete).toBe(true);
+    const requirement = materialRequirementOf(job.build.setup, material.typeID);
+    expect(quantityPurchased(material, requirement)).toBe(100);
+    expect(purchasedCost(material, requirement)).toBe(500);
+    expect(purchaseComplete(material, requirement)).toBe(true);
   });
 
-  // What a child produces is taken first come: the parent takes what it still
-  // needs and the rest of the lot stays available for the next parent.
   it("takes only what the parent still needs and leaves the rest", () => {
     const job = parentNeeding(30);
     const costs = [{ id: "child-1", cost: 5, quantity: 50 }];
@@ -149,7 +151,15 @@ describe("importing child job costs into a parent", () => {
       { 34: new Set(["parent-1"]) },
     );
 
-    expect(Object.values(job.build.materials)[0].quantityPurchased).toBe(30);
+    expect(
+      quantityPurchased(
+        Object.values(job.build.materials)[0],
+        materialRequirementOf(
+          job.build.setup,
+          Object.values(job.build.materials)[0].typeID,
+        ),
+      ),
+    ).toBe(30);
     expect(costs[0].quantity).toBe(20);
   });
 });

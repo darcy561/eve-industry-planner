@@ -2,7 +2,7 @@
  * User job documents: `job_documents` collection (private API).
  * Must match `mongocore.CollectionUserJobDocuments` / changestream `collection` field.
  */
-import Job from "../../../Classes/job.js";
+import { jobFromDocument } from "../../JobDocuments/jobDocument.js";
 import useUsersStore from "../../../Zustand/usersStore.js";
 import {
   requestWithPrivateHeaders,
@@ -46,7 +46,7 @@ const MAX_DELETE_JOB_DOCUMENTS_BATCH = 200;
 /**
  * Fetches the jobs carrying `displayOnPlanner: true`.
  *
- * @returns {Promise<import("../../../Classes/job.js").default[]>}
+ * @returns {Promise<object[]>}
  */
 export async function fetchPlannerJobDocuments() {
   const url = new URL("/api/v1/job-documents/planner", window.location.origin);
@@ -68,14 +68,14 @@ export async function fetchPlannerJobDocuments() {
     "GET /api/v1/job-documents/planner",
   );
   const rows = Array.isArray(data) ? data : [];
-  return rows.map((row) => new Job(row));
+  return rows.map((row) => jobFromDocument(row));
 }
 
 /**
  * Merges fetched planner jobs into `jobArray`, keeping a group's jobs while the
  * array still holds the same planner.
  *
- * @param {import("../../../Classes/job.js").default[]} plannerJobs
+ * @param {object[]} plannerJobs
  * @param {string} owner - the planner these jobs are for
  */
 export function applyPlannerJobDocuments(plannerJobs, owner) {
@@ -124,7 +124,7 @@ export async function fetchJobDocumentsByGroupFromApi(groupID) {
     "GET job-documents by-group",
   );
   const rows = Array.isArray(data) ? data : [];
-  const jobs = rows.map((row) => new Job(row));
+  const jobs = rows.map((row) => jobFromDocument(row));
   useUsersStore.getState().jobData.actions.updateOrAddJobsToJobArray(jobs);
 }
 
@@ -150,7 +150,7 @@ export async function fetchJobDocumentByIdFromApi(jobID) {
     );
   }
   const row = await parseJsonBodyOrExplainHtml(res, "GET job-document");
-  const job = new Job(row);
+  const job = jobFromDocument(row);
   useUsersStore.getState().jobData.actions.updateOrAddJobsToJobArray(job);
   return job;
 }

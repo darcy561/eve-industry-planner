@@ -2,7 +2,10 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Helper/customStructureSetup";
-import Job from "../../../Classes/job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../../../Functions/JobDocuments/jobDocument";
 import { prefetchAccountTotalsQuery } from "../../../Hooks/React Query/Backend/statisticsTotals";
 import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
 import { loadAllRelatedJobs } from "../../../Functions/Helper/getAllRelatedJobs";
@@ -18,15 +21,11 @@ export function useEditJobInitialState({ jobID, currentActiveJobID, actions }) {
     async function setInitialState() {
       if (jobID === currentActiveJobID) return;
 
-      // The route's loader will not render this page without the job.
       const matchedJob = useUsersStore
         .getState()
         .jobData.actions.findJobInJobArray(jobID);
 
       try {
-        // The whole chain, not the jobs one step away: what a material costs is
-        // walked all the way down, so a job further along that nothing has been
-        // fetched for drops its install cost out of every figure above it.
         const linkedJobs = await loadAllRelatedJobs(jobID);
 
         if (useUsersStore.getState().account.isLoggedIn) {
@@ -51,14 +50,12 @@ export function useEditJobInitialState({ jobID, currentActiveJobID, actions }) {
           .getState()
           .worldData.actions.addSystemIndex(requestedSystemIndexes);
 
-        // Before the session is touched, not after: opening replaces it whole,
-        // so a load that lost the race would seed the job the reader has left
-        // over the one they are now on.
         if (!open) return;
 
-        // The session holds the job as plain data: what the reader changes is
-        // recorded against this rather than written into it.
-        actions.openJob(matchedJob.jobID, new Job(matchedJob).toDocument());
+        actions.openJob(
+          matchedJob.jobID,
+          toDocument(jobFromDocument(matchedJob)),
+        );
       } catch (err) {
         console.error("Error importing job data:", err);
         navigate({ to: "/jobplanner" });
@@ -67,8 +64,6 @@ export function useEditJobInitialState({ jobID, currentActiveJobID, actions }) {
 
     setInitialState();
 
-    // A load that finishes after the page has gone, or after the reader has
-    // moved to another job, must not seed a session nobody is looking at.
     return () => {
       open = false;
     };

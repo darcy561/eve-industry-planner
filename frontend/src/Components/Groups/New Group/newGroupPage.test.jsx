@@ -44,27 +44,13 @@ vi.mock("../../../Components/loadingPage", () => ({
 }));
 
 const { default: NewGroupPage } = await import("./newGroupPage.jsx");
-const { default: Job } = await import("../../../Classes/job.js");
+const { jobFromDocument } =
+  await import("../../../Functions/JobDocuments/jobDocument.js");
 const { AppEvent } = await import("../../../analytics/appEventNames");
 
 const TRITANIUM = 34;
 const PYERITE = 35;
 
-/**
- * A job carrying the two link shapes this page edits: `parentJobs`, a flat list
- * of job IDs, and `build.childJobs`, keyed by material type ID.
- *
- * `itemID` is what the job produces, and a parent lists a child under exactly
- * that key — so a child wired in under TRITANIUM must be built with
- * `itemID: TRITANIUM` for the tree to be the shape the app makes.
- *
- * A job carries a `childJobs` key for each of its current materials, so listing
- * fewer materials is how a tree that has drifted off its blueprint is modelled.
- *
- * @param {string} jobID
- * @param {{itemID?: number, parents?: string[], children?: Record<number, string[]>, materials?: number[]}} [links]
- * @returns {Job}
- */
 function makeJob(
   jobID,
   {
@@ -75,7 +61,7 @@ function makeJob(
   } = {},
 ) {
   const names = { [TRITANIUM]: "Tritanium", [PYERITE]: "Pyerite" };
-  return new Job({
+  return jobFromDocument({
     jobID,
     itemID,
     jobType: 1,
@@ -96,7 +82,6 @@ function makeJob(
   });
 }
 
-/** The Job constructor reads the store, so one exists before any job is built. */
 function emptyStore() {
   return {
     account: { isLoggedIn: true, accountID: "acc-1" },
@@ -125,7 +110,6 @@ function select(...jobIDs) {
   search.current = { includes: jobIDs.join(",") };
 }
 
-/** Runs the mount effect through its polling race to the navigation. */
 async function renderPage() {
   render(<NewGroupPage />);
   await vi.advanceTimersByTimeAsync(1000);
@@ -325,8 +309,6 @@ describe("NewGroupPage", () => {
       const consoleError = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
-      // The parent needs Pyerite, but the grouped job produces Tritanium — the
-      // drift a blueprint change leaves behind.
       const grouped = makeJob("job-child", {
         itemID: TRITANIUM,
         parents: ["job-parent"],
@@ -430,8 +412,6 @@ describe("NewGroupPage", () => {
         .spyOn(console, "error")
         .mockImplementation(() => {});
       seed([]);
-      // A selected id that never appears in jobArray leaves the readiness
-      // poll unsatisfied until the timeout rejects the race.
       search.current = { includes: "job-never-arrives" };
 
       render(<NewGroupPage />);

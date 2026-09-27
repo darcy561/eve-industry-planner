@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 const store = { jobs: new Map() };
 
-// Read fresh each time: the tests fill `store.jobs` after the mock is built.
 vi.mock("../Zustand/usersStore.js", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../tests/usersStoreHarness.js");
@@ -18,13 +17,19 @@ vi.mock("../Zustand/usersStore.js", async () => {
 
 const { childJobSupplyForMaterial } =
   await import("../Components/Edit Job/Edit Job Components/Purchasing/Standard Layout/Material Cards/functions/childJobSupplyForMaterial.js");
-const { default: Job } = await import("./job.js");
+const { jobFromDocument } =
+  await import("../Functions/JobDocuments/jobDocument.js");
+const { applyCommands, importPurchaseToMaterial } =
+  await import("../Components/Edit Job/Edit Job Hooks/jobCommands.js");
+const { materialRequirementOf } =
+  await import("../Components/Edit Job/Edit Job Hooks/jobSelectors.js");
+const { quantityRemaining } =
+  await import("../Components/Edit Job/Edit Job Hooks/materialSelectors.js");
 
 const TRITANIUM = 34;
 
-// A parent needing `needs` Tritanium, with `childIDs` linked to supply it.
 function parent(jobID, needs, childIDs = []) {
-  const job = new Job({
+  const job = jobFromDocument({
     jobID,
     itemID: 587,
     jobType: 1,
@@ -49,9 +54,8 @@ function parent(jobID, needs, childIDs = []) {
   return job;
 }
 
-// A child job making `produces` Tritanium for the given parents.
 function child(jobID, produces, parentJobs) {
-  return new Job({
+  return jobFromDocument({
     jobID,
     itemID: TRITANIUM,
     jobType: 1,
@@ -69,7 +73,10 @@ function supplyFor(job, childJob) {
   return childJobSupplyForMaterial(
     job.jobID,
     material,
-    material.quantityRemaining,
+    quantityRemaining(
+      material,
+      materialRequirementOf(job.build.setup, TRITANIUM),
+    ),
     [childJob],
   );
 }
@@ -91,7 +98,6 @@ describe("what a child job can be counted on to supply", () => {
     expect(supply.sharedWith).toBe(0);
   });
 
-  // The output is not promised to anyone, so neither parent may claim cover.
   it("promises nothing certain when two parents want more than it makes", () => {
     const first = parent("parent-1", 1000, ["child-1"]);
     const second = parent("parent-2", 1000, ["child-1"]);
@@ -120,23 +126,30 @@ describe("what a child job can be counted on to supply", () => {
       ["child-1", childJob],
     ]);
 
-    second.importPurchaseToMaterial(TRITANIUM, {
-      itemCount: 600,
-      itemCost: 5,
-      childID: "child-1",
-    });
+    applyCommands(
+      second,
+      importPurchaseToMaterial(
+        TRITANIUM,
+        {
+          id: "buy-1",
+          itemCount: 600,
+          itemCost: 5,
+          childID: "child-1",
+        },
+        {
+          availableToBuy: materialRequirementOf(second.build.setup, TRITANIUM),
+        },
+      ),
+    );
 
     const supply = supplyFor(first, childJob);
 
-    // 400 of the child's output is left, and nobody else is waiting on it.
     expect(supply.supply).toBe(400);
     expect(supply.min).toBe(400);
     expect(supply.max).toBe(400);
     expect(supply.coversEveryClaim).toBe(false);
   });
 
-  // Two children feeding the same pair of parents are one claim from each
-  // parent, not one per child.
   it("counts each parent's claim once, however many children supply it", () => {
     const first = parent("parent-1", 1000, ["child-1", "child-2"]);
     const second = parent("parent-2", 400, ["child-1", "child-2"]);
@@ -153,19 +166,19 @@ describe("what a child job can be counted on to supply", () => {
     const supply = childJobSupplyForMaterial(
       first.jobID,
       ownMaterial,
-      ownMaterial.quantityRemaining,
+      quantityRemaining(
+        ownMaterial,
+        materialRequirementOf(first.build.setup, TRITANIUM),
+      ),
       [childA, childB],
     );
 
-    // 1400 made, the other parent wants 400, so 1000 is certain for this one.
     expect(supply.supply).toBe(1400);
     expect(supply.sharedWith).toBe(1);
     expect(supply.min).toBe(1000);
     expect(supply.coversEveryClaim).toBe(true);
   });
 
-  // A child linked from this job's side may not list it as a parent yet, and its
-  // output must still not be counted twice.
   it("counts what this job has taken even when the child does not name it", () => {
     const job = parent("parent-1", 1000, ["child-1"]);
     const childJob = child("child-1", 1000, []);
@@ -174,11 +187,21 @@ describe("what a child job can be counted on to supply", () => {
       ["child-1", childJob],
     ]);
 
-    job.importPurchaseToMaterial(TRITANIUM, {
-      itemCount: 600,
-      itemCost: 5,
-      childID: "child-1",
-    });
+    applyCommands(
+      job,
+      importPurchaseToMaterial(
+        TRITANIUM,
+        {
+          id: "buy-1",
+          itemCount: 600,
+          itemCost: 5,
+          childID: "child-1",
+        },
+        {
+          availableToBuy: materialRequirementOf(job.build.setup, TRITANIUM),
+        },
+      ),
+    );
 
     const supply = supplyFor(job, childJob);
 
@@ -186,8 +209,6 @@ describe("what a child job can be counted on to supply", () => {
     expect(supply.max).toBe(400);
   });
 
-  // A parent that is not open cannot be asked what it needs, so nothing may be
-  // counted on rather than a figure being invented.
   it("counts on nothing when a parent is not loaded", () => {
     const job = parent("parent-1", 100, ["child-1"]);
     const childJob = child("child-1", 1000, ["parent-1", "parent-elsewhere"]);

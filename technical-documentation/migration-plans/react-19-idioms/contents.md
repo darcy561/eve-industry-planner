@@ -6,12 +6,13 @@ table swept for what still fails it.
 
 The sweep's main result is that **effects are almost the whole of the gap**. There is no `forwardRef`
 in the tree, no class component, no `PropTypes`, no `document.title` write, no dialogue built from raw
-MUI parts, and no data path outside React Query. What is left beyond the effects is fourteen sites
-across five shapes.
+MUI parts, and no data path outside React Query. What is left beyond the effects is nine sites
+across four shapes — fourteen were counted, and five have since been resolved by work outside this
+project.
 
 ## Owns
 
-- **The effect inventory** — all 95 `useEffect` call sites in `frontend/src`, what each does, and
+- **The effect inventory** — all 93 `useEffect` call sites in `frontend/src`, what each does, and
   which survives. Counted and reproducible, not sampled.
 - **The effects that only derive**, that fetch, that fix up a write someone else made, that navigate,
   or that fire analytics — and the three defects found while reading them.
@@ -19,9 +20,9 @@ across five shapes.
   through `getState()` and using what it returns, so nothing redraws when that value changes.
 - **The two contexts still on `useContext()` and `<Context.Provider>`.**
 - **Hand-rolled pending state** where `useTransition` owns the same job, including one flag
-  prop-drilled into three children in two near-identical files.
+  prop-drilled into a child.
 - **A timer standing in for a transition** — an animation delay wrapped around a real mutation, with
-  no cleanup.
+  no cleanup. Both call sites have since gone; the tier is kept for the lesson, not for work.
 - **An imperative handle published from `useLayoutEffect`**, the SPA's only layout effect.
 - **The record of what was swept and found clean**, so the next reader does not sweep it again.
 

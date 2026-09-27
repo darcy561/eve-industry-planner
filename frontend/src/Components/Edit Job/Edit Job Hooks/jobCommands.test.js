@@ -3,7 +3,10 @@ import { produce } from "immer";
 
 import ExtraCost from "../../../Classes/extraCost";
 import InventionEntry from "../../../Classes/inventionEntry";
-import Job from "../../../Classes/job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../../../Functions/JobDocuments/jobDocument";
 import Setup from "../../../Classes/jobSetup";
 import LinkedESIJob from "../../../Classes/linkedESIJob";
 import MarketOrder from "../../../Classes/marketOrder";
@@ -14,58 +17,45 @@ import * as commands from "./jobCommands";
 /* eslint-disable vitest/expect-expect */
 
 const documentFor = (overrides = {}) =>
-  new Job({
-    jobID: "job-1",
-    name: "Job",
-    jobStatus: 1,
-    itemID: 34,
-    parentJobs: ["parent-1", "parent-2"],
-    groupID: "",
-    includedInGroup: false,
-    displayOnPlanner: true,
-    isReadyToSell: false,
-    build: {
-      childJobs: { 34: ["child-1", "child-2"], 35: ["child-2"] },
-      materials: {
-        34: {
-          typeID: 34,
-          name: "Tritanium",
-          purchasing: {
-            "buy-1": { id: "buy-1", itemCount: 10, itemCost: 5 },
-            "buy-2": { id: "buy-2", itemCount: 20, itemCost: 6 },
+  toDocument(
+    jobFromDocument({
+      jobID: "job-1",
+      name: "Job",
+      jobStatus: 1,
+      itemID: 34,
+      parentJobs: ["parent-1", "parent-2"],
+      groupID: "",
+      includedInGroup: false,
+      displayOnPlanner: true,
+      isReadyToSell: false,
+      build: {
+        childJobs: { 34: ["child-1", "child-2"], 35: ["child-2"] },
+        materials: {
+          34: {
+            typeID: 34,
+            name: "Tritanium",
+            purchasing: {
+              "buy-1": { id: "buy-1", itemCount: 10, itemCost: 5 },
+              "buy-2": { id: "buy-2", itemCount: 20, itemCost: 6 },
+            },
           },
         },
+        extrasCosts: { "extra-1": { id: "extra-1", extraValue: 100 } },
+        inventionEntries: { "inv-1": { id: "inv-1", itemCost: 50 } },
       },
-      extrasCosts: { "extra-1": { id: "extra-1", extraValue: 100 } },
-      inventionEntries: { "inv-1": { id: "inv-1", itemCost: 50 } },
-    },
-    esi: {
-      industryJobs: { 900: { job_id: 900, status: "active" } },
-      marketOrders: {
-        700: { order_id: 700, location_id: 60003760, fee: 1, salesTax: 2 },
+      esi: {
+        industryJobs: { 900: { job_id: 900, status: "active" } },
+        marketOrders: {
+          700: { order_id: 700, location_id: 60003760, fee: 1, salesTax: 2 },
+        },
+        transactions: {
+          800: { transaction_id: 800, location_id: 60003760 },
+          801: { transaction_id: 801, location_id: 60008494 },
+        },
       },
-      transactions: {
-        800: { transaction_id: 800, location_id: 60003760 },
-        801: { transaction_id: 801, location_id: 60008494 },
-      },
-    },
-    ...overrides,
-  }).toDocument();
-
-function bothWays(document, command, applyToInstance) {
-  const viaCommand = structuredClone(document);
-  command.recipe(viaCommand);
-
-  const instance = new Job(structuredClone(document));
-  applyToInstance(instance);
-
-  return { viaCommand, viaClass: instance.toDocument() };
-}
-
-const agree = (document, command, applyToInstance) => {
-  const { viaCommand, viaClass } = bothWays(document, command, applyToInstance);
-  expect(viaCommand).toEqual(viaClass);
-};
+      ...overrides,
+    }),
+  );
 
 function changes(document, command, applyToDocument) {
   const viaCommand = structuredClone(document);
@@ -515,40 +505,62 @@ describe("sales and orders ESI reported", () => {
 describe("what was bought for a material", () => {
   const purchase = { id: "buy-3", itemCount: 30, itemCost: 7 };
 
-  it("records a purchase as the reader asked", () => {
-    agree(
+  it("records the whole purchase where the job needs that many", () => {
+    changes(
       documentFor(),
       commands.importPurchaseToMaterial(34, purchase, { availableToBuy: 100 }),
-      (job) =>
-        job.importPurchaseToMaterial(34, purchase, { availableToBuy: 100 }),
+      (job) => {
+        job.build.materials["34"].purchasing["buy-3"] = {
+          id: "buy-3",
+          childID: null,
+          childJobImport: false,
+          itemCount: 30,
+          itemCost: 7,
+        };
+      },
     );
   });
 
-  it("takes only what the job still needs, as the reader asked", () => {
-    agree(
+  it("records only what the job still needs", () => {
+    changes(
       documentFor(),
       commands.importPurchaseToMaterial(34, purchase, { availableToBuy: 10 }),
-      (job) =>
-        job.importPurchaseToMaterial(34, purchase, { availableToBuy: 10 }),
+      (job) => {
+        job.build.materials["34"].purchasing["buy-3"] = {
+          id: "buy-3",
+          childID: null,
+          childJobImport: false,
+          itemCount: 10,
+          itemCost: 7,
+        };
+      },
     );
   });
 
   it("keeps the whole purchase when asked to record the excess", () => {
-    const options = { availableToBuy: 10, recordExcess: true };
-    agree(
+    changes(
       documentFor(),
-      commands.importPurchaseToMaterial(34, purchase, options),
-      (job) => job.importPurchaseToMaterial(34, purchase, options),
+      commands.importPurchaseToMaterial(34, purchase, {
+        availableToBuy: 10,
+        recordExcess: true,
+      }),
+      (job) => {
+        job.build.materials["34"].purchasing["buy-3"] = {
+          id: "buy-3",
+          childID: null,
+          childJobImport: false,
+          itemCount: 30,
+          itemCost: 7,
+        };
+      },
     );
   });
 
-  it("reports what a purchase takes and leaves, as the reader asked", () => {
-    const instance = new Job(structuredClone(documentFor()));
-    const fromClass = instance.importPurchaseToMaterial(34, purchase, {
-      availableToBuy: 10,
+  it("reports what a purchase takes and leaves", () => {
+    expect(commands.importedQuantities(purchase, 10)).toEqual({
+      taken: 10,
+      leftOver: 20,
     });
-
-    expect(commands.importedQuantities(purchase, 10)).toEqual(fromClass);
   });
 });
 
@@ -565,14 +577,15 @@ describe("the setups a job builds from", () => {
       layout: { setupToEdit: "setup-1" },
     });
 
-  it("attaches a setup and opens it, as the reader asked", () => {
+  it("attaches a setup built through its own class, as the row it says", () => {
     const setup = new Setup({ id: "setup-3", runCount: 5, jobCount: 1 });
-    agree(withSetups(), commands.attachNewSetupToJob(setup), (job) =>
-      job.attachNewSetupToJob(setup),
-    );
+    changes(withSetups(), commands.attachNewSetupToJob(setup), (job) => {
+      job.build.setup["setup-3"] = setup.toDocument();
+      job.layout.setupToEdit = "setup-3";
+    });
   });
 
-  it("stores a plain row too, which the class cannot", () => {
+  it("stores a plain row as it is given", () => {
     const row = { id: "setup-3", runCount: 5, jobCount: 1 };
     const document = structuredClone(withSetups());
     commands.attachNewSetupToJob(row).recipe(document);

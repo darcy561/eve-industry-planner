@@ -9,7 +9,7 @@ import {
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import Job from "./job.js";
+import { jobFromDocument } from "../Functions/JobDocuments/jobDocument";
 
 const corpusPath = resolve(
   process.cwd(),
@@ -19,7 +19,7 @@ const corpus = JSON.parse(readFileSync(corpusPath, "utf8"));
 
 describe("job cost corpus", () => {
   test.for(corpus.cases)("$name", (testCase) => {
-    const job = new Job(testCase.job);
+    const job = jobFromDocument(testCase.job);
     const { expected, why } = testCase;
 
     expect(totalQuantityProduced(job), why).toBe(expected.produced);

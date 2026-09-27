@@ -6,11 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import ExtraCost from "./extraCost";
 import InventionEntry from "./inventionEntry";
-import Job from "./job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../Functions/JobDocuments/jobDocument";
 
 describe("ExtraCost", () => {
-  // Rows have been written with the category missing, empty, or as a number,
-  // and the document and the backend both hold a string.
   it("settles the category as the row is built", () => {
     expect(new ExtraCost({ category: 3 }).category).toBe("3");
     expect(new ExtraCost({ category: "3" }).category).toBe("3");
@@ -29,9 +30,6 @@ describe("ExtraCost", () => {
     expect(new ExtraCost({}).label).toBe("");
   });
 
-  // The name a category had when the cost was added travels with it: the id
-  // alone only means something against the account's settings list, and a
-  // category deleted from there leaves the row naming an id nobody can read.
   it("carries the category label it was given", () => {
     const row = new ExtraCost({
       id: "extra-1",
@@ -79,20 +77,14 @@ describe("InventionEntry", () => {
 
     expect(entry.itemName).toBe("Datacore - Mechanical Engineering");
     expect(entry.itemCost).toBe(125000);
-    // A uuid rather than the clock: two entries minted in one millisecond took
-    // the same id, and a row is removed by matching on it.
     expect(entry.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
   });
 
-  // Rows written before the id became a uuid carry a number, and are kept as
-  // they are: the id is only ever compared, never parsed.
   it("keeps every stored key on the way out", () => {
     const row = { id: 1788510923210, itemName: "Datacore", itemCost: 125000 };
 
-    // A row stored before the version existed is a v1 row: the field names the
-    // shape those rows already had rather than changing it.
     expect(new InventionEntry(row).toDocument()).toEqual({
       ...row,
       version: 1,
@@ -122,7 +114,7 @@ describe("InventionEntry", () => {
 
 describe("invention entries on a job", () => {
   function job(entries) {
-    return new Job({
+    return jobFromDocument({
       jobID: "job-1",
       itemID: 587,
       jobType: 1,
@@ -137,8 +129,12 @@ describe("invention entries on a job", () => {
       { id: 2, itemName: "Decryptor", itemCost: 400000 },
     ]);
 
-    expect(activeJob.build.inventionEntries["1"]).toBeInstanceOf(
-      InventionEntry,
+    expect(activeJob.build.inventionEntries["1"]).toEqual(
+      new InventionEntry({
+        id: 1,
+        itemName: "Datacore",
+        itemCost: 125000,
+      }).toDocument(),
     );
     expect(totalInventionCost(activeJob)).toBe(525000);
   });
@@ -151,12 +147,15 @@ describe("invention entries on a job", () => {
 
     expect(Object.keys(activeJob.build.inventionEntries)).toHaveLength(2);
     expect(totalInventionCost(activeJob)).toBe(525000);
-    // Whatever a caller hands over becomes a row of its own class.
-    expect(activeJob.build.inventionEntries["7"]).toBeInstanceOf(
-      InventionEntry,
+    expect(activeJob.build.inventionEntries["7"]).toEqual(
+      new InventionEntry({
+        id: 7,
+        itemName: "Decryptor",
+        itemCost: 400000,
+      }).toDocument(),
     );
 
-    const document = activeJob.toDocument();
+    const document = toDocument(activeJob);
     expect(document.build.inventionEntries["7"]).toEqual({
       version: 1,
       id: 7,
@@ -164,13 +163,13 @@ describe("invention entries on a job", () => {
       itemCost: 400000,
     });
 
-    expect(totalInventionCost(new Job(document))).toBe(525000);
+    expect(totalInventionCost(jobFromDocument(document))).toBe(525000);
   });
 });
 
 describe("extra costs on a job", () => {
   function job(extras) {
-    return new Job({
+    return jobFromDocument({
       jobID: "job-1",
       itemID: 587,
       jobType: 1,
@@ -190,19 +189,24 @@ describe("extra costs on a job", () => {
       { id: "extra-2", category: 0, extraText: "", extraValue: 250000 },
     ]);
 
-    expect(activeJob.build.extrasCosts["extra-1"]).toBeInstanceOf(ExtraCost);
+    expect(activeJob.build.extrasCosts["extra-1"]).toEqual(
+      new ExtraCost({
+        id: "extra-1",
+        category: "3",
+        extraText: "Courier",
+        extraValue: 1500000,
+      }).toDocument(),
+    );
     expect(totalExtrasCost(activeJob)).toBe(1750000);
   });
 
-  // A row can arrive with its category numeric or missing, whether it is being
-  // read from a document or added by hand.
   it("settles a numeric or missing category on the way through", () => {
     const activeJob = job([
       { id: "extra-1", category: 3, extraText: "Courier", extraValue: 10 },
       { id: "extra-2", extraValue: 5 },
     ]);
 
-    const document = activeJob.toDocument();
+    const document = toDocument(activeJob);
     expect(document.build.extrasCosts).toEqual({
       "extra-1": {
         id: "extra-1",
@@ -219,6 +223,6 @@ describe("extra costs on a job", () => {
         extraValue: 5,
       },
     });
-    expect(totalExtrasCost(new Job(document))).toBe(15);
+    expect(totalExtrasCost(jobFromDocument(document))).toBe(15);
   });
 });

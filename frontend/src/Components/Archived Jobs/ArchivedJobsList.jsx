@@ -26,7 +26,7 @@ import {
   showSnackbarSuccess,
 } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import Job from "../../Classes/job";
+import { jobFromDocument } from "../../Functions/JobDocuments/jobDocument";
 import Group from "../../Classes/group";
 import {
   RESTORE_SCOPES,
@@ -144,12 +144,6 @@ const SEGMENT_LABELS = {
 
 /**
  * What the figures beside a row are worth.
- *
- * Two different things a reader can act on. Pending resolves itself in seconds
- * and the figures are already right — a job's own numbers are written when it is
- * archived. Stale does not resolve: the last rebuild could not read the job, so
- * the figures are the ones it had before, and they stay that way until the job
- * is fixed and the statistics are recalculated.
  */
 function FiguresChip({ awaiting, stale, filed }) {
   if (stale) {
@@ -197,10 +191,6 @@ function SegmentChip({ segment }) {
 
 /**
  * Applies a restore to the planner in this tab.
- *
- * The websocket excludes the tab that made the change from its own broadcast, so
- * this is the one client that will not be told. It applies the response it
- * already has rather than waiting for a push that is not coming.
  */
 function applyRestoreLocally(result) {
   const { jobData } = useUsersStore.getState();
@@ -210,7 +200,9 @@ function applyRestoreLocally(result) {
     updateModifiedGroups,
   } = jobData.actions;
 
-  const jobs = (result?.jobs ?? []).map((document) => new Job(document));
+  const jobs = (result?.jobs ?? []).map((document) =>
+    jobFromDocument(document),
+  );
   if (jobs.length > 0) updateOrAddJobsToJobArray(jobs);
 
   // The server has already written these, so the store only has to agree: a
@@ -305,10 +297,6 @@ function JobRow({ job, onRestore, onFile, busy, indented }) {
 
 /**
  * One archived job as a card.
- *
- * A table of six columns cannot be read on a phone, and scrolling it sideways
- * hides the figures behind the name. The card labels each value instead, so
- * nothing depends on a header that has scrolled out of view.
  */
 function JobCard({ job, onRestore, onFile, busy }) {
   return (
@@ -378,10 +366,6 @@ function JobCard({ job, onRestore, onFile, busy }) {
 
 /**
  * What the dialogue is asked to file.
- *
- * A block is filed as one, so it names its group or related set and the server
- * selects the members — the same three ways restore names them. The months it
- * opens on come from the first row, since a set archived together shares them.
  */
 function filingTarget(block) {
   const [first] = block.jobs;

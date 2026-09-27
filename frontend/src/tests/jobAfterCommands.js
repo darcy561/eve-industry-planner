@@ -1,18 +1,17 @@
-import Job from "../Classes/job";
+import {
+  jobFromDocument,
+  toDocument,
+} from "../Functions/JobDocuments/jobDocument";
 
 /**
- * The job a command leaves behind.
+ * The job a command leaves behind, rebuilt from the document it changed.
  *
- * A command is a recipe against the job's document, which is how the editor
- * applies one. A test asserting on what the job then reads wants the class
- * around that document, so this runs the commands in order and rebuilds.
- *
- * @param {Job} job - The job the commands are applied to; it is not changed
+ * @param {object} job - The job the commands are applied to; it is not changed
  * @param {...{recipe: (document: object) => void}} commands
- * @returns {Job}
+ * @returns {object}
  */
 export function jobAfterCommands(job, ...commands) {
-  const document = job.toDocument();
+  const document = toDocument(job);
   for (const command of commands) command.recipe(document);
-  return new Job(document);
+  return jobFromDocument(document);
 }

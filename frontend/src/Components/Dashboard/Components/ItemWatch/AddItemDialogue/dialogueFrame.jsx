@@ -1,4 +1,7 @@
-import { totalQuantityProduced } from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
+import {
+  materialRequirementOf,
+  totalQuantityProduced,
+} from "../../../../Edit Job/Edit Job Hooks/jobSelectors";
 import { Button, Grid } from "@mui/material";
 import ContentDialogue from "../../../../../Styled Components/Dialogue/ContentDialogue";
 import { useState } from "react";
@@ -39,25 +42,22 @@ export function AddWatchItemDialogue({ watchlistItemToEdit, onClose }) {
     let newUserWatchlistItems = [...userWatchlist.items];
     let mainJobMaterials = [];
     let childJobPresent = false;
-    Object.values(materialJobs[watchlistItemRequest].build.materials).forEach(
-      (mat) => {
-        const job = materialJobs[mat.typeID];
+    const requestedJob = materialJobs[watchlistItemRequest];
+    Object.values(requestedJob.build.materials).forEach((mat) => {
+      const job = materialJobs[mat.typeID];
 
-        mainJobMaterials.push({
-          id: crypto.randomUUID(),
-          typeID: mat.typeID,
-          name: mat.name,
-          quantity: mat.quantity,
-          quantityProduced: job !== undefined ? totalQuantityProduced(job) : 0,
-          materials: [],
-          group: groupSelect,
-          buildData:
-            job !== undefined
-              ? Object.values(job?.build?.setup)[0].toDocument()
-              : null,
-        });
-      },
-    );
+      mainJobMaterials.push({
+        id: crypto.randomUUID(),
+        typeID: mat.typeID,
+        name: mat.name,
+        quantity: materialRequirementOf(requestedJob.build.setup, mat.typeID),
+        quantityProduced: job !== undefined ? totalQuantityProduced(job) : 0,
+        materials: [],
+        group: groupSelect,
+        buildData:
+          job !== undefined ? Object.values(job?.build?.setup)[0] : null,
+      });
+    });
     mainJobMaterials.forEach((mat) => {
       let job = materialJobs[mat.typeID];
 
@@ -83,7 +83,7 @@ export function AddWatchItemDialogue({ watchlistItemToEdit, onClose }) {
       childJobPresent: childJobPresent,
       buildData: Object.values(
         materialJobs[watchlistItemRequest].build.setup,
-      )[0].toDocument(),
+      )[0],
     };
     if (watchlistItemToEdit) {
       newUserWatchlistItems[watchlistItemToEdit] = finalWatchlistItem;

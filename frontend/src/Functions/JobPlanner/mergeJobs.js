@@ -12,7 +12,7 @@ import {
   totalQuantityProduced,
 } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import useUsersStore from "../../Zustand/usersStore";
-import Job from "../../Classes/job";
+import { copyOfJob } from "../JobDocuments/jobDocument";
 import { wholeJobWrites } from "../JobDocuments/jobWriteEnvelope.js";
 import {
   putJobDocumentsBatch,
@@ -158,7 +158,7 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
     if (!sourceJob) {
       return null;
     }
-    const clonedJob = new Job(sourceJob.toDocument());
+    const clonedJob = copyOfJob(sourceJob);
     workingJobsByID.set(jobID, clonedJob);
     return clonedJob;
   };

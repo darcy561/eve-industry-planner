@@ -154,7 +154,7 @@ function assignEdgeRungYAvoidingNodes(nodes, edges, nodeW, nodeH) {
 /**
  * Builds React Flow nodes and edges from jobs that expose `childJobIDs` / `parentJobIDs`.
  *
- * @param {import("../../Classes/job").default[]} jobs
+ * @param {object[]} jobs
  * @param {ReadonlySet<string> | Set<string> | null | undefined} completeJobIds — optional “marked complete” ids
  * @returns {{ nodes: import("@xyflow/react").Node[]; edges: import("@xyflow/react").Edge[] }}
  */
@@ -229,7 +229,7 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
     }
   }
 
-  /** @type {Map<number, import("../../Classes/job").default[]>} */
+  /** @type {Map<number, object[]>} */
   const byLevel = new Map();
   let maxLevel = 0;
   for (const job of jobs) {
@@ -286,7 +286,7 @@ export function buildJobDependencyFlowElements(jobs, completeJobIds) {
  * Jobs linked to `emphasisId` via parent/child fields (both directions), restricted to `jobs`.
  *
  * @param {string|null|undefined} emphasisId
- * @param {import("../../Classes/job").default[]} jobs
+ * @param {object[]} jobs
  * @returns {Set<string>|null}
  */
 export function relatedJobIdsInJobTree(emphasisId, jobs) {
