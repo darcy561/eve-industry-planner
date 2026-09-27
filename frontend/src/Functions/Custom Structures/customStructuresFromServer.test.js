@@ -16,8 +16,6 @@ describe("reading the structures a settings document holds", () => {
     expect(structures[1].jobType).toBe(jobTypes.reprocessing);
   });
 
-  // The shape documents were written in before a row's own jobType was what
-  // said which kind it is.
   it("reads the four lists, stamping each row with its list's kind", () => {
     const structures = customStructuresFromServer({
       manufacturing: [{ id: "manStruct-1" }],
@@ -36,8 +34,6 @@ describe("reading the structures a settings document holds", () => {
     expect(byID["reprocessingStruct-1"].rigSlot1).toBe(7);
   });
 
-  // The row is the thing that says what it is; a misfiled row must not be
-  // relabelled by the list it was found in. This matches the server's fold.
   it("keeps a kind the row already names", () => {
     const structures = customStructuresFromServer({
       manufacturing: [{ id: "s-1", jobType: jobTypes.reaction }],
@@ -46,8 +42,6 @@ describe("reading the structures a settings document holds", () => {
     expect(structures[0].jobType).toBe(jobTypes.reaction);
   });
 
-  // A stored zero is a row that named nothing, not a row of job type zero — the
-  // same reading the server's fold takes.
   it("treats a stored zero as unnamed and takes the list's kind", () => {
     const structures = customStructuresFromServer({
       reprocessing: [{ id: "s-1", jobType: 0 }],
@@ -56,8 +50,6 @@ describe("reading the structures a settings document holds", () => {
     expect(structures[0].jobType).toBe(jobTypes.reprocessing);
   });
 
-  // Rows are held in the store and read by screens, so they carry data and no
-  // behaviour: a row a screen copies with a spread must lose nothing.
   it("builds rows as plain data, settled for their kind", () => {
     for (const incoming of [
       [{ id: "s-1", jobType: jobTypes.reprocessing }],

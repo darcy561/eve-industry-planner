@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Box, Button, Grid, Stack, TextField } from "@mui/material";
+import { Box, Button, Stack, TextField } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
 import { StructureField, fieldsFor } from "./structureFields";
@@ -9,7 +9,7 @@ import {
   structureFromDocument,
   updateStructure,
 } from "../../../../Functions/Custom Structures/customStructure";
-import useRigSlots from "./useRigSlots";
+import useRigSlots from "../../../../Hooks/useRigSlots";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Custom Structures/addCustomStructure";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
@@ -165,8 +165,15 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
 
   return (
     <Box>
-      <Grid container spacing={2} sx={{ alignItems: "flex-start" }}>
-        <Grid size={12}>
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          gap: 2,
+        }}
+      >
+        <Box sx={{ flexBasis: "100%", minWidth: 0 }}>
           <FormField
             title="Display name"
             description="A label you will see in structure lists to help you identify the structure. It does not need to match an in-game name."
@@ -189,20 +196,20 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
               onBlur={handleName}
             />
           </FormField>
-        </Grid>
+        </Box>
 
         {fieldsFor(fields).map((entry) => (
           <StructureField key={entry.id} entry={entry} context={context} />
         ))}
 
-        <Grid size={12}>
+        <Box sx={{ flexBasis: "100%", minWidth: 0 }}>
           <Stack direction="row" sx={{ pt: 0.5, justifyContent: "flex-end" }}>
             <Button variant="contained" onClick={handleAdd}>
               Add structure
             </Button>
           </Stack>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Box>
   );
 }

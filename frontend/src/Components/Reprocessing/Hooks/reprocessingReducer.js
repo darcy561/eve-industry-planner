@@ -18,7 +18,6 @@
  * @property {string} SET_SELECTED_USER - Set selected user character
  * @property {string} SET_SKILLS_MANUALLY_MODIFIED - Set manual skill modification flag
  * @property {string} LOAD_CHARACTER_SKILLS - Load skills from character data
- * @property {string} SET_RIG_SLOT_ERRORS - Set rig slot validation errors
  * @property {string} ADD_ORE_ID_TO_BE_IGNORED - Add ore ID to ignore list
  * @property {string} REMOVE_ORE_ID_TO_BE_IGNORED - Remove ore ID from ignore list
  * @property {string} CLEAR_ORE_IDS_TO_BE_IGNORED - Clear all ignored ore IDs
@@ -41,7 +40,6 @@ export const REPROCESSING_ACTION_TYPES = {
   SET_SELECTED_USER: "SET_SELECTED_USER",
   SET_SKILLS_MANUALLY_MODIFIED: "SET_SKILLS_MANUALLY_MODIFIED",
   LOAD_CHARACTER_SKILLS: "LOAD_CHARACTER_SKILLS",
-  SET_RIG_SLOT_ERRORS: "SET_RIG_SLOT_ERRORS",
   ADD_ORE_ID_TO_BE_IGNORED: "ADD_ORE_ID_TO_BE_IGNORED",
   REMOVE_ORE_ID_TO_BE_IGNORED: "REMOVE_ORE_ID_TO_BE_IGNORED",
   CLEAR_ORE_IDS_TO_BE_IGNORED: "CLEAR_ORE_IDS_TO_BE_IGNORED",
@@ -67,7 +65,6 @@ export const REPROCESSING_ACTION_TYPES = {
  * @param {Object} state.activeSkills - Active skill levels by skill ID
  * @param {string|null} state.selectedUser - Selected user character hash
  * @param {boolean} state.skillsManuallyModified - Whether skills were manually modified
- * @param {Object} state.rigSlotErrors - Rig slot validation errors
  * @param {Array} state.oreIDsToBeIgnored - Array of ore IDs to ignore
  * @param {string} state.marketLocation - Market location for pricing
  * @param {string} state.orderType - Market order type (buy/sell)
@@ -114,7 +111,7 @@ export function reprocessingReducer(state, action) {
       return {
         ...state,
         selectedUser: action.payload,
-        skillsManuallyModified: false, // Reset when user changes
+        skillsManuallyModified: false,
       };
     case REPROCESSING_ACTION_TYPES.SET_SKILLS_MANUALLY_MODIFIED:
       return {
@@ -126,11 +123,6 @@ export function reprocessingReducer(state, action) {
         ...state,
         activeSkills: action.payload.skills,
         skillsManuallyModified: false,
-      };
-    case REPROCESSING_ACTION_TYPES.SET_RIG_SLOT_ERRORS:
-      return {
-        ...state,
-        rigSlotErrors: action.payload,
       };
     case REPROCESSING_ACTION_TYPES.ADD_ORE_ID_TO_BE_IGNORED:
       return {

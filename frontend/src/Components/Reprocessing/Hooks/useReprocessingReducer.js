@@ -30,7 +30,6 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
  * @returns {Object} returns.state.activeSkills - Active skill levels by skill ID
  * @returns {string|null} returns.state.selectedUser - Selected user character hash
  * @returns {boolean} returns.state.skillsManuallyModified - Whether skills were manually modified
- * @returns {Object} returns.state.rigSlotErrors - Rig slot validation errors
  * @returns {Array} returns.state.oreIDsToBeIgnored - Array of ore IDs to ignore
  * @returns {string} returns.state.marketLocation - Market location for pricing
  * @returns {string} returns.state.orderType - Market order type (buy/sell)
@@ -50,7 +49,6 @@ const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
  * @returns {Function} returns.actions.setSelectedUser - Set selected user
  * @returns {Function} returns.actions.setSkillsManuallyModified - Set manual modification flag
  * @returns {Function} returns.actions.loadCharacterSkills - Load character skills
- * @returns {Function} returns.actions.setRigSlotErrors - Set rig slot errors
  * @returns {Function} returns.actions.addOreIDToBeIgnored - Add ore ID to ignore list
  * @returns {Function} returns.actions.removeOreIDToBeIgnored - Remove ore ID from ignore list
  * @returns {Function} returns.actions.clearOreIDsToBeIgnored - Clear all ignored ore IDs
@@ -94,7 +92,6 @@ export default function useReprocessingReducer() {
       useUsersStore.getState().account.actions.getMainCharacterHash() ||
       null,
     skillsManuallyModified: false,
-    rigSlotErrors: { slot1: false, slot2: false },
     oreIDsToBeIgnored: [],
     marketLocation: defaultMarketLocation || DEFAULT_MARKET_OPTION,
     orderType: defaultOrderType || DEFAULT_ORDER_TYPE,
@@ -258,17 +255,6 @@ export default function useReprocessingReducer() {
       dispatch({
         type: REPROCESSING_ACTION_TYPES.LOAD_CHARACTER_SKILLS,
         payload: { skills },
-      });
-    },
-    /**
-     * Sets rig slot validation errors.
-     *
-     * @param {Object} errors - Rig slot errors object
-     */
-    setRigSlotErrors: (errors) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_RIG_SLOT_ERRORS,
-        payload: errors,
       });
     },
     /**

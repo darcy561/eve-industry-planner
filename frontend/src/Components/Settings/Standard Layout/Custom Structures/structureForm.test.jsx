@@ -32,11 +32,6 @@ vi.mock(
   }),
 );
 
-/**
- * The structure form is the same form whatever screen it is on. These cover what
- * it offers and what it does with what a reader types, so the layout underneath
- * can change without the behaviour going quiet.
- */
 function renderForm(props = {}) {
   return render(
     <QueryClientProvider client={testQueryClient()}>
@@ -119,9 +114,18 @@ describe("the structure form", () => {
 });
 
 describe("fitting two rigs", () => {
+  function fieldHolding(title) {
+    let node = screen.getByText(title);
+    while (node && !node.querySelector('[role="combobox"]')) {
+      node = node.parentElement;
+    }
+    return node;
+  }
+
   async function chooseRig(slotLabel, rigLabel) {
-    const field = screen.getByText(slotLabel).closest(".MuiGrid-root");
-    await userEvent.click(within(field).getByRole("combobox"));
+    await userEvent.click(
+      within(fieldHolding(slotLabel)).getByRole("combobox"),
+    );
     await userEvent.click(screen.getByRole("option", { name: rigLabel }));
   }
 

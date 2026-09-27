@@ -28,9 +28,8 @@ export function setupShowsManualStructureFields(
   setup,
   getCustomStructureWithID,
 ) {
-  const id = setup?.customStructureID;
-  if (!id) return true;
-  return !getCustomStructureWithID(id);
+  if (!setup?.customStructureID) return true;
+  return setupHasOrphanedCustomStructure(setup, getCustomStructureWithID);
 }
 
 /**
@@ -50,4 +49,23 @@ export function clearOrphanedCustomStructureOnSetups(
       setup.customStructureID = "";
     }
   }
+}
+
+/**
+ * What a job setup takes from the custom structure it references.
+ *
+ * @param {Object} structure - The custom structure the setup points at
+ * @returns {{customStructureID: string, structureID: number, rigSlot1: number,
+ * rigSlot2: number, systemTypeID: number, systemID: number, taxValue: number}}
+ */
+export function setupFieldsFromCustomStructure(structure) {
+  return {
+    customStructureID: structure.id,
+    structureID: structure.structureType,
+    rigSlot1: structure.rigSlot1 ?? 0,
+    rigSlot2: structure.rigSlot2 ?? 0,
+    systemTypeID: structure.systemType,
+    systemID: structure.systemID,
+    taxValue: structure.tax,
+  };
 }

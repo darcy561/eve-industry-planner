@@ -32,8 +32,6 @@ vi.mock("../../../../Zustand/usersStore", async () => {
   );
 });
 
-// Names arrive from ESI per id. What each card must say about its place is the
-// thing under test, so the names themselves are supplied rather than fetched.
 vi.mock("../../../../Hooks/EveEsi/useLocationNames", () => ({
   default: (ids) => ({
     names: Object.fromEntries(
@@ -98,7 +96,6 @@ describe("the structures a reader has saved", () => {
 
     expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();
     expect(screen.getByText("2.5%")).toBeInTheDocument();
-    // The system the structure sits in, resolved to a name rather than an id.
     expect(screen.getByText("Jita")).toBeInTheDocument();
   });
 
@@ -157,9 +154,6 @@ describe("the structures a reader has saved", () => {
   });
 });
 
-// A structure is described by different facts depending on what it does, and
-// each job type used to have its own card body on each of two layouts. One body
-// serves them all now, so what each type is owed is asserted rather than read.
 describe("what a card says about each kind of structure", () => {
   beforeEach(() => {
     setDefaultCustomStructure.mockClear();
@@ -177,8 +171,6 @@ describe("what a card says about each kind of structure", () => {
     expect(screen.getByText("Jita")).toBeInTheDocument();
   });
 
-  // One list holds every kind now, so the frame has to pick out the kind it was
-  // asked for rather than render whatever the store happens to hold.
   it("shows only the structures of the kind it was asked for", () => {
     structures = [
       aStructure({ jobType: jobTypes.manufacturing, name: "A manufacturer" }),
@@ -197,8 +189,6 @@ describe("what a card says about each kind of structure", () => {
     expect(screen.queryByText("A refinery")).not.toBeInTheDocument();
   });
 
-  // Manufacturing was the last kind reading a single rig field, so a card that
-  // names both fitted rigs is what proves it reads the slots like every other.
   it("names both rigs fitted to a manufacturing structure", () => {
     structures = [
       aStructure({ jobType: jobTypes.manufacturing, rigSlot1: 2, rigSlot2: 3 }),
@@ -219,7 +209,6 @@ describe("what a card says about each kind of structure", () => {
     expect(screen.getByText("Jita Sotiyo")).toBeInTheDocument();
     expect(screen.getByText("Rigs")).toBeInTheDocument();
     expect(screen.getByText("Security")).toBeInTheDocument();
-    // Invention happens wherever the blueprint is, so no system is named.
     expect(screen.queryByText("System")).not.toBeInTheDocument();
   });
 

@@ -20,8 +20,6 @@ function renderPicker(props = {}) {
 }
 
 describe("choosing what kind of structure to save", () => {
-  // A place a job is performed in is what this form saves. A kind the class
-  // carries fields for and the picker does not offer is unreachable.
   it("offers every kind of place a job is performed in", () => {
     renderPicker();
 
@@ -36,16 +34,12 @@ describe("choosing what kind of structure to save", () => {
     expect(screen.getAllByRole("radio")).toHaveLength(4);
   });
 
-  // A market is saved as a market on its own tab. Offering it here would save
-  // one onto the custom structures, where nothing that prices would find it.
   it("does not offer a market", () => {
     renderPicker();
 
     expect(screen.queryByRole("radio", { name: "Market" })).toBeNull();
   });
 
-  // The value is what the form reads to decide which fields to ask for, so a
-  // label pointing at the wrong number would describe the wrong kind.
   it("reports the kind that was chosen", async () => {
     const { setSelectedJobType, setInitialSelectionMade } = renderPicker();
 

@@ -1,9 +1,3 @@
-/**
- * Core Application Settings — aligned with Mongo `application_settings` / Go `models.ApplicationSettings` JSON.
- *
- * @fileoverview Application settings state and merge/toDocument for persistence
- */
-
 import GLOBAL_CONFIG from "../../global-config-app";
 import { EXIT_ROUTE } from "../../Functions/Job/returns";
 import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide";
@@ -59,11 +53,6 @@ function exitForOrderType(orderType) {
 function defaultPricingSides() {
   return {
     buying: { market: DEFAULT_MARKET_OPTION, orderType: DEFAULT_ORDER_TYPE },
-    // The selling side names a route out rather than an order type, and the blank
-    // state names none: a route seeded here could not be told from one the
-    // player chose, and the merge has to keep a choice while still letting a
-    // legacy account's stored order type answer on first load. Readers fall back to
-    // EXIT_ROUTE.LISTED, which is where that default belongs.
     selling: { market: DEFAULT_MARKET_OPTION },
   };
 }
@@ -79,9 +68,6 @@ function mergePricingDefaults(incoming, prev) {
   const previous = prev.defaultPricing ?? defaultPricingSides();
 
   const side = (name) => {
-    // A side with no market has not been filled in yet rather than being a
-    // choice of nowhere: Go serialises the pair whether or not Mongo held it,
-    // so an account stored before the split arrives as `{}` on each side.
     const sent = incoming.defaultPricing?.[name];
     const chosen = sent?.market
       ? {
@@ -90,23 +76,12 @@ function mergePricingDefaults(incoming, prev) {
         }
       : { market: previous[name].market, orderType: previous[name].orderType };
 
-    // The side's market group defaults and its route out travel with it.
-    // Dropping either here would lose it on the next save, because what is
-    // persisted is this merged copy.
     const groups = sent?.groups ?? previous[name].groups;
 
     if (name !== PRICING_SIDE.SELLING) {
       return groups ? { ...chosen, groups } : chosen;
     }
 
-    // The selling side names a route instead of an order type, so the order type it seeded
-    // from is read as one and then dropped: two stored answers to the same
-    // question are free to disagree, and the route is the one that also decides
-    // whether a broker fee is charged.
-    // A route the server sent wins. Where it sent this side without one, its
-    // order type answers — a document stored before routes existed is still the
-    // server answering. Only where it sent nothing for this side does the route
-    // already held stand, which is a choice because the blank state names none.
     const exit =
       sent?.exit ??
       (sent?.market || sent?.orderType
@@ -152,14 +127,8 @@ export const stateDefault = () => ({
   hideCompleteMaterials: false,
   defaultStationIDForAssets: DEFAULT_ASSET_LOCATION,
   defaultCitadelBrokersFee: 1,
-  // Whose skills and standings price a sale. Null until chosen; the seller
-  // accessor stands in with the account's main.
   defaultMarketCharacter: null,
   customStructures: [],
-  // Carried, not read. The settings endpoint replaces the whole document, so a
-  // client that dropped this field would take every market the reader saved
-  // with it on the next save of any setting at all. What fills it and what
-  // reads it are a later stage's.
   marketLocations: [],
   exemptTypeIDs: new Set(),
   enableAutomaticJobRecalculation: true,

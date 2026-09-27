@@ -790,7 +790,15 @@ each side: that the function announces a save once, and that the form leaves the
 **The comments in every file this stage touched came down to the two-line rule with it**, which is most
 of the diff in `structureForm.jsx`, `structureForm.test.jsx` and `rigSlotBonuses.test.js`. Two doc
 comments described the deleted class as what drops a field a kind does not carry; they name
-`fieldsForKind` instead.
+`fieldsForKind` instead. A later pass over the whole area took the rest: the file headers on both
+settings store slices, the in-body comments through them, the `@example` blocks in `getStructureInfo`,
+and the comments in the area's tests.
+
+**The area is off MUI Grid.** `structureForm`, `structureFields`, `structureKindSelection` and the
+Reprocessing structure panel lay out with flex `Box` and the `calc(50% - 8px)` basis `currentStructures`
+already used. `structureForm.test.jsx` had located a field by `.MuiGrid-root`, which is what made a
+layout change break a behaviour test; it now walks up from the field's title to whatever holds the
+control.
 
 ### One folder holds what a custom structure is
 
@@ -813,12 +821,48 @@ the structure's, and § What must not be lost has required that since Stage B. `
 in `Helper/` for the opposite reason: it is a numeric rule with consumers across the app, and only the
 percentage rule on top of it belongs here.
 
+### The rig-conflict rule has one home
+
+`Hooks/useRigSlots.js` holds it, and both screens that fit rigs use it: the settings form and the
+Reprocessing page's structure panel. The panel had its own inline copy, once per slot, and the
+reducer's `rigSlotErrors` existed only to carry that copy's answer — both are gone, along with the
+`SET_RIG_SLOT_ERRORS` action, because the hook holds the refusal beside the slot it belongs to.
+
+The two copies had drifted in two ways that a single rule settles. The panel read
+`selectedEntry.relatedTo.includes(...)` where the hook reads `relatedTo?.includes(...)`; every rig in
+the tables carries `relatedTo` today, so the unguarded read could not throw, but only one of the two
+would have survived a rig entry without it. And the refusal said different things on each screen —
+"You cannot have multiple rigs effecting the same material type." against the hook's "Cannot have the
+same rig or related rigs in both slots". **The hook's wording is what both screens now say**, which is
+a change to what a reader sees on the Reprocessing page: it is accurate for rigs that compete on any
+axis rather than only on material type, and it is spelled correctly.
+
+The rule is tested directly in `Hooks/useRigSlots.test.js` — taking a rig, refusing the same rig,
+refusing a competing rig, clearing a slot, and leaving the structure it was handed unchanged.
+
+### What a setup takes from a structure is written once
+
+`setupFieldsFromCustomStructure` in `Functions/Custom Structures/customStructureSetup.js` is the one
+mapping. `JobSetup.updateCustomStructureID` and `getDefaultStrutureForJobType` each carried their own
+copy of the same seven fields, and they disagreed: the first defaulted both rig slots with `?? 0`, the
+second passed them through, so a structure of a kind that carries no rig slots seeded a setup with
+`undefined` slots through one path and `0` through the other. The guarded form is what the shared
+mapping does.
+
+`setupShowsManualStructureFields` also asks `setupHasOrphanedCustomStructure` rather than repeating the
+"does the stored id still resolve" test, which is the only thing the two predicates ever differed
+about — what to answer when no structure is chosen at all.
+
 ### Still open in this stage's area
 
-`reprocessingStructurePanel` holds its own copy of the rig-conflict rule, inline, where the settings
-form has `useRigSlots`. Both were converted; neither was folded into the other, because the panel keeps
-its slot errors in page state where the hook keeps them locally, and unifying them moves state rather
-than shape. It is a duplicated rule and should be one — recorded here rather than left silent.
+**A cross-kind structure reference reads two ways.** `Styled Components/Select/customStructure.jsx`
+resolves a setup's stored id against the structures *of that job's kind*, so a row of another kind reads
+as `(missing structure)`; `getCustomStructureWithID` resolves across every kind, so
+`setupShowsManualStructureFields` treats the same reference as present and keeps the manual fields
+hidden. A reader would see neither a usable structure nor fields to correct it. Nothing creates such a
+reference today — the picker only offers ids of the setup's own kind — so this is latent rather than
+live, and which of the two readings is right is a question about what a setup may point at rather than
+about the structure model.
 
 ### The Reprocessing page holds its own copy of the structure it opens with
 

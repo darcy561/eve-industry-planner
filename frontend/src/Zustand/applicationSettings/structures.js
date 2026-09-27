@@ -1,7 +1,3 @@
-/**
- * @fileoverview Custom structure management actions
- */
-
 export const structureActions = (set, get) => ({
   getCustomStructureWithID: (structureID) => {
     if (!structureID) return null;
@@ -32,8 +28,6 @@ export const structureActions = (set, get) => ({
       (state) => {
         const structures = state.applicationSettings.customStructures ?? [];
 
-        // The first structure of its kind is that kind's default. Counted per
-        // kind rather than over the whole list, which now holds every kind.
         const isFirstOfKind = !structures.some(
           (existing) => existing.jobType === structure.jobType,
         );
@@ -71,9 +65,6 @@ export const structureActions = (set, get) => ({
           return state;
         }
 
-        // Only this kind's other structures lose the flag. One list holds every
-        // kind, so an unscoped sweep would clear the defaults of kinds the
-        // reader did not touch.
         const reflagged = structures.map((structure) =>
           structure.jobType === matchingStructure.jobType
             ? { ...structure, default: structure.id === structureID }

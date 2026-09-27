@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { updateStructure } from "../../../../Functions/Custom Structures/customStructure";
+import { updateStructure } from "../Functions/Custom Structures/customStructure";
 
 const errorText = "Cannot have the same rig or related rigs in both slots";
 

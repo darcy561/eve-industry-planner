@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Divider, Grid } from "@mui/material";
+import { Box, Divider } from "@mui/material";
 
 import StructureTypeSelect from "../../Styled Components/Select/structureType";
 import { jobTypes } from "../../Context/defaultValues";
@@ -19,6 +19,7 @@ import { getCachedCharacterSkills } from "../../Hooks/EveEsi/Character/useGetCha
 import { useGetCharacterSkills } from "../../Hooks/EveEsi/Character/useGetCharacterSkills";
 import PanelFallBack from "../../Styled Components/Paper/panelStates";
 import CustomStructureSelect from "../../Styled Components/Select/customStructure";
+import useRigSlots from "../../Hooks/useRigSlots";
 
 function ReprocessingStructurePanel({ pageState, pageActions }) {
   const isLoggedIn = useUsersStore((state) => state.account.isLoggedIn);
@@ -57,20 +58,23 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
       }
     }
     fetchSkills();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageState.selectedUser, skillsLoading, skillsError]);
 
-  const errorText =
-    "You cannot have multiple rigs effecting the same material type.";
+  const rigSlots = useRigSlots(
+    pageState.currentStructure,
+    pageActions.setCurrentStructure,
+  );
 
   return (
-    <Grid container sx={{ flexDirection: "column" }}>
+    <Box sx={{ display: "flex", flexDirection: "column" }}>
       <PanelFallBack
         isLoading={skillsLoading}
         isError={skillsError}
         error={skillsError}
       />
-      <Grid container spacing={2}>
-        <Grid size={6}>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+        <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
           <StructureTypeSelect
             value={pageState.currentStructure.structureType}
             jobType={jobTypes.reprocessing}
@@ -82,8 +86,8 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
               );
             }}
           />
-        </Grid>
-        <Grid size={6}>
+        </Box>
+        <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
           <SystemTypeSelect
             value={pageState.currentStructure.systemType}
             jobType={jobTypes.reprocessing}
@@ -95,81 +99,28 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
               );
             }}
           />
-        </Grid>
-      </Grid>
-      <Grid container spacing={2}>
-        <Grid size={6}>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+        <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
           <RigTypeSelect
             value={pageState.currentStructure.rigSlot1}
             jobType={jobTypes.reprocessing}
-            error={{ isError: pageState.rigSlotErrors.slot1, errorText }}
-            onChange={(selectedEntry) => {
-              if (selectedEntry.id === 0) {
-                pageActions.setCurrentStructure(
-                  updateStructure(pageState.currentStructure, { rigSlot1: 0 }),
-                );
-                pageActions.setRigSlotErrors({ slot1: false, slot2: false });
-                return;
-              }
-
-              if (
-                pageState.currentStructure.rigSlot2 === selectedEntry.id ||
-                selectedEntry.relatedTo.includes(
-                  pageState.currentStructure.rigSlot2,
-                )
-              ) {
-                pageActions.setCurrentStructure(
-                  updateStructure(pageState.currentStructure, { rigSlot1: 0 }),
-                );
-                pageActions.setRigSlotErrors({ slot1: true, slot2: false });
-                return;
-              }
-              pageActions.setCurrentStructure(
-                updateStructure(pageState.currentStructure, {
-                  rigSlot1: selectedEntry.id,
-                }),
-              );
-              pageActions.setRigSlotErrors({ slot1: false, slot2: false });
-            }}
+            error={rigSlots.slot1.error}
+            onChange={rigSlots.slot1.onChange}
           />
-        </Grid>
-        <Grid size={6}>
+        </Box>
+        <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
           <RigTypeSelect
             value={pageState.currentStructure.rigSlot2}
             jobType={jobTypes.reprocessing}
-            error={{ isError: pageState.rigSlotErrors.slot2, errorText }}
-            onChange={(selectedEntry) => {
-              if (selectedEntry.id === 0) {
-                pageActions.setCurrentStructure(
-                  updateStructure(pageState.currentStructure, { rigSlot2: 0 }),
-                );
-                pageActions.setRigSlotErrors({ slot1: false, slot2: false });
-                return;
-              }
-              if (
-                pageState.currentStructure.rigSlot1 == selectedEntry.id ||
-                selectedEntry.relatedTo.includes(
-                  pageState.currentStructure.rigSlot1,
-                )
-              ) {
-                pageActions.setCurrentStructure(
-                  updateStructure(pageState.currentStructure, { rigSlot2: 0 }),
-                );
-                pageActions.setRigSlotErrors({ slot1: false, slot2: true });
-                return;
-              }
-              pageActions.setCurrentStructure(
-                updateStructure(pageState.currentStructure, {
-                  rigSlot2: selectedEntry.id,
-                }),
-              );
-              pageActions.setRigSlotErrors({ slot1: false, slot2: false });
-            }}
+            error={rigSlots.slot2.error}
+            onChange={rigSlots.slot2.onChange}
           />
-        </Grid>
-      </Grid>
-      <Grid container spacing={2}>
-        <Grid size={6}>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+        <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
           <ImplantSelect
             value={pageState.currentStructure.implant}
             jobType={pageState.currentStructure.jobType}
@@ -181,17 +132,17 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
               );
             }}
           />
-        </Grid>
+        </Box>
         {isLoggedIn ? (
           <>
-            <Grid size={6}>
+            <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
               <AssignUsersSelect
                 value={pageState.selectedUser}
                 onChange={(hash) => pageActions.setSelectedUser(hash)}
               />
-            </Grid>
-            <Grid container spacing={2}>
-              <Grid size={12}>
+            </Box>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+              <Box sx={{ flexBasis: "100%", minWidth: 0 }}>
                 <CustomStructureSelect
                   value={pageState.currentStructure.id}
                   jobType={jobTypes.reprocessing}
@@ -206,16 +157,16 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
                     );
                   }}
                 />
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </>
         ) : null}
-      </Grid>
+      </Box>
       <Divider sx={{ marginTop: 3, marginBottom: 3 }} />
-      <Grid container spacing={2}>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
         {requiredSkills.map(({ id, name }) => {
           return (
-            <Grid key={id} size={6}>
+            <Box key={id} sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
               <SkillSelector
                 level={pageState.activeSkills[id] || 0}
                 skillName={name}
@@ -223,11 +174,11 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
                   pageActions.setSingleSkill(id, newLevel)
                 }
               />
-            </Grid>
+            </Box>
           );
         })}
-      </Grid>
-    </Grid>
+      </Box>
+    </Box>
   );
 }
 

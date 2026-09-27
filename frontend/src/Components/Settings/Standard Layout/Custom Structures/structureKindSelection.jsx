@@ -2,7 +2,6 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
-  Grid,
   Radio,
   RadioGroup,
 } from "@mui/material";
@@ -43,26 +42,24 @@ function StructureKindSelection({
   }
 
   return (
-    <Grid container>
-      <FormControl>
-        <FormLabel>Choose what you are saving:</FormLabel>
-        <RadioGroup
-          row
-          name="exclusive-radio-buttons"
-          value={selectedJobType}
-          onChange={handleChange}
-        >
-          {KINDS.map(({ value, label }) => (
-            <FormControlLabel
-              key={value}
-              value={value}
-              control={<Radio />}
-              label={label}
-            />
-          ))}
-        </RadioGroup>
-      </FormControl>
-    </Grid>
+    <FormControl>
+      <FormLabel>Choose what you are saving:</FormLabel>
+      <RadioGroup
+        row
+        name="exclusive-radio-buttons"
+        value={selectedJobType}
+        onChange={handleChange}
+      >
+        {KINDS.map(({ value, label }) => (
+          <FormControlLabel
+            key={value}
+            value={value}
+            control={<Radio />}
+            label={label}
+          />
+        ))}
+      </RadioGroup>
+    </FormControl>
   );
 }
 

@@ -1,11 +1,8 @@
 import { getRigInfoFromID } from "./getStructureInfo";
 
 /**
- * How a setup's two rig slots read on a card.
- *
- * Names both fitted rigs, or the one that is fitted, or "None" when neither is.
- * An empty slot is left unsaid rather than printed as "None" beside a rig, so a
- * structure carrying one rig reads as carrying one rig.
+ * How a setup's two rig slots read on a card: both fitted rigs, the one that is
+ * fitted, or "None" when neither is.
  *
  * @param {number} jobType - The kind of job the slots belong to
  * @param {number} rigSlot1 - First rig slot id

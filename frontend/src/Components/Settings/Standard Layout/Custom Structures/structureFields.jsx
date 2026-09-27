@@ -1,4 +1,4 @@
-import { Grid } from "@mui/material";
+import { Box } from "@mui/material";
 
 import { FormField } from "../../../../Styled Components/Textfield/FormField";
 import StructureTypeSelect from "../../../../Styled Components/Select/structureType";
@@ -151,14 +151,16 @@ export function fieldsFor(fields) {
  * @param {{entry: object, context: object}} props
  */
 export function StructureField({ entry, context }) {
+  const basis = entry.width === 12 ? "100%" : "calc(50% - 8px)";
+
   return (
-    <Grid size={{ xs: 12, sm: entry.width ?? 6 }}>
+    <Box sx={{ flexBasis: { xs: "100%", sm: basis }, minWidth: 0 }}>
       <FormField
         title={entry.title}
         description={entry.describe?.(context) ?? entry.description}
       >
         {entry.render(context)}
       </FormField>
-    </Grid>
+    </Box>
   );
 }

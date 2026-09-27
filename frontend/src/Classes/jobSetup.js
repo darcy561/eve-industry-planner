@@ -9,6 +9,7 @@ import {
   getSystemTypeFromID,
 } from "../Functions/Custom Structures/getStructureInfo";
 import materialQuantitiesForSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
+import { setupFieldsFromCustomStructure } from "../Functions/Custom Structures/customStructureSetup";
 /**
  * Setup class for EVE Online industry job configurations.
  *
@@ -302,13 +303,7 @@ class Setup {
     const selectedStructure = getCustomStructureWithID(inputValue);
     if (!selectedStructure) return;
 
-    this.customStructureID = inputValue;
-    this.structureID = selectedStructure.structureType;
-    this.rigSlot1 = selectedStructure.rigSlot1 ?? 0;
-    this.rigSlot2 = selectedStructure.rigSlot2 ?? 0;
-    this.systemTypeID = selectedStructure.systemType;
-    this.systemID = selectedStructure.systemID;
-    this.taxValue = selectedStructure.tax;
+    Object.assign(this, setupFieldsFromCustomStructure(selectedStructure));
   }
 
   /**

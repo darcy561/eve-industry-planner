@@ -42,8 +42,6 @@ describe("what a saved market is asked about the place it is", () => {
     expect(getConstellationData).toHaveBeenCalledWith(KIMOTORO);
   });
 
-  // The fee's inputs come from the station and nowhere else, so a citadel is
-  // not asked for them — its owner sets a rate outright.
   it("asks a citadel for a region only, from the system it sits in", async () => {
     const facts = await describeMarketLocation(A_CITADEL, JITA_SYSTEM);
 
@@ -51,9 +49,6 @@ describe("what a saved market is asked about the place it is", () => {
     expect(getStationData).not.toHaveBeenCalled();
   });
 
-  // Each call swallows its own errors and resolves to null, so every hop has to
-  // be read rather than assumed: half a chain gives a region of undefined, and
-  // a market with no region prices nothing while still looking saved.
   it("answers nothing when a hop could not be read", async () => {
     getConstellationData.mockResolvedValue(null);
     expect(await describeMarketLocation(JITA_STATION)).toBeNull();

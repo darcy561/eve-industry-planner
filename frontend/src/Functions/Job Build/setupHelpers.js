@@ -4,6 +4,7 @@ import {
   BLUEPRINT_SCOPE,
   getCachedBlueprintIndex,
 } from "../../Hooks/EveEsi/useBlueprintIndex";
+import { setupFieldsFromCustomStructure } from "../Custom Structures/customStructureSetup";
 
 export function checkForDefaultMaterialEfficiecyValue(inputJobType) {
   if (
@@ -58,15 +59,7 @@ export function getDefaultStrutureForJobType(inputJobType) {
 
   if (!matchedStructure) return {};
 
-  return {
-    rigSlot1: matchedStructure.rigSlot1,
-    rigSlot2: matchedStructure.rigSlot2,
-    structureID: matchedStructure.structureType,
-    systemTypeID: matchedStructure.systemType,
-    systemID: matchedStructure.systemID,
-    taxValue: matchedStructure.tax,
-    customStructureID: matchedStructure.id,
-  };
+  return setupFieldsFromCustomStructure(matchedStructure);
 }
 
 export function calculateSetupQuantitiesFromRequiredQuantity(

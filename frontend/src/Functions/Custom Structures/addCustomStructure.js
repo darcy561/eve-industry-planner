@@ -22,8 +22,6 @@ export async function addCustomStructure({
 }) {
   setIsLoading(true);
   try {
-    // Only a kind that names a system has an index to fetch, and only the kinds
-    // a job is installed in name one.
     const needsSystemIndex = Boolean(fieldsForKind(structure.jobType).systemID);
 
     let systemIndexResults = {};

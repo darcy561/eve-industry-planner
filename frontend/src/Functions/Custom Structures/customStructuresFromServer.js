@@ -16,17 +16,12 @@ export default function customStructuresFromServer(incoming) {
     return [];
   }
 
-  // An array is an object too, so the lists are read only once the array case
-  // above has been ruled out.
   const structures = [];
   for (const [jobType, lane] of Object.entries(customStructureMap)) {
     const rows = incoming[lane];
     if (!Array.isArray(rows)) continue;
 
     for (const row of rows) {
-      // A row that names its own kind keeps it; one that does not takes the kind
-      // its list stood for. A stored zero means unnamed, not "job type zero",
-      // which is why this is not a spread with a default under it.
       const named = row?.jobType ? row.jobType : Number(jobType);
       structures.push(structureFromDocument({ ...row, jobType: named }));
     }

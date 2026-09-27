@@ -91,8 +91,6 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
                 }
                 arrow
               >
-                {/* A disabled button takes no pointer events, so the tooltip needs something
-                    around it that still does. */}
                 <span>
                   <IconButton
                     size="small"
