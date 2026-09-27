@@ -45,3 +45,44 @@ seven days and Cloudflare thirty.
 
 The frontend static server sends only `Cache-Control`, so its two tiers are locked to one number and
 it cannot say "hold this forever at the edge, but let the browser recheck."
+
+## Re-probed 2026-09-24
+
+Same host, same deployed build — the main chunk is still `index-jqgY9eWE.js`, so nothing about the
+frontend has shipped between the two probes. The zone changed underneath it: `cache_level` is now
+`aggressive`, `browser_cache_ttl` is now `0`, and one Cache Rule exists, scoped to the static-data
+path and not to anything this project owns. Rule text →
+[static-data-delivery/measurements/cloudflare.md](../../static-data-delivery/measurements/cloudflare.md)
+§ The zone as it now stands.
+
+| Resource | `cf-cache-status` | Unchanged since 2026-09-15? |
+|---|---|---|
+| `/` | DYNAMIC | yes |
+| `/assets/index-jqgY9eWE.js` | HIT on `max-age=3600` | yes — still revalidating hourly |
+| `/env.js` | HIT | yes |
+| `/favicon.ico` | HIT | yes |
+
+`browser_cache_ttl` moving to `0` did change one thing: `/sw.js` 404s no longer come back
+`cache-control: max-age=1`. The frontend origin sends no `Cache-Control` on its 404 path, so the zone
+had been inserting one. Those 404s are themselves worth a look — 187 a day for a service worker
+`dist` does not contain.
+
+### The shell cannot be revalidated cheaply, because it has no validator
+
+The deployed server sends no `ETag` and no `Last-Modified`, and it has no `If-None-Match` handling: a
+conditional request against `/` returns a full `200`, not a `304`. So the 1,654 daily shell requests
+each ship the whole ~6.3 KB document, including to readers already holding those exact bytes.
+
+This is the measurement that resolves the Cache Rule question in [plan.md](../plan.md) § Open
+questions. A validator plus `no-cache` collects the same bytes as edge caching would, without a Cache
+Rule and without anything that assumes Cloudflare is in front — which matters because EIP is a public
+tool and is not opinionated about where it deploys.
+
+### `hasHash` is why the hourly revalidation survives
+
+The deployed branch is `Public`, and its server tests the filename with `/[a-f0-9]{8,}/i` — eight or
+more consecutive **hex** characters. Vite's base64url hashes contain characters outside that set, so
+`index-jqgY9eWE.js` fails the test and falls through to the one-hour branch, while `favicon.ico` gets
+`immutable` from a separate extension check. That is the regex named in [plan.md](../plan.md) §
+Already landed as never having matched a real filename; `cacheControlFor` replaces it and is not yet
+deployed.

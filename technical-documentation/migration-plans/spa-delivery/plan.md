@@ -81,10 +81,16 @@ let the browser recheck" instead of one number governing both: `Cache-Control` p
 The concrete outcome is `env.js` on a short browser TTL and uncached at the edge, and hashed assets
 immutable in both tiers.
 
-**The shell needs a decision that is not a code change.** Caching `/` requires a Cloudflare Cache
-Rule, which lives in the dashboard, not this repository. It is worth having only with either a short
-edge TTL or a purge step on release — and a purge step means a Cloudflare API token, which is new
-secret surface in the Deployment Tool's `EnvFields`. Open question below.
+**The shell is answered in this repository after all, and not by a Cache Rule.** The origin sends no
+`ETag` and no `Last-Modified`, and a conditional request against `/` returns a full `200` rather than
+a `304`. So every shell request ships the whole document even when the reader already holds those
+exact bytes. Adding an `ETag`, honouring `If-None-Match`, and serving the shell `no-cache` — which
+means "store it, but revalidate before serving it", not "do not store it" — makes a reader always get
+the current shell with no purge, no TTL to wait out, and no CDN assumed. It is the same thing
+`staticdata/endpoints.go` does for `/meta`, for the same reason.
+
+`env.js` takes the same treatment rather than a short TTL: it is the file that tells a client how to
+reach EVE SSO, so it should revalidate rather than expire.
 
 ### Stage D — Precompress at build, and the Go server
 
@@ -164,9 +170,12 @@ stage for the binary — and that is inherent rather than a smell.
 
 ## Open questions
 
-- **Does the shell get a Cloudflare Cache Rule?** Origin HTML load is currently unmeasured, so the
-  benefit is unquantified. Needs either a short edge TTL or a release-time purge; the purge needs a
-  Cloudflare API token in `EnvFields`, which is new secret surface for a benefit nobody has sized yet.
+- ~~**Does the shell get a Cloudflare Cache Rule?**~~ **Answered: no, and the release-time purge is
+  ruled out.** EIP is a public tool and is not opinionated about where it deploys, so a purge step —
+  and the Cloudflare API token in `EnvFields` it would need — cannot go in the Deployment Tool or the
+  release path at all. The benefit is no longer unmeasured either: `/` is 1,654 requests and 10.4 MB
+  a day, all `DYNAMIC`. Stage C's `ETag` plus `no-cache` collects most of that as `304`s without a
+  Cache Rule, a token, or any assumption about what fronts the origin.
 - **Does asset retention across releases belong in the server?** Keeping the previous release's `dist`
   alongside the current one makes a stale shell safe without depending on an edge hit. It is the
   strongest form of Stage B and the most work; Stage B's SPA-side recovery may be enough on its own.
