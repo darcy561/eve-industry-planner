@@ -1776,10 +1776,22 @@ saved figure — it was taken here rather than recorded. Its test had pinned the
 `structureTypeMap[jobTypes.manufacturing].id` and returns
 `structureTypeMap[jobTypes.manufacturing].defaultTax / 100`, but that map entry is the *collection* of
 manufacturing structures keyed by id, so both reads are `undefined` and the branch answers `NaN`.
-`defaultTax` is named once in the codebase, here, and defined nowhere. It is unreachable today because
-`Setup` defaults `structureID` to `0`, so it is dead rather than harmful — but it is the only trace of
-an intended rule, that an NPC station charges a fixed tax rather than the setup's own `taxValue`.
-Deleting it would erase that intent, so it wants deciding rather than tidying.
+`defaultTax` is named once in the codebase, here, and defined nowhere. It is unreachable today, so it is
+dead rather than harmful — but it is the only trace of an intended rule, that an NPC station charges a
+fixed tax rather than the setup's own `taxValue`. Deleting it would erase that intent, so it wants
+deciding rather than tidying. What the decision is really about: the app's other rule is that a reader
+types a tax percentage and the app applies it, so making this branch work means saying an NPC station's
+tax comes from the game rather than from the reader.
+
+**The `structureID` default is not what keeps it unreachable**, which matters if anything here changes.
+`setupFieldsFromCustomStructure` — the one mapping of what a setup takes from the custom structure it
+references — assigns `structureID` straight from the structure, bypassing the constructor's `|| 0`. A
+setup referencing a structure of a kind that carries no structure type would therefore hold
+`structureID: undefined`, which is exactly what this branch compares against, and the install cost
+would come back `NaN`. What actually keeps that out of reach is that no setup can reference a structure
+of another kind: both pickers offer only the setup's own kind, and a job's kind comes from its recipe.
+Checked in [custom-structure-model/overlay.md](../custom-structure-model/overlay.md) § Still open in
+this stage's area, which owns that half.
 
 #### A defect this found, which the cutover does not fix
 

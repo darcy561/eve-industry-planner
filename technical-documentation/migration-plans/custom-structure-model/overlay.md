@@ -855,14 +855,32 @@ about — what to answer when no structure is chosen at all.
 
 ### Still open in this stage's area
 
-**A cross-kind structure reference reads two ways.** `Styled Components/Select/customStructure.jsx`
-resolves a setup's stored id against the structures *of that job's kind*, so a row of another kind reads
-as `(missing structure)`; `getCustomStructureWithID` resolves across every kind, so
-`setupShowsManualStructureFields` treats the same reference as present and keeps the manual fields
-hidden. A reader would see neither a usable structure nor fields to correct it. Nothing creates such a
-reference today — the picker only offers ids of the setup's own kind — so this is latent rather than
-live, and which of the two readings is right is a question about what a setup may point at rather than
-about the structure model.
+**A cross-kind structure reference reads two ways, and nothing can create one.**
+`Styled Components/Select/customStructure.jsx` resolves a setup's stored id against the structures *of
+that job's kind*, so a row of another kind would read as `(missing structure)`;
+`getCustomStructureWithID` resolves across every kind, so `setupShowsManualStructureFields` would treat
+the same reference as present and keep the manual fields hidden — neither a usable structure nor fields
+to correct it.
+
+Every path was checked and none reaches that state. Both pickers — the Edit Job setup panel and the
+watchlist options — pass the setup's own `jobType`, so only ids of that kind are offered.
+`setupFieldsFromCustomStructure` is fed by those pickers and by `getDefaultStrutureForJobType`, which
+asks for the default *of a kind*. A job's kind comes from its recipe and nothing mutates it afterwards.
+A group template carries `customStructureID` in its preset row, and its node carries the `itemID` the
+job is rebuilt from, so the instantiated job has the kind the template was made from.
+
+So the disagreement is real and unreachable. **What would make it reachable** is a setup being able to
+point at a structure of another kind — a picker widened past one kind, or a template applied to a
+different item — and that is the change that owes the decision about which reading is right.
+
+**It is also what keeps a second defect unreachable, in another project's area.**
+[job-document-drafts](../job-document-drafts/plan.md) records that `findFacilityTax`'s NPC-station
+branch cannot fire, because `Setup` defaults `structureID` to `0` and the branch tests it against an
+`undefined`. That default is not the whole guard: `setupFieldsFromCustomStructure` assigns
+`structureID` straight from the structure, bypassing the constructor, so a setup referencing a structure
+of a kind that carries no structure type would hold `structureID: undefined` — and `undefined ===
+undefined` is what that branch tests, so it would fire and answer `NaN`. The kinds without a structure
+type are the ones no setup can reference, which is the finding above. The two are one question.
 
 ### The Reprocessing page holds its own copy of the structure it opens with
 
