@@ -1689,8 +1689,47 @@ and runs the same command the editor does rather than a second statement of the 
 with no test gets one *before* it is converted, written against the method it is about to lose, so the
 test passes unchanged either side of the change rather than recording what the conversion produced.
 
-**Step 4 — the cutover.** `jobArray` stops holding instances, `buildJob(json)` and `toDocument`
-become functions, and the class and the lens are deleted. This is the step that cannot land in pieces.
+**Step 4 — the cutover.** `jobArray` stops holding instances, the reader and the writer become
+functions, and the class and the lens are deleted. This is the step that cannot land in pieces.
+
+The reader is `jobFromDocument`, not `buildJob` as this plan first said: `Functions/JobPlanner/buildJob.js`
+already owns that name for the planner's build action, which is the app's own word for adding a job, so
+two different things would have read alike.
+
+#### What the setups needed, which was less than it looked
+
+Storing a setup as a plain row looked like a step of its own, because the creation path
+(`buildSetupOptions`, `recalculateJobForNewTotal`) stores what `buildSetupFromQuantity` returns, and that
+is a `Setup`. The editing path was already converted and had been for a while: `applySetupChange` takes
+either shape, wraps it, applies the change and stores the row through the `storeSetup` command, and every
+mutator call in the Edit Setup Panel and Blueprint Options goes through it. `useSelectedSetup` reads the
+draft, so the setup those calls mutate is already a plain row today.
+
+What is left is three things: `buildSetupFromQuantity` returns the row rather than the instance, which
+makes its four callers right without touching them; two `.toDocument()` calls on a setup read off a job in
+the watchlist dialogue's frame; and the watchlist dialogue itself, which is the one flow that mutates a
+setup held on a job in place — seven call sites of the same shape, needing the wrap-mutate-store that
+`applySetupChange` already does, and a helper of its own because it has no edit session to run a command
+through.
+
+#### A defect this found, which the cutover does not fix
+
+`Setup.gatherRequirements` asks for three sources of requirements and only ever gets two. It calls
+`this.getObjectRequirements(this.getRigObject)`, and **`getRigObject` is not a member of the class** —
+`getObjectRequirements` guards on `typeof getObjectFunction !== "function"` and answers null, so a
+requirement carried by the rig is never gathered and the guard hides it.
+
+It is not inert. `structureOptions.manRigs[9]` — "Faction - ME - All" — carries `requirementID: 1`, and
+that requirement holds an `alternativeSystemValue`. `calculateMaterialsForSetup` reads that through
+`getSystemData`, so a setup using that rig should take its system multiplier from the requirement — 0.1
+in high sec — and instead takes the system's own value of 1. The figure it feeds is the material
+quantity.
+
+**Recorded rather than taken.** `materialCount` is stored on the setup, so correcting this changes saved
+figures for every affected job rather than only what is shown, which makes it a data question and not a
+tidy-up. It wants deciding on its own terms — whether the requirement was meant to apply, and what
+happens to setups already stored against the wrong multiplier — rather than riding a cutover that is
+meant to change no behaviour at all.
 
 ## Stage status
 
