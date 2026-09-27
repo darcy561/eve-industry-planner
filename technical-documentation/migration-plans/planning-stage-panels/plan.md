@@ -1563,6 +1563,22 @@ them:
 
 The open questions below are still open, and none of them blocks promotion.
 
+## Inherited from custom-structure-model
+
+**The Edit Setup panel offers one rig picker where a structure carries two slots.**
+`editJobSetup.jsx` renders a single `RigTypeSelect` bound to `rigSlot1`, so `rigSlot2` cannot be set or
+cleared by hand on this stage — while `rigSlotBonuses` counts it and the setup card prints it, so a
+reader who takes a two-rig custom structure and then edits by hand carries a rig they cannot see that
+is still moving their material and time.
+
+The pieces to close it exist: `Hooks/useRigSlots.js` holds the two-slot rule and the conflict rule, and
+`Setup.updateRigSlot(slot, rig)` writes either slot, with slot 1 keeping the requirement handling
+`updateRigID` has always done. The watchlist editor was closed this way, and what a second rig's
+requirement should do to a setup that already applied the first one's is still unanswered. Left to this
+stage because it redesigns the panel that would carry the second picker — see
+[custom-structure-model/overlay.md](../custom-structure-model/overlay.md) § Handed to the panel
+redesigns.
+
 ## Open questions
 
 These are named rather than decided, because each changes what gets built:

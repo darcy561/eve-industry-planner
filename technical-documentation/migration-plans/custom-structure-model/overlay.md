@@ -910,6 +910,24 @@ now, which is the same rule the SPA already applies to a location it cannot name
 type and an empty structure reference, which is what a real stored setup holds. The setup card's own
 figure is unchanged, the fixture charging no facility tax.
 
+### Handed to the panel redesigns
+
+Two findings in this area are **deliberately not fixed here**, because the panels that carry them are
+inside redesigns that will rewrite them from their data upwards, and a consolidation done first is work
+that rewrite discards.
+
+- **The duplicated structure display** — `UseCustomStructure` and `UseDefaultStructures` copied between
+  `jobSetupCard.jsx` and `JobSetupInfoFrame.jsx`, identical but for the layout wrapper, and now
+  carrying the deleted-structure notice twice over. Handed to
+  [purchasing-stage-panels](../purchasing-stage-panels/plan.md) § Inherited from custom-structure-model.
+- **The Edit Setup panel's single rig picker**, where a structure carries two slots and the second is
+  counted in the figures but unreachable by hand. Handed to
+  [planning-stage-panels](../planning-stage-panels/plan.md) § Inherited from custom-structure-model,
+  with the pieces that close it named there.
+
+Neither is a gap in this project's own model: one shape, one array, and one owner for each rule about a
+custom structure all hold. They are the parts of the *screens* that outlive it.
+
 ### Still open in this stage's area
 
 **A cross-kind structure reference reads two ways, and nothing can create one.**
