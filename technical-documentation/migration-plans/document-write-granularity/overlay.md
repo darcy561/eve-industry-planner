@@ -392,8 +392,10 @@ The change stream already captures `updatedFields` and `removedFields` and uses 
 a schema-maintenance update. They are not yet meaningful: a `$set` of the whole job marks every field
 as updated, so the delta is the document under another name until Stage C lands.
 
-Owed here: what a delta message carries, how a client applies it onto the document it holds, and what
-happens when a client detects a gap.
+All three of those are now settled in [plan.md](./plan.md) § Stage E — the envelope is the Stage C write
+envelope travelling the other way, the client applies a merge onto the base it already holds, and a gap
+is proved by the pair of `_meta.revision` values a delta moves between and answered by reloading the
+document. Nothing of it runs yet, so this section stays empty of current behaviour until it does.
 
 ## What proves this works
 

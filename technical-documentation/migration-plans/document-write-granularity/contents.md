@@ -53,6 +53,9 @@ as the fields that changed.
 | See the options a conflicting write could have been answered with | [plan.md](./plan.md) § What a conflicting write is answered with |
 | Understand why the lock covers a whole group | [plan.md](./plan.md) § Why the lock is as broad as it is |
 | Know what the change stream already captures | [plan.md](./plan.md) § The delta is already there |
+| Know what a delta message carries, and why it is the write envelope reversed | [plan.md](./plan.md) § Stage E |
+| Understand how a client tells a lost delivery from a jump in the position | [plan.md](./plan.md) § Stage E |
+| Know what Stage E is worth, and which half holds the payload saving | [plan.md](./plan.md) § Stage E, § Wire compatibility |
 | See what Stage C has settled and what its blocker supplies | [plan.md](./plan.md) § Stage C |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See the stages and their order | [plan.md](./plan.md) § Stages |

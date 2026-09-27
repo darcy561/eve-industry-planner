@@ -664,12 +664,143 @@ returning to enforcing expensive.
 
 ### Stage E — Delta delivery and client apply
 
-`updatedFields` / `removedFields` on the wire, and a client that applies onto the document it holds.
+A delivery carries what changed, and a client applies it onto the document it holds rather than
+replacing that document.
 
 **No longer blocked.** The ordering position and the baseline it is applied onto both landed with
 shared-planners Stage G, per § What this project inherits. What remains is this project's own
 ordering: a delta is only meaningful once Stage C makes the write field-scoped, because until then
 `updatedFields` is the whole document under another name.
+
+**What this stage is for, and what it is not.** Two members editing different fields of one job and
+both keeping their edit is **Stage C**, which is built. This stage buys three narrower things: a
+client that applies rather than replaces, an open editor whose base moves by the fields that changed,
+and the § Done when line about rebuilding a document from an ordered stream. It is worth scheduling on
+that last line, not as the fix for the product problem — that fix has already landed.
+
+**The payload saving is not in this stage.** A message carrying changed fields *beside* the full
+document is additive and costs more bytes, not fewer. The saving arrives when the full document is
+removed, which § Wire compatibility keeps as a separate breaking half. Anyone scheduling this stage for
+payload size is scheduling the wrong half.
+
+#### What is already in place
+
+- **The capture.** The change stream asks for `updateDescription` and reads `updatedFields` and
+  `removedFields` in `isSchemaMaintenanceOnlyUpdate`, to suppress a maintenance write. The delta is
+  parsed and discarded — § The delta is already there.
+- **The client's seam, and it is the right one.** `editSession.documentArrived` calls
+  `setBase(draft, jobID, document)` and the reader's own log re-applies above it, so an open editor
+  already follows the document. A delta becomes a different call on that same seam. Outside the editor
+  `updateOrAddJobsToJobArray` replaces the row, and `jobArray` holds plain documents since
+  [job-document-drafts](../job-document-drafts/plan.md) Stage 5.
+- **Arrival order for one document.** `outboundDocPartitionKey` groups by owner and
+  `enqueueOutboundDocUpdate` hands each message to that owner's shard FIFO, waiting for room rather
+  than going around the queue. Two changes to one job travel one queue in stream order.
+
+#### Whose vocabulary travels on the wire
+
+`updatedFields` arrives from Mongo as a **flat map of dotted stored paths**, and the browser does not
+receive a stored document verbatim: `outgoinglogic.ClientPayload` runs `restoreEntityIDs`, which
+**recurses through nested maps** rewriting every `*_ref` key into its `*_id`. It does not see a dotted
+path at all. So the shape of the delta on the wire is a decision, not a given. Three answers:
+
+| Option | Cost |
+|--------|------|
+| **Dotted stored paths, the client translates** | A second copy of the model's field mapping, in JavaScript, and a dotted-path branch in `restoreEntityIDs`. Two copies of one fact — refused on § One source of truth |
+| **Dotted paths, the server translates each segment** | One reflection walk over the model's tags, the mirror of `models.JobSetPaths`. Keeps one source of truth, but hands the client a path vocabulary nothing else in the SPA speaks, and still needs the dotted branch in `restoreEntityIDs` |
+| **A nested partial document and the removed row paths** | The Stage C write envelope, travelling the other way |
+
+**The third is taken.** Stage C already defined `{document, removed: [][]string}` for a write going up
+— a partial document plus the paths of rows that went — pinned for both sides by
+[job-write/body.json](../../../testing/fixtures/job-write/body.json). Delivery carries the same shape
+coming down. `restoreEntityIDs` works unchanged because the payload is nested rather than dotted, the
+client's apply is a merge it can check before making, and the fixture that pins one direction pins
+both.
+
+What it costs is the one genuinely new piece of server code: rebuilding a nested partial from Mongo's
+flat `updatedFields`, translating each stored segment to the json name the client reads, and **dropping
+what a browser must not learn** — `protected`, `corporation_ref` and every other field tagged
+`json:"-"`.
+
+**The translation is nearly the identity function, and the exceptions are the whole of the work.** The
+`json` and `bson` tags on `models.Job` are the same string for every ordinary field, so most of a stored
+path is already the path the client reads. Three classes are not:
+
+| Class | What the reconstruction does with it |
+|-------|-------------------------------------|
+| Stored and sent, same name — almost every field | passes through |
+| Stored, not sent — `protected`, and the `*_ref` fields tagged `json:"-"` | a ref is **rewritten into the client field it stands for**, which `restoreEntityIDs` already does; anything else is dropped |
+| Sent, not stored — `MarketOrder` and `Transaction`'s `corporation_id` and `character_id`, and `LinkedESIJob`'s `character_id`, all tagged `bson:"-"` | never appears in `updatedFields` at all, because nothing stores it. It reaches the client only as the product of its ref moving |
+
+So the ref rewrite is not a convenience here — it is the only way the third class can move, and a delta
+that dropped refs instead of rewriting them would silently stop delivering those fields.
+`LinkedESIJob.CorporationID` is the one row that stores the plain id beside the ref, which § Open
+questions already holds as a question for whoever owns the cipher; this stage reproduces whatever the
+tag says, as Stage C does.
+
+#### A dropped message, not a reordered one, is what breaks a delta
+
+The risk is not that 3 arrives before 2 — the owner's FIFO prevents that for one document. It is that
+a message never arrives at all. `services/websocket/server/outbound.go` drops a message when that
+recipient's send buffer is full, and a reconnect can miss one. While delivery is whole-document this is
+invisible, because the next delivery repairs it. **With a delta, those fields are gone and nothing
+notices.**
+
+`position` cannot detect it. It is `md.Sequence.Stream` — the **global** JetStream sequence, shared by
+every document on the stream — so one job's positions are legitimately 11, then 47, then 93 as other
+documents move between them. The client holds one per document and asks only
+`position <= getPosition(docKey)`, which recognises a redelivery and nothing else. A delta with a hole
+in front of it applies cleanly and leaves the document quietly wrong.
+
+#### The revision is what proves contiguity
+
+`_meta.revision` is `$inc`-ed by exactly one on every job write, per document. So a delta carries **two
+revisions**: the one it produces, and the one it applies onto. The client holds the revision of the
+document it has, and the rule is three lines:
+
+| The delta applies onto | What the client does |
+|---|---|
+| the revision it holds | apply the merge |
+| a **later** revision than it holds | a message was lost — reload that document |
+| an **earlier** one | already applied; drop, as a redelivery is dropped today |
+
+**Reload rather than buffer.** Buffering a delta in case the missing one is still in flight would only
+help if arrival order were not guaranteed, and for one document it is. A mismatch therefore means a
+genuine loss, and reloading through it is what this project already does with a gap —
+[shared-planners](../shared-planners/plan.md) § Stage G3 answers a resume by comparing positions and
+reloads rather than replaying.
+
+**Two counters, two jobs.** The position orders deliveries and recognises a redelivery; the revision
+proves nothing was missed for one document. § Open questions had this the other way round and is
+corrected there.
+
+#### The coalescer has to merge rather than replace
+
+`Functions/Debounce/inboundJobDocumentsCoalesce.js` holds 80ms of deliveries in a `Map` keyed by job id
+and keeps only the last upsert — correct for whole documents, lossy for deltas. It has to fold
+consecutive deltas together, and the revision chain is what makes that safe: merge while the revisions
+run consecutively, and reload where they do not.
+
+#### What this owes before it is built
+
+**The payload figure is unmeasured**, and this plan does not quote one. It is measured against a
+restored copy of live rather than dev — a job's stored size varies with how many setups, materials and
+ESI rows it carries, and a dev document is not that shape. With the stack up:
+
+```
+db.job_documents.aggregate([
+  { $project: { size: { $bsonSize: "$$ROOT" } } },
+  { $group: { _id: null, avg: { $avg: "$size" }, max: { $max: "$size" }, n: { $sum: 1 } } },
+])
+```
+
+It decides nothing about whether the stage is built — the § Done when line stands on its own — but it
+decides whether removing the full document afterwards is worth the breaking change.
+
+**The comment rule.** Both SPA files this stage edits — `WebSocket/handlers/documentMessage.js` and
+`Functions/Debounce/inboundJobDocumentsCoalesce.js` — carry file-header blocks and in-body comments the
+repository no longer allows. They come out as part of touching them, per master
+[`../../technical-rules.md`](../../technical-rules.md) § One comment, and it is two lines.
 
 ## Wire compatibility
 
@@ -679,7 +810,7 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 | Document revision field | **already landed**, ahead of this project. `_meta.revision` is on every stored document and every job write increments it. Nothing here adds it |
 | Job write request body | additive at Stage A — a body may carry the revision it read. Absent means unversioned, and an unversioned write is accepted as it is today, which is what lets the server be converted before the client |
 | Job write response | **breaking** at Stage A — a per-document result replaces a whole-batch 409. The 409 shape stays available for a client that has not moved, but a mixed outcome has no representation in it |
-| Realtime document payload | additive at Stage E — a message carrying changed fields beside the full document lets a client choose; removing the full document is the breaking half and is separable |
+| Realtime document payload | additive at Stage E — a message carries a partial document, the removed row paths, and the pair of revisions it moves between, beside the full document a client may still take. The partial is the Stage C write envelope travelling the other way. Removing the full document is the breaking half, is where the payload saving is, and is separable |
 | Document lock enforcement | **breaking** at Stage D — write paths stop consulting the lock. Not a wire shape, but every client that treated a 409 as the only refusal has to handle a version conflict instead, which is why Stage B precedes it |
 | `document_lock_group_cascade` | **removed** at Stage D along with the group lease over member jobs. No client behaviour depends on it once per-job locks are not force-released by a group |
 | Document lock HTTP and websocket surfaces | unchanged. The lock keeps its endpoints and events at Stage D; what changes is that no write path consults the answer |
@@ -721,9 +852,15 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
   rather than `version`, which every model already carries as the shape of the document, and a document
   is created holding it so that "absent" is never a state the conditional write has to answer for.
 
-  A counter rather than Stage G's position token because they answer different questions: the token is
-  per-owner and says *did I miss anything*, the counter is per-document and says *is this still the
-  document I read*. A conditional write needs the second.
+  A counter rather than Stage G's position token because they answer different questions: the token
+  orders deliveries within an owner and says *is this one I have already seen*, the counter is
+  per-document and says *is this still the document I read*. A conditional write needs the second.
+
+  **For delta delivery the counter answers both.** The token is the global JetStream stream sequence,
+  so one document's tokens are not contiguous — they step over every other document's — and a client
+  cannot tell a legitimate jump from a lost message. The revision is `$inc`-ed by one per write on that
+  document, so it is the only thing on the wire that can prove nothing was missed. § Stage E carries
+  the rule that follows from it.
 
   This is no longer provisional: it has landed, and Stage A takes it as given rather than choosing it.
   See § What has landed already.
@@ -762,7 +899,7 @@ ordering: a delta is only meaningful once Stage C makes the write field-scoped, 
 | B — a refused write is an outcome the UI handles | **Landed.** All three defects closed: the client recognises a `revision_conflict` beside the lock conflict it already handled, drops the refused write from the pending queue rather than replaying it forever, and warns the user; `persistJobDocumentsToApi` answers an outcome that `saveJobsViaApi` passes through, so `closeActiveJob` stops reporting a refused write as saved; and the client's own gate warns instead of discarding edits silently — in `closeGroup` as well as `closeActiveJob`, which carried the same defect for the group lock. Stage A's ordering constraint is discharged. See [overlay.md](./overlay.md) § Stage B |
 | C — field-scoped writes | **Landed, and proved end to end. Not deployed.** A save sends one envelope per job — the id and group beside the document — and where the editor recorded what the reader changed, that document carries only those fields and names the rows that went. Where nothing recorded it, the whole document goes, checked against the revision its own `_meta` carries. The endpoint plans the stored update from the job model's own bson tags, refuses a body naming `_meta`, and writes the row whole where a ciphered id has no stored path. A write the server cannot read is dropped from the queue and said out loud rather than retried for as long as the tab stays open. The envelope is pinned for both sides by [job-write/body.json](../../../testing/fixtures/job-write/body.json), and driven through the real handler into real Mongo, where only the named field, the named row and the revision move. **It cuts over with [job-document-drafts](../job-document-drafts/plan.md) Stage 2**, whose `prepareRelease` step reshapes the documents in the same cutover: a path-scoped write into an un-reshaped document writes a key that means nothing, so the two go together rather than one waiting on the other. See [overlay.md](./overlay.md) § Stage C |
 | D — the lock stops being broad | **Part landed: the batch refusal is per document.** A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
-| E — delta delivery and client apply | Not started, and behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped. Its shared-planners dependency is discharged. Applying a delta outside an open editor also wants [job-document-drafts](../job-document-drafts/plan.md) Stage 5, which makes `jobArray` plain |
+| E — delta delivery and client apply | **Designed, not started.** Behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped; its shared-planners dependency is discharged and `jobArray` is plain since [job-document-drafts](../job-document-drafts/plan.md) Stage 5. The design is settled in § Stage E: the delivery carries the Stage C write envelope in the other direction, and the pair of `_meta.revision` values it moves between, because the delivery position is a global sequence and cannot prove a document missed nothing. Owed before building: the payload figure, measured against a restored copy of live |
 
 ## Recommended pickup order
 
@@ -784,7 +921,12 @@ backwards compatible while the other half catches up.
 The same is true of anything else breaking this endpoint in the same cutover. Two projects each
 changing its wire shape is not a thing to sequence; they go together.
 
-**Stage E is what to pick up next, and both halves are now unblocked.** The open editor half rests on
+**Stage E is designed** — § Stage E settles the envelope, the gap check and what the coalescer has to
+do — and what it is worth is narrower than it looks: the product problem is Stage C's, and the payload
+saving belongs to the separable breaking half that removes the full document. Schedule it for the
+§ Done when line about rebuilding from an ordered stream.
+
+**Both of its halves are now unblocked.** The open editor half rests on
 [job-document-drafts](../job-document-drafts/plan.md) Stage 3: an open job is a base plus a log, which
 is already something a delta applies onto. The other half — a delta reaching a job nobody is editing —
 waited on that project's Stage 5, and Stage 5 has landed: `jobArray` holds plain job documents, so a
