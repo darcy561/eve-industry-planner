@@ -852,6 +852,17 @@ mapping does.
 "does the stored id still resolve" test, which is the only thing the two predicates ever differed
 about — what to answer when no structure is chosen at all.
 
+### One predicate answers whether a setup's structure is gone
+
+`setupHasOrphanedCustomStructure` is what the watchlist row asks. It had asked
+`!getCustomStructureWithID(item?.buildData?.customStructureID)` instead, and that action answers `null`
+for an empty id — so a watched item built against **no** custom structure read as one whose structure had
+been deleted, and every such row carried the warning triangle saying the structure used to calculate its
+install costs was missing. A reader with no saved structure of that kind saw it on every row they had.
+
+The predicate already drew the distinction the row needed: no id at all is not an orphan. Its test
+covers all three states, and the middle one fails against the previous reading.
+
 ### Still open in this stage's area
 
 **A cross-kind structure reference reads two ways, and nothing can create one.**

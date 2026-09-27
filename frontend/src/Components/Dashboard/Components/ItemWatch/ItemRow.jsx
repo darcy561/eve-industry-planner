@@ -28,6 +28,7 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import ItemMarketActions from "../../../../Styled Components/Item/marketActions";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
+import { setupHasOrphanedCustomStructure } from "../../../../Functions/Custom Structures/customStructureSetup";
 import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
 import {
   TYPE_IMAGE,
@@ -89,14 +90,13 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
       totalPurchase,
       mainItemWorth: sellWorth(item.typeID),
     };
-    // The readers rather than the item: it is rebuilt every render, and this
-    // recomputes the whole tree.
   }, [buyingPrice, sellWorth]);
 
   const isItemDataOutdated = !item?.buildData;
 
-  const isStructureMissing = !getCustomStructureWithID(
-    item?.buildData?.customStructureID,
+  const isStructureMissing = setupHasOrphanedCustomStructure(
+    item?.buildData,
+    getCustomStructureWithID,
   );
 
   const calculatedCosts = buildCosts();
