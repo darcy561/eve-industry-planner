@@ -37,12 +37,14 @@ export const structureActions = (set, get) => ({
         const isFirstOfKind = !structures.some(
           (existing) => existing.jobType === structure.jobType,
         );
-        structure.setDefault(isFirstOfKind);
 
         return {
           applicationSettings: {
             ...state.applicationSettings,
-            customStructures: [...structures, structure],
+            customStructures: [
+              ...structures,
+              { ...structure, default: isFirstOfKind },
+            ],
           },
         };
       },
@@ -72,15 +74,16 @@ export const structureActions = (set, get) => ({
         // Only this kind's other structures lose the flag. One list holds every
         // kind, so an unscoped sweep would clear the defaults of kinds the
         // reader did not touch.
-        for (const structure of structures) {
-          if (structure.jobType !== matchingStructure.jobType) continue;
-          structure.setDefault(structure.id === structureID);
-        }
+        const reflagged = structures.map((structure) =>
+          structure.jobType === matchingStructure.jobType
+            ? { ...structure, default: structure.id === structureID }
+            : structure,
+        );
 
         return {
           applicationSettings: {
             ...state.applicationSettings,
-            customStructures: [...structures],
+            customStructures: reflagged,
           },
         };
       },
@@ -111,19 +114,20 @@ export const structureActions = (set, get) => ({
           (structure) => structure.id !== structureID,
         );
 
-        // A kind that loses its default promotes its own first survivor, not
-        // whatever happens to sit at the front of the whole list.
-        if (matchingStructure.default) {
-          const nextOfKind = remaining.find(
-            (structure) => structure.jobType === matchingStructure.jobType,
-          );
-          nextOfKind?.setDefault(true);
-        }
+        const promoted = matchingStructure.default
+          ? remaining.find(
+              (structure) => structure.jobType === matchingStructure.jobType,
+            )
+          : undefined;
 
         return {
           applicationSettings: {
             ...state.applicationSettings,
-            customStructures: remaining,
+            customStructures: remaining.map((structure) =>
+              structure === promoted
+                ? { ...structure, default: true }
+                : structure,
+            ),
           },
         };
       },

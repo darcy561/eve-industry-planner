@@ -9,13 +9,14 @@ vi.mock("../../../Zustand/usersStore", async () => {
   return usersStoreMock(() => usersStoreState(store.current));
 });
 
-const { default: Structure } = await import("../../../Classes/structure");
+const { structureFromDocument } =
+  await import("../../../Functions/Structure/customStructure");
 const { jobTypes } = await import("../../../Context/defaultValues");
 const { default: useReprocessingReducer } =
   await import("./useReprocessingReducer.js");
 
 function savedStructure() {
-  return new Structure({
+  return structureFromDocument({
     id: "reprocessingStruct-saved",
     jobType: jobTypes.reprocessing,
     name: "Athanor",
@@ -56,9 +57,9 @@ describe("the structure the reprocessing page opens with", () => {
     const saved = savedStructure();
     const { result } = open(saved);
 
-    result.current.state.currentStructure.setStructureType(35836);
-    result.current.state.currentStructure.setRigSlot1(37156);
-    result.current.state.currentStructure.setImplant(27174);
+    result.current.state.currentStructure.structureType = 35836;
+    result.current.state.currentStructure.rigSlot1 = 37156;
+    result.current.state.currentStructure.implant = 27174;
 
     expect(saved.structureType).toBe(35835);
     expect(saved.rigSlot1).toBe(0);

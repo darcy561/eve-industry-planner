@@ -7,7 +7,7 @@ import {
   reprocessingReducer,
   REPROCESSING_ACTION_TYPES,
 } from "./reprocessingReducer";
-import Structure from "../../../Classes/structure";
+import { structureFromDocument } from "../../../Functions/Structure/customStructure";
 import useUsersStore from "../../../Zustand/usersStore";
 import { jobTypes } from "../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../global-config-app";
@@ -84,7 +84,7 @@ export default function useReprocessingReducer() {
     toMinerals: true,
     displayAdvancedView: false,
     isPageLoading: false,
-    currentStructure: new Structure(
+    currentStructure: structureFromDocument(
       getDefaultReprocessingStructure(jobTypes.reprocessing) ?? undefined,
       jobTypes.reprocessing,
     ),

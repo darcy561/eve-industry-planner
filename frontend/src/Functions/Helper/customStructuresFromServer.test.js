@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import customStructuresFromServer from "./customStructuresFromServer";
-import Structure from "../../Classes/structure";
+import { structureFromDocument } from "../Structure/customStructure";
 import { jobTypes } from "../../Context/defaultValues";
 
 describe("reading the structures a settings document holds", () => {
@@ -56,18 +56,22 @@ describe("reading the structures a settings document holds", () => {
     expect(structures[0].jobType).toBe(jobTypes.reprocessing);
   });
 
-  // The store's own actions call setDefault on a stored row, and reprocessing
-  // asks one for its bonuses, so rows cannot be plain objects.
-  it("builds rows as class instances", () => {
+  // Rows are held in the store and read by screens, so they carry data and no
+  // behaviour: a row a screen copies with a spread must lose nothing.
+  it("builds rows as plain data, settled for their kind", () => {
     for (const incoming of [
       [{ id: "s-1", jobType: jobTypes.reprocessing }],
       { reprocessing: [{ id: "s-1" }] },
     ]) {
       const [structure] = customStructuresFromServer(incoming);
 
-      expect(structure).toBeInstanceOf(Structure);
-      expect(typeof structure.setDefault).toBe("function");
-      expect(typeof structure.rigBonusFor).toBe("function");
+      expect(Object.getPrototypeOf(structure)).toBe(Object.prototype);
+      expect(structure).toEqual(
+        structureFromDocument({
+          id: "s-1",
+          jobType: jobTypes.reprocessing,
+        }),
+      );
     }
   });
 

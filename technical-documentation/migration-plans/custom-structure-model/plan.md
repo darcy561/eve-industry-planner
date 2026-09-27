@@ -1,15 +1,14 @@
 # Custom structure model — plan
 
 **Status:** Stages A, B, C, BR and D have landed, including the prerelease steps that convert stored
-documents, stored rig ids and a saved structure's rig. **Stage E is in progress** — the model is right and
-the class holding it is not. The reader-facing defect that followed from that is fixed: the Reprocessing
-page no longer edits the reader's saved structure. The conversion itself is unstarted. Stage BR2 remains
-and is named here for what it inherits rather than owned here.
+documents, stored rig ids and a saved structure's rig. **Stage E has landed**: a structure is plain data,
+`Classes/structure.js` is deleted, and the reader-facing defect that came of a shared mutable row — the
+Reprocessing page editing the reader's saved structure — is fixed. Stage BR2 remains and is named here
+for what it inherits rather than owned here.
 
-**Promotion waits on Stage E**, which is a change to the same sentence the promotion drafts would write:
-whether a structure is a class with setters or a row and a set of functions. The drafts do not exist yet,
-so writing them first would document a shape that is about to change and rewrite the topic doc a stage
-later.
+**It is ready to promote**, and the drafts do not exist yet. Stage E was what promotion waited on,
+because it changes the same sentence those drafts would write about what the SPA holds; that sentence is
+now settled, so writing them describes a shape that is not about to move.
 
 **The gate that used to hold it has cleared.** What held promotion back before Stage E was Stage D
 having landed the market kind inside this model's one form: promoting then would have written into live
@@ -354,7 +353,12 @@ heading stops asking for a job type, which a market is not.
 one, the two faults above are closed, and the placeholder rows in `saleLocations.js` are gone. **All
 four hold.**
 
-**Stage E — A structure is plain data.** The model landed as one shape and one array, and
+**Stage E — A structure is plain data. Done.** `Classes/structure.js` is deleted and its work is four
+functions in `Functions/Structure/customStructure.js`, with reprocessing's two calculations in
+`Functions/Reprocessing/structureBonuses.js` — [overlay.md](./overlay.md) § Stage E, which also records
+what was deleted rather than converted and the one duplicated rule left in the area.
+
+The model landed as one shape and one array, and
 `Classes/structure.js` is the last part of it still holding a row as a class instance with setters. The
 store holds instances, the screens that edit one mutate it and re-wrap it to force a render, and the
 write path re-wraps a row it already holds because it cannot assume what the store carries. One
@@ -373,15 +377,22 @@ than inventing a second convention:
 | Function | Replaces |
 |---|---|
 | `structureFromDocument(row, jobType)` | the constructor — settles the tax and the system id, and drops the fields the kind does not carry |
-| `blankStructure(jobType)` | `structureForm`'s own `blankStructure`, which today builds a seed and re-filters it through a throwaway instance |
 | `fieldsForKind(jobType)` | the `fields` getter, which is one lookup in `fieldsByJobType` |
 | `toDocument(structure)` | `toDocument()` |
 | `updateStructure(structure, changes)` | all nine setters |
 
-Reprocessing's three calculations become selectors taking the row — `rigBonusesFor(structure)`,
-`rigBonusFor(structure, itemType)` and `structureBonusFor(structure, itemType)` — which is the move that
-turned `rules.buyCost` into `(material, requirement)`. They stay reprocessing's, as § What must not be
-lost has required since Stage B.
+Reprocessing's two calculations become selectors taking the row — `rigBonusFor(structure, itemType)` and
+`structureBonusFor(structure, itemType)` — which is the move that turned `rules.buyCost` into
+`(material, requirement)`. They stay reprocessing's, as § What must not be lost has required since
+Stage B.
+
+**Two things the drafting of this stage got wrong, corrected as it landed.** A `blankStructure` in the
+module would have had to serve both the form's seeded blank — first entry in each picker — and the
+Reprocessing page's bare one, which is zeros; unifying them would have moved a figure, so the form keeps
+its own and builds it through `structureFromDocument`. And a `rigBonusesFor` would have had no caller:
+nothing in production read the `rigBonuses` getter, the two surfaces wanting a rig's bonuses calling
+`rigSlotBonuses` with a setup's ids instead. It is deleted rather than converted — [overlay.md](./overlay.md)
+§ Stage E.
 
 **How an edit is expressed, chosen rather than assumed.** A call site could spread —
 `{ ...structure, tax: coerceTaxPercentage(value) }` — or go through `updateStructure`, which settles

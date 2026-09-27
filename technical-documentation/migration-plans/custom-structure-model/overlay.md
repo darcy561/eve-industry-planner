@@ -733,8 +733,71 @@ market region in New Eden. What this project owed it was the saved row, which it
 
 ## Stage E — A structure is plain data
 
-**In progress.** The conversion itself has not started; what has landed is the defect that made the
-stage worth its own slice.
+**Landed.** `Classes/structure.js` is deleted. A structure is an ordinary object, and what the class
+did is four functions in `Functions/Structure/customStructure.js`: `structureFromDocument` reads one
+from a stored row or builds one empty for a kind, `fieldsForKind` says which optional fields that kind
+carries, `updateStructure` returns a structure with named fields changed, and `structureToDocument`
+says what it stores.
+
+### What each caller does instead
+
+| Caller | Then | Now |
+|---|---|---|
+| `customStructuresFromServer` | `new Structure(row)` | `structureFromDocument(row)` |
+| `applicationSettings/core.js` | `customStructureRowToDocument`, a three-way instance/object/passthrough branch | `structureToDocument`, and the branch is gone |
+| `applicationSettings/structures.js` | `setDefault` on rows inside `set` | rows mapped anew, so a flag change replaces the row it changes |
+| `structureForm` | mutate then re-wrap to force a render | `updateStructure` through one `change` helper, applied functionally so two changes in one handler compose |
+| `useRigSlots` | set a slot on the structure it was handed | returns the structure the slot moved on |
+| `reprocessingStructurePanel` | nine mutate-and-re-wrap handlers | `updateStructure` per change |
+| `reprocessingItem` | `structure.rigBonusFor` / `structureBonusFor` | the same two as functions |
+| `addCustomStructure` | `structure.fields?.systemID` | `fieldsForKind(structure.jobType).systemID` |
+
+**Reprocessing's two calculations are `Functions/Reprocessing/structureBonuses.js`.** They are
+reprocessing's, as § What must not be lost has required since Stage B, and they are the only place a
+structure's rigs are read against what is being worked on.
+
+**`rigBonuses` is deleted rather than converted.** Nothing in production read it: the two callers that
+want a rig's bonuses — `calculateMaterialsForSetup` and `calculateTimeForSetup` — call
+`rigSlotBonuses` with the ids off a setup. Converting it would have produced a function with no
+caller, so the parity cases it was tested through moved to `rigSlotBonuses.test.js`, which tests the
+helper they actually use: the eight combined entries the two slots replaced, for manufacturing and
+reaction, and the faction rig kept whole.
+
+### The tests moved to where the code is
+
+`Classes/structure.test.js` is gone, split three ways:
+`Functions/Structure/customStructure.test.js` (what a kind carries, ids, settling, the round trip, and
+that a structure's own keys are exactly what it stores), `structureBonuses.test.js` (reprocessing's
+two), and `rigSlotBonuses.test.js` (the rig parity above). The structure-only block in
+`Classes/reprocessing.test.js` went with them rather than being kept as a second copy.
+
+Two tests asserted the class by name and now state what the shape is instead: the settings read builds
+plain rows settled for their kind, in both the account and the planner slice. One more was restated
+rather than translated — the form's "has a setter on the class for each field a kind carries" guarded a
+hazard that no longer exists, so it now checks that every field the form offers is one the kind's
+document actually stores, which is the failure that remains.
+
+### What a reader sees
+
+Nothing new, which is the intent. A name is sanitised on the keystroke it was, tax settles on blur
+through the same helper, the rig-conflict rule still clears and marks the slot it refuses, presets fill
+the same fields, and a system that refuses a kind still refuses it.
+
+The one change is that adding a structure announces itself once rather than twice — the form and
+`addCustomStructure` both called `showSnackbarSuccess`, and the form's copy is gone. It has a test on
+each side: that the function announces a save once, and that the form leaves the announcing to it.
+
+**The comments in every file this stage touched came down to the two-line rule with it**, which is most
+of the diff in `structureForm.jsx`, `structureForm.test.jsx` and `rigSlotBonuses.test.js`. Two doc
+comments described the deleted class as what drops a field a kind does not carry; they name
+`fieldsForKind` instead.
+
+### Still open in this stage's area
+
+`reprocessingStructurePanel` holds its own copy of the rig-conflict rule, inline, where the settings
+form has `useRigSlots`. Both were converted; neither was folded into the other, because the panel keeps
+its slot errors in page state where the hook keeps them locally, and unifying them moves state rather
+than shape. It is a duplicated rule and should be one — recorded here rather than left silent.
 
 ### The Reprocessing page holds its own copy of the structure it opens with
 

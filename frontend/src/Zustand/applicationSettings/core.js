@@ -11,7 +11,7 @@ import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
   extrasCategoriesDefault,
 } from "../../Context/defaultValues";
-import Structure from "../../Classes/structure";
+import { structureToDocument } from "../../Functions/Structure/customStructure";
 import customStructuresFromServer from "../../Functions/Helper/customStructuresFromServer";
 import { detectUserLocale } from "../../Functions/Helper/localeDetection";
 import { jobStatusesForPersist } from "../../Functions/Helper/jobStatuses";
@@ -118,17 +118,6 @@ function mergePricingDefaults(incoming, prev) {
   };
 
   return { buying: side("buying"), selling: side("selling") };
-}
-
-/** @param {unknown} structure @returns {unknown} */
-function customStructureRowToDocument(structure) {
-  if (structure != null && typeof structure.toDocument === "function") {
-    return structure.toDocument();
-  }
-  if (structure != null && typeof structure === "object") {
-    return new Structure(structure).toDocument();
-  }
-  return structure;
 }
 
 /**
@@ -344,7 +333,7 @@ export const coreActions = (set, get) => ({
         defaultMarketCharacter: state.defaultMarketCharacter,
       }),
       defaultMaterialEfficiencyValue: state.defaultMaterialEfficiencyValue,
-      customStructures: cs.map(customStructureRowToDocument),
+      customStructures: cs.map(structureToDocument),
       marketLocations: state.marketLocations ?? [],
       exemptTypeIDs: [...(state.exemptTypeIDs || [])],
       reprocessingSettings: {

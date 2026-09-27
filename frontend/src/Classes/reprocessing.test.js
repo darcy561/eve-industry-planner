@@ -6,7 +6,8 @@ vi.mock("../Zustand/usersStore", async () => {
 });
 
 const { default: ReprocessingItem } = await import("./reprocessingItem.js");
-const { default: Structure } = await import("./structure.js");
+const { structureFromDocument } =
+  await import("../Functions/Structure/customStructure.js");
 const { jobTypes, reprocessingItemTypes } =
   await import("../Context/defaultValues");
 
@@ -64,7 +65,7 @@ describe("what an ore reprocesses into", () => {
 
     ore.reprocessMaterials(
       NO_SKILLS,
-      new Structure(undefined, jobTypes.reprocessing),
+      structureFromDocument(undefined, jobTypes.reprocessing),
     );
 
     expect(ore.percentageYield).toBe(50);
@@ -78,7 +79,7 @@ describe("what an ore reprocesses into", () => {
 
     ore.reprocessMaterials(
       ALL_SKILLS,
-      new Structure(undefined, jobTypes.reprocessing),
+      structureFromDocument(undefined, jobTypes.reprocessing),
     );
 
     expect(ore.percentageYield).toBeCloseTo(69.575, 3);
@@ -89,7 +90,7 @@ describe("what an ore reprocesses into", () => {
     const ore = veldspar();
     ore.setTotalQuantity(100);
     // Large Refinery: a 5.5% bonus to ore.
-    const structure = new Structure({
+    const structure = structureFromDocument({
       jobType: jobTypes.reprocessing,
       structureType: 3,
     });
@@ -106,74 +107,9 @@ describe("what an ore reprocesses into", () => {
 
     ore.reprocessMaterials(
       ALL_SKILLS,
-      new Structure(undefined, jobTypes.reprocessing),
+      structureFromDocument(undefined, jobTypes.reprocessing),
     );
 
     expect(ore.materials).toEqual({ 34: 400 });
-  });
-});
-
-describe("a reprocessing structure's bonuses", () => {
-  it("gives an ore bonus to ore, moon ore and ice, and none to gas", () => {
-    const structure = new Structure({
-      jobType: jobTypes.reprocessing,
-      structureType: 3,
-    });
-
-    for (const itemType of [
-      reprocessingItemTypes.ore,
-      reprocessingItemTypes.moonOre,
-      reprocessingItemTypes.ice,
-    ]) {
-      expect(structure.structureBonusFor(itemType)).toBe(0.055);
-    }
-    expect(structure.structureBonusFor(reprocessingItemTypes.gas)).toBe(10);
-  });
-
-  it("gives no bonus at an NPC station", () => {
-    const structure = new Structure(undefined, jobTypes.reprocessing);
-
-    expect(structure.structureBonusFor(reprocessingItemTypes.ore)).toBe(0);
-  });
-
-  // Two rigs can be fitted; the better of the ones that apply is the one used.
-  it("takes the strongest rig that applies to the item", () => {
-    const oreOnly = new Structure({
-      jobType: jobTypes.reprocessing,
-      rigSlot1: 1,
-      rigSlot2: 0,
-    });
-
-    expect(oreOnly.rigBonusFor(reprocessingItemTypes.ore)).toBe(1);
-    // A rig for ore does nothing for gas.
-    expect(oreOnly.rigBonusFor(reprocessingItemTypes.gas)).toBe(0);
-  });
-
-  it("keeps its settings through a document round trip", () => {
-    const structure = new Structure({
-      jobType: jobTypes.reprocessing,
-      id: "reprocessing-1",
-      name: "Home refinery",
-      structureType: 3,
-      systemType: 2,
-      rigSlot1: 1,
-      rigSlot2: 2,
-      implant: 1,
-      tax: 2.5,
-      default: true,
-    });
-
-    const document = structure.toDocument();
-
-    expect(new Structure(document).toDocument()).toEqual(document);
-    expect(document.tax).toBe(2.5);
-    expect(document.default).toBe(true);
-  });
-
-  it("reads a tax that is not a number as none", () => {
-    expect(
-      new Structure({ jobType: jobTypes.reprocessing, tax: "abc" }).tax,
-    ).toBe(0);
-    expect(new Structure({ jobType: jobTypes.reprocessing }).tax).toBe(0);
   });
 });

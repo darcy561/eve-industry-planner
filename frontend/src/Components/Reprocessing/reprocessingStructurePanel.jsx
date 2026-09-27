@@ -8,7 +8,10 @@ import RigTypeSelect from "../../Styled Components/Select/rigType";
 import SkillSelector from "../../Styled Components/Select/skillSelector";
 import getAllReprocessingSkills from "../../Functions/Skills/getAllReprocessingSkills";
 import AssignUsersSelect from "../../Styled Components/Select/users";
-import Structure from "../../Classes/structure";
+import {
+  structureFromDocument,
+  updateStructure,
+} from "../../Functions/Structure/customStructure";
 import ImplantSelect from "../../Styled Components/Select/implantSelector";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,7 +33,6 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
     async function fetchSkills() {
       if (skillsLoading || skillsError) return;
 
-      // Only load character skills if they haven't been manually modified
       if (!pageState.skillsManuallyModified) {
         const { data: userSkills } = getCachedCharacterSkills(
           queryClient,
@@ -73,9 +75,10 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
             value={pageState.currentStructure.structureType}
             jobType={jobTypes.reprocessing}
             onChange={(selectedEntry) => {
-              pageState.currentStructure.setStructureType(selectedEntry.id);
               pageActions.setCurrentStructure(
-                new Structure(pageState.currentStructure),
+                updateStructure(pageState.currentStructure, {
+                  structureType: selectedEntry.id,
+                }),
               );
             }}
           />
@@ -85,9 +88,10 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
             value={pageState.currentStructure.systemType}
             jobType={jobTypes.reprocessing}
             onChange={(selectedEntry) => {
-              pageState.currentStructure.setSystemType(selectedEntry.id);
               pageActions.setCurrentStructure(
-                new Structure(pageState.currentStructure),
+                updateStructure(pageState.currentStructure, {
+                  systemType: selectedEntry.id,
+                }),
               );
             }}
           />
@@ -101,9 +105,8 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
             error={{ isError: pageState.rigSlotErrors.slot1, errorText }}
             onChange={(selectedEntry) => {
               if (selectedEntry.id === 0) {
-                pageState.currentStructure.setRigSlot1(0);
                 pageActions.setCurrentStructure(
-                  new Structure(pageState.currentStructure),
+                  updateStructure(pageState.currentStructure, { rigSlot1: 0 }),
                 );
                 pageActions.setRigSlotErrors({ slot1: false, slot2: false });
                 return;
@@ -115,16 +118,16 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
                   pageState.currentStructure.rigSlot2,
                 )
               ) {
-                pageState.currentStructure.setRigSlot1(0);
                 pageActions.setCurrentStructure(
-                  new Structure(pageState.currentStructure),
+                  updateStructure(pageState.currentStructure, { rigSlot1: 0 }),
                 );
                 pageActions.setRigSlotErrors({ slot1: true, slot2: false });
                 return;
               }
-              pageState.currentStructure.setRigSlot1(selectedEntry.id);
               pageActions.setCurrentStructure(
-                new Structure(pageState.currentStructure),
+                updateStructure(pageState.currentStructure, {
+                  rigSlot1: selectedEntry.id,
+                }),
               );
               pageActions.setRigSlotErrors({ slot1: false, slot2: false });
             }}
@@ -137,9 +140,8 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
             error={{ isError: pageState.rigSlotErrors.slot2, errorText }}
             onChange={(selectedEntry) => {
               if (selectedEntry.id === 0) {
-                pageState.currentStructure.setRigSlot2(0);
                 pageActions.setCurrentStructure(
-                  new Structure(pageState.currentStructure),
+                  updateStructure(pageState.currentStructure, { rigSlot2: 0 }),
                 );
                 pageActions.setRigSlotErrors({ slot1: false, slot2: false });
                 return;
@@ -150,16 +152,16 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
                   pageState.currentStructure.rigSlot1,
                 )
               ) {
-                pageState.currentStructure.setRigSlot2(0);
                 pageActions.setCurrentStructure(
-                  new Structure(pageState.currentStructure),
+                  updateStructure(pageState.currentStructure, { rigSlot2: 0 }),
                 );
                 pageActions.setRigSlotErrors({ slot1: false, slot2: true });
                 return;
               }
-              pageState.currentStructure.setRigSlot2(selectedEntry.id);
               pageActions.setCurrentStructure(
-                new Structure(pageState.currentStructure),
+                updateStructure(pageState.currentStructure, {
+                  rigSlot2: selectedEntry.id,
+                }),
               );
               pageActions.setRigSlotErrors({ slot1: false, slot2: false });
             }}
@@ -172,9 +174,10 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
             value={pageState.currentStructure.implant}
             jobType={pageState.currentStructure.jobType}
             onChange={(selectedEntry) => {
-              pageState.currentStructure.setImplant(selectedEntry.id);
               pageActions.setCurrentStructure(
-                new Structure(pageState.currentStructure),
+                updateStructure(pageState.currentStructure, {
+                  implant: selectedEntry.id,
+                }),
               );
             }}
           />
@@ -199,7 +202,7 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
                         selectedEntry,
                       );
                     pageActions.setCurrentStructure(
-                      new Structure(matchedStructure),
+                      structureFromDocument(matchedStructure),
                     );
                   }}
                 />

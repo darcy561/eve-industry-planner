@@ -396,7 +396,7 @@ describe("planner settings slice", () => {
     expect([...held]).toEqual([34, 35]);
   });
 
-  it("rebuilds structure rows with their class, so their methods survive", async () => {
+  it("reads structure rows as plain data, settled for their kind", async () => {
     nextResponse = {
       owner: OWNER,
       seeded: true,
@@ -413,9 +413,13 @@ describe("planner settings slice", () => {
     const structures = actions().getPlannerSettings(OWNER).customStructures;
     expect(structures).toHaveLength(2);
     for (const structure of structures) {
-      expect(structure.constructor.name).toBe("Structure");
-      expect(typeof structure.setDefault).toBe("function");
+      expect(Object.getPrototypeOf(structure)).toBe(Object.prototype);
+      expect(structure.default).toBe(false);
+      expect(structure.rigSlot1).toBe(0);
+      expect(structure.rigSlot2).toBe(0);
     }
+    expect(structures[0].systemID).toBeDefined();
+    expect(structures[1].implant).toBe(0);
   });
 
   // Documents written before a row carried its own kind stored four lists, and

@@ -4,12 +4,13 @@ import { saveApplicationSettings } from "../Endpoints/Private/userDocument";
 import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
+import { fieldsForKind } from "./customStructure";
 
 /**
  * Adds a custom structure to the application settings and updates system indexes.
  *
  * @param {Object} params - Parameters object
- * @param {import("../../Classes/structure").default} params.structure - Structure to add
+ * @param {Object} params.structure - Structure to add
  * @param {Function} params.addCustomStructure - Function to add structure to store
  * @param {Function} params.setIsLoading - Function to set loading state
  * @returns {Promise<void>} Promise that resolves when structure is added
@@ -23,7 +24,7 @@ export async function addCustomStructure({
   try {
     // Only a kind that names a system has an index to fetch, and only the kinds
     // a job is installed in name one.
-    const needsSystemIndex = Boolean(structure.fields?.systemID);
+    const needsSystemIndex = Boolean(fieldsForKind(structure.jobType).systemID);
 
     let systemIndexResults = {};
     if (needsSystemIndex) {

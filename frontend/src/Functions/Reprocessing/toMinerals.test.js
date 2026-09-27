@@ -17,7 +17,8 @@ vi.mock("../MarketData/prices/priceCache.js", () => ({
 
 const { resetReprocessing } = await import("../Static/reprocessing.js");
 const { default: reprocessIntoMinerals } = await import("./toMinerals.js");
-const { default: Structure } = await import("../../Classes/structure.js");
+const { structureFromDocument } =
+  await import("../Structure/customStructure.js");
 
 const VELDSPAR = {
   id: "1230",
@@ -29,7 +30,7 @@ const VELDSPAR = {
 
 /** The default structure, as Classes/reprocessing.test.js builds one. */
 function structure() {
-  return new Structure(undefined, jobTypes.reprocessing);
+  return structureFromDocument(undefined, jobTypes.reprocessing);
 }
 
 beforeEach(() => {

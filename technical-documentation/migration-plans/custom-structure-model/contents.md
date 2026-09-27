@@ -13,9 +13,9 @@ row already carries, in place of four lanes filled by three classes.
 - **The upgrade that gets there.** A schema bump and a fold, in memory and idempotent, on the pattern
   the existing `Invention` seed step set.
 - **What the SPA holds a structure as**, and where reprocessing's rig and structure bonus calculations
-  live once no class of its own holds them. The three classes became one in Stage B; Stage E makes that
-  one a row and a set of functions, because the store and two screens share a mutable row between
-  them.
+  live now no class of its own holds them. The three classes became one in Stage B, and Stage E made that
+  one a row read and changed by functions, because a mutable row shared between the store and two screens
+  let one screen edit what another had saved.
 - **What a screen reads** to list structures, once there is no lane to name.
 
 **[market-price-delivery](../market-price-delivery/contents.md) was shelved until this project landed
@@ -26,8 +26,8 @@ in the browser on the reader's own characters.
 market onto its own lane with its own panel — a reversal of where a market row lives, not of this
 project's finding that the four build kinds belong in one shape. That project has promoted, which is
 what this one waited on, so that gate has cleared — see [plan.md](./plan.md) § Status. What is left here
-is the four build kinds, and **promotion now waits on Stage E** rather than on another project: it
-changes the same sentence the promotion drafts would write about what the SPA holds.
+is the four build kinds. Stage E has since settled what the SPA holds a structure as — plain data, read
+and changed by functions — so **the project is ready to promote** and owes only its drafts.
 
 **Not live SoT** until this project is complete and promotion is approved.
 

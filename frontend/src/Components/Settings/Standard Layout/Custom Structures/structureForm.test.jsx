@@ -9,6 +9,7 @@ import { testQueryClient } from "../../../../tests/queryClients.js";
 
 const addCustomStructure = vi.fn();
 const addCustomStructureFunction = vi.fn();
+const showSnackbarSuccess = vi.fn();
 
 vi.mock("../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
@@ -18,6 +19,10 @@ vi.mock("../../../../Zustand/usersStore", async () => {
 
 vi.mock("../../../../Functions/Structure/addCustomStructure", () => ({
   addCustomStructure: (...args) => addCustomStructureFunction(...args),
+}));
+
+vi.mock("../../../../Events/snackbarEvents", () => ({
+  showSnackbarSuccess: (...args) => showSnackbarSuccess(...args),
 }));
 
 vi.mock(
@@ -62,8 +67,6 @@ describe("the structure form", () => {
   it("labels each field with what it is for", () => {
     renderForm();
 
-    // A select carries its own label as well as the field's, so each of these
-    // is present once as the field heading and once on the control.
     expect(screen.getByText("Display name")).toBeInTheDocument();
     expect(screen.getByText("Rig slot 1")).toBeInTheDocument();
     expect(screen.getByText("Rig slot 2")).toBeInTheDocument();
@@ -93,7 +96,6 @@ describe("the structure form", () => {
     expect(addCustomStructureFunction).toHaveBeenCalledTimes(1);
     const [call] = addCustomStructureFunction.mock.calls;
     expect(call[0].structure.name).toBe("Sotiyo");
-    // The row says its own kind, so nothing has to be told it alongside.
     expect(call[0].structure.jobType).toBe(jobTypes.manufacturing);
   });
 
@@ -116,9 +118,6 @@ describe("the structure form", () => {
   });
 });
 
-// A structure carries two rig slots, and rigs competing for the same purpose
-// cannot both be fitted. The form refuses the second rather than keeping it
-// silently, so the reader can see the choice was not taken.
 describe("fitting two rigs", () => {
   async function chooseRig(slotLabel, rigLabel) {
     const field = screen.getByText(slotLabel).closest(".MuiGrid-root");
@@ -139,7 +138,6 @@ describe("fitting two rigs", () => {
     await chooseRig("Rig slot 1", "T1 - ME - All");
     await chooseRig("Rig slot 2", "T2 - ME - All");
 
-    // Both name a material bonus, so the second is refused and says why.
     expect(
       screen.getByText(
         "Cannot have the same rig or related rigs in both slots",
@@ -161,12 +159,7 @@ describe("fitting two rigs", () => {
   });
 });
 
-// One form serves every kind, so what it asks for is the one thing worth
-// proving: a field a kind does not carry must not be asked for, because the
-// class drops it and the reader would have described something unstored.
 describe("what each kind is asked for", () => {
-  // Matched on the field's own title rather than on any text: a control carries
-  // its own label too, so a loose match counts one field twice.
   const TITLES = [
     "Structure Type",
     "Rig slot 1",
@@ -211,43 +204,47 @@ describe("what each kind is asked for", () => {
   });
 });
 
-// Rendering a field is not the same as being able to use it. Every control the
-// form offers calls a setter on the class, and a setter that does not exist
-// throws when a reader touches the field rather than when the form draws it.
-describe("every field the form offers can be set", () => {
-  it("has a setter on the class for each field a kind carries", async () => {
-    const { default: Structure } =
-      await import("../../../../Classes/structure");
+describe("every field the form offers is one a kind stores", () => {
+  it("stores what it asked for, for each kind that asks", async () => {
     const { STRUCTURE_FIELDS } = await import("./structureFields");
+    const {
+      fieldsForKind,
+      structureFromDocument,
+      structureToDocument,
+      updateStructure,
+    } = await import("../../../../Functions/Structure/customStructure");
 
-    // What the form's handlers call, by the field they belong to.
-    const setterFor = {
-      place: ["setPlace"],
-      structureType: ["setStructureType"],
-      rigSlot1: ["setRigSlot1"],
-      rigSlot2: ["setRigSlot2"],
-      implant: ["setImplant"],
-      systemType: ["setSystemType"],
-      tax: ["setTax"],
-      systemID: ["setSystemID"],
-    };
+    const kinds = [
+      jobTypes.manufacturing,
+      jobTypes.reaction,
+      jobTypes.reprocessing,
+      jobTypes.invention,
+    ];
+    const asked = new Set();
 
-    const structure = new Structure(undefined, jobTypes.manufacturing);
-    for (const entry of STRUCTURE_FIELDS) {
-      for (const setter of setterFor[entry.id] ?? []) {
-        expect(typeof structure[setter], `${entry.id} needs ${setter}`).toBe(
-          "function",
-        );
+    for (const jobType of kinds) {
+      const fields = fieldsForKind(jobType);
+      const structure = structureFromDocument(undefined, jobType);
+
+      for (const entry of STRUCTURE_FIELDS.filter((field) =>
+        field.shows(fields),
+      )) {
+        asked.add(entry.id);
+        const changed = updateStructure(structure, { [entry.id]: 7 });
+
+        expect(
+          structureToDocument(changed),
+          `${entry.id} on kind ${jobType}`,
+        ).toHaveProperty(entry.id);
       }
     }
-    // A field with no entry above is one this test does not know how to check.
-    expect(STRUCTURE_FIELDS.every((entry) => setterFor[entry.id])).toBe(true);
+
+    expect([...asked].sort()).toEqual(
+      STRUCTURE_FIELDS.map((entry) => entry.id).sort(),
+    );
   });
 });
 
-// Every picker lists saved rows by name, so a nameless one is an empty option
-// among other empty options — a reader cannot pick the right one or tell they
-// picked wrong.
 describe("saving needs a name", () => {
   it("refuses a structure with no name and says why", async () => {
     renderForm({ selectedJobType: jobTypes.reprocessing });
@@ -272,8 +269,6 @@ describe("saving needs a name", () => {
     expect(addCustomStructureFunction).not.toHaveBeenCalled();
   });
 
-  // Spaces are not a name. A row called " " is as hard to pick out as one
-  // called nothing.
   it("refuses a name that is only spaces", async () => {
     renderForm({ selectedJobType: jobTypes.reprocessing });
 
@@ -296,5 +291,24 @@ describe("saving needs a name", () => {
     expect(
       screen.queryByText("Give this a name so you can tell it apart in lists."),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("who tells the reader a structure was saved", () => {
+  beforeEach(() => {
+    addCustomStructureFunction.mockClear();
+    showSnackbarSuccess.mockClear();
+  });
+
+  it("leaves it to the function that saved it", async () => {
+    renderForm({ selectedJobType: jobTypes.reprocessing });
+
+    await userEvent.type(screen.getByLabelText(/Structure name/i), "Athanor");
+    await userEvent.click(
+      screen.getByRole("button", { name: /Add structure/i }),
+    );
+
+    expect(addCustomStructureFunction).toHaveBeenCalledTimes(1);
+    expect(showSnackbarSuccess).not.toHaveBeenCalled();
   });
 });

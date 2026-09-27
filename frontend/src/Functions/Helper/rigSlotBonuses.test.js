@@ -13,8 +13,6 @@ describe("what two fitted rigs give", () => {
     });
   });
 
-  // The axes do not compete: a rig that only cuts time must not cost the
-  // material bonus of the rig beside it.
   it("takes each axis from whichever rig is better at it", () => {
     const both = rigSlotBonuses(jobTypes.manufacturing, 2, 4);
 
@@ -34,7 +32,6 @@ describe("what two fitted rigs give", () => {
   });
 
   it("reads the axes a kind actually uses", () => {
-    // Invention rigs move cost and time; manufacturing's move material and time.
     const invention = rigSlotBonuses(jobTypes.invention, 2, 4);
 
     expect(invention.cost).toBe(0.24);
@@ -42,14 +39,6 @@ describe("what two fitted rigs give", () => {
     expect(invention.material).toBe(0);
   });
 
-  // Every rig that can be fitted today applies to all items, because which
-  // items a stored rig helped was never recorded. When item-specific rigs land,
-  // one must not be counted for an item it does not help — reading it needs to
-  // know what is being built, which this does not.
-  //
-  // Nothing in the tree carries such a rig yet, so one is put in the real table
-  // for the length of the test: a stand-in table here would pass even if the
-  // function ignored the flag.
   it("counts only the rigs that help every item", () => {
     const table = rigTypeMap[jobTypes.manufacturing];
     const specificID = 991;
@@ -62,18 +51,46 @@ describe("what two fitted rigs give", () => {
     };
 
     try {
-      // Beside a generic rig, only the generic one is counted.
       const withGeneric = rigSlotBonuses(jobTypes.manufacturing, specificID, 2);
       expect(withGeneric.material).toBe(2.4);
       expect(withGeneric.time).toBe(0);
 
-      // Alone, it contributes nothing yet.
       const alone = rigSlotBonuses(jobTypes.manufacturing, specificID, 0);
       expect(alone.material).toBe(0);
       expect(alone.time).toBe(0);
     } finally {
       delete table[specificID];
     }
+  });
+
+  it("gives what each combined entry gave, for manufacturing and reaction", () => {
+    const combinations = [
+      { was: "T1 - ME", slots: [1, 0], material: 2.0, time: 0 },
+      { was: "T2 - ME", slots: [2, 0], material: 2.4, time: 0 },
+      { was: "T1 - TE", slots: [3, 0], material: 0, time: 0.2 },
+      { was: "T2 - TE", slots: [4, 0], material: 0, time: 0.24 },
+      { was: "T1 - ME & TE", slots: [1, 3], material: 2.0, time: 0.2 },
+      { was: "T2 - ME & TE", slots: [2, 4], material: 2.4, time: 0.24 },
+      { was: "T1 - ME, T2 - TE", slots: [1, 4], material: 2.0, time: 0.24 },
+      { was: "T2 - ME, T1 - TE", slots: [2, 3], material: 2.4, time: 0.2 },
+    ];
+
+    for (const jobType of [jobTypes.manufacturing, jobTypes.reaction]) {
+      for (const { was, slots, material, time } of combinations) {
+        const bonuses = rigSlotBonuses(jobType, slots[0], slots[1]);
+
+        expect({ was, material: bonuses.material, time: bonuses.time }).toEqual(
+          { was, material, time },
+        );
+      }
+    }
+  });
+
+  it("keeps the faction rig whole", () => {
+    const faction = rigSlotBonuses(jobTypes.manufacturing, 9, 0);
+
+    expect(faction.material).toBe(3.7);
+    expect(faction.time).toBe(0.2);
   });
 
   it("reads an unknown kind or an unknown rig as nothing", () => {

@@ -12,14 +12,8 @@ const RIG_HELP =
   "A structure carries two rig slots. Rigs that compete for the same purpose cannot be fitted together.";
 
 /**
- * Every field a structure can carry, and what decides whether a kind shows it.
- *
- * `shows` is read against the kind's entry in the class's own field map, so the
- * map that decides what a row **stores** is the map that decides what the form
- * **asks for**. A kind gaining a field gains its control with no edit here, and
- * a field nothing stores cannot be asked for.
- *
- * Order is the order a reader meets them.
+ * Every field a structure can carry, in the order a reader meets them, with
+ * `shows` read against the same field map that decides what a row stores.
  *
  * @type {Array<{
  *   id: string,
@@ -144,7 +138,7 @@ export const STRUCTURE_FIELDS = [
 /**
  * The fields a kind asks for, in reading order.
  *
- * @param {object} fields - The kind's entry from the class's field map
+ * @param {object} fields - The kind's entry from the field map
  * @returns {typeof STRUCTURE_FIELDS}
  */
 export function fieldsFor(fields) {

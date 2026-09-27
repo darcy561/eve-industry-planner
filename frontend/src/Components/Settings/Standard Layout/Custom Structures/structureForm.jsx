@@ -4,10 +4,13 @@ import { useTheme } from "@mui/material/styles";
 
 import { StructureField, fieldsFor } from "./structureFields";
 import { FormField } from "../../../../Styled Components/Textfield/FormField";
-import Structure from "../../../../Classes/structure";
+import {
+  fieldsForKind,
+  structureFromDocument,
+  updateStructure,
+} from "../../../../Functions/Structure/customStructure";
 import useRigSlots from "./useRigSlots";
 import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
-import { showSnackbarSuccess } from "../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {
@@ -26,15 +29,12 @@ import GLOBAL_CONFIG from "../../../../global-config-app";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
 /**
- * What a new structure of a kind starts as.
- *
- * Only the kinds that carry a field are given one, because the class drops what
- * its kind does not name — passing a system to invention would be discarded, and
- * reading it back as a default would be a lie about what was stored.
+ * What a new structure of a kind starts as: the first option in each picker the
+ * kind carries, which `fieldsForKind` decides.
  */
 function blankStructure(jobType) {
   const seed = { jobType };
-  const fields = new Structure(undefined, jobType).fields;
+  const fields = fieldsForKind(jobType);
 
   if (fields.built) {
     seed.structureType = structureTypeMap[jobType]?.[0]?.id ?? 0;
@@ -47,16 +47,12 @@ function blankStructure(jobType) {
   }
   if (fields.systemID) seed.systemID = DEFAULT_SYSTEM;
 
-  return new Structure(seed);
+  return structureFromDocument(seed);
 }
 
 /**
- * Describing a structure of any kind.
- *
- * One form rather than one per kind: what a kind carries is a row in the
- * class's field map, and this renders the control for each field that row
- * names. A kind gaining a field gains its control, and a kind that does not
- * carry one is never asked for it.
+ * Describing a structure of any kind: one form, rendering the control for each
+ * field the kind's entry in the field map names.
  *
  * @param {{selectedJobType: number, setIsLoading: Function}} props
  */
@@ -76,16 +72,12 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
   );
   const [nameError, setNameError] = useState(false);
 
-  const fields = structure.fields;
+  const fields = fieldsForKind(structure.jobType);
 
-  const settled = (mutate) => {
-    mutate(structure);
-    setStructure(new Structure(structure));
-  };
+  const change = (changes) =>
+    setStructure((current) => updateStructure(current, changes));
 
-  const rigSlots = useRigSlots(structure, (next) =>
-    setStructure(new Structure(next)),
-  );
+  const rigSlots = useRigSlots(structure, setStructure);
 
   /**
    * A preset structure type carries the rest of its setup with it, so choosing
@@ -99,18 +91,19 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
         : requirements[requirementID];
     if (!preset) return;
 
+    const changes = {};
     if (preset.structureID !== undefined)
-      structure.setStructureType(preset.structureID);
+      changes.structureType = preset.structureID;
     if (preset.rigID !== undefined) {
-      structure.setRigSlot1(preset.rigID);
-      structure.setRigSlot2(0);
+      changes.rigSlot1 = preset.rigID;
+      changes.rigSlot2 = 0;
     }
-    if (preset.taxValue !== undefined) structure.setTax(preset.taxValue);
-    if (preset.systemID !== undefined) structure.setSystemID(preset.systemID);
+    if (preset.taxValue !== undefined) changes.tax = preset.taxValue;
+    if (preset.systemID !== undefined) changes.systemID = preset.systemID;
     if (preset.systemTypeID !== undefined)
-      structure.setSystemType(preset.systemTypeID);
+      changes.systemType = preset.systemTypeID;
 
-    setStructure(new Structure(structure));
+    setStructure((current) => updateStructure(current, changes));
   }
 
   const context = {
@@ -120,20 +113,15 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     textFieldSx,
     rigSlots,
     onStructureType: (entry) => {
-      structure.setStructureType(entry.id);
-      setStructure(new Structure(structure));
+      change({ structureType: entry.id });
       applyRequirements(entry.requirementID);
     },
     onSystemType: (entry) => {
-      structure.setSystemType(entry.id);
-      setStructure(new Structure(structure));
+      change({ systemType: entry.id });
       applyRequirements(entry.requirementID);
     },
-    onImplant: (entry) => settled((s) => s.setImplant(entry.id)),
-    onTax: (value) => settled((s) => s.setTax(value)),
-    // A system can carry a preset of its own, and can refuse a kind of job
-    // outright — the Fulcrum is manufacturing only. Refusing here is what stops
-    // a structure being saved somewhere its jobs cannot run.
+    onImplant: (entry) => change({ implant: entry.id }),
+    onTax: (value) => change({ tax: value }),
     onSystem: (systemID) => {
       const preset =
         systemStructureRequirements[systemID]?.requirementID ?? null;
@@ -145,16 +133,11 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
         return new Error("This system does not allow this kind of job.");
       }
 
-      structure.setSystemID(systemID);
-      setStructure(new Structure(structure));
+      change({ systemID });
       applyRequirements(preset);
     },
   };
 
-  // The name is how a reader tells one saved row from another: every picker
-  // lists them by it, so a nameless row is an empty option among other empty
-  // options. Refused here rather than filled in with a stand-in, because only
-  // the reader knows which of their structures this is.
   const nameGiven = Boolean(structure.name?.trim());
 
   async function handleAdd() {
@@ -170,7 +153,6 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
       });
       setStructure(blankStructure(selectedJobType));
       scheduleDebouncedApplicationSettingsSave();
-      showSnackbarSuccess(`${structure.name} Added`);
     } catch (error) {
       console.error("Error adding structure:", error);
     }
@@ -178,7 +160,7 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
 
   const handleName = (e) => {
     if (e.target.value.trim()) setNameError(false);
-    settled((s) => s.setName(e.target.value));
+    change({ name: e.target.value });
   };
 
   return (

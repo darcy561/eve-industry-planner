@@ -1,24 +1,16 @@
-import Structure from "../../Classes/structure";
 import { customStructureMap } from "../../Context/defaultValues";
+import { structureFromDocument } from "../Structure/customStructure";
 
 /**
- * The structures a settings document holds, as one array of {@link Structure}.
- *
- * Reads either stored shape. Structures are one array keyed by each row's own
- * `jobType`, and documents written before that held four lists keyed by kind —
- * so a row from a list is stamped with the kind that list stood for, where the
- * row does not already name its own.
- *
- * Rows come back as class instances rather than plain objects because callers
- * take them straight from the store and call methods on them: the store's own
- * actions call `setDefault`, and reprocessing asks a row for its bonuses.
+ * The structures a settings document holds, as one array, from either stored
+ * shape: one array keyed by each row's own `jobType`, or four lists keyed by kind.
  *
  * @param {unknown} incoming - What the server sent, in either shape
- * @returns {Structure[]}
+ * @returns {Object[]}
  */
 export default function customStructuresFromServer(incoming) {
   if (Array.isArray(incoming)) {
-    return incoming.map((row) => new Structure(row));
+    return incoming.map((row) => structureFromDocument(row));
   }
   if (incoming == null || typeof incoming !== "object") {
     return [];
@@ -36,7 +28,7 @@ export default function customStructuresFromServer(incoming) {
       // its list stood for. A stored zero means unnamed, not "job type zero",
       // which is why this is not a spread with a default under it.
       const named = row?.jobType ? row.jobType : Number(jobType);
-      structures.push(new Structure({ ...row, jobType: named }));
+      structures.push(structureFromDocument({ ...row, jobType: named }));
     }
   }
   return structures;
