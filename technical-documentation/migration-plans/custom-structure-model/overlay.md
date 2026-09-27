@@ -917,6 +917,40 @@ now, which is the same rule the SPA already applies to a location it cannot name
 type and an empty structure reference, which is what a real stored setup holds. The setup card's own
 figure is unchanged, the fixture charging no facility tax.
 
+### What covers this work
+
+Every module and surface the model owns has a test beside it, and the gaps an audit found are closed.
+
+| What | Covered by |
+|---|---|
+| The shape, its kinds, settling and the round trip | `Functions/Custom Structures/customStructure.test.js` |
+| The tables a structure's fields index into | `getStructureInfo.test.js` |
+| Two rigs per axis, and the combinations the slots replaced | `rigSlotBonuses.test.js` |
+| How a setup's rigs read on a card | `rigSlotLabel.test.js` |
+| The tax percentage rule | `coerceTaxPercentage.test.js` |
+| Reading either stored shape from the server | `customStructuresFromServer.test.js` |
+| The system index a new structure asks for, and announcing a save once | `addCustomStructure.test.js` |
+| Whether a setup's structure is gone, and what a setup takes from one | `customStructureSetup.test.js` |
+| Reprocessing's two bonus calculations | `Functions/Reprocessing/structureBonuses.test.js` |
+| The rig-conflict rule itself | `Hooks/useRigSlots.test.js` |
+| Adding, defaulting and deleting a saved structure, and what the document carries | `Zustand/applicationSettings/structures.test.js` |
+| A setup pointing at a saved structure, and fitting either rig slot | `Classes/jobSetupStructure.test.js` |
+| The settings frame, the kind picker, the form, its field map and the saved list | the five tests beside them under `Components/Settings/Standard Layout/Custom Structures/` |
+| The Reprocessing panel's rig slots, and the dropdown handing the page a copy | `Components/Reprocessing/reprocessingStructurePanel.test.jsx` |
+| The page opening on a copy of the saved default | `Components/Reprocessing/Hooks/useReprocessingReducer.test.js` |
+| A watched item's rigs, and the warning about a deleted structure | `watchlistOptions.test.jsx`, `ItemRow.test.jsx` |
+| A deleted structure on a setup card | `jobSetupCard.test.jsx` |
+| The stored shape, the decode-time fold, the accessors and the planner clone | `shared/models/custom_structures_test.go`, `shared/models/planner/planner_documents_test.go` |
+| Each prerelease step, in unit form and against real Mongo | `release_custom_structures*`, `release_rig_slots*`, `release_structure_rig_slots*` |
+
+**What the audit found missing**, now written: the store's three write actions had no test at all — the
+rules they carry are first-of-kind default, a kind-scoped default sweep, and promoting a kind's own
+first survivor when its default is deleted. Neither had `setupFieldsFromCustomStructure`, the one
+mapping of what a setup takes from a structure, nor `Setup`'s two structure writers, nor the tables, nor
+the field map, nor the Reprocessing panel. The store tests also join the two halves that had only been
+tested apart: a structure added through the action is read back out of `toPersistPayload`, so what a
+reader saves is checked against what the document carries.
+
 ### Handed to the panel redesigns
 
 Two findings in this area are **deliberately not fixed here**, because the panels that carry them are
