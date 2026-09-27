@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Helper/customStructureSetup";
+import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Custom Structures/customStructureSetup";
 import {
   jobFromDocument,
   toDocument,

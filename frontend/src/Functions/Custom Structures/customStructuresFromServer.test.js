@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import customStructuresFromServer from "./customStructuresFromServer";
-import { structureFromDocument } from "../Structure/customStructure";
+import { structureFromDocument } from "./customStructure";
 import { jobTypes } from "../../Context/defaultValues";
 
 describe("reading the structures a settings document holds", () => {

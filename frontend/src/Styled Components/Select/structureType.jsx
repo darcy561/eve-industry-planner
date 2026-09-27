@@ -9,7 +9,7 @@ import {
   structureTypeMap,
   structureTypeTooltip,
 } from "../../Context/defaultValues";
-import { getStructureInfoFromID } from "../../Functions/Helper/getStructureInfo";
+import { getStructureInfoFromID } from "../../Functions/Custom Structures/getStructureInfo";
 
 /**
  * A select component for choosing structure types based on job type.

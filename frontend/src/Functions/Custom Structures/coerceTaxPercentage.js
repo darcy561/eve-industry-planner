@@ -1,4 +1,4 @@
-import coerceFiniteNumber from "./coerceFiniteNumber";
+import coerceFiniteNumber from "../Helper/coerceFiniteNumber";
 
 /**
  * A tax percentage from what a caller passed.

@@ -11,8 +11,8 @@ import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
   extrasCategoriesDefault,
 } from "../../Context/defaultValues";
-import { structureToDocument } from "../../Functions/Structure/customStructure";
-import customStructuresFromServer from "../../Functions/Helper/customStructuresFromServer";
+import { structureToDocument } from "../../Functions/Custom Structures/customStructure";
+import customStructuresFromServer from "../../Functions/Custom Structures/customStructuresFromServer";
 import { detectUserLocale } from "../../Functions/Helper/localeDetection";
 import { jobStatusesForPersist } from "../../Functions/Helper/jobStatuses";
 

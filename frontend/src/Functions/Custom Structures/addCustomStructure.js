@@ -1,7 +1,7 @@
 import { AppEvent } from "../../analytics/appEventNames";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 import { saveApplicationSettings } from "../Endpoints/Private/userDocument";
-import getSystemIndexes from "../../Functions/System Indexes/findSystemIndex";
+import getSystemIndexes from "../System Indexes/findSystemIndex";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 import { fieldsForKind } from "./customStructure";

@@ -18,7 +18,7 @@ vi.mock("../MarketData/prices/priceCache.js", () => ({
 const { resetReprocessing } = await import("../Static/reprocessing.js");
 const { default: reprocessIntoMinerals } = await import("./toMinerals.js");
 const { structureFromDocument } =
-  await import("../Structure/customStructure.js");
+  await import("../Custom Structures/customStructure.js");
 
 const VELDSPAR = {
   id: "1230",

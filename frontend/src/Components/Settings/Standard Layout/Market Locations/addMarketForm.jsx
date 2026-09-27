@@ -7,7 +7,7 @@ import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax"
 import VirtualisedLocationSearch from "../../../../Styled Components/autocomplete/virtualisedLocationSearch";
 import useAssetLocations from "../../../../Hooks/EveEsi/useAssetLocations";
 import useLocationNames from "../../../../Hooks/EveEsi/useLocationNames";
-import describeMarketLocation from "../../../../Functions/Structure/describeMarketLocation";
+import describeMarketLocation from "../../../../Functions/MarketOrders/describeMarketLocation";
 import { MAX_BROKER_FEE_PERCENT } from "./newMarket";
 import { newMarketLocation } from "./newMarket";
 import {

@@ -8,9 +8,9 @@ import {
   fieldsForKind,
   structureFromDocument,
   updateStructure,
-} from "../../../../Functions/Structure/customStructure";
+} from "../../../../Functions/Custom Structures/customStructure";
 import useRigSlots from "./useRigSlots";
-import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Structure/addCustomStructure";
+import { addCustomStructure as addCustomStructureFunction } from "../../../../Functions/Custom Structures/addCustomStructure";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 import {

@@ -1,6 +1,6 @@
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import { rigTypeMap } from "../../Context/defaultValues";
-import { getRigInfoFromID } from "../../Functions/Helper/getStructureInfo";
+import { getRigInfoFromID } from "../../Functions/Custom Structures/getStructureInfo";
 
 /**
  * A select component for choosing rig types based on job type.

@@ -302,6 +302,10 @@ without ever calling a method.
 `useReprocessingReducer.js` holds a second `new Structure` in a JSDoc `@example`, which is not a
 construction site and is not counted.
 
+Paths are as they stood when this was counted. `Functions/Structure/` is now `Functions/Custom
+Structures/`, and the structure modules listed under `Functions/Helper/` are in it —
+[overlay.md](./overlay.md) § One folder holds what a custom structure is.
+
 Tests: 52 `new Structure` calls across five files — `Classes/structure.test.js` (35),
 `Classes/reprocessing.test.js` (11), `Functions/Structure/addCustomStructure.test.js` (4),
 `Functions/Reprocessing/toMinerals.test.js` (1) and the structure form's (1). Every one is a swap to

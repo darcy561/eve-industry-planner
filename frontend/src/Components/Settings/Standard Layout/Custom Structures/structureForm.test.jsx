@@ -17,7 +17,7 @@ vi.mock("../../../../Zustand/usersStore", async () => {
   return usersStoreMock({});
 });
 
-vi.mock("../../../../Functions/Structure/addCustomStructure", () => ({
+vi.mock("../../../../Functions/Custom Structures/addCustomStructure", () => ({
   addCustomStructure: (...args) => addCustomStructureFunction(...args),
 }));
 
@@ -212,7 +212,7 @@ describe("every field the form offers is one a kind stores", () => {
       structureFromDocument,
       structureToDocument,
       updateStructure,
-    } = await import("../../../../Functions/Structure/customStructure");
+    } = await import("../../../../Functions/Custom Structures/customStructure");
 
     const kinds = [
       jobTypes.manufacturing,

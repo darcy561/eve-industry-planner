@@ -15,13 +15,13 @@ import { jobTypes } from "../../../../../../Context/defaultValues";
 import {
   getStructureInfoFromID,
   getSystemTypeFromID,
-} from "../../../../../../Functions/Helper/getStructureInfo";
+} from "../../../../../../Functions/Custom Structures/getStructureInfo";
 import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
 import { calculateInstallCostfromSetup } from "../../../../../../Functions/Installation Costs/installCosts";
-import rigSlotLabel from "../../../../../../Functions/Helper/rigSlotLabel";
+import rigSlotLabel from "../../../../../../Functions/Custom Structures/rigSlotLabel";
 import {
   useJobActions,
   useJobDraft,

@@ -7,7 +7,7 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 import {
   getStructureInfoFromID,
   getSystemTypeFromID,
-} from "../Functions/Helper/getStructureInfo";
+} from "../Functions/Custom Structures/getStructureInfo";
 import materialQuantitiesForSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
 /**
  * Setup class for EVE Online industry job configurations.

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const structureTime = { value: 0 };
 const rigTime = { value: 0 };
 
-vi.mock("../Helper/getStructureInfo", () => ({
+vi.mock("../Custom Structures/getStructureInfo", () => ({
   getStructureInfoFromID: () => ({ time: structureTime.value }),
   getRigInfoFromID: () => ({ time: rigTime.value }),
 }));

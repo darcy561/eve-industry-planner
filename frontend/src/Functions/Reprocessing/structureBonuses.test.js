@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { rigBonusFor, structureBonusFor } from "./structureBonuses";
-import { structureFromDocument } from "../Structure/customStructure";
+import { structureFromDocument } from "../Custom Structures/customStructure";
 import { jobTypes, reprocessingItemTypes } from "../../Context/defaultValues";
 
 describe("what a refinery gives what is put through it", () => {

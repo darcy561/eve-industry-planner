@@ -24,7 +24,7 @@ vi.mock("../../Zustand/usersStore", () => ({
     }),
   },
 }));
-vi.mock("../Helper/getStructureInfo", () => ({
+vi.mock("../Custom Structures/getStructureInfo", () => ({
   getStructureInfoFromID: () => ({ time: 0 }),
   getRigInfoFromID: () => ({ time: 0 }),
 }));

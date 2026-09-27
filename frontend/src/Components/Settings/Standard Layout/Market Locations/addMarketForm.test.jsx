@@ -39,7 +39,7 @@ vi.mock("../../../../Hooks/EveEsi/useAssetLocations", () => ({
 }));
 
 const describeMarketLocation = vi.fn();
-vi.mock("../../../../Functions/Structure/describeMarketLocation", () => ({
+vi.mock("../../../../Functions/MarketOrders/describeMarketLocation", () => ({
   default: (...args) => describeMarketLocation(...args),
 }));
 

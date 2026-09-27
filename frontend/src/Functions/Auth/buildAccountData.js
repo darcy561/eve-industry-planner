@@ -7,7 +7,7 @@ import { canonicalCharacterHashKey } from "./characterHashCanonical.js";
 import { buildCharacterAffiliations } from "./characterAffiliations";
 import { emitUserDataUpdate } from "../../Events/loginEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import customStructuresFromServer from "../Helper/customStructuresFromServer";
+import customStructuresFromServer from "../Custom Structures/customStructuresFromServer";
 import getSystemIndexes from "../System Indexes/findSystemIndex";
 
 export { canonicalCharacterHashKey };

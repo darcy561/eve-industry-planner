@@ -9,7 +9,7 @@ import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
   extrasCategoriesDefault,
 } from "../../Context/defaultValues";
-import customStructuresFromServer from "../../Functions/Helper/customStructuresFromServer";
+import customStructuresFromServer from "../../Functions/Custom Structures/customStructuresFromServer";
 
 /**
  * The settings a planner falls back to before its document has been read.

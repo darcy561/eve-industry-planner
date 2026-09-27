@@ -2,8 +2,8 @@ import { reprocessingItemTypes } from "../../Context/defaultValues";
 import {
   getRigInfoFromID,
   getStructureInfoFromID,
-} from "../Helper/getStructureInfo";
-import { fieldsForKind } from "../Structure/customStructure";
+} from "../Custom Structures/getStructureInfo";
+import { fieldsForKind } from "../Custom Structures/customStructure";
 
 /**
  * The bonus a structure's rigs give one reprocessing item type.

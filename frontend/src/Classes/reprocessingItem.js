@@ -2,13 +2,13 @@ import { jobTypes, reprocessingItemTypes } from "../Context/defaultValues";
 import {
   getImplantFromID,
   getSystemTypeFromID,
-} from "../Functions/Helper/getStructureInfo";
+} from "../Functions/Custom Structures/getStructureInfo";
 import { reprocessFromItemType } from "../Functions/Reprocessing/reprocessingFormulas";
 import {
   rigBonusFor,
   structureBonusFor,
 } from "../Functions/Reprocessing/structureBonuses";
-import { structureFromDocument } from "../Functions/Structure/customStructure";
+import { structureFromDocument } from "../Functions/Custom Structures/customStructure";
 
 const reprocessingSkillTypeID = 3385;
 const reprocessingEffSkillTypeID = 3389;

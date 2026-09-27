@@ -215,7 +215,7 @@ was nowhere stated, and **every JSDoc block said the opposite**: `Tax rate (0-1)
 ever stored. Those are corrected, because JSDoc is the SPA's only type surface and a wrong annotation
 is worse than none.
 
-`Functions/Helper/coerceTaxPercentage.js` owns the rule so it is applied identically rather than
+`Functions/Custom Structures/coerceTaxPercentage.js` owns the rule so it is applied identically rather than
 restated per class. It settles the figure the way `coerceFiniteNumber` does and **clamps a negative to
 zero**: a structure charges or it does not, and a negative would pay a job to run. None of the three
 classes clamped, so all three would store one — that is the second place the fold deliberately
@@ -251,7 +251,7 @@ and `systemID` remain optional.
 
 ### How two rigs combine
 
-`Functions/Helper/rigSlotBonuses.js` owns the rule: **each axis takes the better of the two slots,
+`Functions/Custom Structures/rigSlotBonuses.js` owns the rule: **each axis takes the better of the two slots,
 independently**. The slots are not ranked against each other, because a rig that cuts build time must
 not cost the material bonus of the rig beside it.
 
@@ -380,7 +380,7 @@ into either slot fails with the figures named, and swapping the pair fails. Re-r
 ### The store slices hold one array
 
 Both settings slices now hold `customStructures` as one array of `Structure`, and both read **either**
-stored shape through `Functions/Helper/customStructuresFromServer.js`. One helper, because the account
+stored shape through `Functions/Custom Structures/customStructuresFromServer.js`. One helper, because the account
 slice and the planner slice were carrying the same four-lane builder twice.
 
 That closes a failure that was **silent**: `typeof [] === "object"` is true, so an incoming array took
@@ -734,7 +734,7 @@ market region in New Eden. What this project owed it was the saved row, which it
 ## Stage E — A structure is plain data
 
 **Landed.** `Classes/structure.js` is deleted. A structure is an ordinary object, and what the class
-did is four functions in `Functions/Structure/customStructure.js`: `structureFromDocument` reads one
+did is four functions in `Functions/Custom Structures/customStructure.js`: `structureFromDocument` reads one
 from a stored row or builds one empty for a kind, `fieldsForKind` says which optional fields that kind
 carries, `updateStructure` returns a structure with named fields changed, and `structureToDocument`
 says what it stores.
@@ -766,7 +766,7 @@ reaction, and the faction rig kept whole.
 ### The tests moved to where the code is
 
 `Classes/structure.test.js` is gone, split three ways:
-`Functions/Structure/customStructure.test.js` (what a kind carries, ids, settling, the round trip, and
+`Functions/Custom Structures/customStructure.test.js` (what a kind carries, ids, settling, the round trip, and
 that a structure's own keys are exactly what it stores), `structureBonuses.test.js` (reprocessing's
 two), and `rigSlotBonuses.test.js` (the rig parity above). The structure-only block in
 `Classes/reprocessing.test.js` went with them rather than being kept as a second copy.
@@ -791,6 +791,27 @@ each side: that the function announces a save once, and that the form leaves the
 of the diff in `structureForm.jsx`, `structureForm.test.jsx` and `rigSlotBonuses.test.js`. Two doc
 comments described the deleted class as what drops a field a kind does not carry; they name
 `fieldsForKind` instead.
+
+### One folder holds what a custom structure is
+
+`Functions/Custom Structures/` is the home for the subject, named as the settings screen that edits one
+already is. `Functions/Structure/` is gone, and the modules that described a custom structure from
+`Functions/Helper/` are in it: the settings read (`customStructuresFromServer`), the rig tables'
+readers (`getStructureInfo`, `rigSlotBonuses`, `rigSlotLabel`), what a job setup asks about the
+structure it references (`customStructureSetup`), and the tax rule (`coerceTaxPercentage`), whose only
+consumer is the module beside it.
+
+**`describeMarketLocation` moved the other way**, to `Functions/MarketOrders/`. It was in the structures
+folder because Stage D put the market kind inside this model, and
+[market-locations](../market-locations/contents.md) has since moved a saved market onto its own lane —
+its only callers are that tab's form. A folder named for custom structures holding the market
+locations' ESI walk would have been the old arrangement surviving its own reversal.
+
+**Reprocessing's two calculations stay in `Functions/Reprocessing/`.** They are the only place a
+structure's rigs are read against what is being worked on, which is reprocessing's question rather than
+the structure's, and § What must not be lost has required that since Stage B. `coerceFiniteNumber` stays
+in `Helper/` for the opposite reason: it is a numeric rule with consumers across the app, and only the
+percentage rule on top of it belongs here.
 
 ### Still open in this stage's area
 

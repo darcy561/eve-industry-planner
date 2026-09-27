@@ -1,5 +1,5 @@
 import { customStructureMap } from "../../Context/defaultValues";
-import { structureFromDocument } from "../Structure/customStructure";
+import { structureFromDocument } from "./customStructure";
 
 /**
  * The structures a settings document holds, as one array, from either stored

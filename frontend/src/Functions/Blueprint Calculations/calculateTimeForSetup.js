@@ -3,7 +3,7 @@ import manufacturingTimeModifierCalculation from "./manufacturingTimeModifierCal
 import reactionTimeModifierCalculation from "./reactionTimeModifierCalculation";
 import { getCachedCharacterSkills } from "../../Hooks/EveEsi/Character/useGetCharacterSkills";
 import { quotedCharacterHash } from "../Skills/quotedCharacter";
-import rigSlotBonuses from "../Helper/rigSlotBonuses";
+import rigSlotBonuses from "../Custom Structures/rigSlotBonuses";
 
 /**
  * How long this setup takes the account reading it.

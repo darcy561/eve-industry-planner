@@ -70,8 +70,11 @@ remainder resumes from that project's § What to pick up when it does.
 [`services/shared/models/group_template.go`](../../../services/shared/models/group_template.go) — a
 stored setup's rig slots.
 
-**Added by Stage E:** [`frontend/src/Functions/Structure/`](../../../frontend/src/Functions/Structure/) —
-`customStructure.js`, the module `structure.js` becomes, beside the existing `addCustomStructure.js`.
+**Added by Stage E:** [`frontend/src/Functions/Custom Structures/`](../../../frontend/src/Functions/Custom%20Structures/) —
+`customStructure.js`, the module `structure.js` becomes, and the folder every other module about a custom
+structure has since been gathered into: `addCustomStructure.js`, `customStructuresFromServer.js`,
+`customStructureSetup.js`, `getStructureInfo.js`, `rigSlotBonuses.js`, `rigSlotLabel.js` and
+`coerceTaxPercentage.js` — § Stage E in [overlay.md](./overlay.md) says what moved and what did not.
 
 **Added by Stage D:** [`frontend/src/Functions/MarketOrders/`](../../../frontend/src/Functions/MarketOrders/) —
 `saleLocations.js`, `sellingRates.js`, `calcSellingCharges.js`;
@@ -210,7 +213,7 @@ became an array, so they landed with Stage B rather than after it —
 **Stage BR — Rigs are slots on every kind. Done.** Manufacturing and reaction held one combined `rigType`
 where the other two kinds hold two slots, though invention's rigs carry two independent axes exactly
 as manufacturing's do. The atomic rig tables, the per-axis combining rule in
-`Functions/Helper/rigSlotBonuses.js`, `fieldsByJobType` losing `rigType`, and the prerelease step
+`Functions/Custom Structures/rigSlotBonuses.js`, `fieldsByJobType` losing `rigType`, and the prerelease step
 converting stored setups across all four collections — [overlay.md](./overlay.md) § Rigs became slots
 on every kind, § The prerelease step that converts stored setups.
 
@@ -354,7 +357,7 @@ one, the two faults above are closed, and the placeholder rows in `saleLocations
 four hold.**
 
 **Stage E — A structure is plain data. Done.** `Classes/structure.js` is deleted and its work is four
-functions in `Functions/Structure/customStructure.js`, with reprocessing's two calculations in
+functions in `Functions/Custom Structures/customStructure.js`, with reprocessing's two calculations in
 `Functions/Reprocessing/structureBonuses.js` — [overlay.md](./overlay.md) § Stage E, which also records
 what was deleted rather than converted and the one duplicated rule left in the area.
 
@@ -371,7 +374,7 @@ the store, and that plan is explicit that row classes are the last to go and may
 cheap and read only their own fields. `Structure` fails that exemption on one specific count — it is
 **held in the store and edited by two screens**, so a mutable row is shared between them.
 
-**The module**, in `Functions/Structure/customStructure.js`, mirroring `jobDocument.js`'s shape rather
+**The module**, in `Functions/Custom Structures/customStructure.js`, mirroring `jobDocument.js`'s shape rather
 than inventing a second convention:
 
 | Function | Replaces |
@@ -438,7 +441,7 @@ boundary. This is SPA-internal.
 
 **Done when** nothing constructs `Structure`, `Classes/structure.js` is deleted rather than left as a
 wrapper, the two mutating screens and the three store actions work on copies, the seed defect is fixed,
-and `Functions/Structure/addCustomStructure.js` reads `fieldsForKind` instead of a defensive
+and `Functions/Custom Structures/addCustomStructure.js` reads `fieldsForKind` instead of a defensive
 `structure.fields?.systemID`. The surface inventory it is measured against is
 [measurements.md](./measurements.md) § What holds a structure as an instance.
 

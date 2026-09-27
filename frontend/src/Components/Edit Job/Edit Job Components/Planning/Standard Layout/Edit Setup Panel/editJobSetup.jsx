@@ -17,7 +17,7 @@ import SystemIndexTextField from "../../../../../../Styled Components/Textfield/
 import UseAlternativeCheckbox from "../../../../../../Styled Components/Checkbox/useAlternativeCheckbox";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
 import applySetupChange from "../../../../../../Functions/JobPlanner/applySetupChange";
-import { setupShowsManualStructureFields } from "../../../../../../Functions/Helper/customStructureSetup";
+import { setupShowsManualStructureFields } from "../../../../../../Functions/Custom Structures/customStructureSetup";
 import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
 import {
   useJobActions,

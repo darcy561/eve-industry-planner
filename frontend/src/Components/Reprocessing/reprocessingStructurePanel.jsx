@@ -11,7 +11,7 @@ import AssignUsersSelect from "../../Styled Components/Select/users";
 import {
   structureFromDocument,
   updateStructure,
-} from "../../Functions/Structure/customStructure";
+} from "../../Functions/Custom Structures/customStructure";
 import ImplantSelect from "../../Styled Components/Select/implantSelector";
 import useUsersStore from "../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";

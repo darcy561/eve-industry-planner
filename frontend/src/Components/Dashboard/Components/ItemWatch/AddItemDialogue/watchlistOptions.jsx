@@ -13,7 +13,7 @@ import RigTypeSelect from "../../../../../Styled Components/Select/rigType";
 import SystemTypeSelect from "../../../../../Styled Components/Select/systemType";
 import TaxPercentageTextField from "../../../../../Styled Components/Textfield/tax";
 import useUsersStore from "../../../../../Zustand/usersStore";
-import { setupShowsManualStructureFields } from "../../../../../Functions/Helper/customStructureSetup";
+import { setupShowsManualStructureFields } from "../../../../../Functions/Custom Structures/customStructureSetup";
 
 export function WatchListSetupOptions_WatchlistDialogue({
   watchlistItemRequest,

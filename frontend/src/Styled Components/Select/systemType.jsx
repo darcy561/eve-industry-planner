@@ -1,6 +1,6 @@
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import { systemTypeMap } from "../../Context/defaultValues";
-import { getSystemTypeFromID } from "../../Functions/Helper/getStructureInfo";
+import { getSystemTypeFromID } from "../../Functions/Custom Structures/getStructureInfo";
 
 /**
  * A select component for choosing system types based on job type.

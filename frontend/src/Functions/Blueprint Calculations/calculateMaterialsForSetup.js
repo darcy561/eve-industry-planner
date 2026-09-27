@@ -4,8 +4,8 @@ import reactionFormulaCalculation from "./reactionMaterialCalculation";
 import {
   getStructureInfoFromID,
   getRigInfoFromID,
-} from "../Helper/getStructureInfo";
-import rigSlotBonuses from "../Helper/rigSlotBonuses";
+} from "../Custom Structures/getStructureInfo";
+import rigSlotBonuses from "../Custom Structures/rigSlotBonuses";
 
 /**
  * The material count a setup's configuration calls for, built from its job's raw

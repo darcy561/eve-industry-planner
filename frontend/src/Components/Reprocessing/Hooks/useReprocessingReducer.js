@@ -7,7 +7,7 @@ import {
   reprocessingReducer,
   REPROCESSING_ACTION_TYPES,
 } from "./reprocessingReducer";
-import { structureFromDocument } from "../../../Functions/Structure/customStructure";
+import { structureFromDocument } from "../../../Functions/Custom Structures/customStructure";
 import useUsersStore from "../../../Zustand/usersStore";
 import { jobTypes } from "../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../global-config-app";

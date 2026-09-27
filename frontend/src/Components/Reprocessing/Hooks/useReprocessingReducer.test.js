@@ -10,7 +10,7 @@ vi.mock("../../../Zustand/usersStore", async () => {
 });
 
 const { structureFromDocument } =
-  await import("../../../Functions/Structure/customStructure");
+  await import("../../../Functions/Custom Structures/customStructure");
 const { jobTypes } = await import("../../../Context/defaultValues");
 const { default: useReprocessingReducer } =
   await import("./useReprocessingReducer.js");

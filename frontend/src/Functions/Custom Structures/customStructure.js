@@ -6,7 +6,7 @@ import {
 } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
 import coerceFiniteNumber from "../Helper/coerceFiniteNumber";
-import coerceTaxPercentage from "../Helper/coerceTaxPercentage";
+import coerceTaxPercentage from "./coerceTaxPercentage";
 
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 
