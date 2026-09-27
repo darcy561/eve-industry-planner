@@ -29,6 +29,21 @@ nested child jobs, so a linked material contributes to the total once. A materia
 short of covering appears in the shortfall's own line — see
 [materials-sourcing.md](./materials-sourcing.md) § Costing a shortfall.
 
+Two rules in that walk (`Functions/Groups/childJobCostWalk.js`) are worth stating, because neither is
+visible in the figure it produces:
+
+**Several children of one material are spread over their combined output**, rather than charged one
+after another. They are parallel ways of producing the same thing, so the material's unit cost is the
+blended cost of the routes supplying it.
+
+**A child job already on the current path is skipped rather than part-counted.** Where other children
+of that material remain, it is priced from those; where it was the material's only child, the material
+falls back to what buying it costs — the market price in an estimate, what was actually paid in a cost
+so far. Ancestry is tracked per path rather than per walk, so the same job reached down two separate
+branches is two real contributions and is still counted twice — only a repeat on one path is cut. The
+cost of that cut is that the figure is **understated with nothing on screen saying so**, which is why
+the skip is reported to Sentry rather than passed over quietly.
+
 **Extras** are a line each, named by their own description and category, rather than summed into one
 figure — a player who wrote down a courier contract and a set of copies separately kept them as
 separate costs. Their colours are shades of the one extras colour, derived rather than chosen, so
