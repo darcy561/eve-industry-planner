@@ -12,12 +12,8 @@ import Transaction from "./transaction";
 import useUsersStore from "../Zustand/usersStore";
 
 /**
- * A job's own choice of where each side of it is priced, or null where it has
- * made none.
- *
- * Null rather than a pair of empty sides, because a job that chose nothing is
- * priced by the account's defaults and a stored shape saying otherwise would
- * outrank them.
+ * A job's own choice of where each side of it is priced, or null where it made
+ * none and the account's defaults price it.
  *
  * @param {object|null|undefined} stored - `build.localPricing` as stored
  * @returns {{buying: {market: string|null, orderType: string|null},
@@ -38,12 +34,8 @@ function jobPricingOverride(stored) {
 }
 
 /**
- * An industry job: its setups, materials, and the ESI rows linked to it.
- *
- * The job holds what it is made of, and reads and writes it as a document.
- * What it is worth is derived by the selectors in
- * `Edit Job Hooks/jobSelectors.js`, and what a reader does to it is a command
- * in `jobCommands.js`; neither is answered here.
+ * An industry job: its setups, materials, and the ESI rows linked to it, read
+ * and written as a document.
  *
  * @class Job
  */
@@ -76,10 +68,6 @@ class Job {
    * @param {Object} [buildRequest.childJobs] - Child jobs configuration
    */
   constructor(itemJson, buildRequest) {
-    // `metaGroupID` is what the SDE conversion emits and what a job is built
-    // from; `metaLevel` is what a stored document carries. Reading only the
-    // stored name left every new job at null, and the invention costs — offered
-    // for T2 and T3 items, which is what the meta group says — never appeared.
     this.metaLevel =
       itemJson?.metaLevel ??
       itemJson?.metaGroupID ??
@@ -123,9 +111,6 @@ class Job {
         "id",
         (row) => new InventionEntry(row),
       ),
-      // Where the output is meant to go, as against the orders under `esi`,
-      // which are where it went. Null on almost every job: absent means the
-      // account's defaults apply.
       sellerCharacter:
         build?.sellerCharacter ?? build?.sale?.plan?.sellerCharacter ?? null,
       saleLocationID:
@@ -138,9 +123,6 @@ class Job {
     this.rawData = itemJson?.rawData || {};
     this.skills = documentToSkills(itemJson);
     this.itemsProducedPerRun = itemJson?.itemsProducedPerRun || 0;
-    // `in` rather than `??`: a job whose pricing the player cleared holds an
-    // explicit null under `build`, and falling through on that would reinstate
-    // whatever `layout` still carried from a save made before the move.
     const storedOverrides =
       build && "materialPriceOverrides" in build
         ? build.materialPriceOverrides
@@ -163,20 +145,12 @@ class Job {
       setupToEdit: itemJson?.layout?.setupToEdit || null,
       resourceDisplayType: itemJson?.layout?.resourceDisplayType || null,
     };
-    // `_meta` names who owns the document, and the server states that: it owns
-    // the block, overwrites whatever is uploaded, and takes identity from the
-    // request headers. So nothing here carries an account id — the store is the
-    // only place the SPA reads its own.
     const accountID = useUsersStore.getState().account.accountID || "";
     this._meta = {
       lastModified: itemJson?._meta?.lastModified || new Date().toISOString(),
       createdAt: itemJson?._meta?.createdAt || new Date().toISOString(),
       lastUpdatedBy: itemJson?._meta?.lastUpdatedBy || accountID || "",
     };
-    // The revision is the server's count of writes to this document, and a write
-    // carrying one is only made if the document is still at it. A job built from
-    // anything but a stored document has none, and its write is a create — so it
-    // is carried when it is there and absent when it is not, never defaulted.
     if (itemJson?._meta && "revision" in itemJson._meta) {
       this._meta.revision = itemJson._meta.revision;
     }
@@ -251,9 +225,6 @@ class Job {
       includedInGroup: this.includedInGroup,
       displayOnPlanner: this.displayOnPlanner,
       isReadyToSell: this.isReadyToSell,
-      // Every key is named rather than spread from `this.build`: a spread
-      // carries the live instances the job holds, which store as whatever their
-      // class happens to serialise to rather than as the row's own shape.
       build: {
         setup: rowsToDocuments(this.build.setup),
         childJobs: copiedChildJobs(this.build.childJobs),
@@ -346,13 +317,8 @@ function documentToSetups(object) {
 }
 
 /**
- * Helper function that reads a document's required skills.
- *
- * Keyed by the typeID each row carries, which is how they are stored and how
- * they are held here — one shape everywhere rather than a conversion on each
- * side of the class.
- *
- * An array is still read because the SDE's blueprint data arrives as one.
+ * Reads a document's required skills, keyed by typeID, from either the stored
+ * map or the array the SDE's blueprint data arrives as.
  *
  * @param {Object} object - Object containing job data
  * @returns {Object<string, Object>} The skills the job requires, keyed by typeID
@@ -362,10 +328,7 @@ function documentToSkills(object) {
 }
 
 /**
- * Helper function that keys skill rows by the typeID each carries.
- *
- * A row without one is dropped rather than filed under `undefined`, which would
- * collapse every such row onto a single key.
+ * Keys skill rows by the typeID each carries, dropping a row without one.
  *
  * @param {Object<string, Object>|Array<Object>|null} rows
  * @returns {Object<string, Object>} The rows keyed by typeID
@@ -380,17 +343,8 @@ function keyByTypeID(rows) {
 }
 
 /**
- * Helper function that reads what ESI observed about a job.
- *
- * Each collection is keyed by the id ESI itself assigns, so a row is found by
- * the id it already carries. A document written before the reshape holds them
- * as arrays under `build.costs` and `build.sale`, which is why both are read.
- *
- * A broker fee has no identity of its own — the journal id it arrives with is
- * shared between orders sold together in one multi-sell — so a stored fee row
- * folds onto the order it was charged against. Where two rows name one order
- * the oldest is kept, and a fee naming no order is dropped: there is nowhere
- * for it to live.
+ * Reads what ESI observed about a job, each collection keyed by the id ESI
+ * assigned, folding each stored broker fee onto the order it was charged against.
  *
  * @param {Object} object - Object containing job data
  * @returns {{industryJobs: Object<string, LinkedESIJob>,
@@ -432,19 +386,8 @@ function asRows(rows) {
 }
 
 /**
- * Helper function that copies the child job lists, so a document does not hand
- * out the job's own.
- *
- * A document is what a job is copied through — `new Job(source.toDocument())` is
- * how this app clones one before changing it, and a merge or a delete relies on
- * that copy to leave the planner alone until its writes have landed. Every other
- * member is rebuilt on the way out; this one was passed by reference, so a
- * change to the copy reached the job it was copied from and a write that failed
- * still left the planner altered.
- *
- * `parentJobs`, `rawData`, `skills` and `materialPriceOverrides` are still
- * handed out live, and are safe only because every mutator replaces them rather
- * than changing them in place. A mutator that does not needs copying here too.
+ * Copies the child job lists, so a document does not hand out the job's own and
+ * a clone made from it can be changed on its own.
  *
  * @param {Object<string, Array<string>>} childJobs
  * @returns {Object<string, Array<string>>} The same keys, holding their own lists
@@ -472,11 +415,8 @@ function rowsToDocuments(rows) {
 }
 
 /**
- * Helper function that keys rows by a named id field, building each one through
- * the class that owns its shape.
- *
- * A row whose id field is missing is dropped rather than filed under
- * `undefined`, which would collapse every such row onto a single key.
+ * Keys rows by a named id field, building each through the class that owns its
+ * shape and dropping a row whose id is missing.
  *
  * @param {Object<string, Object>|Array<Object>|null} rows
  * @param {string} idField - The field holding the id ESI assigned
@@ -495,13 +435,8 @@ function keyRowsBy(rows, idField, build) {
 }
 
 /**
- * Helper function that converts a document's material rows to Material instances.
- *
- * Keyed by the typeID each row carries, which is how they are stored and how
- * they are held. A job with no materials holds none rather than null: the empty
- * collection says the same thing and every reader can walk it.
- *
- * An array is still read because the SDE's blueprint data arrives as one.
+ * Converts a document's material rows to Material instances keyed by typeID,
+ * reading either the stored map or the array the SDE's data arrives as.
  *
  * @param {Object} object - Object containing job data
  * @param {Function} requirement - Looks up how many of a material the job needs
@@ -512,10 +447,7 @@ function documentToMaterials(object, requirement) {
 }
 
 /**
- * Helper function that keys material rows by the typeID each carries.
- *
- * A row without one is dropped rather than filed under `undefined`, which would
- * collapse every such row onto a single key.
+ * Keys material rows by the typeID each carries, dropping a row without one.
  *
  * @param {Object<string, Object>|Array<Object>|null} rows
  * @param {Function} requirement - Looks up how many of a material the job needs

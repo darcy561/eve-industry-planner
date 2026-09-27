@@ -47,18 +47,8 @@ import {
   quantityRemaining,
 } from "./materialSelectors";
 
-/**
- * A figure is checked against what it should be, written out, and a narrow form
- * against the whole-job one beside it.
- *
- * Some are also compared with the getter of the same name on `Job`, where the
- * class still carries one: two answers to one question, and where they disagree
- * one of them is wrong.
- */
-
 const TRITANIUM = 34;
 
-/** Two setups, calling for 100 of the material between them. */
 const setups = {
   "setup-1": {
     id: "setup-1",
@@ -94,10 +84,6 @@ const aJob = (build = {}, esi = {}) =>
     },
   });
 
-/**
- * A material row, with the requirement the job's setups would give it — which
- * the class takes as a second argument and never stores.
- */
 const NEEDED = 100;
 const aMaterial = (purchasing = {}, requirement = NEEDED) =>
   new Material(
@@ -105,16 +91,12 @@ const aMaterial = (purchasing = {}, requirement = NEEDED) =>
     requirement,
   );
 
-/** Two rows at different prices, one of which the job cannot use in full. */
 const purchases = {
   dear: { id: "dear", itemCount: 80, itemCost: 10 },
   cheap: { id: "cheap", itemCount: 60, itemCost: 4 },
 };
 
 describe("what a material has been bought", () => {
-  // The job is charged for what it needs, cheapest first, and for nothing
-  // beyond that. A row it cannot be charged for — no count, or a price it could
-  // not have paid — is left out rather than counted as free.
   const cases = {
     "nothing bought": { purchasing: {}, quantity: 0, cost: 0 },
     "one purchase that covers it": {
@@ -154,8 +136,6 @@ describe("what a material has been bought", () => {
     });
   }
 
-  // The cheaper row fills the requirement first, so the job pays the best price
-  // it managed and the dearer units are the ones left over.
   it("fills the requirement from the cheapest row first", () => {
     const row = aMaterial(purchases).toDocument();
 
@@ -164,9 +144,6 @@ describe("what a material has been bought", () => {
     expect(purchasedCost(row, NEEDED)).toBe(60 * 4 + 40 * 10);
   });
 
-  // Two rows of the same price are counted by id, because the rows come out of
-  // a map and its key order decides nothing. `models.JobMaterial` sorts the same
-  // way, so a job costs the same on both sides.
   it("splits two rows of the same price by id", () => {
     const row = aMaterial({
       b: { id: "b", itemCount: 70, itemCost: 5 },
@@ -193,8 +170,7 @@ describe("the figures a job derives", () => {
         1: { job_id: 1, cost: 500 },
         2: { job_id: 2, cost: 250 },
       },
-      // One order sold and one still listed, so the tax estimate has a reason
-      // to leave the sold one out.
+
       marketOrders: {
         900: { order_id: 900, fee: 40, salesTax: 15 },
         901: { order_id: 901, fee: 25, salesTax: 9 },
@@ -221,8 +197,6 @@ describe("the figures a job derives", () => {
   );
   const document = job.toDocument();
 
-  // Each figure a panel can already hold the rows for has a narrow form, and it
-  // has to answer what the job-level one does.
   it.each([
     [
       "the linked runs",
@@ -295,8 +269,6 @@ describe("the figures a job derives", () => {
     expect(buildCostPerItem(document)).toBeCloseTo(38.0786, 4);
   });
 
-  // The two fees are what the job paid to sell, as against what it paid to
-  // build: the listing fee on each order, and the tax on each sale.
   it("adds up what selling the job cost", () => {
     expect(totalBrokersFees(document)).toBe(40 + 25);
     expect(totalTransactionFees(document)).toBe(12 + 4);
@@ -329,8 +301,6 @@ describe("the figures a job derives", () => {
     expect(materialRequirement(document, TRITANIUM)).toBe(NEEDED);
   });
 
-  // A slot is a run of a setup, so the two setups' job counts are what the job
-  // occupies at once rather than the number of setups.
   it("counts the setups, their slots and the materials bought in full", () => {
     expect(setupCount(document)).toBe(2);
     expect(totalJobSlots(document)).toBe(3 + 1);
@@ -349,14 +319,11 @@ describe("the figures a job derives", () => {
     expect(averageItemSalePrice(document)).toBe(240);
   });
 
-  // Nothing sold has no average, and must not come back as NaN: the Selling
-  // panel hands this straight to the number formatter.
   it("has no average for a job that has sold nothing", () => {
     expect(averageItemSalePrice({ esi: { transactions: {} } })).toBe(0);
     expect(averageItemSalePrice(undefined)).toBe(0);
   });
 
-  // Newest first, because that is the order the panel lists them in.
   it("lists the sales newest first", () => {
     expect(salesByDate(document).map((sale) => sale.transaction_id)).toEqual([
       8, 7,
@@ -371,7 +338,6 @@ describe("the figures a job derives", () => {
     expect(salesNewestFirst(undefined)).toEqual([]);
   });
 
-  // A material no setup calls for is not one the job has finished buying.
   it("does not count a material nothing asks for as bought", () => {
     const spare = new Material({ typeID: 999, name: "Spare" }, 0);
     const withSpare = aJob({
@@ -381,8 +347,6 @@ describe("the figures a job derives", () => {
       },
     });
 
-    // The Tritanium row is bought in full and the spare is not wanted at all,
-    // so one of the two counts.
     expect(completedMaterialCount(withSpare.toDocument())).toBe(1);
   });
 
@@ -392,8 +356,6 @@ describe("the figures a job derives", () => {
     expect(completedMaterialCount(unbought.toDocument())).toBe(0);
   });
 
-  // A job part-way through loading is plain data with nothing in it yet, and a
-  // selector is handed whatever the draft holds.
   it("answers nothing rather than throwing for a job that is not there yet", () => {
     for (const selector of [
       totalBrokersFees,
@@ -425,16 +387,11 @@ describe("the figures a job derives", () => {
   });
 });
 
-// What a job is charged for is capped at what it needs; what it spent is not.
-// The two figures answer different questions and a job that over-bought shows
-// the difference.
 describe("what buying a material actually cost", () => {
   it("counts every purchase in full, past the requirement", () => {
     expect(boughtCost({ purchasing: purchases })).toBe(80 * 10 + 60 * 4);
   });
 
-  // A purchase imported from a child job is that child's cost, and counting it
-  // here would charge the same ISK to two jobs.
   it("leaves out what a child job supplied", () => {
     const material = {
       purchasing: {
@@ -468,8 +425,6 @@ describe("whether a material is bought for", () => {
     expect(purchaseComplete({ purchasing: covered }, 140)).toBe(false);
   });
 
-  // A row left behind by a resized setup is not wanted rather than done, so a
-  // requirement of nothing is never complete.
   it("is not complete for a material nothing calls for", () => {
     expect(purchaseComplete({ purchasing: covered }, 0)).toBe(false);
   });

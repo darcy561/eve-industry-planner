@@ -15,9 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// Live document-shape coverage: submitted payload, meta stamps, $unset, preserving-meta.
-// Requires EIP_MONGO_PARITY_LIVE=1. Uses scratch account eip-parity-account.
-
 func TestLive_docShape_jobUpsert(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -39,7 +36,6 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	jobID := fmt.Sprintf("eip-parity-shape-job-%d", now.UnixNano())
 
-	// Seed with root junk that $unset must clear.
 	seed := bson.M{
 		"_id":              jobID,
 		"jobID":            jobID,
@@ -53,8 +49,6 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 		"deleted":          true,
 		"deletedTimeStamp": now.Add(-time.Hour),
 		"_meta": bson.M{
-			// The owner, because the upsert filters on it: a seed without one is
-			// not matched, and the write becomes an insert onto its own _id.
 			models.MetaFieldOwner: mongolive.OwnerDoc(models.AccountOwner(parityScratchAccount)),
 			"lastModified":        now.Add(-time.Hour),
 			"sessionID":           "old-sess",
@@ -69,7 +63,7 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 	clone := sample
 	clone.JobID = jobID
 	clone.Name = "shape-after-upsert"
-	clone.MetaData = models.JobMetaData{} // clear sample meta; put path stamps account/session/client
+	clone.MetaData = models.JobMetaData{}
 
 	assertJobRawShape := func(label string, raw bson.M, wantName, wantSess, wantClient string, wantMod time.Time) {
 		t.Helper()
@@ -116,7 +110,6 @@ func TestLive_docShape_jobUpsert(t *testing.T) {
 	raw := loadRawByID(t, ctx, coll, jobID)
 	assertJobRawShape("upsert", raw, "shape-after-upsert", "shape-sess", "shape-client", now)
 
-	// Empty session/client inputs: ApplyMetaSessionClient is a no-op; struct still carries prior stamps → kept.
 	now2 := now.Add(time.Second)
 	clone.Name = "shape-empty-meta-inputs"
 	clone.MetaData.SessionID = "shape-sess"
@@ -176,8 +169,6 @@ func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
 		t.Fatalf("seed user: %v", err)
 	}
 
-	// Incoming struct tries to change session/createdAt; preserving-meta must keep seed session/createdAt.
-	// On update: incoming clientID is applied; sessionID / createdAt from existing meta are preserved.
 	incoming := models.DefaultUserAccountDocument(userID, time.Now().UTC())
 	incoming.ShareCitadelNames = false
 	incoming.HasCompletedFirstLoginFlow = true
@@ -194,7 +185,6 @@ func TestLive_docShape_preservingMetaUserAndSettings(t *testing.T) {
 	rawUser := loadRawByID(t, ctx, usersColl, userID)
 	assertPreservingUserShape(t, rawUser, userID, createdAt, "seed-sess", "new-client", false, []int64{1, 2, 3}, before, after)
 
-	// Application settings — same preserving-meta contract
 	seedSettings := bson.M{
 		"_id":                            settingsID,
 		"schemaVersion":                  models.ApplicationSettingsSchemaCurrent,

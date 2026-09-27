@@ -26,10 +26,8 @@ import {
 import { asIDList } from "../Helper/ids";
 
 /**
- * Merges duplicate jobs (same itemID) into replacement jobs.
- *
- * Notes:
- *   outside the touched set are preserved as-is.
+ * Merges duplicate jobs (same itemID) into replacement jobs, leaving every job
+ * outside the touched set as it stands.
  *
  * @param {string[]|Set<string>|string} inputJobIDs
  * @param {{ buildJob: Function }} options

@@ -16,9 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// Live LoadJobsByFilter coverage via shared/mongo against real docs / scratch seeds.
-// Requires EIP_MONGO_PARITY_LIVE=1.
-
 func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -67,7 +64,6 @@ func TestLive_LoadJobsByFilter_handlerShapes(t *testing.T) {
 	}
 }
 
-// LoadJobsByFilter merges accountID into the filter. Seeds scratch docs so identity is via jobID.
 func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -95,8 +91,6 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("seed other: failed=%d err=%v", len(failed), err)
 	}
 
-	// Filter omits account — only _id. The id already carries its owner, so it
-	// finds the row on its own; the merge is what keeps the read account-scoped.
 	idOnly := bson.M{"_id": bson.M{"$in": eipmongo.OwnerScopedDocumentIDs(models.AccountOwner(accountID), []string{jobID})}}
 	gotID, err := mongo.JobDocuments.LoadJobsByFilter(ctx, models.AccountOwner(accountID), cloneFilter(idOnly))
 	if err != nil {
@@ -106,8 +100,6 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("id_only: got %v want only %s", jobIDsOf(gotID), jobID)
 	}
 
-	// Wrong owner in the caller's filter, correct accountID param — the merge
-	// forces the parameter, so a filter naming another owner cannot widen the read.
 	wrongAccountFilter := bson.M{
 		eipmongo.FieldMetaOwnerID: "eip-parity-wrong-account",
 		"_id":                     eipmongo.OwnerScopedDocumentID(models.AccountOwner(accountID), jobID),
@@ -120,7 +112,6 @@ func TestLive_LoadJobsByFilter_accountScope(t *testing.T) {
 		t.Fatalf("merge should force accountID param: got %d jobs (want job %s)", len(gotWrong), jobID)
 	}
 
-	// Broad filter without account — must stay on accountID (not otherAccount).
 	broad := bson.M{"displayOnPlanner": true, "_id": bson.M{"$in": []string{
 		eipmongo.OwnerScopedDocumentID(models.AccountOwner(accountID), jobID),
 		eipmongo.OwnerScopedDocumentID(models.AccountOwner(otherAccount), otherJobID),
@@ -149,7 +140,6 @@ type liveJobAccountSample struct {
 func sampleLiveJobAccounts(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, maxAccounts int) []liveJobAccountSample {
 	t.Helper()
 	coll := mongo.JobDocuments.Collection()
-	// Prefer app-shaped docs (jobID field). Throughput stubs only have _id/_meta and break JobID identity.
 	cur, err := coll.Find(ctx, bson.M{"jobID": bson.M{"$type": "string", "$ne": ""}}, options.Find().SetLimit(80))
 	if err != nil {
 		t.Fatalf("sample find: %v", err)
@@ -204,8 +194,6 @@ func cloneFilter(in bson.M) bson.M {
 	return out
 }
 
-// Docs-layer slip: the filter omits the owner. LoadJobsByFilter must still scope;
-// the same Find without merge returns both accounts (what happens if we don't merge).
 func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -231,7 +219,6 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 		t.Fatalf("seed B: failed=%d err=%v", len(failed), err)
 	}
 
-	// Caller "forgets" account in filter (planner-shaped predicate only).
 	filterNoAccount := bson.M{
 		"displayOnPlanner": true,
 		"_id": bson.M{"$in": []string{
@@ -240,7 +227,6 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 		}},
 	}
 
-	// Without merge: same Find the Docs layer would run if it trusted the filter alone.
 	var slipped []models.Job
 	cur, err := coll.Find(ctx, filterNoAccount, options.Find().SetSort(bson.M{"_meta.lastModified": -1}))
 	if err != nil {
@@ -255,7 +241,6 @@ func TestLive_LoadJobsByFilter_docsLayerSlip(t *testing.T) {
 	}
 	t.Logf("without merge: Find returned %d jobs (accounts leaked across A+B)", len(slipped))
 
-	// With Docs merge: only account A.
 	scoped, err := mongo.JobDocuments.LoadJobsByFilter(ctx, models.AccountOwner(accountA), filterNoAccount)
 	if err != nil {
 		t.Fatalf("LoadJobsByFilter: %v", err)

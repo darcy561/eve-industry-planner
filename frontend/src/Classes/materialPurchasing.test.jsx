@@ -18,8 +18,6 @@ const { jobDraftNow } =
 
 const session = () => useUsersStore.getState().editSession;
 
-// The same scenarios each purchasing surface handled before the material class
-// owned them, run through the methods the call sites use now.
 function jobNeeding(quantity) {
   return new Job({
     jobID: "job-1",
@@ -82,8 +80,6 @@ describe("adding a cost on a material card", () => {
     expect(job.build.materials[34].purchasedCost).toBe(500);
   });
 
-  // Entry order used to decide which purchases counted. The cheapest fill the
-  // requirement now, so the dearest units are the ones left over.
   it("fills the requirement at the cheapest prices paid", () => {
     const job = jobNeeding(50);
 
@@ -128,8 +124,6 @@ describe("removing a purchase from a material card", () => {
     job.importPurchaseToMaterial(34, priced(40, 5));
     job.importPurchaseToMaterial(34, priced(30, 8));
 
-    // Mounted over the session the card reads, so the click runs the command
-    // the reader's click runs.
     session().actions.closeSession();
     session().actions.openJob(job.jobID, job.toDocument());
     const material = jobDraftNow().build.materials[34];

@@ -14,7 +14,6 @@ import (
 
 const conditionalWriteScratchAccount = "eip-parity-conditional-write"
 
-// readJob answers a stored job and the revision it carries.
 func readJob(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, jobID string) models.Job {
 	t.Helper()
 	job, err := mongo.JobDocuments.LoadJobByID(ctx, owner, jobID)
@@ -37,14 +36,6 @@ func writeJobs(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner m
 	return conflicts
 }
 
-// Two writers, one document: the second write is refused and the first is kept.
-//
-// This is the property the whole conditional write exists for, and nothing else
-// asserts it against a real Mongo — the unit tests build the update and reason
-// about counts without a driver, so a filter that silently matched everything
-// would pass every one of them.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_aStaleConditionalWriteIsRefusedAndTheCurrentOneKept(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -56,21 +47,18 @@ func TestLive_aStaleConditionalWriteIsRefusedAndTheCurrentOneKept(t *testing.T) 
 	const jobID = "job-conditional-write"
 	writeJobs(t, ctx, mongo, owner, []models.Job{{JobID: jobID, Name: "first"}})
 
-	// Both writers read the same document, as two members editing one job do.
 	readByA := readJob(t, ctx, mongo, owner, jobID)
 	readByB := readJob(t, ctx, mongo, owner, jobID)
 	if readByA.MetaData.Revision == 0 {
 		t.Fatal("the stored job carries no revision, so no write can be conditional")
 	}
 
-	// A writes, which moves the revision under B.
 	winner := readByA
 	winner.Name = "written by A"
 	if conflicts := writeJobs(t, ctx, mongo, owner, []models.Job{winner}); len(conflicts) != 0 {
 		t.Fatalf("the first write was refused: %+v", conflicts)
 	}
 
-	// B writes from the copy it read before A's write landed.
 	loser := readByB
 	loser.Name = "written by B"
 	conflicts := writeJobs(t, ctx, mongo, owner, []models.Job{loser})
@@ -89,8 +77,6 @@ func TestLive_aStaleConditionalWriteIsRefusedAndTheCurrentOneKept(t *testing.T) 
 		t.Fatal("the document still exists, so the conflict must not report it gone")
 	}
 
-	// The refusal has to mean the write did not land, not merely that it was
-	// reported: A's name survives and B's is nowhere.
 	stored := readJob(t, ctx, mongo, owner, jobID)
 	if stored.Name != "written by A" {
 		t.Fatalf("stored name = %q, want A's write kept", stored.Name)
@@ -101,10 +87,6 @@ func TestLive_aStaleConditionalWriteIsRefusedAndTheCurrentOneKept(t *testing.T) 
 	}
 }
 
-// A batch in which one job moved writes the others. The all-or-nothing refusal
-// this replaces is what made one member's edit cost every job in a save.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_aBatchWithOneStaleJobWritesTheRest(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -122,7 +104,6 @@ func TestLive_aBatchWithOneStaleJobWritesTheRest(t *testing.T) {
 	stale := readJob(t, ctx, mongo, owner, staleID)
 	fresh := readJob(t, ctx, mongo, owner, freshID)
 
-	// Somebody else writes the one job, leaving this batch's copy behind.
 	moved := readJob(t, ctx, mongo, owner, staleID)
 	moved.Name = "moved by somebody else"
 	writeJobs(t, ctx, mongo, owner, []models.Job{moved})
@@ -142,11 +123,6 @@ func TestLive_aBatchWithOneStaleJobWritesTheRest(t *testing.T) {
 	}
 }
 
-// A job whose document was deleted under the writer is reported as gone, which
-// is how a client tells "reconcile against a newer version" from "there is
-// nothing to reconcile against".
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_aWriteAgainstADeletedDocumentIsReportedGone(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -174,7 +150,6 @@ func TestLive_aWriteAgainstADeletedDocumentIsReportedGone(t *testing.T) {
 	if !conflicts[0].Gone {
 		t.Fatalf("conflict = %+v, want it marked gone", conflicts[0])
 	}
-	// A conditional write must not recreate a document somebody removed.
 	if _, err := mongo.JobDocuments.LoadJobByID(ctx, owner, jobID); err == nil {
 		t.Fatal("the refused write recreated the document")
 	}

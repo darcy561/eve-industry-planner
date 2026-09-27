@@ -14,10 +14,6 @@ vi.mock("../../../Zustand/usersStore", async () => {
 
 const { default: GroupBreakdownFrame } = await import("./breakdownframe.jsx");
 
-/**
- * A job that bought what it names, and nothing else. Only the figures the
- * breakdown adds up are filled in.
- */
 function jobBuying(purchases, extras = 0) {
   return {
     build: {
@@ -41,8 +37,6 @@ function jobBuying(purchases, extras = 0) {
 }
 
 describe("what a group's jobs add up to", () => {
-  // The totals are summed across the group's jobs, which is the one thing this
-  // frame does. A job's own spend is read by a selector rather than held on it.
   it("adds up what every job in the group spent on materials", () => {
     render(
       <GroupBreakdownFrame

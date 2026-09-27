@@ -16,13 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-// Call-site live Mongo checks (not unit tests). Same gate as shared/mongo parity:
-//
-//	EIP_MONGO_PARITY_LIVE=1
-//
-// Uses scratch account eip-api-live-account; docs deleted in cleanup.
-// Exercises API helper + the same Docs put/get paths handlers use after auth/lock gates.
-
 const apiLiveScratchAccount = "eip-api-live-account"
 
 func cleanupAPILiveAccount(t *testing.T, m *eipmongo.Mongo) {
@@ -47,7 +40,6 @@ func TestLive_ResolveUserDocumentsForLogin(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Ensure clean slate for first-login path.
 	_, _ = m.Users.Collection().DeleteMany(ctx, bson.M{"_id": apiLiveScratchAccount})
 	_, _ = m.ApplicationSettings.Collection().DeleteMany(ctx, bson.M{"_id": apiLiveScratchAccount})
 
@@ -105,7 +97,6 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	job := scratchJob(fmt.Sprintf("eip-api-live-job-%d", now.UnixNano()), "eip-api-live-job")
 
-	// Same Docs call path as PutJobDocumentsHandler after lock gate.
 	result, failed, _, err := m.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(apiLiveScratchAccount), apiLiveScratchAccount, []models.Job{job}, now, "api-live-sess", "api-live-client")
 	if err != nil {
 		t.Fatalf("BulkUpsertJobs: %v", err)
@@ -134,7 +125,6 @@ func TestLive_JobDocumentsPutGetFlow(t *testing.T) {
 		t.Fatalf("session/client meta: sess=%q client=%q", got.MetaData.SessionID, got.MetaData.ClientID)
 	}
 
-	// Wrong account must not see the doc (handler ownership filter).
 	_, err = m.JobDocuments.LoadJobByID(ctx, models.AccountOwner("eip-api-live-other"), job.JobID)
 	if err == nil {
 		t.Fatal("expected LoadJobByID to fail for other account")

@@ -7,11 +7,8 @@ import { requestJobDocumentsByIdsFromApi } from "../Endpoints/Private/requestJob
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
- * Collects the job ids a removed group held.
- *
- * Both the group's own `includedJobIDs` and any job in the store still carrying
- * the group id: an empty or out-of-sync group document, and a group object
- * already gone locally, each leave one of the two empty.
+ * Collects the job ids a removed group held, from its own `includedJobIDs` and
+ * from any job in the store still carrying the group id.
  *
  * @param {{ groupID?: string; includedJobIDs?: Iterable<string> } | null} groupLike
  * @returns {string[]}
@@ -32,13 +29,8 @@ function jobIDsOfRemovedGroup(groupLike) {
 }
 
 /**
- * Returns this client's copies of a removed group's jobs to normal planner
- * state, writing nothing.
- *
- * For a removal this client did not make. The client that deleted the group
- * releases and saves the jobs, and those writes arrive here as job-document
- * deliveries — so fetching or saving here would repeat the author's work once
- * per connected member, each from its own snapshot.
+ * Returns this client's copies of a removed group's jobs to normal planner state,
+ * writing nothing, for a removal another member made.
  *
  * @param {{ groupID?: string; includedJobIDs?: Iterable<string> } | null} groupLike
  * @returns {object[]} the jobs this client changed
@@ -59,11 +51,8 @@ export function applyGroupRemovalToJobs(groupLike) {
 }
 
 /**
- * Releases a removed group's jobs and writes them, for the client removing it.
- *
- * Loads any of the group's jobs this client does not hold before releasing them:
- * the client that deletes the group is the one persisting the release, so a
- * member it never opened would otherwise keep a group id pointing at nothing.
+ * Releases a removed group's jobs and writes them, loading any the removing
+ * client does not already hold.
  *
  * @param {{ groupID?: string; includedJobIDs?: Iterable<string> } | null} groupLike
  * @returns {Promise<void>}

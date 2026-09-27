@@ -5,16 +5,10 @@ import {
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 
 /**
- * Builds parent-child relationships between jobs based on material dependencies.
- * Establishes connections between jobs where one job's output is another job's input.
+ * Links jobs whose output another job is built from, in both directions.
  *
  * @param {Array} inputJobArray - Array of job objects to establish relationships for
  * @returns {void}
- *
- * @example
- * const jobs = [job1, job2, job3];
- * buildParentChildRelationships(jobs);
- * // Jobs now have parentJobs and childJobs relationships established
  */
 function buildParentChildRelationships(inputJobArray) {
   const typesMap = {};

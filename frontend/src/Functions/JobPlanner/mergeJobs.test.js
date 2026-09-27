@@ -37,7 +37,6 @@ const actions = {
   findJobInJobArray: vi.fn(),
 };
 
-/** The store these functions read, with nothing in the planner yet. */
 function standUpPlanner() {
   standUpStore(() => ({
     account: {
@@ -64,7 +63,6 @@ function seedStore(jobs) {
   }));
 }
 
-/** Two jobs building the same item, which is what a merge is for. */
 function duplicates() {
   return [
     new Job({ jobID: "old-1", name: "Rifter", itemID: RIFTER }),
@@ -72,7 +70,6 @@ function duplicates() {
   ];
 }
 
-/** Stands in for the planner's own job builder, which needs the SDE. */
 function buildsOne() {
   return vi.fn(async ({ itemID }) => new Job({ jobID: "merged", itemID }));
 }
@@ -85,9 +82,6 @@ beforeEach(() => {
 });
 
 describe("merging two jobs that build the same item", () => {
-  // Nothing records what a merge changed on the job it replaces them with, so
-  // it is written whole and checked against the revision its own `_meta`
-  // carries. A bare document here is refused by the endpoint outright.
   it("writes the replacement as a whole-document envelope", async () => {
     seedStore(duplicates());
 
@@ -118,8 +112,6 @@ describe("merging two jobs that build the same item", () => {
   });
 });
 
-// A merge that removed its old jobs locally after the write failed would leave
-// the planner holding one job where the server still holds two.
 describe("a merge the server refused", () => {
   it("removes nothing from the planner", async () => {
     seedStore(duplicates());
@@ -148,14 +140,9 @@ describe("merging jobs that build different items", () => {
   });
 });
 
-// The point of a merge is that everything pointing at the jobs it replaced ends
-// up pointing at the replacement. A merge that wrote the new job but left the
-// links behind would give the planner a parent building from jobs that no
-// longer exist.
 describe("what pointed at the jobs that were merged", () => {
   const RIFTER_PARENT = 11567;
 
-  /** A parent building both duplicates, and a child both duplicates build from. */
   function linkedAround() {
     const merged = duplicates();
     const parent = new Job({
@@ -179,15 +166,11 @@ describe("what pointed at the jobs that were merged", () => {
     return { merged, parent, child };
   }
 
-  /** What the merge wrote for one job, read out of the batch it sent. */
   function writtenDocument(jobID) {
     const written = putJobDocumentsBatch.mock.calls[0][0];
     return written.find((write) => write.jobID === jobID)?.document;
   }
 
-  // Read from the write rather than from the job in the planner: the merge works
-  // on copies and the planner is only updated once the writes have landed, so
-  // the copy it sent is the only place the new links exist yet.
   it("points the parent at the replacement instead of what it replaced", async () => {
     const { merged, parent, child } = linkedAround();
     seedStore([...merged, parent, child]);
@@ -208,8 +191,6 @@ describe("what pointed at the jobs that were merged", () => {
     expect(writtenDocument("child").parentJobs).toEqual(["merged"]);
   });
 
-  // The planner keeps what it had until the writes land, so a merge that failed
-  // leaves no half-relinked job behind.
   it("leaves the planner's own copies alone", async () => {
     const { merged, parent, child } = linkedAround();
     seedStore([...merged, parent, child]);

@@ -22,16 +22,6 @@ func writeFields(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner
 	return applied, failed, conflicts
 }
 
-// A field-scoped write changes what it names and leaves the rest of the document
-// alone.
-//
-// Nothing else asserts this against a real Mongo: the unit tests build the
-// update and reason about the paths without a driver, so an update Mongo refuses
-// outright — or one whose `$set` reached somewhere other than the path it names
-// — would pass every one of them. Stage A's own conditional write was proved
-// wrong this way after passing every unit test it had.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_aFieldWriteChangesOnlyWhatItNames(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -85,17 +75,11 @@ func TestLive_aFieldWriteChangesOnlyWhatItNames(t *testing.T) {
 	if after.MetaData.Revision != seeded.MetaData.Revision+1 {
 		t.Errorf("want the write counted once, went %d to %d", seeded.MetaData.Revision, after.MetaData.Revision)
 	}
-	// The write says nothing about when the document was made, so it must not
-	// move — a stamp built from a struct would have set it to the zero time.
 	if !after.MetaData.CreatedAt.Equal(seeded.MetaData.CreatedAt) {
 		t.Errorf("want createdAt left alone, went %v to %v", seeded.MetaData.CreatedAt, after.MetaData.CreatedAt)
 	}
 }
 
-// A field write built on a revision the document has moved past is refused, and
-// the document keeps what it had.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_aStaleFieldWriteIsRefused(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -111,7 +95,6 @@ func TestLive_aStaleFieldWriteIsRefused(t *testing.T) {
 	}
 	read := readFieldWriteJob(t, ctx, mongo, owner, jobID)
 
-	// One writer lands; the other still holds the revision from before it.
 	if applied, _, _ := writeFields(t, ctx, mongo, owner, []eipmongo.JobFieldWrite{{
 		JobID: jobID, Expected: read.MetaData.Revision, Fields: map[string]any{"name": "landed"},
 	}}); applied != 1 {

@@ -18,8 +18,6 @@ func sentJobs(ids ...string) []models.Job {
 	return jobs
 }
 
-// A batch answers with one refusal, so the response cannot be read as naming
-// every document that missed. What wrote is stated rather than inferred.
 func TestWrittenJobIDsLeavesOutEveryDocumentThatMissed(t *testing.T) {
 	written := writtenIDs(
 		sentJobs("job-clean", "job-moved", "job-invalid"),
@@ -41,8 +39,6 @@ func TestWrittenJobIDsNamesTheWholeBatchWhenNothingMissed(t *testing.T) {
 	}
 }
 
-// A job carrying no id is not written and cannot be named, so it is left out
-// rather than reported as an empty document that landed.
 func TestWrittenJobIDsLeavesOutAJobWithNoID(t *testing.T) {
 	written := writtenIDs(sentJobs("", "job-1"), jobDocumentID, []string{""}, nil)
 

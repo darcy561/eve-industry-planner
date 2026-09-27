@@ -3,21 +3,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { testQueryClient } from "../../../tests/queryClients.js";
 
-/**
- * Switching planner, from the click to what the store is left holding.
- *
- * The pieces either side are covered — the endpoints by Go tests, the loader's
- * races by unit tests — while the chain between them is not, and it is where
- * this has gone wrong twice: which planner a queued write names when it finally
- * goes, and whether the jobs left in the store belong to the planner on screen.
- * Only the network is faked here; the header, the endpoint modules, the store
- * actions and the merge are all the real ones.
- */
-
 const OWN = "account:acct-1";
 const CORP = "corporation:98000001";
 
-/** Every request the app made, in order, with the planner it named. */
 const sent = [];
 
 const state = await buildState();
@@ -26,8 +14,6 @@ vi.mock("../../../Zustand/usersStore.js", () => storeModule());
 vi.mock("../../../Zustand/usersStore", () => storeModule());
 
 vi.mock("../../../WebSocket/websocketClient.js", () => ({
-  // Stands in for the socket only: the real one writes the planner into the
-  // store exactly like this once the connection has taken it.
   sendActivePlanner: (owner) => {
     state.activePlanner.actions.setActivePlannerOwner(owner);
     return true;
@@ -67,7 +53,6 @@ function storeModule() {
   };
 }
 
-/** The harness state, with the real job-store actions wired onto it. */
 async function buildState() {
   const { usersStoreState } =
     await import("../../../tests/usersStoreHarness.js");
@@ -88,12 +73,9 @@ async function buildState() {
     );
   };
   const get = () => built;
-  // The harness wires the planner actions to a `set` that goes nowhere, which is
-  // right for a test that only reads them and wrong here: naming the planner has
-  // to actually move the store, or every scoped read after it is for the old one.
+
   built.activePlanner.actions = activePlannerActions(set, get);
-  // Naming the planner ends the edit session with it, so this needs a real one
-  // for the same reason the planner actions do.
+
   Object.assign(built, editSessionSlice(set, get));
   built.jobData.actions = {
     ...built.jobData.actions,
@@ -108,7 +90,6 @@ function jobRow(jobID) {
   return { jobID, name: jobID, displayOnPlanner: true, itemID: 34 };
 }
 
-/** A real Response: the transport clones and reads it before the caller sees it. */
 function respond(body) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -183,8 +164,6 @@ describe("switching planner, end to end", () => {
     for (const request of documents) expect(request.owner).toBe(CORP);
   });
 
-  // The write names its planner when it goes, not when it was queued, so this is
-  // the one that catches a flush moved to the wrong side of the switch.
   it("sends a queued edit under the planner it was made in", async () => {
     state.jobData.jobArray = [
       {

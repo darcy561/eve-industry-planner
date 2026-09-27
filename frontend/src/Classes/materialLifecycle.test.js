@@ -18,10 +18,6 @@ const { default: Setup } = await import("./jobSetup.js");
 const { distributeItemCostsBetweenJobs } =
   await import("../Functions/Shared/passBuildCosts.js");
 
-// A job walked through the stages a real one goes through, asserting the whole
-// chain each time: a setup says what a material needs, the job sums its setups,
-// the material counts its purchases against that, and every cost above it
-// follows. Nothing here reaches into a field the model derives.
 const TRITANIUM = 34;
 const PYERITE = 35;
 
@@ -85,13 +81,10 @@ describe("a job's materials through its life", () => {
     const job = newJob();
     const tritanium = materialOf(job, TRITANIUM);
 
-    // Before a setup exists the job asks for nothing, and a material with no
-    // requirement is not "complete" work waiting to be built.
     expect(tritanium.quantity).toBe(0);
     expect(totalMaterialCost(job.toDocument())).toBe(0);
     expect(isReadyToBuild(job)).toBe(false);
 
-    // One setup: ten runs of ten, so 100 Tritanium and 40 Pyerite.
     job.attachNewSetupToJob(
       setupFor("setup-1", {
         runCount: 10,
@@ -104,7 +97,6 @@ describe("a job's materials through its life", () => {
     expect(totalQuantityProduced(job)).toBe(100);
     expect(tritanium.quantityRemaining).toBe(100);
 
-    // Buying part of it moves the cost and nothing else.
     job.importPurchaseToMaterial(TRITANIUM, { itemCount: 60, itemCost: 5 });
     expect(tritanium.quantityPurchased).toBe(60);
     expect(tritanium.purchasedCost).toBe(300);
@@ -113,7 +105,6 @@ describe("a job's materials through its life", () => {
     expect(buildCost(job)).toBe(300);
     expect(isReadyToBuild(job)).toBe(false);
 
-    // Buying past the requirement is recorded but not charged.
     const { taken, leftOver } = job.importPurchaseToMaterial(
       TRITANIUM,
       { itemCount: 60, itemCost: 8 },
@@ -126,14 +117,11 @@ describe("a job's materials through its life", () => {
     expect(tritanium.purchasedCost).toBe(620);
     expect(tritanium.purchaseComplete).toBe(true);
 
-    // The other material still holds the job back.
     expect(isReadyToBuild(job)).toBe(false);
     job.importPurchaseToMaterial(PYERITE, { itemCount: 40, itemCost: 2 });
     expect(isReadyToBuild(job)).toBe(true);
     expect(totalMaterialCost(job.toDocument())).toBe(700);
 
-    // A second setup asks for more of everything, and every figure follows it
-    // without anything being recalculated.
     job.attachNewSetupToJob(
       setupFor("setup-2", {
         runCount: 5,
@@ -147,24 +135,20 @@ describe("a job's materials through its life", () => {
     expect(tritanium.purchaseComplete).toBe(false);
     expect(tritanium.quantityRemaining).toBe(30);
     expect(tritanium.excessQuantity).toBe(0);
-    // The 20 that were excess now count, at the price they were bought for.
+
     expect(tritanium.purchasedCost).toBe(780);
     expect(isReadyToBuild(job)).toBe(false);
 
-    // Dropping a setup takes the requirement back down, and the dearest units
-    // are the ones that stop counting.
     delete job.build.setup["setup-2"];
     expect(tritanium.quantity).toBe(100);
     expect(tritanium.purchasedCost).toBe(620);
     expect(tritanium.excessQuantity).toBe(20);
     expect(isReadyToBuild(job)).toBe(true);
 
-    // What the job cost, per item, is the sum of the parts over what it makes.
     expect(totalMaterialCost(job.toDocument())).toBe(700);
     expect(buildCost(job)).toBe(700);
     expect(buildCostPerItem(job)).toBe(7);
 
-    // A saved job comes back the same, figures and all.
     const reloaded = new Job(job.toDocument());
     const reloadedTritanium = materialOf(reloaded, TRITANIUM);
     expect(reloadedTritanium.quantity).toBe(100);
@@ -189,8 +173,6 @@ describe("a job's materials through its life", () => {
 
     parent.importPurchaseToMaterial(TRITANIUM, { itemCount: 30, itemCost: 5 });
 
-    // The child produced 100 but the parent only needs 70 more, so the rest is
-    // left on the entry for whoever needs it next.
     const costs = [{ id: "child-1", cost: 4, quantity: 100 }];
     distributeItemCostsBetweenJobs(
       { [TRITANIUM]: { totalQuantity: 100, costs } },
@@ -203,13 +185,11 @@ describe("a job's materials through its life", () => {
     expect(tritanium.quantityPurchased).toBe(100);
     expect(tritanium.hasPurchaseFromChild("child-1")).toBe(true);
 
-    // Cheapest first: the child's 70 at 4 count before the 30 bought at 5.
     expect(tritanium.purchasedCost).toBe(430);
-    // Only what was bought is a spend of this job's.
+
     expect(tritanium.boughtCost).toBe(150);
     expect(totalBoughtMaterialCost(parent)).toBe(150);
 
-    // Re-running the import does not charge the same output twice.
     distributeItemCostsBetweenJobs(
       {
         [TRITANIUM]: {

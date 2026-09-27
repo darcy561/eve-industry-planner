@@ -22,8 +22,7 @@ vi.mock("../../Zustand/usersStore.js", async () => {
     await import("../../tests/usersStoreHarness.js");
   return usersStoreMock(() => usersStoreState(storeState));
 });
-// Enough of the class for what this module asks of it: it builds one for the
-// planner's list, and hands the editor what the same job says as a document.
+
 vi.mock("../../Classes/job.js", () => ({
   default: class {
     constructor(doc) {
@@ -43,7 +42,6 @@ const {
 
 const JOB = { jobID: "job-1" };
 
-/** Runs the queue's flush without waiting out its debounce. */
 async function flush() {
   await vi.advanceTimersByTimeAsync(200);
 }
@@ -55,9 +53,6 @@ beforeEach(() => {
   removeJobsFromJobArray.mockClear();
 });
 
-// Restoring an archived job writes the same jobID back, so a delete and an upsert
-// for one document can land inside a single flush window. Which one happened is
-// what the position answers; before it, the delete won and the job never came back.
 describe("a delete and an upsert for the same job in one window", () => {
   it("keeps the later upsert when the delete came first", async () => {
     enqueueInboundJobDocumentChange("delete", "job-1", undefined, 10);
@@ -86,7 +81,6 @@ describe("a delete and an upsert for the same job in one window", () => {
     expect(updateOrAddJobsToJobArray).not.toHaveBeenCalled();
   });
 
-  // With nothing to order them by, a resurrected row is the worse mistake.
   it("lets the delete win when neither names a position", async () => {
     enqueueInboundJobDocumentChange("delete", "job-1", undefined, null);
     enqueueInboundJobDocumentChange("upsert", "job-1", JOB, null);
@@ -97,8 +91,6 @@ describe("a delete and an upsert for the same job in one window", () => {
   });
 });
 
-// A page holding a deleted job open is showing a document that no longer exists,
-// and the arrays being correct is not something it can notice.
 describe("telling the app a job it held was deleted elsewhere", () => {
   it("names the deleted jobs once they are out of the store", async () => {
     const seen = [];
@@ -127,10 +119,6 @@ describe("telling the app a job it held was deleted elsewhere", () => {
   });
 });
 
-// An editor holds the job as the document it started from plus what the reader
-// has changed on top. A document arriving replaces the first without disturbing
-// the second, which is what lets somebody watching a job somebody else is
-// editing see their work land without losing their own.
 describe("a document arriving for a job somebody has open", () => {
   const openSession = async (jobID, document) => {
     const { default: useUsersStore } =
@@ -174,9 +162,6 @@ describe("a document arriving for a job somebody has open", () => {
     expect(job.jobStatus).toBe(2);
   });
 
-  // Typing merges into one undo step for as long as the reader keeps going, and
-  // a co-member's save landing in the middle must not split the run: the
-  // document goes underneath the step, which is still the one step it was.
   it("does not break a run of typing it lands in the middle of", async () => {
     const session = await openSession("job-1", {
       jobID: "job-1",

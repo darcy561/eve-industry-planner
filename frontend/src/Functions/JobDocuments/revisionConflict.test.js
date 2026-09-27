@@ -34,9 +34,6 @@ describe("parseRevisionConflictBody", () => {
     expect(parsed?.rejected[0].gone).toBe(true);
   });
 
-  // A lock conflict and a revision conflict are both 409 with a `rejected`
-  // array. Answering a lock conflict here would clear the pending queue for a
-  // write that is only blocked, discarding work that could still be saved.
   it("is not a lock conflict", () => {
     const lockBody = JSON.stringify({
       error: "lock_held_elsewhere",
@@ -64,8 +61,6 @@ describe("revisionConflictMessage", () => {
     expect(msg).not.toContain("changed elsewhere");
   });
 
-  // A mixed batch cannot claim every job was removed; "changed" is true of the
-  // batch as a whole and sends the reader somewhere that exists.
   it("says changed when only some are gone", () => {
     const msg = revisionConflictMessage([{ gone: true }, { gone: false }]);
     expect(msg).toContain("changed elsewhere");

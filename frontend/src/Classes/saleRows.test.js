@@ -33,15 +33,13 @@ describe("Transaction", () => {
     expect(Transaction.custom({ amount: 10 }).isFromMarket).toBe(false);
   });
 
-  // A minted id must stay out of the space ESI issues from, or it could take
-  // the id of a real transaction the account has not linked yet.
   it("mints a hand-entered id below zero, inside the safe range", () => {
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const minted = Transaction.mintCustomID();
 
       expect(minted).toBeLessThan(0);
       expect(Number.isSafeInteger(minted)).toBe(true);
-      // Well clear of the ids ESI issues, and of the safe-integer ceiling.
+
       expect(Math.abs(minted)).toBeLessThanOrEqual(2 ** 48);
     }
   });
@@ -62,8 +60,6 @@ describe("Transaction", () => {
     expect(transaction.netValue).toBe(975);
   });
 
-  // A wallet transaction carries neither the money nor the tax; both are
-  // journal entries it points at.
   it("takes the money from the journal and the tax as a magnitude", () => {
     const transaction = Transaction.fromESI(
       {
@@ -84,7 +80,7 @@ describe("Transaction", () => {
     expect(transaction.tax).toBe(1.8);
     expect(transaction.description).toBe("Tritanium");
     expect(transaction.character_id).toBe(95465499);
-    // A character's corporation does not own its personal sales.
+
     expect(transaction.corporation_id).toBeNull();
   });
 
@@ -182,8 +178,6 @@ describe("MarketOrder", () => {
     });
   });
 
-  // A fee has no identity of its own, so an order holds one: the charge for
-  // listing it. Anything later against the same order is a relist.
   describe("recording the broker fee charged for listing it", () => {
     const dated = (amount, date) => ({ amount, salesTax: 0, date });
 
@@ -206,8 +200,6 @@ describe("MarketOrder", () => {
       expect(order.fee).toBe(1000);
     });
 
-    // A row stored without a date cannot be shown to be the earlier one, and a
-    // stored collection is read in whatever order it was written in.
     it("does not let an undated fee displace a dated one", () => {
       const order = new MarketOrder({ order_id: 1 });
 
@@ -227,8 +219,6 @@ describe("MarketOrder", () => {
       expect(order.feeDate).toBeNull();
     });
 
-    // Neither can be shown to be older, so the first read stands — which is the
-    // order the conversion settles them in too.
     it("keeps the first of two undated fees", () => {
       const order = new MarketOrder({ order_id: 1 });
 
@@ -238,8 +228,6 @@ describe("MarketOrder", () => {
       expect(order.fee).toBe(1000);
     });
 
-    // An order charged nothing holds 0, which is a recorded fee rather than an
-    // absent one — a later row may not take its place.
     it("keeps a recorded fee of nothing", () => {
       const order = new MarketOrder({ order_id: 1 });
 
@@ -259,8 +247,6 @@ describe("MarketOrder", () => {
     ).toBe(false);
   });
 
-  // An order can leave the market without selling out, and it will not change
-  // again once it has.
   it("counts an expired or cancelled order as finished", () => {
     expect(
       new MarketOrder({ volume_total: 10, volume_remain: 4, state: "expired" })
@@ -315,8 +301,6 @@ describe("MarketOrder", () => {
     ]);
   });
 
-  // A sold-out order is finished, so a later read of the same order cannot
-  // reopen it.
   it("leaves a sold out order alone", () => {
     const order = new MarketOrder({
       volume_total: 10,
@@ -328,7 +312,6 @@ describe("MarketOrder", () => {
     expect(order.item_price).toBe(100);
   });
 
-  // Completion is read from the volume left, so it is not stored beside it.
   it("does not store completion on the document", () => {
     const document = new MarketOrder({
       order_id: 1,
@@ -351,8 +334,7 @@ describe("BrokerFee", () => {
 
     expect(fee.order_id).toBe(1);
     expect(fee.id).toBe(500);
-    // The worked-out fee, not the entry's own amount, which can cover more than
-    // this order.
+
     expect(fee.amount).toBe(1200);
     expect(fee.date).toBe("2026-01-01T00:00:00Z");
   });
@@ -369,17 +351,12 @@ describe("BrokerFee", () => {
     expect(new BrokerFee(row).toDocument()).toEqual(row);
   });
 
-  // The tax is an estimate made when the order was linked. A row stored before
-  // the estimate existed has none, and must not read as a sale taxed nothing.
   it("carries no estimate for a row stored without one", () => {
     expect(new BrokerFee({ order_id: 1, amount: 1200 }).salesTax).toBe(0);
   });
 });
 
 describe("linking a market order", () => {
-  // The fee is a journal entry that may not be found — the account's own
-  // journal window is limited — and losing the order over it would tell the
-  // user their link worked while the job kept nothing.
   it("keeps the order when no broker fee entry was found", () => {
     const job = new Job({
       jobID: "job-1",
@@ -394,8 +371,7 @@ describe("linking a market order", () => {
     );
 
     expect(esiOrderIDs(listed.toDocument()).has(1)).toBe(true);
-    // Charged nothing rather than unknown: the figure is summed, so a missing
-    // one would take the total with it.
+
     expect(listed.esi.marketOrders["1"].fee).toBe(0);
     expect(listed.esi.marketOrders["1"].feeDate).toBeNull();
     expect(totalBrokersFees(listed.toDocument())).toBe(0);
@@ -419,7 +395,7 @@ describe("linking a market order", () => {
 
     expect(esiOrderIDs(listed.toDocument()).has(1)).toBe(true);
     expect(totalBrokersFees(listed.toDocument())).toBe(1200);
-    // The fee rides the order it was charged against rather than sitting beside it.
+
     expect(listed.esi.marketOrders["1"].fee).toBe(1200);
   });
 
@@ -449,7 +425,6 @@ describe("linking a market order", () => {
     expect(job.esi.marketOrders["1"].feeDate).toBe("2026-01-01T00:00:00Z");
     expect(totalBrokersFees(job.toDocument())).toBe(1200);
 
-    // The fee survives a read and a write, and the dead completion flag does not.
     const document = job.toDocument();
     expect(document.esi.marketOrders["1"]).not.toHaveProperty("complete");
     expect(document.esi.marketOrders["1"].fee).toBe(1200);
@@ -485,8 +460,6 @@ describe("linking a market order", () => {
   });
 });
 
-// ESI carries no reference between an order and a transaction, so which order a
-// sale belongs to can only be answered when there is one order to answer with.
 describe("which order a linked sale is attributed to", () => {
   const jobSellingThrough = (orders) =>
     new Job({
@@ -508,8 +481,6 @@ describe("which order a linked sale is attributed to", () => {
     expect(sold.esi.transactions["800001"].order_id).toBe(700001);
   });
 
-  // Guessing between them would put the sale's figures against an order that
-  // may not have made it, and every per-order total downstream reads that.
   it("leaves the sale unattributed when the job sells through several", () => {
     const job = jobSellingThrough([
       { order_id: 700001, price: 5 },
@@ -524,8 +495,6 @@ describe("which order a linked sale is attributed to", () => {
     expect(sold.esi.transactions["800001"].order_id).toBeNull();
   });
 
-  // A sale can be linked before its order is: the job holds the sale rather
-  // than refusing it, which is what asking the orders for a first one did.
   it("takes a sale on a job with no orders at all", () => {
     const job = jobSellingThrough([]);
 
@@ -539,12 +508,7 @@ describe("which order a linked sale is attributed to", () => {
   });
 });
 
-// The tax estimate exists to fill the gap before a sale happens. Once it has,
-// the transaction carries what EVE actually charged, and that is what the job's
-// cost is built from — counting both would charge the same sale twice.
 describe("tax expected on orders that have not sold", () => {
-  // A fee is carried by the order it was charged against, so each fee names an
-  // order the job holds.
   const jobWith = ({ fees = [], transactions = [] }) =>
     new Job({
       jobID: "job-1",
@@ -576,7 +540,7 @@ describe("tax expected on orders that have not sold", () => {
     });
 
     expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(0);
-    // What was actually charged is the figure that survives.
+
     expect(totalTransactionFees(job.toDocument())).toBe(480);
   });
 
@@ -592,8 +556,6 @@ describe("tax expected on orders that have not sold", () => {
     expect(estimatedSalesTaxOutstanding(job.toDocument())).toBe(300);
   });
 
-  // The estimate is a forecast, so it must never reach the figure the job is
-  // costed on.
   it("stays out of the job's total cost", () => {
     const job = jobWith({
       fees: [{ order_id: 1, amount: 1200, salesTax: 500 }],
@@ -609,9 +571,6 @@ describe("tax expected on orders that have not sold", () => {
   });
 });
 
-// A job is built from the SDE recipe, which names this `metaGroupID`; a stored
-// job carries it back as `metaLevel`. Reading only the second left every new job
-// without one, and the invention costs offered for T2 and T3 items never showed.
 describe("what meta group a job belongs to", () => {
   it("takes it from the recipe it was built from", () => {
     const job = new Job({ jobType: 1, name: "Item", metaGroupID: 2 });
@@ -636,8 +595,6 @@ describe("what meta group a job belongs to", () => {
   });
 });
 
-// A row is removed by matching on its id, so two rows sharing one meant removing
-// either removed both. The clock alone repeats within a millisecond.
 describe("minting an invention entry's id", () => {
   it("gives two entries made together ids of their own", () => {
     const first = InventionEntry.forItem("Datacore", 100);
@@ -652,8 +609,6 @@ describe("minting an invention entry's id", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  // Rows written before the change carry a number. The id is only ever compared,
-  // never parsed, so both kinds sit in one job without anything having to know.
   it("keeps a numeric id a stored row already has", () => {
     const entry = new InventionEntry({ id: 1789083363901, itemName: "Old" });
 

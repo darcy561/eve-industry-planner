@@ -42,8 +42,6 @@ function NewGroupPage() {
           const matchedParentJob = useUsersStore
             .getState()
             .jobData.actions.findJobInJobArray(parentID);
-          // A parent lists a child under the material that child produces, and
-          // a tree that has drifted may not carry that entry at all.
           if (
             !matchedParentJob ||
             !matchedParentJob.build.childJobs[matchedGroupJob.itemID]
@@ -87,7 +85,6 @@ function NewGroupPage() {
 
       group.createGroup(groupJobs);
 
-      // Includes empty job groups (New Group with no jobs selected → includes query absent/empty).
       trackAppEvent(AppEvent.NEW_JOB_GROUP);
 
       addGroupToGroupArray(group);

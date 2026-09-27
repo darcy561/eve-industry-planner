@@ -45,8 +45,6 @@ function makeGroup(id = "g1") {
   };
 }
 
-// A job as the close reads one: the links it trims are on the document, not
-// methods it calls.
 function makeJob(id = "j1") {
   return {
     jobID: id,
@@ -101,9 +99,6 @@ describe("closeActiveGroup", () => {
     ).toHaveBeenCalledWith(expect.anything(), { queuePersist: false });
   });
 
-  // The group's changes are applied to the store and its queued write cleared,
-  // so the work is on screen and lost at the next reload. Without this the user
-  // is told nothing at all.
   it("warns when a signed-in editor could not persist", async () => {
     storeHolder.current
       .getState()

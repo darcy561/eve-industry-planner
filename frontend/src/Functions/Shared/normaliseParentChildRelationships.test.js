@@ -11,10 +11,6 @@ const { default: Job } = await import("../../Classes/job.js");
 
 const TRITANIUM = 34;
 
-/**
- * A job as the planner holds one. `materials` is what it is built from, and
- * `childJobs` which jobs supply each of those.
- */
 function job({ jobID, itemID, parentJobs = [], materials = [], childJobs }) {
   return new Job({
     jobID,
@@ -29,12 +25,6 @@ function job({ jobID, itemID, parentJobs = [], materials = [], childJobs }) {
   });
 }
 
-/**
- * Both sides of a link are stated by both jobs, and a save writes whichever of
- * them it happens to hold. A link only one side names is what this pass is for:
- * left alone it reads as a child job supplying a material, or a parent waiting
- * on one, that the other job knows nothing about.
- */
 describe("a link only one side of it names", () => {
   it("tells the parent about a child that names it", () => {
     const child = job({
@@ -70,8 +60,6 @@ describe("a link only one side of it names", () => {
   });
 });
 
-// A link is only meaningful where the parent is built from what the child
-// makes. One that is not is a leftover from a job whose recipe moved.
 describe("a link that no longer makes sense", () => {
   it("drops a parent that does not build what the child makes", () => {
     const child = job({
@@ -108,8 +96,6 @@ describe("a link that no longer makes sense", () => {
   });
 });
 
-// Only jobs in the list are normalised: a link to a job elsewhere on the
-// planner is not this pass's to judge.
 describe("a link to a job that is not here", () => {
   it("leaves it alone", () => {
     const child = job({

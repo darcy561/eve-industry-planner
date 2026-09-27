@@ -5,10 +5,6 @@ import { DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE } from "./documentLockEvent
 /**
  * Reads a lock-conflict 409 body, or null when the body is not one.
  *
- * Separate from {@link applyLockHeldElsewhereFromApiBody} so a caller can learn
- * what the write did, without the scope patching that the transport helper
- * wants.
- *
  * @param {string} text - Raw response body (already read from `Response`).
  * @returns {{rejected: string[], savedDocIDs: string[]}|null} The documents held
  *   elsewhere, and the ones the batch wrote anyway

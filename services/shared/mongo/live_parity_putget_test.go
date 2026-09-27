@@ -18,9 +18,6 @@ import (
 
 const parityScratchAccount = "eip-parity-account"
 
-// Live put/get against stack Mongo via shared/mongo only.
-// Requires EIP_MONGO_PARITY_LIVE=1. Scratch docs use eip-parity-account and are deleted in cleanup.
-
 func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -105,7 +102,6 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 		}
 		assertGroupRoundtrip(t, g, gotGroup2, now3, parityScratchAccount, "parity-sess-3", "parity-client-3")
 
-		// Membership delta: grow IncludedJobIDs and assert AddedJobIDs.
 		g.IncludedJobIDs = []string{jobID, "delta-a", "delta-b"}
 		now4 := now.Add(3 * time.Second)
 		_, err = groupsColl.UpdateOne(ctx,

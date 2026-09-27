@@ -25,8 +25,6 @@ describe("what a lock refusal says", () => {
     ).toEqual(["job-1", "job-2"]);
   });
 
-  // A revision conflict is also a 409 carrying `rejected`. Reading one as the
-  // other would clear the pending queue for documents that are merely blocked.
   it("is not a revision conflict", () => {
     const revision = JSON.stringify({
       error: "revision_conflict",

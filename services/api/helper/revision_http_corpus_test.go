@@ -11,7 +11,6 @@ import (
 
 const writeConflictCorpusPath = "../../../testing/fixtures/write-conflict/body.json"
 
-// The 409 body as the corpus states it, which the SPA reads from the same file.
 type writeConflictCorpus struct {
 	ErrorCodes struct {
 		RevisionConflict  string `json:"revisionConflict"`
@@ -50,8 +49,6 @@ func loadWriteConflictCorpus(t *testing.T) writeConflictCorpus {
 	return corpus
 }
 
-// The error code is the discriminator the client tells a revision conflict from
-// a lock conflict on, so it is stated once and read by both sides.
 func TestRevisionConflictCodeMatchesTheCorpus(t *testing.T) {
 	corpus := loadWriteConflictCorpus(t)
 	if ErrCodeRevisionConflict != corpus.ErrorCodes.RevisionConflict {
@@ -60,9 +57,6 @@ func TestRevisionConflictCodeMatchesTheCorpus(t *testing.T) {
 	}
 }
 
-// What the handler writes is compared field by field with what the corpus says a
-// client may read. A field renamed here without the corpus fails, and the SPA's
-// own corpus test fails for the other half of the same rename.
 func TestRevisionConflictBodyMatchesTheCorpus(t *testing.T) {
 	corpus := loadWriteConflictCorpus(t)
 
@@ -84,10 +78,6 @@ func TestRevisionConflictBodyMatchesTheCorpus(t *testing.T) {
 		t.Fatalf("status = %d, want 409", rec.Code)
 	}
 
-	// Compared against the corpus's own JSON rather than against the struct it
-	// decoded into: a field renamed in the corpus decodes as empty on both sides
-	// and would still match, so re-marshalling the struct proves nothing about
-	// the names. The raw keys are the contract.
 	var got map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)

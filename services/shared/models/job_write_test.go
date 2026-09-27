@@ -55,7 +55,6 @@ func TestJobSetPathsReachesTheDeepestPresentField(t *testing.T) {
 	}
 }
 
-// An empty object is a collection being set to empty, not a path to walk into.
 func TestJobSetPathsWritesAnEmptiedCollection(t *testing.T) {
 	job := writeJob()
 	job.Build.ExtrasCosts = map[string]ExtraCost{}
@@ -71,7 +70,6 @@ func TestJobSetPathsWritesAnEmptiedCollection(t *testing.T) {
 	}
 }
 
-// A list is a value, not a path: it is written whole however deep it sits.
 func TestJobSetPathsWritesAListWhole(t *testing.T) {
 	set := setPaths(t, `{"build":{"childJobs":{"34":["job-7"]}}}`, writeJob())
 
@@ -80,7 +78,6 @@ func TestJobSetPathsWritesAListWhole(t *testing.T) {
 	}
 }
 
-// The stored name is the bson tag's, which is not always the json name.
 func TestJobSetPathsWritesTheRowWhenAFieldHasNoStoredPath(t *testing.T) {
 	set := setPaths(t, `{"esi":{"industryJobs":{"500001":{"character_id":99}}}}`, writeJob())
 
@@ -92,8 +89,6 @@ func TestJobSetPathsWritesTheRowWhenAFieldHasNoStoredPath(t *testing.T) {
 	if !ok {
 		t.Fatalf("want the decoded row, got %T", value)
 	}
-	// The row is written as the handler left it, so the ciphered ref travels and
-	// the client-facing id has no path to be written at.
 	if run.CharacterRef != "ref-99" {
 		t.Errorf("want the ciphered ref carried, got %q", run.CharacterRef)
 	}
@@ -102,12 +97,7 @@ func TestJobSetPathsWritesTheRowWhenAFieldHasNoStoredPath(t *testing.T) {
 	}
 }
 
-// Every linked run, order and transaction carries a ciphered id beside ordinary
-// fields, so this is the common shape rather than an edge case. The row is the
-// unit either way, and which member the walk reads first must not decide it.
 func TestJobSetPathsWritesTheRowOnceWhenACipheredFieldHasASibling(t *testing.T) {
-	// One sibling either side of `character_id` by name, so the row is the answer
-	// whichever member the walk reaches first.
 	set := setPaths(t, `{"esi":{"industryJobs":{"500001":{"blueprint_id":7,"character_id":99,"job_id":500001}}}}`, writeJob())
 
 	if len(set) != 1 {
@@ -118,8 +108,6 @@ func TestJobSetPathsWritesTheRowOnceWhenACipheredFieldHasASibling(t *testing.T) 
 	}
 }
 
-// A market order and a transaction each carry two fields with no stored path,
-// so the row has to be the answer once rather than once per such field.
 func TestJobSetPathsWritesTheRowOnceForTwoCipheredFields(t *testing.T) {
 	set := setPaths(t, `{"esi":{"marketOrders":{"700001":{"character_id":99,"corporation_id":5,"duration":90}}}}`, writeJob())
 
@@ -157,8 +145,6 @@ func TestJobSetPathsRefusesAFieldTheModelDoesNotCarry(t *testing.T) {
 	}
 }
 
-// A body whose shape disagrees with the model is refused rather than half
-// written: there is nothing under a name that holds no members.
 func TestJobSetPathsRefusesAnObjectAgainstAPlainField(t *testing.T) {
 	_, err := JobSetPaths(jsontext.Value(`{"name":{"first":"A job"}}`), writeJob())
 	if err == nil || !strings.Contains(err.Error(), "cannot reach into") {
@@ -182,8 +168,6 @@ func TestJobUnsetPathsResolvesARowToItsStoredPath(t *testing.T) {
 	}
 }
 
-// Only a row of a keyed collection can be cleared on its own: a struct field is
-// part of the job's shape, and a job missing one cannot be read back.
 func TestJobUnsetPathsRefusesAFieldThatIsNotARow(t *testing.T) {
 	for _, path := range [][]string{
 		{"build"},
@@ -208,10 +192,6 @@ func TestJobUnsetPathsRefusesWhatLeavesTheModel(t *testing.T) {
 	}
 }
 
-// A list row cannot be cleared by path — $unset leaves a hole where it was — so
-// the client writes the list whole and the server refuses to be asked otherwise.
-// A stored path joins its steps with a dot, so a key holding one would be read
-// back as two steps and reach somewhere nobody named. An empty key names no row.
 func TestJobWritePathsRefuseAKeyThatCannotBeAStep(t *testing.T) {
 	for _, path := range [][]string{
 		{"esi", "industryJobs", ""},
@@ -264,9 +244,6 @@ func TestJobWriteBodyValidateAllowsAWriteThatNamesEverything(t *testing.T) {
 	}
 }
 
-// A write names a revision here only when it carries fields rather than a whole
-// document. A job written whole is still checked against a revision — the one
-// its own `_meta` carries — so "no revision named here" is not "no revision".
 func TestJobWriteBodyIsWholeDocumentWhenTheEnvelopeNamesNoRevision(t *testing.T) {
 	if !(JobWriteBody{JobID: "job-1"}).IsWholeDocument() {
 		t.Error("want a write naming no revision carried whole")
@@ -276,8 +253,6 @@ func TestJobWriteBodyIsWholeDocumentWhenTheEnvelopeNamesNoRevision(t *testing.T)
 	}
 }
 
-// The envelope holds the job and the revision so the body never has to, which
-// is what keeps `_meta` unreachable from a request.
 func TestJobWriteBodyDecodesTheEnvelopeBesideTheDocument(t *testing.T) {
 	var body JobWriteBody
 	raw := `{"jobID":"job-1","revision":4,"document":{"name":"A job"},"removed":[["esi","industryJobs","500001"]]}`

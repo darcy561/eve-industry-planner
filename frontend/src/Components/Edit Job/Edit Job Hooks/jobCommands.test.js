@@ -11,26 +11,7 @@ import BrokerFee from "../../../Classes/brokerFee";
 import Transaction from "../../../Classes/transaction";
 import * as commands from "./jobCommands";
 
-/**
- * A command is checked one of two ways.
- *
- * `changes` compares the document the command produced with the same document
- * changed by hand. `agree` compares it with what the method of the same name on
- * `Job` produces, for the commands whose method the class still carries: a
- * command writing the paths its author had in mind proves much less than two
- * answers agreeing, and where they differ one of them is wrong.
- *
- * Either way the comparison is on whole documents, because that is the shape a
- * command works in, and because a command that also moved something the case
- * did not name then fails.
- */
-
-/* eslint-disable vitest/expect-expect --
- * A case asserting through `agree` or `changes` is one the rule cannot see
- * into: it matches `expect` at the top level of a test. Naming either helper in
- * the shared config would turn the rule off for any function of that name
- * anywhere, which is a wider change than this file is owed.
- */
+/* eslint-disable vitest/expect-expect */
 
 const documentFor = (overrides = {}) =>
   new Job({
@@ -71,10 +52,6 @@ const documentFor = (overrides = {}) =>
     ...overrides,
   }).toDocument();
 
-/**
- * Runs the command and the method it replaces over the same document, and
- * returns both results for comparison.
- */
 function bothWays(document, command, applyToInstance) {
   const viaCommand = structuredClone(document);
   command.recipe(viaCommand);
@@ -90,15 +67,6 @@ const agree = (document, command, applyToInstance) => {
   expect(viaCommand).toEqual(viaClass);
 };
 
-/**
- * Runs the command over the document and compares the result with the same
- * document changed by hand.
- *
- * The comparison is still on whole documents, so a command that also moved
- * something the case did not name fails. What it does not do is ask the class:
- * a method with no caller left is one this project is removing, and a test
- * holding the only reference to it would have to be rewritten on the way out.
- */
 function changes(document, command, applyToDocument) {
   const viaCommand = structuredClone(document);
   command.recipe(viaCommand);
@@ -147,9 +115,6 @@ describe("linking what ESI reported", () => {
     });
   });
 
-  // The panel links on a delay, so a second click or a "link all" can arrive
-  // before the first has landed; linking twice would show the run twice and
-  // charge its install cost twice.
   it("leaves a run it already holds alone", () => {
     const already = { job_id: 900, status: "delivered" };
 
@@ -166,9 +131,6 @@ describe("linking what ESI reported", () => {
     });
   });
 
-  // A sale is attributed to an order by where it happened, so taking the order
-  // off takes the sales made at that place with it — and leaves the one made
-  // somewhere else.
   it("takes an order off with the sales made where it was listed", () => {
     const order = { order_id: 700, location_id: 60003760 };
 
@@ -190,8 +152,6 @@ describe("linking what ESI reported", () => {
 });
 
 describe("the costs a reader adds by hand", () => {
-  // Stored as the row class writes it rather than as the reader typed it: the
-  // row carries defaults the panel reading it back expects to find.
   it("stores an extra cost under its own id", () => {
     const extra = { id: "extra-2", category: "1", extraValue: 25 };
 
@@ -220,9 +180,6 @@ describe("the costs a reader adds by hand", () => {
     });
   });
 
-  // Rows written before the change carry a number rather than a string. The id
-  // is only ever compared, never parsed, so both kinds sit in one job without
-  // anything having to know which it is holding.
   it("takes off an invention cost whose id is a number", () => {
     const numbered = documentFor({
       build: {
@@ -243,8 +200,6 @@ describe("the costs a reader adds by hand", () => {
     );
   });
 
-  // Two rows minted in the same moment are told apart by their ids alone, so a
-  // remove matching on id has to take one of a pair without the other.
   it("takes off one of a pair minted together, leaving the other", () => {
     const datacore = InventionEntry.forItem("Datacore", 100).toDocument();
     const decryptor = InventionEntry.forItem("Decryptor", 200).toDocument();
@@ -370,8 +325,6 @@ describe("groups and selling", () => {
     });
   });
 
-  // A job inside a group is not on the planner until it is ready to sell, and
-  // then it is: the two move together in both directions.
   it("marks ready for sale, and puts the job on the planner", () => {
     changes(grouped(), commands.toggleGroupJobReadyForSale(), (job) => {
       job.isReadyToSell = true;
@@ -402,8 +355,6 @@ describe("groups and selling", () => {
     });
   });
 
-  // A player taking their seller off is not the same as a caller saying nothing
-  // about it, and a null that falls through leaves the old choice in place.
   it("clears a choice given as null, as the reader asked", () => {
     const chosen = documentFor({
       build: {
@@ -428,8 +379,6 @@ describe("groups and selling", () => {
   });
 });
 
-// A command is handed the document and changes it; it must not reach anything
-// else, or the change it records is not the whole change it made.
 describe("what a command is allowed to touch", () => {
   it("changes nothing but the document it was given", () => {
     const extra = { id: "extra-2", extraValue: 25 };
@@ -477,7 +426,6 @@ describe("sales and orders ESI reported", () => {
     });
   });
 
-  // One order is the only case where a sale can be attributed at all.
   it("attributes a sale to the only order there is", () => {
     const sale = { transaction_id: 802, location_id: 60003760 };
 
@@ -551,8 +499,6 @@ describe("sales and orders ESI reported", () => {
     });
   });
 
-  // A run the game has already finished with is not asked about again: what it
-  // ended as is what the job records, and a later report cannot move it.
   it("leaves a run that is no longer active where it stands", () => {
     const finished = documentFor({
       esi: {
@@ -619,9 +565,6 @@ describe("the setups a job builds from", () => {
       layout: { setupToEdit: "setup-1" },
     });
 
-  // Callers build a Setup and hand it over; the class stores the instance it is
-  // given, so a plain row would break its own toDocument later. The command
-  // stores the row either way, which is why it is handed the instance here.
   it("attaches a setup and opens it, as the reader asked", () => {
     const setup = new Setup({ id: "setup-3", runCount: 5, jobCount: 1 });
     agree(withSetups(), commands.attachNewSetupToJob(setup), (job) =>
@@ -645,8 +588,6 @@ describe("the setups a job builds from", () => {
     });
   });
 
-  // A job always builds from something, so there is no state in which it has
-  // none: the control that removes one is what stops at the last.
   it("will not remove the last setup", () => {
     const one = documentFor({
       build: {
@@ -660,9 +601,6 @@ describe("the setups a job builds from", () => {
   });
 });
 
-// Marking a grouped job for sale is one thing the reader did, so it is one
-// command: the job moves on a stage and is offered at the same time. Taking the
-// mark off leaves the stage alone — the job was built either way.
 describe("offering a grouped job for sale", () => {
   const ran = (document) =>
     produce(document, commands.toggleReadyForSaleFromGroup().recipe);
@@ -690,14 +628,11 @@ describe("offering a grouped job for sale", () => {
   });
 });
 
-// The setup a reader changes is stored as they set it and worked out again in
-// the same step — storing it without the second half leaves a job whose figures
-// no longer follow the setup they come from.
 describe("storing a changed setup", () => {
   const withSetup = (overrides = {}) =>
     documentFor({
       layout: { setupToEdit: "setup-1" },
-      // A setup is worked out from the job's own copy of the recipe.
+
       rawData: { materials: [{ typeID: 34, quantity: 10 }] },
       build: {
         ...documentFor().build,
@@ -726,8 +661,6 @@ describe("storing a changed setup", () => {
         .recipe,
     ).build.setup["setup-1"];
 
-    // The recipe's own figure, which only appears once the setup has been
-    // worked out against it — the class starts with an empty count either way.
     expect(stored.materialCount["34"].rawQuantity).toBe(10);
   });
 
@@ -740,8 +673,6 @@ describe("storing a changed setup", () => {
   });
 });
 
-// A caller outside the editor has no draft to run a command through, and must
-// still change a job the same way the editor does.
 describe("running a command without a draft", () => {
   const jobWithChild = () => ({
     parentJobs: ["old-parent"],

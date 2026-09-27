@@ -12,8 +12,6 @@ import (
 	jobwritecorpus "eve-industry-planner/testing/fixtures/job-write"
 )
 
-// The write envelope as the corpus states it, which the SPA builds from the
-// same file.
 type jobWriteCorpus struct {
 	Revision    int64               `json:"revision"`
 	Job         jsontext.Value      `json:"job"`
@@ -33,9 +31,6 @@ func loadJobWriteCorpus(t *testing.T) jobWriteCorpus {
 	return corpus
 }
 
-// The envelope the SPA sends is one this endpoint accepts. The decode is strict
-// about members, so a field the SPA added without the model carrying it fails
-// here rather than at a user's next save.
 func TestTheCorpusWriteIsOneThisEndpointAccepts(t *testing.T) {
 	t.Parallel()
 	corpus := loadJobWriteCorpus(t)
@@ -55,10 +50,6 @@ func TestTheCorpusWriteIsOneThisEndpointAccepts(t *testing.T) {
 	}
 }
 
-// The body names no stored path: the model derives them from its own bson tags.
-// This is what proves that derivation still lands where the corpus says, so a
-// field moved in the model is caught here rather than by a write that quietly
-// stores nothing.
 func TestTheCorpusWriteReachesThePathsItStates(t *testing.T) {
 	t.Parallel()
 	corpus := loadJobWriteCorpus(t)
@@ -78,8 +69,6 @@ func TestTheCorpusWriteReachesThePathsItStates(t *testing.T) {
 				slices.Sorted(maps.Keys(write.Fields)), path)
 		}
 	}
-	// The schema version is restated on every write, so it is the one path the
-	// corpus does not name and the write still carries.
 	if len(write.Fields) != len(corpus.StoredPaths.Set)+1 {
 		t.Fatalf("the write sets %v, corpus says only %v plus the schema version",
 			slices.Sorted(maps.Keys(write.Fields)), corpus.StoredPaths.Set)

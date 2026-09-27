@@ -15,7 +15,6 @@ function queued() {
   return Object.keys(useUsersStore.getState().jobData.pendingJobDocumentWrites);
 }
 
-/** A job as the array holds one, carrying the revision it was delivered at. */
 function held(jobID, name) {
   return {
     jobID,
@@ -27,7 +26,6 @@ function held(jobID, name) {
   };
 }
 
-/** The whole-document write that job is sent as. */
 function envelope(jobID, name) {
   return {
     jobID,
@@ -51,10 +49,6 @@ describe("queueing job documents for the next save", () => {
     expect(queued()).toEqual(expected);
   });
 
-  /*
-   * Queued rather than replaced: two edits to the same job before a flush are
-   * one write, and an edit to another job in between must not be lost.
-   */
   it("merges into what is already waiting, without repeating a job", () => {
     actions().queueJobDocumentWrites(["job-1", "job-2"]);
     actions().queueJobDocumentWrites(["job-2", "job-3"]);
@@ -120,10 +114,6 @@ describe("queueing job documents for the next save", () => {
       ]);
     });
 
-    /*
-     * A write queued against what the reader changed carries those fields and
-     * the revision it was built from, rather than the whole document.
-     */
     it("narrows a write to the fields the log recorded", () => {
       actions().replaceJobArray([held("job-1", "Rifter")]);
       actions().queueJobDocumentChanges({
@@ -141,11 +131,6 @@ describe("queueing job documents for the next save", () => {
       ]);
     });
 
-    /*
-     * A job deleted between the edit and the flush leaves its id queued. The
-     * payload carries what is still held rather than a gap the API would read
-     * as a malformed document.
-     */
     it("leaves out an id whose job is no longer held", () => {
       actions().replaceJobArray([held("job-1", "Rifter")]);
       actions().queueJobDocumentWrites(["job-1", "job-gone"]);
@@ -164,10 +149,6 @@ describe("queueing job documents for the next save", () => {
     expect(queued()).toEqual([]);
   });
 
-  /*
-   * A local replacement is not a sync, so an edit still on its way to the
-   * server stays queued — dropping it would lose the write silently.
-   */
   it("keeps the queue when the array is replaced locally", () => {
     actions().queueJobDocumentWrites("job-1");
 
@@ -177,9 +158,6 @@ describe("queueing job documents for the next save", () => {
   });
 });
 
-// A write carries the fields the reader changed when the queue knows them, and
-// the whole document when it does not. Which of the two a job gets is decided
-// here, at the moment it is queued.
 describe("what a queued write knows about its changes", () => {
   beforeEach(() => {
     actions().clearPendingJobDocumentWrites();
@@ -213,9 +191,6 @@ describe("what a queued write knows about its changes", () => {
     ]);
   });
 
-  // A write that cannot say what changed covers the whole document, and one
-  // that can say does not narrow it back — the fields it does not name would
-  // stop being written.
   it("stays whole once a write with no entries joins it", () => {
     actions().queueJobDocumentChanges({ "job-1": [entry(["name"])] });
     actions().queueJobDocumentWrites("job-1");

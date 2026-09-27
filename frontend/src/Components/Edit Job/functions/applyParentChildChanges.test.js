@@ -14,7 +14,6 @@ const { default: Job } = await import("../../../Classes/job.js");
 
 const TRITANIUM = 34;
 
-/** The job being edited: it builds one material, so a child can hang off it. */
 function editedJob() {
   return new Job({
     jobID: "edited",
@@ -27,12 +26,10 @@ function editedJob() {
   });
 }
 
-/** A job elsewhere on the planner, which the edited job may link to. */
 function otherJob(jobID, itemID = 587, childJobs = {}) {
   return new Job({ jobID, itemID, parentJobs: [], build: { childJobs } });
 }
 
-/** No changes at all, for a case to fill in the one part it is about. */
 const noChanges = (over = {}) => ({
   parentJobs: { add: [], remove: [] },
   childJobs: {},
@@ -64,9 +61,6 @@ describe("linking the edited job to a parent", () => {
     expect(modified).toEqual(new Set(["parent"]));
   });
 
-  // A parent the planner does not hold cannot be told about the link, so the
-  // job must not claim it either — a one-sided link is what the repair pass
-  // exists to clean up.
   it("does not claim a parent the planner does not hold", () => {
     const job = editedJob();
 
@@ -132,8 +126,6 @@ describe("linking a child under a material", () => {
     expect(child.parentJobs).toEqual([]);
   });
 
-  // A job created in this same flow has not reached the planner yet, so it is
-  // passed in rather than looked up.
   it("finds a child that is still in flight", () => {
     const job = editedJob();
     const child = otherJob("in-flight", TRITANIUM);
@@ -151,8 +143,6 @@ describe("linking a child under a material", () => {
   });
 });
 
-// The caller spreads what comes back, so answering nothing rather than throwing
-// is what stops one failure becoming a stranger one further down the save.
 describe("a change it cannot read", () => {
   it("answers that it changed nothing", () => {
     const failed = vi.spyOn(console, "error").mockImplementation(() => {});

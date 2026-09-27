@@ -26,9 +26,6 @@ const jobWithChild = () =>
     },
   });
 
-// The job the page reads is frozen. A control that changes it in place is not
-// saying what the reader did, and the change would be lost at the next read — so
-// it throws where it is written rather than looking like it worked.
 describe("the job the page reads", () => {
   it("refuses to be changed in place", () => {
     const { editJob } = renderOverEditJob(jobWithChild(), ({ actions }) => (
@@ -42,10 +39,6 @@ describe("the job the page reads", () => {
     ).toThrow(TypeError);
   });
 
-  // The first render of a job nobody has edited yet is where this is easiest to
-  // get wrong: nothing has been through Immer, so the guarantee has to come from
-  // the base being frozen as it is seeded rather than from a change having been
-  // made.
   it("refuses to be changed in place before anything has been edited", () => {
     const { editJob } = renderOverEditJob(jobWithChild(), () => null);
 
@@ -54,9 +47,6 @@ describe("the job the page reads", () => {
     ).toThrow(TypeError);
   });
 
-  // The document is frozen and so is the job built around it: a field set
-  // straight on the job is the same mistake as changing one of its rows, and
-  // answers the same way.
   it("refuses a field set straight on it", () => {
     const { editJob } = renderOverEditJob(jobWithChild(), () => null);
 

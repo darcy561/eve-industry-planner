@@ -95,8 +95,6 @@ beforeEach(() => {
 });
 
 describe("the planner switcher", () => {
-  // The app works in the account's own planner before anything is chosen, so the
-  // control has to show that rather than opening blank.
   it("shows the account's own planner before one is chosen", () => {
     renderSwitcher();
 
@@ -111,8 +109,6 @@ describe("the planner switcher", () => {
     expect(screen.getByRole("combobox")).toHaveTextContent("Karkur");
   });
 
-  // Naming precedes switching: a planner with no document gets one, which is
-  // what turns a corporation the account is merely in into one somebody opened.
   it("names a planner before switching to it", async () => {
     renderSwitcher();
 
@@ -128,8 +124,6 @@ describe("the planner switcher", () => {
     );
   });
 
-  // A switch the connection never received would leave the client reading one
-  // planner and receiving another, so it is reported rather than assumed.
   it("reports a switch the connection did not take", async () => {
     sendActivePlanner.mockReturnValue(false);
     renderSwitcher();
@@ -138,13 +132,10 @@ describe("the planner switcher", () => {
     fireEvent.click(screen.getByRole("option", { name: "Karkur" }));
 
     expect(await screen.findByText("Not connected")).toBeInTheDocument();
-    // Scoped reads must not move to a planner the connection is not delivering.
+
     expect(storeState.activePlanner.owner).toBeNull();
   });
 
-  // A queued job or group write names its planner on the request when it goes,
-  // not when it was queued, so an edit inside its debounce window would be
-  // written into the planner being switched to.
   it("writes pending job and group edits before the planner moves", async () => {
     renderSwitcher();
 
@@ -159,8 +150,6 @@ describe("the planner switcher", () => {
     );
   });
 
-  // The write's ids are still queued when it failed, and loading the new planner
-  // clears that queue — so moving would lose the edit rather than delay it.
   it("refuses to switch while an edit is still unsaved", async () => {
     storeState.jobData.pendingJobDocumentWrites = { "job-1": null };
     renderSwitcher();
@@ -174,10 +163,6 @@ describe("the planner switcher", () => {
     expect(storeState.activePlanner.owner).toBeNull();
   });
 
-  // The entries under the planner being left are dropped, so switching straight
-  // back re-reads its settings. A settings edit still inside its debounce window
-  // has to reach the server before that read can happen, or the read lands first
-  // and the pending write saves the server's own copy back over the edit.
   it("writes pending settings edits before dropping the planner's cached reads", async () => {
     const client = renderSwitcher();
     const removeQueries = vi.spyOn(client, "removeQueries");
@@ -190,8 +175,6 @@ describe("the planner switcher", () => {
     ).toBeLessThan(removeQueries.mock.invocationCallOrder[0]);
   });
 
-  // The job store holds one planner at a time: without this the reader is left
-  // looking at the jobs and groups of the planner they just left.
   it("loads the planner it switched to", async () => {
     renderSwitcher();
 
@@ -215,8 +198,6 @@ describe("the planner switcher", () => {
     expect(loadPlannerDocuments).not.toHaveBeenCalled();
   });
 
-  // The switch has already happened by the time the load runs, so "could not
-  // switch" would be a lie: the planner moved and only its documents are missing.
   it("says the switch took when only the documents failed", async () => {
     loadPlannerDocuments.mockRejectedValue(new Error("Network down"));
     renderSwitcher();
@@ -228,16 +209,13 @@ describe("the planner switcher", () => {
     ).toBeInTheDocument();
   });
 
-  // Choosing the planner again fires no change, because the control is already
-  // showing it, so asking again has to be its own control.
   it("asks again for a planner whose documents failed", async () => {
     loadPlannerDocuments.mockRejectedValue(new Error("Network down"));
     renderSwitcher();
 
     chooseKarkur();
     const retry = await screen.findByRole("button", { name: "Retry" });
-    // It is held while the load it offers is still running, and a click on a
-    // disabled control is swallowed rather than reported.
+
     await waitFor(() => expect(retry).toBeEnabled());
     loadPlannerDocuments.mockResolvedValue(true);
     fireEvent.click(retry);

@@ -15,7 +15,6 @@ vi.mock("../../../Zustand/usersStore", async () => {
 
 const { default: ItemBreakdownFrame } = await import("./itemFrame.jsx");
 
-/** A job that bought what it names, and nothing else. */
 function jobBuying(itemCount, itemCost) {
   return {
     build: {
@@ -36,9 +35,6 @@ function jobBuying(itemCount, itemCost) {
 const outputJob = { jobID: "output", itemID: 587, name: "Rifter" };
 
 describe("what one output job's tree adds up to", () => {
-  // The totals are summed over the jobs feeding this output, which is the one
-  // thing this frame does. Each job's spend is read by a selector rather than
-  // held on it.
   it("adds up what every job feeding the output spent on materials", () => {
     jobsForOutput.current = [jobBuying(10, 5), jobBuying(20, 3)];
 

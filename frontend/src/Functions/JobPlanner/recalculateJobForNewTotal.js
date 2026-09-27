@@ -6,8 +6,8 @@ import {
 import { setupToBuildFrom } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
- * Recalculates a job for a new total: the setups are replaced with a new layout,
- * each continuing from the setup being rebuilt.
+ * Recalculates a job for a new total, replacing its setups with a layout that
+ * continues from the one being rebuilt.
  *
  * @param {import("../../Classes/job").default} inputJob
  * @param {number} requiredQuantity

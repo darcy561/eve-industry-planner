@@ -54,10 +54,6 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// A write that names no job cannot be answered for: a refusal names the
-	// documents it refused, and one with no id is nameable nowhere. So the batch
-	// is refused whole rather than dropping it and leaving the caller to wonder
-	// which of its writes never happened.
 	for _, write := range reqBody.Jobs {
 		if err := write.Validate(); err != nil {
 			metrics.Error("invalid_write")
@@ -73,8 +69,6 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	sessionID := helper.AuthenticatedSessionID(r)
 	wsClientID := helper.ExtractWSClientID(r)
 
-	// Resolved before the lock gate as well as the write: a lock names the planner
-	// the document belongs to, so the gate has to ask about the one being written.
 	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, metrics, "job_documents")
 	if !ok {
 		return
@@ -106,10 +100,6 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents put lock gate failed", "job_docs_lock_gate_failed", "job_documents", lerr, nil)
 			return
 		}
-		// A held job is dropped from the batch rather than refusing the batch. One
-		// member editing one job used to cost every other job in the same save,
-		// which on a shared planner is most of a close: the jobs nobody holds are
-		// exactly the ones the writer may still save.
 		lockRejects = rejects
 		if len(rejects) > 0 {
 			reqBody.Jobs = dropHeldWrites(reqBody.Jobs, rejects)
@@ -120,19 +110,12 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			"held":      len(rejects),
 		})
 
-		// Nothing survived the gate, so there is no write to make and the refusal
-		// is the whole answer.
 		if len(reqBody.Jobs) == 0 {
 			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
 			return
 		}
 	}
 
-	// Decoded before anything is written, so a document this model cannot read
-	// is named rather than costing the batch. The typed decode is what bounds
-	// what a body may say, and the cipher runs before a write is planned so a
-	// field-scoped write carries the stored form of an id rather than the one
-	// the client sent.
 	read := make([]readJobWrite, 0, len(reqBody.Jobs))
 	var unreadable []string
 	for _, write := range reqBody.Jobs {
@@ -200,8 +183,6 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Two refusals can arrive from one batch and a response carries one of them;
-	// refusalFor decides which, and says why.
 	switch refusalFor(len(lockRejects), len(conflicts)) {
 	case refusalLockHeld:
 		logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
@@ -212,9 +193,6 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		helper.RespondPartialLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, savedCount, savedDocIDs, lockRejects)
 		return
 
-	// A refused write is answered even when the rest of the batch landed: a job
-	// whose document moved is the one thing the caller cannot discover from a
-	// success, and it is what the client reconciles against.
 	case refusalRevision:
 		metrics.Error("revision_conflict")
 		logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{

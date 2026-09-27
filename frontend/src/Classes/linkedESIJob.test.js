@@ -48,13 +48,11 @@ describe("linking a job from ESI", () => {
     expect(linked.CharacterHash).toBe("ABC123");
     expect(linked.job_id).toBe(900001);
     expect(linked.cost).toBe(1500);
-    // ESI calls it facility_id; the row keeps the id it is looked up by.
+
     expect(linked.station_id).toBe(60003760);
     expect(linked.completed_date).toBeNull();
   });
 
-  // Whose run it is has to be recorded, not worked out later: the ids are what
-  // the backend converts to refs.
   test("records the character whose jobs were read", () => {
     const linked = LinkedESIJob.fromESI(esiJob({ character_id: undefined }), {
       CharacterHash: "ABC123",
@@ -75,7 +73,6 @@ describe("linking a job from ESI", () => {
     expect(linked.character_id).toBe(12345);
   });
 
-  // A character's own corporation is not the installer of its personal jobs.
   test("only takes a corporation from a corporation's own jobs", () => {
     const personal = LinkedESIJob.fromESI(esiJob(), {
       CharacterHash: "ABC123",

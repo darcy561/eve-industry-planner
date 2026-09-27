@@ -8,18 +8,12 @@ import {
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Repairs missing or broken parent-child relationships in a job.
- * Validates parent and child job relationships and removes invalid ones.
+ * Repairs a job's parent and child links, dropping the ones that no longer hold.
  *
  * @param {Object} inputJob - Job object to repair relationships for
  * @param {Array<Object>} tempJobs - In-flight job objects created/updated in this flow
  * @returns {Set<string>} Set of modified job IDs
- *
  * @throws {Error} Throws error if inputJob or tempJobs is missing
- *
- * @example
- * const modifiedJobs = repairMissingParentChildRelationships(job, []);
- * console.log(`Repaired ${modifiedJobs.size} jobs`);
  */
 function repairMissingParentChildRelationships(inputJob, tempJobs) {
   const modifiedJobIDs = new Set();
@@ -74,9 +68,6 @@ function repairMissingParentChildRelationships(inputJob, tempJobs) {
 
     return modifiedJobIDs;
   } catch (err) {
-    // Whatever was repaired before the failure still has to be reported: the
-    // caller spreads what comes back, so returning nothing turns one error into
-    // a second, less obvious one further down the save.
     console.error(err);
     return modifiedJobIDs;
   }

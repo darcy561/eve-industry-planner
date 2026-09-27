@@ -881,6 +881,12 @@ service's own integration fixture and opens as many clients as a scenario names;
 shim and taking commands on stdin — read a store path, call an app export, call a store action, list
 what it wrote.
 
+The fixture is served by `TestHarnessServe` in `services/websocket/server`, which is a server rather
+than a test: `EIP_WS_HARNESS=1` runs it, `EIP_WS_HARNESS_SESSIONS` names the sessions as
+`accountID:sessionID:corporationID` comma separated, and `EIP_WS_HARNESS_ORIGINS` the document origin
+the clients send. The harness sets all three itself; they are what live testing documentation owes an
+Entrypoints row on promote.
+
 That last one is what makes the scenarios worth having. A member's store converging is only half of a
 claim like "one member deletes a group"; the other half is that every other member wrote nothing, and
 no client can observe that about itself.

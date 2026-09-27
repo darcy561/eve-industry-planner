@@ -1,14 +1,3 @@
-/**
- * Parent-Child Job Changes Application for EVE Industry Planner.
- *
- * Applies parent-child job relationship changes to job objects, handling
- * the complex logic of updating both parent and child job relationships
- * while maintaining data integrity and tracking modified jobs.
- *
- * @fileoverview Function for applying parent-child job relationship changes
- * @author EVE Industry Planner Team
- */
-
 import useUsersStore from "../../../Zustand/usersStore";
 import {
   addChildJob,
@@ -19,11 +8,8 @@ import {
 } from "../Edit Job Hooks/jobCommands";
 
 /**
- * Applies parent-child job relationship changes to job objects.
- *
- * Processes both parent job additions/removals and child job additions/removals,
- * updating the relevant job objects and maintaining relationship integrity.
- * Returns a set of all job IDs that were modified during the process.
+ * Applies the parent and child link changes a reader asked for, answering which
+ * jobs they moved.
  *
  * @param {Object} parentChildObject - Object containing parent-child changes
  * @param {Object} parentChildObject.parentJobs - Parent job changes
@@ -33,20 +19,6 @@ import {
  * @param {Object} inputJob - The job being edited
  * @param {Array} tempJobs - In-flight job objects created/updated in this flow
  * @returns {Set} Set of modified job IDs
- *
- * @example
- * const changes = {
- *   parentJobs: {
- *     add: ['parent-job-1', 'parent-job-2'],
- *     remove: ['parent-job-3']
- *   },
- *   childJobs: {
- *     34: { add: ['child-job-1'], remove: ['child-job-2'] }
- *   }
- * };
- *
- * const modifiedJobs = applyParentChildChanges(changes, inputJob, tempJobs);
- * console.log('Modified jobs:', Array.from(modifiedJobs));
  */
 function applyParentChildChanges(parentChildObject, inputJob, tempJobs) {
   try {
@@ -70,20 +42,13 @@ function applyParentChildChanges(parentChildObject, inputJob, tempJobs) {
 export default applyParentChildChanges;
 
 /**
- * Processes parent job relationship changes.
- *
- * Handles the removal and addition of parent jobs to the input job,
- * updating both the input job and the parent job objects. Tracks
- * all modified job IDs for later processing.
+ * Adds and removes the job's parents, on both the job and each parent named.
  *
  * @param {Object} parentChildObject - Object containing parent job changes
  * @param {Object} inputJob - The job being edited
  * @param {Map<string, Object>} jobLookup - Map of jobs keyed by jobID
  * @param {Set} modifiedJobIDs - Set to track modified job IDs
  * @returns {void}
- *
- * @example
- * processParentJobs(parentChildObject, inputJob, jobLookup, modifiedJobIDs);
  */
 function processParentJobs(
   parentChildObject,
@@ -137,20 +102,14 @@ function processParentJobs(
 }
 
 /**
- * Processes child job relationship changes.
- *
- * Handles the addition and removal of child jobs for each material type
- * in the input job, updating both the input job and the child job objects.
- * Tracks all modified job IDs for later processing.
+ * Adds and removes each material's child jobs, on both the job and each child
+ * named.
  *
  * @param {Object} parentChildObject - Object containing child job changes
  * @param {Object} inputJob - The job being edited
  * @param {Map<string, Object>} jobLookup - Map of jobs keyed by jobID
  * @param {Set} modifiedJobIDs - Set to track modified job IDs
  * @returns {void}
- *
- * @example
- * processChildJobs(parentChildObject, inputJob, jobLookup, modifiedJobIDs);
  */
 function processChildJobs(
   parentChildObject,

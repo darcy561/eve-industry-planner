@@ -31,8 +31,6 @@ func writtenJobIDs(writes []models.JobWriteBody) []string {
 	return ids
 }
 
-// One member editing one job used to cost every other job in the same save. The
-// jobs nobody holds are exactly the ones the writer may still save.
 func TestDropHeldWritesKeepsTheRestInOrder(t *testing.T) {
 	t.Parallel()
 	writes := writesFor("a", "held-1", "b", "held-2", "c")
@@ -43,9 +41,6 @@ func TestDropHeldWritesKeepsTheRestInOrder(t *testing.T) {
 	if len(got) != len(want) {
 		t.Fatalf("kept %v, want %v", got, want)
 	}
-	// Order matters as much as membership: the filter reuses the backing array,
-	// so a writer that read after it wrote would return corrupted rows rather
-	// than an obviously wrong count.
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("kept %v, want %v", got, want)
@@ -62,8 +57,6 @@ func TestDropHeldWritesKeepsEverythingWhenNothingIsHeld(t *testing.T) {
 	}
 }
 
-// Every job held means nothing to write, which the handler answers as the
-// whole-batch refusal rather than as a partial write.
 func TestDropHeldWritesCanKeepNothing(t *testing.T) {
 	t.Parallel()
 	writes := writesFor("a", "b")
@@ -73,9 +66,6 @@ func TestDropHeldWritesCanKeepNothing(t *testing.T) {
 	}
 }
 
-// A write is dropped by the job it names rather than by anything in its
-// document: the gate runs before a document is decoded, and a field-scoped write
-// carries `jobID` inside its document only if the reader happened to change it.
 func TestDropHeldWritesReadsTheIDBesideTheDocument(t *testing.T) {
 	t.Parallel()
 	writes := []models.JobWriteBody{
@@ -90,10 +80,6 @@ func TestDropHeldWritesReadsTheIDBesideTheDocument(t *testing.T) {
 	}
 }
 
-// One batch can produce both refusals, and a response carries one. The lock
-// wins, because a held job was never written and its edits are still owed —
-// answering the revision conflict would leave the held job unnamed, and the
-// client clears whatever a refusal does not name, discarding work nothing wrote.
 func TestALockConflictIsAnsweredBeforeARevisionConflict(t *testing.T) {
 	t.Parallel()
 	if got := refusalFor(1, 1); got != refusalLockHeld {
@@ -111,8 +97,6 @@ func TestEachRefusalIsAnsweredWhenItIsTheOnlyOne(t *testing.T) {
 	}
 }
 
-// A batch that met neither is a plain success, and must not answer a 409 naming
-// nothing.
 func TestNoRefusalWhenTheBatchLanded(t *testing.T) {
 	t.Parallel()
 	if got := refusalFor(0, 0); got != refusalNone {

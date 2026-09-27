@@ -1,15 +1,6 @@
 /**
- * Figures read off one of a job's material rows, as functions of the row rather
- * than getters on an instance.
- *
- * The counted purchases underneath them are the whole of the rule: a job is
- * charged for what it needed, cheapest first, and whatever a purchase bought
- * beyond that is excess the job does not pay for.
- *
- * How many the job needs is not on the row — it belongs to the setups, so
- * resizing one moves it at once and nothing on the row can fall behind. Every
- * figure here takes it as an argument for that reason;
- * `materialRequirement` in the job's own selectors is where it comes from.
+ * Figures read off one of a job's material rows, each taking how many the job
+ * needs as an argument because the row does not hold it.
  */
 
 /**
@@ -28,12 +19,8 @@ export function isValidPurchase(row) {
 }
 
 /**
- * How much of each purchase the job is charged for, and what that comes to.
- *
- * Cheapest first, and by id where two cost the same: the rows come out of a map,
- * so their order is whatever the keys happen to give, and which of two equal
- * rows is counted first decides each one's own share. `models.JobMaterial` sorts
- * the same way on the backend.
+ * How much of each purchase the job is charged for, and what that comes to,
+ * counting cheapest first and by id where two cost the same.
  *
  * @param {object} material - A material row as the job stores it
  * @param {number} requirement - How many of it the job's setups call for
@@ -85,11 +72,8 @@ export function purchasedCost(material, requirement) {
 }
 
 /**
- * What was spent buying the material rather than building it: every purchase
- * except the ones imported from a child job, in full.
- *
- * Nothing is capped at the requirement — this is what left the wallet, not what
- * the job is charged for.
+ * What left the wallet buying the material rather than building it: every
+ * purchase except the ones imported from a child job, uncapped.
  *
  * @param {object} material
  * @returns {number}
@@ -105,11 +89,8 @@ export function boughtCost(material) {
 }
 
 /**
- * Whether enough has been bought to cover what the job needs.
- *
- * A material the setups ask for none of has nothing bought against it rather
- * than everything, so a row left behind by a resized setup does not read as
- * done.
+ * Whether enough has been bought to cover what the job needs, with a material the
+ * setups ask for none of covered by nothing rather than by everything.
  *
  * @param {object} material
  * @param {number} requirement

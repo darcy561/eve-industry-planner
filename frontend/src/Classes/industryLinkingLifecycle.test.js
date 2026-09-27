@@ -23,7 +23,6 @@ const { linkESIJob, unlinkESIJob, updateLinkedJobData } =
 const { jobAfterCommands: after } =
   await import("../tests/jobAfterCommands.js");
 
-// The shipped rule the Building panel offers runs by.
 function offeredRuns(
   allIndustryJobs,
   activeJob,
@@ -39,8 +38,6 @@ function offeredRuns(
 const OWNER = { CharacterHash: "hash-1", CharacterID: 2117000001 };
 const OTHER_OWNER = { CharacterHash: "hash-2", CharacterID: 2117000002 };
 
-// An industry job as ESI reports it. ESI calls the structure `facility_id`; the
-// row stores it as `station_id`.
 function esiRun(job_id, overrides = {}) {
   return {
     job_id,
@@ -72,11 +69,9 @@ describe("linking industry runs to a job", () => {
   it("keeps every figure in step from an ESI run to a stored document", () => {
     let job = newJob();
 
-    // 1. Nothing linked: the job has no install cost and holds no runs.
     expect(totalInstallCost(job)).toBe(0);
     expect(esiJobIDs(job.toDocument()).size).toBe(0);
 
-    // 2. ESI reports two runs of this item, and one of something else.
     const reported = [
       esiRun(500000001),
       esiRun(500000002, { cost: 750000, runs: 5 }),
@@ -87,7 +82,6 @@ describe("linking industry runs to a job", () => {
       500000001, 500000002,
     ]);
 
-    // 3. Linking them records what each run cost, summed at call time.
     job = after(
       job,
       linkESIJob(reported[0], OWNER),
@@ -98,20 +92,17 @@ describe("linking industry runs to a job", () => {
     expect(esiJobIDs(job.toDocument())).toEqual(
       new Set([500000001, 500000002]),
     );
-    // A job with runs against it is no longer waiting to be started.
+
     expect(isReadyToStart(job)).toBe(false);
 
-    // 4. A linked run keeps ESI's own names and the character that installed it.
     const first = job.esi.industryJobs["500000001"];
     expect(first).toBeInstanceOf(LinkedESIJob);
     expect(first.station_id).toBe(1035466617946);
     expect(first.character_id).toBe(OWNER.CharacterID);
     expect(isActive(first)).toBe(true);
 
-    // 5. Linked runs are no longer offered.
     expect(offeredRuns(reported, job)).toEqual([]);
 
-    // 6. ESI reports the first run delivered; the row takes it.
     job = after(
       job,
       updateLinkedJobData([
@@ -126,10 +117,9 @@ describe("linking industry runs to a job", () => {
 
     expect(isDelivered(job.esi.industryJobs["500000001"])).toBe(true);
     expect(isActive(job.esi.industryJobs["500000002"])).toBe(true);
-    // Delivery does not change what the run cost.
+
     expect(totalInstallCost(job)).toBe(2000000);
 
-    // 7. The document carries the rows, and the cost is worked out again on read.
     const document = job.toDocument();
     expect(Object.keys(document.esi.industryJobs)).toHaveLength(2);
     expect(document.esi.industryJobs["500000001"].job_id).toBe(500000001);
@@ -140,15 +130,12 @@ describe("linking industry runs to a job", () => {
       esiJobIDs(job.toDocument()),
     );
 
-    // 8. Unlinking takes the run and its cost away together.
     const unlinked = after(reopened, unlinkESIJob({ job_id: 500000001 }));
 
     expect(totalInstallCost(unlinked)).toBe(750000);
     expect(esiJobIDs(unlinked.toDocument())).toEqual(new Set([500000002]));
   });
 
-  // The panel links on an 800ms delay, so a second click, or "link all" landing
-  // while a click is still pending, asks for the same run twice.
   it("links a run once however many times it is asked for", () => {
     const run = esiRun(500000001);
 
@@ -166,8 +153,6 @@ describe("linking industry runs to a job", () => {
     );
   });
 
-  // A corporation run is reported by every character holding the role, so the
-  // same run arrives several times in one list.
   it("offers a corporation run once however many characters report it", () => {
     const job = newJob();
     const corporationRun = esiRun(500000004, { is_corporation: true });
@@ -190,8 +175,6 @@ describe("linking industry runs to a job", () => {
     expect(offered.map((r) => r.job_id)).toEqual([500000002]);
   });
 
-  // Unlinking is pending until the job saves, so the run must not come back
-  // twice if it is linked again in the same sitting.
   it("can relink a run that was unlinked", () => {
     const run = esiRun(500000001);
 

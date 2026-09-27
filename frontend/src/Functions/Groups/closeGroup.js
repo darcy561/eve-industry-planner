@@ -11,9 +11,8 @@ import { showSnackbarWarning } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Closes a group of jobs, updating relationships and saving job/group documents.
- * Removes parent-child relationships that are not included in the group,
- * rebuilds relationships within the group, and persists changes via API.
+ * Closes a group of jobs, rebuilding the links between them and writing both the
+ * jobs and the group.
  *
  * @param {Array} groupJobs - Jobs in the group to close
  * @returns {Promise<void>} Promise that resolves when group is closed and saved
@@ -31,7 +30,6 @@ export default async function closeActiveGroup(groupJobs) {
 
   const activeGroup = getActiveGroupObject();
   if (!activeGroup) {
-    // If no active group, just return early
     return;
   }
 
@@ -66,7 +64,6 @@ export default async function closeActiveGroup(groupJobs) {
 
   try {
     clearActiveGroupID();
-    // Only patch the affected group jobs; keep non-group planner rows intact.
     updateOrAddJobsToJobArray(updatedGroupJobs);
     updateModifiedGroups(activeGroup, { queuePersist: persistToServer });
     clearMultiSelect();
@@ -77,9 +74,6 @@ export default async function closeActiveGroup(groupJobs) {
       );
       await Promise.all([flushPendingGroupSave(), saveJobsViaApi(updatedJobs)]);
     } else if (isLoggedIn && groupID) {
-      // The group's changes are applied to the store and its queued write
-      // cleared, so the work is on screen and will not survive a reload. Saying
-      // so is the difference between losing it and choosing to.
       useUsersStore
         .getState()
         .jobData.actions.clearPendingJobGroupWrites(groupID);

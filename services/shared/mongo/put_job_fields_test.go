@@ -41,8 +41,6 @@ func TestSetFieldsWithRevisionCarriesTheFieldsAndCountsTheWrite(t *testing.T) {
 	}
 }
 
-// The counter is left to $inc: setting `_meta` whole would put it back to
-// whatever the caller held, which for a decoded request body is nothing.
 func TestSetFieldsWithRevisionLeavesTheCounterToTheIncrement(t *testing.T) {
 	update, err := SetFieldsWithRevision(map[string]any{"name": "A job"}, nil, writeMeta())
 	if err != nil {
@@ -74,10 +72,6 @@ func TestSetFieldsWithRevisionClearsTheRowsItWasGiven(t *testing.T) {
 	}
 }
 
-// A stored document refuses an update naming the same ground twice, and it
-// refuses the whole update rather than the offending half — so a write that
-// would be refused is stopped here, where the caller can still be told which
-// two paths disagreed.
 func TestSetFieldsWithRevisionRefusesPathsThatReachEachOther(t *testing.T) {
 	for _, overlap := range []struct {
 		fields  map[string]any
@@ -93,8 +87,6 @@ func TestSetFieldsWithRevisionRefusesPathsThatReachEachOther(t *testing.T) {
 	}
 }
 
-// Sharing a prefix is not reaching into one another: two rows of one collection
-// are separate ground, and refusing them would refuse an ordinary write.
 func TestSetFieldsWithRevisionAllowsSiblingsOfOneCollection(t *testing.T) {
 	_, err := SetFieldsWithRevision(
 		map[string]any{"esi.industryJobs.500002": bson.M{}},
@@ -106,9 +98,6 @@ func TestSetFieldsWithRevisionAllowsSiblingsOfOneCollection(t *testing.T) {
 	}
 }
 
-// A key can read as the start of another — materials are keyed by type id, and
-// 34 and 345 are both real ones. Two such rows are separate ground, and only a
-// separator says so.
 func TestSetFieldsWithRevisionAllowsAKeyThatStartsAnother(t *testing.T) {
 	_, err := SetFieldsWithRevision(
 		map[string]any{"build.materials.345.quantity": 10},
@@ -120,8 +109,6 @@ func TestSetFieldsWithRevisionAllowsAKeyThatStartsAnother(t *testing.T) {
 	}
 }
 
-// A row and something inside that row are the same ground whichever half of the
-// write names them, and a collection nests: a purchase sits inside a material.
 func TestSetFieldsWithRevisionRefusesTwoClearedPathsThatReachEachOther(t *testing.T) {
 	_, err := SetFieldsWithRevision(nil, []string{
 		"build.materials.34.purchasing.p-1",
@@ -142,9 +129,6 @@ func TestSetFieldsWithRevisionRefusesTwoFieldsThatReachEachOther(t *testing.T) {
 	}
 }
 
-// `_meta` is what the server states about the document — who wrote it, when,
-// and the counter the write is checked against. A write carrying a path into it
-// would have that quietly replaced, so it is refused instead.
 func TestSetFieldsWithRevisionRefusesAPathIntoMeta(t *testing.T) {
 	if _, err := SetFieldsWithRevision(map[string]any{"_meta.revision": 99}, nil, writeMeta()); err == nil {
 		t.Error("want a write into _meta refused")
@@ -154,8 +138,6 @@ func TestSetFieldsWithRevisionRefusesAPathIntoMeta(t *testing.T) {
 	}
 }
 
-// A write that only clears rows still counts itself and still stamps who wrote
-// it, so `$set` is never empty even when the write carries no fields.
 func TestSetFieldsWithRevisionClearsWithoutCarryingAnyField(t *testing.T) {
 	update, err := SetFieldsWithRevision(nil, []string{"build.extrasCosts.e-1"}, writeMeta())
 	if err != nil {
@@ -170,8 +152,6 @@ func TestSetFieldsWithRevisionClearsWithoutCarryingAnyField(t *testing.T) {
 	}
 }
 
-// A collection going whole is one path carrying a document, which is what a
-// removal promotes to when the write already covers the rows that went.
 func TestSetFieldsWithRevisionCarriesAWholeCollection(t *testing.T) {
 	rows := bson.M{"500002": bson.M{"job_id": 500002}}
 	update, err := SetFieldsWithRevision(
@@ -189,10 +169,6 @@ func TestSetFieldsWithRevisionCarriesAWholeCollection(t *testing.T) {
 	}
 }
 
-// A row key may hold any character, and one below `.` puts a sibling between a
-// path and the path inside it when they are ordered as strings — `34-old` sits
-// between `34` and `34.quantity`. Row ids in this document are routinely
-// hyphenated, so the pair either side must still be found.
 func TestSetFieldsWithRevisionRefusesAcrossASiblingThatSortsBetween(t *testing.T) {
 	_, err := SetFieldsWithRevision(map[string]any{
 		"build.materials.34":          bson.M{},
@@ -248,10 +224,6 @@ func TestPlanJobFieldWritesMakesOneConditionalWritePerJob(t *testing.T) {
 	}
 }
 
-// A write of some fields into a document that is not there would store a job
-// made only of those fields, so a write with no revision behind it is refused
-// rather than upserted. Such a job is a create, and a create carries its whole
-// document through the other writer.
 func TestPlanJobFieldWritesRefusesAWriteWithNoRevision(t *testing.T) {
 	writes, failed := planned(t, []JobFieldWrite{
 		{JobID: "job-new", Fields: map[string]any{"name": "A job"}},
@@ -265,7 +237,6 @@ func TestPlanJobFieldWritesRefusesAWriteWithNoRevision(t *testing.T) {
 	}
 }
 
-// One job the caller got wrong does not cost the others in the same save.
 func TestPlanJobFieldWritesDropsOnlyTheJobItCannotWrite(t *testing.T) {
 	writes, failed := planned(t, []JobFieldWrite{
 		{JobID: "job-1", Expected: 4, Fields: map[string]any{"name": "A job"}},
@@ -297,10 +268,6 @@ func TestPlanJobFieldWritesStampsWhoWroteAndWhen(t *testing.T) {
 	}
 }
 
-// A field-scoped write states what it changed and what it did about the
-// document. When the document was created is neither, and a write that set it
-// would put every job's creation date back to the zero time — the value a meta
-// struct built for one write carries for every field it says nothing about.
 func TestJobWriteStampSaysOnlyWhatTheWriteDid(t *testing.T) {
 	stamp := JobWriteStamp(
 		models.AccountOwner("account-1"),
@@ -336,7 +303,6 @@ func TestJobWriteStampSaysOnlyWhatTheWriteDid(t *testing.T) {
 	}
 }
 
-// A write that names no session still says who wrote it and when.
 func TestJobWriteStampWithoutASession(t *testing.T) {
 	stamp := JobWriteStamp(models.AccountOwner("account-1"), "account-1", time.Unix(0, 0).UTC(), "", "")
 

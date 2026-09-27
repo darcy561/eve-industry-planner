@@ -25,15 +25,13 @@ func TestJSONPathsCoversNestedShapes(t *testing.T) {
 	}
 }
 
-// A field the model holds but never serialises must not appear, or the SPA test
-// would treat a field the client invented as one the backend knows.
 func TestJSONPathsOmitsUnserialisedFields(t *testing.T) {
 	paths := JSONPaths(reflect.TypeFor[models.Job]())
 	for _, unwanted := range []string{
-		"protected",                             // json:"-"
-		"esi.industryJobs.{id}.character_ref",   // json:"-"
-		"esi.industryJobs.{id}.corporation_ref", // json:"-"
-		"_meta.owner",                           // json:"-"
+		"protected",
+		"esi.industryJobs.{id}.character_ref",
+		"esi.industryJobs.{id}.corporation_ref",
+		"_meta.owner",
 	} {
 		if slices.Contains(paths, unwanted) {
 			t.Errorf("JSONPaths should not carry %q", unwanted)
@@ -41,7 +39,6 @@ func TestJSONPathsOmitsUnserialisedFields(t *testing.T) {
 	}
 }
 
-// omitempty changes whether a field is written, not whether the model has it.
 func TestJSONPathsKeepsOmitemptyFields(t *testing.T) {
 	paths := JSONPaths(reflect.TypeFor[models.Job]())
 	for _, want := range []string{
@@ -64,8 +61,6 @@ func TestSchemaPathForSitsBesideTheCorpus(t *testing.T) {
 	}
 }
 
-// encoding/json reads `json:"-"` as "drop this field" and `json:"-,"` as "a field
-// literally named -". A walk that conflates them would hide a real path.
 func TestJSONPathsDistinguishesDashTags(t *testing.T) {
 	type sample struct {
 		Dropped string `json:"-"`

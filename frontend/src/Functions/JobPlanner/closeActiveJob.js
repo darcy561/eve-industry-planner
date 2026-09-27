@@ -26,10 +26,6 @@ export default async function closeActiveJob(
   queryClient,
   changesToEditedJob,
 ) {
-  // The job the editor showed is frozen, and closing rewrites it: links are
-  // repaired, the tree is recalculated, the group flags are set. So the save
-  // works on its own copy — the one place that needs a job it can change, taken
-  // once here rather than rebuilt on every edit the reader made.
   const inputJob = workingCopyOfJob(jobToSave);
 
   const {
@@ -56,11 +52,6 @@ export default async function closeActiveJob(
     return;
   }
 
-  // The editor only ever opens a job it found in the store, so a job missing
-  // from it now is one that left while it was open — deleted by another member,
-  // or belonging to a planner this client has since switched away from. Writing
-  // it back would recreate a document somebody else removed, from a copy taken
-  // before they removed it.
   if (!findJobInJobArray(inputJob.jobID)) {
     showSnackbarWarning(
       "This job was removed while you had it open, so your changes were not saved.",
@@ -161,13 +152,6 @@ export default async function closeActiveJob(
 
   let saveRefused = false;
   if (persistToServer) {
-    // Every outcome that is not a write landing suppresses the summary below —
-    // refused, blocked and failed alike, because none of them saved anything.
-    // An unrecognised answer is treated as saved rather than as failure, so a
-    // caller that resolves nothing is not reported as an error.
-    // Only the edited job has a log behind it. Everything else this close
-    // writes — a job it linked, repaired or resized, and a child it created —
-    // was changed outside the editor, so its write carries the whole document.
     const outcome = await saveJobsViaApi(
       jobsToPersist,
       changesToEditedJob?.length
@@ -223,18 +207,11 @@ export default async function closeActiveJob(
   updateOrAddJobsToJobArray([inputJob, ...tempJobs, ...batchUpdates]);
   endEditSession();
   if (persistToServer) {
-    // The adjustment summary reports what was saved, so it is shown only for a
-    // write that landed. A refused write has already raised its own warning,
-    // and following that with a summary would contradict it.
     if (!saveRefused) {
       showSnackbarInfo(closeAdjustmentSummary(inputJob, adjustments), 5);
     }
     return;
   }
-  // A signed-in editor that cannot persist has had its edits applied to the
-  // store and its queued writes cleared, so the work is on screen and will not
-  // survive a reload. Saying so is the difference between losing it and
-  // choosing to.
   if (isLoggedIn) {
     showSnackbarWarning(
       "You do not hold the lock on this job, so your changes were not saved.",

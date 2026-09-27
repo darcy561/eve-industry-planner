@@ -11,7 +11,6 @@ const { addChildJob, applyCommands, removeChildJob, removeParentJob } =
 
 const TRITANIUM = 34;
 
-/** A job with a child job linked to one of its materials. */
 function jobWithAChild() {
   return new Job({
     jobID: "parent",
@@ -24,13 +23,6 @@ function jobWithAChild() {
   });
 }
 
-/**
- * `new Job(source.toDocument())` is how this app copies a job it is about to
- * change — a merge, a delete, a move and a mass build all clone first and write
- * the clone, so the planner is left alone until the writes have landed. A copy
- * that shares anything with its source turns that into a change the planner
- * keeps whether the write succeeded or not.
- */
 describe("a job copied through its document", () => {
   it("does not share its child job lists with the job it came from", () => {
     const source = jobWithAChild();
@@ -62,9 +54,6 @@ describe("a job copied through its document", () => {
     expect(source.parentJobs).toEqual(["grandparent"]);
   });
 
-  // The document is also what a write carries, and a save is built before it is
-  // sent. A document holding the job's own lists would send whatever the job
-  // held at the moment it was serialised rather than when it was built.
   it("does not change under a write once it has been built", () => {
     const job = jobWithAChild();
     const document = job.toDocument();

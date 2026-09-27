@@ -83,9 +83,8 @@ function assignEdgePathSpread(edges) {
 }
 
 /**
- * Child (source) uses top handle; parent (target) uses bottom handle — same as {@link JobDependencyNode}.
- * The smooth-step path uses a horizontal “rung” between gapped points; we pick a rung Y that does not
- * cut through other node bodies.
+ * Picks each edge's horizontal rung so the smooth-step path between two nodes does
+ * not cut through the body of a third.
  *
  * @param {import("@xyflow/react").Node[]} nodes
  * @param {import("@xyflow/react").Edge[]} edges
@@ -121,7 +120,6 @@ function assignEdgeRungYAvoidingNodes(nodes, edges, nodeW, nodeH) {
     const sy = sNode.position.y;
     const tx = tNode.position.x + nodeW / 2;
     const ty = tNode.position.y + nodeH;
-    // Top (source) gapped up, bottom (target) gapped down — matches @xyflow getPoints
     const gsy = sy - o;
     const gty = ty + o;
     if (Math.abs(gsy - gty) < 1e-3) continue;

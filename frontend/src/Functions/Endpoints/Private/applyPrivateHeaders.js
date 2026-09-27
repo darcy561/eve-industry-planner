@@ -42,9 +42,6 @@ function throwIfAnySettledFailed(settled, label) {
   const failed = settled.filter((s) => s.status === "rejected");
   if (failed.length === 0) return;
   const err = /** @type {PromiseRejectedResult} */ (failed[0]).reason;
-  // A recognised conflict is rethrown as it stands. Wrapping it would keep the
-  // message and drop `code`, leaving a caller that branches on the code unable
-  // to tell a conflict from any other failed chunk.
   if (err instanceof Error && err.code) {
     throw err;
   }
@@ -67,13 +64,6 @@ function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
     const label = errorLabel || `${methodLabel} ${url}`;
     const err = new Error(`${label}: document lock held elsewhere (409)`);
     err.code = DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE;
-    // The held documents travel on the error, as a revision conflict's rows do:
-    // a batch can now write part of itself, so a caller holding a queue keeps
-    // the held ids and drops the rest rather than keeping all of them.
-    // Held and written are read together: the answer states both, and a caller
-    // cannot work the second out from the first — it is given whenever anything
-    // was held, so a document the same batch refused on its revision is named
-    // nowhere in it.
     const refusal = parseLockHeldElsewhereRefusal(text);
     err.lockHeldDocIDs = refusal?.rejected ?? null;
     err.savedDocIDs = refusal?.savedDocIDs ?? [];
@@ -87,8 +77,6 @@ function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
         `${label}: document revision conflict (409), ${conflict.rejected.length} refused`,
       );
       err.code = CLIENT_ERROR_REVISION_CONFLICT;
-      // The refused rows travel on the error: a caller that clears its queue
-      // needs to know which documents to clear, and the body is read here.
       err.revisionConflict = conflict;
       throw err;
     }
@@ -118,23 +106,8 @@ export const PRIVATE_AUTH_TOKEN_UNAVAILABLE =
  */
 
 /**
- * Private API helpers: per-tab session auth via **`X-Session-ID`** (sessionStorage).
- *
- * {@link requestWithPrivateHeaders} awaits `account.actions.ensurePlannerSession` first (often a no-op
- * when the planner session was validated recently — see cooldown in `plannerSessionActions.ensurePlannerSession`),
- * then performs `fetch` with tab session headers.
- * Session identity is **`X-Session-ID`**; **`X-WS-Client-ID`** is sent when the
- * websocket layer has assigned a tab id (echo suppression / locks); **`X-Planner-Owner`**
- * names the planner the request works in.
- * **Retries** (408 / 429 / 5xx by default) use {@link apiRateLimitRetryConfig}; on 429 the client waits for
- * the API fixed-window `Retry-After` header (`ratelimiter.go`) before retrying. Disable with `config.retry: false`.
- *
- * **Batching:** pass `config.batch` with `size` and `arrayKey`. The request `body` must be a JSON
- * string of an object containing `arrayKey` as an array; it is split into chunks of at most `size`.
- * Omit `batch` or use `size` &lt; 1 for a single request. Chunks run sequentially to avoid bursting the private rate limiter.
- * Typical sizes (match Go handlers): job-documents PUT 100, POST/DELETE IDs 200; groups PUT 100,
- * DELETE group IDs 200; archived-jobs PUT 100. Document-lock `lock-state-batch` uses two arrays and is
- * chunked in {@link documentLockClient.js} (500 per list). Citadel names already debatches in-module.
+ * Sends private API requests with this tab's session headers, retrying transient
+ * failures and splitting an oversized body into batched requests.
  *
  * @module applyPrivateHeaders
  */
@@ -188,9 +161,8 @@ export function getSessionIDFromStore() {
 }
 
 /**
- * Merge optional request metadata into fetch options. Private routes send per-tab **`X-Session-ID`**
- * (from sessionStorage); adds **`X-WS-Client-ID`** when the websocket layer has assigned a tab id,
- * and **`X-Planner-Owner`** naming the planner the request works in.
+ * Merges this tab's session, websocket client and planner owner headers into
+ * fetch options.
  *
  * @param {Object} options - Fetch options
  * @param {Object} config - Configuration
@@ -206,8 +178,6 @@ function applyPrivateHeaders(options = {}, config = {}) {
     ...(getWsClientID() && {
       "X-WS-Client-ID": getWsClientID(),
     }),
-    // Every scoped read and write is for one planner, so the header goes on
-    // every private request rather than on the call sites that remembered it.
     ...(activePlanner && { "X-Planner-Owner": activePlanner }),
   };
 
@@ -377,10 +347,6 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
       delivered.push(...chunk);
     } catch (reason) {
       settled.push({ status: "rejected", reason });
-      // What the earlier chunks delivered travels on the error. A refusal
-      // answers the one request it came from and says nothing about the
-      // requests before it, so a caller reconciling what it sent would leave
-      // work that already landed owed and send it again.
       if (reason && typeof reason === "object" && !reason.deliveredBatchItems) {
         reason.deliveredBatchItems = delivered;
       }
@@ -409,15 +375,8 @@ async function executeBatchedPrivateRequest(URL, options, innerConfig, batch) {
 }
 
 /**
- * Authenticated `fetch` for private routes: refreshes app session state then sends request
- * with `credentials: "same-origin"` so browser attaches session cookie.
- *
- * Retries transient failures by default ({@link apiRateLimitRetryConfig}: 408 / 429 / 5xx).
- * On 429, waits for server `Retry-After` before retrying. Set `config.retry` to `false` to disable.
- * Pass `config.retry: { maxAttempts, … }` to override (merged via {@link mergeApiRetryOptions}).
- *
- * Optional **`config.batch`**: `{ size, arrayKey, mergeResponseJsonArrays?, failure?, errorLabel? }`.
- * When `size` is omitted or &lt; 1, batching is skipped (one request). See module typedef.
+ * Authenticated `fetch` for a private route, refreshing the app session first and
+ * retrying transient failures.
  *
  * @param {string} URL - Request URL
  * @param {Object} options - Request options

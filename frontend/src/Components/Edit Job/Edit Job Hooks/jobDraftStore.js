@@ -31,26 +31,8 @@ enablePatches();
  */
 
 /**
- * The three layers a job is held in while it is open, and the draft derived from
- * them. An edit is recorded as what it changed rather than as a rebuilt job, so
- * the before-image survives it and the layer it landed in decides what it means.
- *
- * `log` is what the player changed and is what a save reads. `scratch` is what
- * they asked about — it changes what is on screen and is never collected, so an
- * experiment does not mark the job as having unsaved changes. `base` is the
- * document as the server last stated it, and it is replaced rather than edited:
- * a change arriving while the editor is open lands underneath both layers, and
- * they re-apply over it.
- *
- * The base holds a map rather than one document because an edit session is not
- * one job — linking a child writes the child's parents, and close time
- * recalculates the tree — so every entry names the job it changed.
- *
- * The draft each job reads as is a **field**, rebuilt by every function here that
- * returns a changed state. Worked out on demand instead, it would be a new object
- * on every read: the layers are replayed with `applyPatches`, which copies the
- * job it returns, so a panel subscribing to part of the job would be handed
- * something new every time it was asked and would never settle.
+ * The three layers a job is held in while it is open — base, changed, asked — and
+ * the draft derived from them.
  */
 
 /** @returns {DraftState} An editor holding nothing */
@@ -61,9 +43,6 @@ export function emptyDraftState() {
 /**
  * The layers replayed for one job: base, then what was changed, then what was
  * asked.
- *
- * Scratch applies last so an experiment is not disturbed by a change arriving
- * underneath it — the what-if is the topmost answer to "what does this say".
  *
  * @param {DraftState} state
  * @param {string} jobID
@@ -84,13 +63,8 @@ function replay(state, jobID) {
 }
 
 /**
- * The state with every held job's draft rebuilt, which is how every function
- * here returns one.
- *
- * That is the whole of the discipline: a state that left this module without
- * coming through here would carry a draft describing layers it no longer has,
- * and a reader comparing by identity would never notice. `the draft a writer
- * leaves behind` in the tests beside this file holds each of them to it.
+ * The state with every held job's draft rebuilt, which is how every function here
+ * returns one.
  *
  * @param {DraftState} state
  * @returns {DraftState}
@@ -104,12 +78,8 @@ function withDrafts(state) {
 }
 
 /**
- * Seeds a job's base, or replaces it when the document is delivered again.
- *
- * Replacing rather than merging is what makes an open editor follow the
- * document: the reader's own layers sit above this one and re-apply over
- * whatever it now holds, so an inbound change costs them nothing they changed
- * themselves.
+ * Seeds a job's base, or replaces it when the document is delivered again, the
+ * reader's own layers re-applying over whatever it now holds.
  *
  * @param {DraftState} state
  * @param {string} jobID
@@ -117,9 +87,6 @@ function withDrafts(state) {
  * @returns {DraftState}
  */
 export function setBase(state, jobID, document) {
-  // Frozen on the way in, so the job a reader is shown cannot be written to
-  // from the moment it opens. What a change produces is frozen by `produce`
-  // anyway; without this the guarantee would only start at the first edit.
   return withDrafts({
     ...state,
     base: { ...state.base, [jobID]: freeze(document, true) },
@@ -142,13 +109,8 @@ export function forgetJob(state, jobID) {
 /** How long a run of typing keeps merging into one undo step. */
 export const TYPING_COALESCE_MS = 800;
 
-// Only replaces over the same paths merge: the newer patches say where the
-// field ends and the older inverse still says where it started. An add or a
-// removal would leave a pair that no longer inverts.
 function coalesces(previous, entry, nextSeq) {
   if (!previous) return false;
-  // Nothing may have happened since: a step recorded in between would have to
-  // be undone before this one, and merging would put it out of order.
   if (previous.seq !== nextSeq - 1) return false;
   if (previous.jobID !== entry.jobID) return false;
   if (previous.command !== entry.command) return false;
@@ -170,11 +132,6 @@ function record(state, layer, jobID, command, recipe) {
   const held = state.base[jobID];
   if (!held) return state;
 
-  // A change is written against what the player is looking at, which for a
-  // change means base plus the changes before it and *not* the questions above
-  // them: a what-if is dropped when the editor closes, and an entry recorded
-  // over one would carry its value into the save. A question is written against
-  // the whole draft, because that is what it is asking about.
   const from =
     layer === "scratch" ? draftFor(state, jobID) : committedFor(state, jobID);
   const [, patches, inversePatches] = produceWithPatches(from, recipe);
@@ -217,12 +174,8 @@ function record(state, layer, jobID, command, recipe) {
 }
 
 /**
- * Records a change the player means to keep.
- *
- * The recipe is handed the job as it would save — the base with the changes
- * before it applied, and no questions — so a what-if on screen cannot leak a
- * value into the change. The entry stays re-appliable onto a base that has since
- * moved, because its patches name paths rather than carrying the whole job.
+ * Records a change the player means to keep, handing the recipe the job as it
+ * would save rather than as it reads on screen.
  *
  * @param {DraftState} state
  * @param {string} jobID
@@ -248,12 +201,8 @@ export function ask(state, jobID, command, recipe) {
 }
 
 /**
- * The job as it reads now: base, then what was changed, then what was asked.
- *
- * The same object for as long as the layers under it hold, so a reader compares
- * it by identity rather than by value — and every subtree an entry did not touch
- * is the object it was in the base, so the comparison holds part by part as well
- * as whole.
+ * The job as it reads now, and the same object for as long as the layers under it
+ * hold, so a reader may compare it by identity.
  *
  * @param {DraftState} state
  * @param {string} jobID
@@ -294,11 +243,8 @@ export function hasChanges(state, jobID) {
 }
 
 /**
- * What the reader changed to this job, oldest first.
- *
- * A write is built from these rather than from a comparison of two documents,
- * so a job with no entries here had nothing recorded and its write carries the
- * whole document.
+ * What the reader changed to this job, oldest first, and what a field-scoped
+ * write is built from.
  *
  * @param {DraftState} state
  * @param {string} jobID
@@ -314,11 +260,8 @@ export function changedJobIDs(state) {
 }
 
 /**
- * Drops what the player changed, leaving them on the document as it now stands.
- *
- * This is what closing without saving does, and it is why nothing is written
- * back: the base already holds whatever arrived while the editor was open, so a
- * reader loses their own changes and nobody else's.
+ * Drops what the player changed, leaving them on the document as it now stands,
+ * which is what closing without saving does.
  *
  * @param {DraftState} state
  * @param {string} [jobID] - Every job when omitted
@@ -360,10 +303,8 @@ export function leaveScratch(state, jobID) {
 }
 
 /**
- * Moves a question into the changes, for "actually, keep that".
- *
- * A promotion is an entry moving between layers rather than a new edit, so it
- * keeps its patches and its before-image and stays undoable the same way.
+ * Moves a question into the changes, keeping its patches and before-image so it
+ * stays undoable the same way.
  *
  * @param {DraftState} state
  * @param {number} seq
@@ -373,9 +314,6 @@ export function keepAsked(state, seq) {
   const entry = state.scratch.find((held) => held.seq === seq);
   if (!entry) return state;
 
-  // Both layers are replayed in array order, so a promoted question takes its
-  // place in the order it was asked rather than the end of the log: dropped at
-  // the end it would apply over a change made after it and undo it.
   const at = state.log.findIndex((held) => held.seq > seq);
   const log =
     at === -1
@@ -418,10 +356,8 @@ export function nextRedo(state) {
 }
 
 /**
- * Takes back the newest step, whichever layer it landed in.
- *
- * The step is dropped rather than replayed backwards, so a document that
- * arrived underneath it is left standing.
+ * Takes back the newest step, whichever layer it landed in, by dropping it rather
+ * than replaying it backwards.
  *
  * @param {DraftState} state
  * @returns {DraftState} Unchanged when there is nothing to take back
@@ -438,11 +374,8 @@ export function undo(state) {
 }
 
 /**
- * Puts back the step undo last took, into the layer it came from.
- *
- * Nothing is kept to redo once the player changes something else: `record`
- * empties the stack, so the forward history cannot be rejoined to a log that
- * has since gone a different way.
+ * Puts back the step undo last took, into the layer it came from, until the player
+ * changes something else.
  *
  * @param {DraftState} state
  * @returns {DraftState}

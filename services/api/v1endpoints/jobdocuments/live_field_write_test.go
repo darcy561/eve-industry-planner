@@ -1,13 +1,3 @@
-// The write the SPA builds, driven through the real handler into real Mongo.
-//
-// Every other test of this path checks one side of a seam: the SPA's tests say
-// what it emits, the corpus tests say the model accepts that shape, and the
-// Mongo tests say an update built by hand stores what it names. None of them
-// runs the bytes a save really sends against the endpoint that really answers
-// it, which is where a field-scoped write has the most to go wrong — it names
-// paths into a stored document rather than replacing one.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 package jobdocuments
 
 import (
@@ -23,7 +13,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// storedJob is the document as it now stands.
 func storedJob(t *testing.T, s *plannerScope, jobID string) models.Job {
 	t.Helper()
 	var job models.Job
@@ -36,8 +25,6 @@ func storedJob(t *testing.T, s *plannerScope, jobID string) models.Job {
 	return job
 }
 
-// putWrites sends writes as they arrive from a client, rather than building them
-// around a job the way [plannerScope.putJobs] does.
 func (s *plannerScope) putWrites(writes []models.JobWriteBody, accountID, plannerHandle string) *httptest.ResponseRecorder {
 	s.t.Helper()
 	rec := httptest.NewRecorder()
@@ -46,8 +33,6 @@ func (s *plannerScope) putWrites(writes []models.JobWriteBody, accountID, planne
 	return rec
 }
 
-// The whole seam in one test: the corpus write goes in as a client sends it, and
-// the stored document comes out changed in exactly the ways the write named.
 func TestLive_TheCorpusWriteChangesOnlyWhatItNames(t *testing.T) {
 	s := newPlannerScope(t)
 	corpus := loadJobWriteCorpus(t)
@@ -56,15 +41,9 @@ func TestLive_TheCorpusWriteChangesOnlyWhatItNames(t *testing.T) {
 	if err := jsoncodec.Unmarshal(corpus.Job, &seed); err != nil {
 		t.Fatalf("read the corpus job: %v", err)
 	}
-	// The row the write removes is seeded here and nowhere in the corpus job: a
-	// removal names a row the reader's copy no longer has, so the fixture cannot
-	// carry it and the document must.
 	seed.Build.ExtrasCosts["e-2"] = models.ExtraCost{ID: "e-2", ExtraText: "Deleted by the reader", ExtraValue: 500}
 	seed.Name = "before the write"
 	seed.Build.Materials["34"] = models.JobMaterial{TypeID: 34, Name: "Tritanium", Volume: 1}
-	// The corpus job stands at the revision its write is checked against. Seeding
-	// it is a create, which has none — carrying one would check the create
-	// against a document that does not exist yet.
 	seed.MetaData.Revision = 0
 
 	if rec := s.putJobs([]models.Job{seed}, s.account, s.handle); rec.Code >= http.StatusBadRequest {
@@ -75,7 +54,6 @@ func TestLive_TheCorpusWriteChangesOnlyWhatItNames(t *testing.T) {
 		t.Fatal("the seed stored no row for the write to remove, so removing it would prove nothing")
 	}
 
-	// The client writes from the document it read, which is where it now stands.
 	write := corpus.Write
 	write.Revision = stored.MetaData.Revision
 
@@ -100,8 +78,6 @@ func TestLive_TheCorpusWriteChangesOnlyWhatItNames(t *testing.T) {
 		t.Fatal("the row the write removed is still stored")
 	}
 
-	// What the write did not name has to be exactly as it was. A field-scoped
-	// write that replaced the document would pass every assertion above.
 	if _, kept := after.Build.ExtrasCosts["e-1"]; !kept {
 		t.Fatal("the extra cost the write never mentioned was lost")
 	}
@@ -121,9 +97,6 @@ func TestLive_TheCorpusWriteChangesOnlyWhatItNames(t *testing.T) {
 	}
 }
 
-// The same write sent twice: the second names a revision the document has moved
-// past, and is refused. This is what stops two members overwriting each other,
-// exercised through the shape a client really sends rather than one built here.
 func TestLive_AStaleCorpusWriteIsRefused(t *testing.T) {
 	s := newPlannerScope(t)
 	corpus := loadJobWriteCorpus(t)

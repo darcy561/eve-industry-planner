@@ -50,9 +50,6 @@ beforeEach(() => {
   store.current = editJobStore({ group });
 });
 
-// A control and the command it runs can each be right on their own and still
-// disagree about what a reader asked for. These press what a reader presses and
-// then read the job that came out of it.
 describe("what the reader changes on a job, end to end", () => {
   it("remembers which tab of the building step was open", () => {
     const { editJob } = renderOverEditJob(
@@ -78,8 +75,6 @@ describe("what the reader changes on a job, end to end", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Available ESI Job/i }));
 
-    // The check is what the job is, not what can be worked out from it: a
-    // selector answers for a plain object just as readily.
     expect(editJob.current.activeJob).toBeInstanceOf(Job);
   });
 
@@ -95,8 +90,6 @@ describe("what the reader changes on a job, end to end", () => {
     expect(editJob.current.activeJob.jobStatus).toBe(4);
   });
 
-  // Once it is on sale this button cannot take it back off: it disables itself,
-  // and the label it then carries is the state, not an offer.
   it("stops offering the sale once the job is on sale", () => {
     renderOverEditJob(storedJob({ jobStatus: 3, parentJobs: [] }), () => (
       <SellGroupJobButton />

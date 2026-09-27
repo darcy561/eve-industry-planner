@@ -20,9 +20,8 @@ import {
 } from "../../Events/snackbarEvents";
 
 /**
- * Mass-builds one material level for selected jobs (planner scoped).
- *
- * Only the jobs passed in are considered — a group is not expanded to its members.
+ * Mass-builds one material level for the jobs named, without expanding a group to
+ * its members.
  *
  * @param {string|Array<string>|Set<string>} inputJobIDs
  * @param {{
@@ -151,7 +150,6 @@ export default async function massBuildMaterials(inputJobIDs, options) {
       await saveJobsViaApi(jobsToCommit);
     }
 
-    // Clear planner skeleton placeholders before injecting new cards into stage 0.
     if (typeof setNumberOfVisibleSkeletonElements === "function") {
       setNumberOfVisibleSkeletonElements(0);
     }

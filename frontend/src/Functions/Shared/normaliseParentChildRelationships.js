@@ -7,11 +7,8 @@ import {
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 
 /**
- * Normalises parent/child links across the provided jobs and returns modified job IDs.
- *
- * Rules:
- *
- * Only relationships between jobs present in `jobs` are normalised.
+ * Normalises the parent and child links between the jobs given, leaving a link to
+ * a job that is not among them alone.
  *
  * @param {Array<object>} jobs
  * @returns {Set<string>}

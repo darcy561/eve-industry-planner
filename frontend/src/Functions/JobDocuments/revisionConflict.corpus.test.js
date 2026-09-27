@@ -8,10 +8,6 @@ import {
 } from "./revisionConflict.js";
 import { DOCUMENT_LOCK_API_ERROR_LOCK_HELD_ELSEWHERE } from "../DocumentLock/documentLockEvents.js";
 
-// The 409 body, read from the repo root rather than copied here: the Go handler
-// is tested against the same file, so a field renamed on one side alone turns
-// the other side red. A drift here is silent in production — the client stops
-// recognising the refusal and retries a write that can never succeed.
 const corpusPath = resolve(
   process.cwd(),
   "../testing/fixtures/write-conflict/body.json",
@@ -46,16 +42,12 @@ describe("the refused-write body", () => {
         docID: row.docID,
         expected: row.expected,
         current: row.current,
-        // Absent on the wire for a document that is merely stale, which the
-        // parser answers as false so a consumer never branches on undefined.
+
         gone: row.gone === true,
       });
     }
   });
 
-  // The corpus body carries one stale row and one deleted row, which is the
-  // mixed case: saying every job was removed would send the reader looking for
-  // one that is still there.
   it("describes a mixed batch as changed rather than removed", () => {
     const parsed = parseRevisionConflictBody(JSON.stringify(corpus.body));
     const message = revisionConflictMessage(parsed.rejected);

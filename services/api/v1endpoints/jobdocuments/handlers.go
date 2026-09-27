@@ -52,9 +52,8 @@ func New(deps *apideps.Deps) *Handlers {
 	return &Handlers{Deps: deps, locks: deps.LockDeps()}
 }
 
-// dropHeldWrites removes the writes another session holds a lock on, keeping
-// the rest: one member editing one job no longer costs every other job in the
-// same save.
+// dropHeldWrites removes the writes another session holds a lock on, keeping the
+// rest of the batch.
 func dropHeldWrites(writes []models.JobWriteBody, held []documentlock.LockHeldElsewhereItem) []models.JobWriteBody {
 	blocked := make(map[string]struct{}, len(held))
 	for _, item := range held {
@@ -71,12 +70,6 @@ func dropHeldWrites(writes []models.JobWriteBody, held []documentlock.LockHeldEl
 
 // writeRefusal names which refusal a batch's response carries when more than one
 // kind occurred.
-//
-// A response carries one, and the lock wins. A held job was never written and
-// its edits are still owed; a revision conflict's document has moved on and the
-// client reloads it either way. Answering the conflict first would leave the
-// held jobs unnamed, and a client that clears what a refusal did not name would
-// discard work nothing wrote.
 type writeRefusal int
 
 const (

@@ -1,12 +1,6 @@
 /**
- * A material a job is built from: what the job needs, what has been bought
- * against it, and what those purchases cost.
- *
- * A row has the same fields in the SPA and in `models.JobMaterial` on the
- * backend, and {@link Material#toDocument} defines that shape for the SPA.
- *
- * How many the job needs is not one of those fields: it comes from the setups,
- * which the job resolves for the material.
+ * A material a job is built from: what has been bought against it, and what those
+ * purchases cost.
  *
  * @class Material
  */
@@ -23,8 +17,7 @@ import {
 
 class Material {
   /**
-   * @param {Object} [row] - A material row from a job document, or the recipe
-   *   entry a new job is built from
+   * @param {Object} [row] - A material row from a job document, or the recipe entry a new job is built from
    * @param {number} [row.typeID] - EVE type id of the material
    * @param {string} [row.name] - Material name
    * @param {number} [row.jobType] - Job type that produces it, when one can
@@ -46,11 +39,8 @@ class Material {
   #requirement;
 
   /**
-   * How many of this material the job needs.
-   *
-   * The figure belongs to the setups — the job sums each setup's `materialCount`
-   * — so resizing, adding or removing a setup moves it at once and there is
-   * nothing on the row to fall behind.
+   * How many of this material the job needs, summed over its setups rather than
+   * held on the row.
    *
    * @returns {number}
    */
@@ -70,12 +60,8 @@ class Material {
   }
 
   /**
-   * Records a purchase against the material, taking what the job still needs.
-   *
-   * `taken` is what counts toward the requirement; `leftOver` is what did not
-   * fit, for the caller to offer elsewhere. With `recordExcess` the whole
-   * purchase is kept on the row and the excess is reported through
-   * {@link Material#excessQuantity} rather than charged to the job.
+   * Records a purchase against the material, answering what counted toward the
+   * requirement and what did not fit.
    *
    * @param {Object} purchase - What was bought
    * @param {number} purchase.itemCount - How many were bought
@@ -172,11 +158,8 @@ class Material {
   }
 
   /**
-   * Whether enough has been bought to cover what the job needs.
-   *
-   * Answered from the row each time it is asked, so it follows the requirement,
-   * which the setups move whenever one changes. A material the setups ask for
-   * none of has nothing bought against it rather than everything.
+   * Whether enough has been bought to cover what the job needs, with a material
+   * the setups ask for none of covered by nothing rather than by everything.
    *
    * @returns {boolean}
    */
@@ -185,26 +168,18 @@ class Material {
   }
 
   /**
-   * What the job is charged for, and how much of it that bought.
-   *
-   * The cheapest purchases fill the requirement first, so a job pays the best
-   * prices it managed and the dearest units are the ones left over. Nothing
-   * beyond the requirement adds cost.
+   * What the job is charged for and what it cost, filling the requirement from
+   * the cheapest purchases first.
    *
    * @returns {{ quantity: number, cost: number }}
    */
-  // The rule lives with the selectors, which is where the rest of the app is
-  // moving to read it; holding a second copy here is how the two come to
-  // disagree about which of two equal-cost rows is counted first.
   #countedPurchases() {
     return countedPurchases(this, this.quantity);
   }
 
   /**
-   * How many of a purchase's units the job is charged for.
-   *
-   * A purchase can count in full, in part, or not at all: the cheapest fill the
-   * requirement first, and whatever is left over is the excess.
+   * How many of a purchase's units the job is charged for — all of them, some, or
+   * none, the cheapest purchases counting first.
    *
    * @param {string} purchaseID
    * @returns {number}
@@ -248,12 +223,8 @@ class Material {
 }
 
 /**
- * Keys purchase rows by the id each carries, dropping the ones that are not
- * purchases at all.
- *
- * A row without an id is dropped rather than filed under `undefined`, which
- * would collapse every such row onto a single key — and a purchase is minted an
- * id when it is recorded, so a row reaching here without one is not one.
+ * Keys purchase rows by the id each carries, dropping a row without one — every
+ * purchase is minted an id as it is recorded.
  *
  * @param {Object<string, Object>|Array<Object>|null} rows
  * @returns {Object<string, Object>} The rows keyed by id

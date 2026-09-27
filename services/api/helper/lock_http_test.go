@@ -17,9 +17,6 @@ func decodeLockBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any
 	return body
 }
 
-// A batch that wrote part of itself still answers 409 — it did not do what it
-// was asked — but `saved` is what stops the client reading that as nothing
-// happened and re-sending the jobs that landed.
 func TestPartialLockConflictReportsWhatWasWritten(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/api/v1/job-documents", nil)
@@ -43,8 +40,6 @@ func TestPartialLockConflictReportsWhatWasWritten(t *testing.T) {
 	}
 }
 
-// The whole-batch refusal keeps its shape and says nothing was written, so a
-// client that meets it does not have to guess.
 func TestWholeBatchLockConflictSavesNothing(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/api/v1/job-documents", nil)

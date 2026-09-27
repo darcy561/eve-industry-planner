@@ -15,9 +15,8 @@ import (
 
 type restoreRequest struct {
 	Archive archiveScope
-	// AccountID is who asked. It is not the archive's owner on a shared planner,
-	// and the ESI ids a restore reclaims are the account's rather than the
-	// planner's.
+	// AccountID is who asked, which on a shared planner is not the archive's
+	// owner.
 	AccountID  string
 	SessionID  string
 	WSClientID string
@@ -35,10 +34,8 @@ type restoreResult struct {
 	Groups []models.Group
 }
 
-// restoreJobs returns archived jobs to the planner: decrypt, resolve ESI links,
-// write job documents, re-link, return them to their groups, delete from the
-// archive, then queue the statistics rebuild. The write-before-delete order is
-// deliberate.
+// restoreJobs returns archived jobs to the planner, writing each job document
+// before deleting it from the archive.
 func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreResult, error) {
 	if len(req.Jobs) == 0 {
 		return restoreResult{}, nil
@@ -46,8 +43,6 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 	if h.EntityCipher == nil {
 		return restoreResult{}, fmt.Errorf("entity ref helper is not configured")
 	}
-	// Named rather than left to the write to reject: the account and the archive's
-	// owner differ on a shared planner, so an unset one is a real mistake here.
 	if req.AccountID == "" || req.Archive.Owner.IsZero() {
 		return restoreResult{}, fmt.Errorf("restoreJobs: an account and an archive owner are required")
 	}
@@ -59,7 +54,6 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		jobIDs = append(jobIDs, req.Jobs[i].JobID)
 	}
 
-	// The archive holds refs; the planner reads raw ids.
 	links := esiLinkSet{}
 	for i := range req.Jobs {
 		job := &req.Jobs[i]
@@ -78,7 +72,6 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		}
 	}
 
-	// A job keeps only the ids it reclaimed.
 	conflicted := conflictIndex(conflicts)
 	for i := range req.Jobs {
 		stripConflictedLinks(&req.Jobs[i], conflicted)
@@ -87,9 +80,6 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		req.Jobs[i].MetaData.ArchiveProcessed = false
 	}
 
-	// A restored job is rebuilt from the archive rather than edited, so it carries
-	// no revision and is written unconditionally — there is no read for a
-	// conditional write to be conditional on.
 	if _, failed, _, writeErr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, req.Archive.Owner, req.AccountID, req.Jobs, now, req.SessionID, req.WSClientID); writeErr != nil {
 		return restoreResult{}, fmt.Errorf("write job documents: %w", writeErr)
 	} else if len(failed) > 0 {
@@ -111,15 +101,10 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		return restoreResult{}, fmt.Errorf("remove archived documents: %w", delErr)
 	}
 
-	// The restored jobs' figures are still counted in the owner's aggregates.
-	// Revoking their rows records that they should not be, and leaves the stamp
-	// that says they still are — which is what the statistics pass looks for to
-	// take them back out.
 	if _, revokeErr := h.Mongo.RevokeStatsRowsForJobs(ctx, req.Archive.Owner, jobIDs, now); revokeErr != nil {
 		return restoreResult{}, fmt.Errorf("revoke statistics rows: %w", revokeErr)
 	}
 
-	// Queued last: the pass reads the archive and must see the deletion.
 	if queueErr := req.Archive.queueRebuild(ctx, h.Mongo, now); queueErr != nil {
 		return restoreResult{}, fmt.Errorf("queue statistics work: %w", queueErr)
 	}
@@ -141,8 +126,6 @@ func conflictIndex(conflicts []esiConflict) map[esiLinkKind]map[int64]struct{} {
 // stripConflictedLinks removes what another job holds from a restored job. A job
 // holds an ESI id by carrying its row, so the row itself goes.
 func stripConflictedLinks(job *models.Job, conflicted map[esiLinkKind]map[int64]struct{}) {
-	// Deleted by key rather than by reading the row: each collection is keyed by
-	// the same ESI id the conflict is expressed in.
 	for id := range conflicted[esiLinkOrder] {
 		delete(job.ESI.MarketOrders, strconv.FormatInt(id, 10))
 	}

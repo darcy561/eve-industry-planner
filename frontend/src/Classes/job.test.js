@@ -2,9 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import Job from "./job.js";
 
-// A write carrying a revision is only made if the document is still at it, so a
-// job built from a stored document has to keep the one it arrived with, and a
-// job built from anything else must not invent one.
 describe("the revision a job was delivered at", () => {
   it("is kept and sent back", () => {
     const job = new Job({ jobID: "job-1", _meta: { revision: 7 } });

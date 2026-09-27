@@ -17,14 +17,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// The restore sequence is seven writes in a fixed order across five collections,
-// and the pieces either side of it are unit tested while the sequence itself is
-// not. These drive it against stack Mongo. Requires EIP_MONGO_PARITY_LIVE=1.
-
 const restoreScratchAccount = "eip-parity-restore-account"
 
-// A key of this test's own: the sequence encrypts and decrypts entity ids, and
-// what matters is that the round trip holds, not which key made it.
 func restoreHandlers(t *testing.T, mongo *eipmongo.Mongo) *Handlers {
 	t.Helper()
 	cipher, err := entityid.New([]byte("live-restore-test-entity-id-key-0123456789"))
@@ -34,15 +28,11 @@ func restoreHandlers(t *testing.T, mongo *eipmongo.Mongo) *Handlers {
 	return &Handlers{Deps: &apideps.Deps{Mongo: mongo, EntityCipher: cipher}}
 }
 
-// archiveJob writes a job into the archive the way the PUT route leaves it:
-// entity ids as refs, and the lifecycle stamps that say it is archived.
 func archiveJob(t *testing.T, ctx context.Context, h *Handlers, job models.Job, at time.Time) {
 	t.Helper()
 	archiveJobFor(t, ctx, h, job, restoreScratchAccount, at)
 }
 
-// archiveJobFor writes a job into one account's archive the way the PUT route
-// leaves it: entity ids as refs, and the stamps that say it is archived.
 func archiveJobFor(t *testing.T, ctx context.Context, h *Handlers, job models.Job, accountID string, at time.Time) {
 	t.Helper()
 	job.MetaData.Owner = models.AccountOwner(accountID)
@@ -57,8 +47,6 @@ func archiveJobFor(t *testing.T, ctx context.Context, h *Handlers, job models.Jo
 	}
 }
 
-// contributedRow is the statistics row an archived job leaves behind, stamped as
-// counted, which is the state a restore has to take back out.
 func contributedRow(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jobID string, at time.Time) {
 	t.Helper()
 	row := models.ArchivedJobStats{
@@ -80,8 +68,6 @@ func seedJob(jobID string) models.Job {
 	return job
 }
 
-// The whole point of the sequence: the job is on the planner, out of the
-// archive, no longer counted, and the work to uncount it is queued.
 func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -114,8 +100,6 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the job is not on the planner: %v", err)
 	}
-	// The stamps are what mark a job as archived, so a restore that left them
-	// would put back a job the archive views still claim.
 	if !restored.MetaData.ArchivedAt.IsZero() || restored.MetaData.ArchivedBy != "" {
 		t.Fatalf("restored job still carries its archive stamps: %+v", restored.MetaData)
 	}
@@ -131,8 +115,6 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 	).Decode(&row); err != nil {
 		t.Fatalf("statistics row: %v", err)
 	}
-	// Revoked but still stamped: the stamp says the figures are in the
-	// aggregates, and the revocation is what asks for them to come back out.
 	if !row.Revoked || row.ContributedAt == nil {
 		t.Fatalf("row is revoked=%v contributedAt=%v, want revoked with its stamp", row.Revoked, row.ContributedAt)
 	}
@@ -150,8 +132,6 @@ func TestLive_restorePutsTheJobBackAndTakesItOutOfTheArchive(t *testing.T) {
 	}
 }
 
-// A job archived out of a group rejoins it, and the group stops naming it as
-// archived — otherwise the derived sets keep leaving it out.
 func TestLive_restoreReturnsTheJobToItsGroup(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -202,8 +182,6 @@ func TestLive_restoreReturnsTheJobToItsGroup(t *testing.T) {
 	}
 }
 
-// An ESI id claimed by a job still on the planner cannot be handed back. The
-// restore reports it and drops the link rather than refusing the job.
 func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

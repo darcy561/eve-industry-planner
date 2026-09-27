@@ -1,11 +1,3 @@
-// A job written into a shared planner, end to end over the handlers.
-//
-// Everything else exercises the account's own planner, where the owner on the
-// request and the account are the same value — so a filter that used one in
-// place of the other still answered correctly. These write into a corporation
-// planner, where the two differ and a mistake shows.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 package jobdocuments
 
 import (
@@ -36,8 +28,6 @@ const (
 	plannerScopeCorpID       = 98000123
 )
 
-// plannerScope is the handlers with real Mongo behind them, plus the corporation
-// planner the tests write into.
 type plannerScope struct {
 	t       *testing.T
 	h       *Handlers
@@ -75,8 +65,6 @@ func newPlannerScope(t *testing.T) *plannerScope {
 	s.clearPlanner()
 	t.Cleanup(s.clearPlanner)
 
-	// The account reaches the planner because it holds a membership row, which is
-	// what an ESI reconcile writes.
 	if _, _, err := mongo.ReconcileEntityMemberships(context.Background(),
 		plannerScopeAccount, []models.Owner{owner}, time.Now().UTC()); err != nil {
 		t.Fatalf("seed membership: %v", err)
@@ -84,8 +72,6 @@ func newPlannerScope(t *testing.T) *plannerScope {
 	return s
 }
 
-// ScratchAccount cleans what an account owns; a corporation planner's documents
-// and the membership rows pointing at it are this test's to remove.
 func (s *plannerScope) clearPlanner() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -101,8 +87,6 @@ func (s *plannerScope) clearPlanner() {
 		bson.M{"plannerID": s.owner.Key()})
 }
 
-// request binds the identity the auth middleware would, and names the planner
-// the way a client does.
 func (s *plannerScope) request(method, path string, body any, accountID, plannerHandle string) *http.Request {
 	s.t.Helper()
 
@@ -122,8 +106,6 @@ func (s *plannerScope) request(method, path string, body any, accountID, planner
 	return r.WithContext(sessionreq.WithIdentity(r.Context(), accountID, "sess-planner-scope"))
 }
 
-// putJobs writes each job as a create: the caller holds no stored copy of it, so
-// it names no revision and the whole document goes.
 func (s *plannerScope) putJobs(jobs []models.Job, accountID, plannerHandle string) *httptest.ResponseRecorder {
 	s.t.Helper()
 	writes := make([]map[string]any, 0, len(jobs))
@@ -163,8 +145,6 @@ func plannerScopeJob(jobID string) models.Job {
 	}
 }
 
-// The round trip this whole slice exists for: a job written into a corporation
-// planner is stored under that planner and read back through it.
 func TestLive_JobWrittenIntoAPlannerIsReadBackFromIt(t *testing.T) {
 	s := newPlannerScope(t)
 
@@ -181,7 +161,6 @@ func TestLive_JobWrittenIntoAPlannerIsReadBackFromIt(t *testing.T) {
 		t.Fatalf("planner holds %d jobs, want the one written", len(jobs))
 	}
 
-	// Stored under the planner, not the account that wrote it.
 	var stored models.Job
 	if err := s.mongo.JobDocuments.Collection().
 		FindOne(context.Background(), bson.M{"_id": eipmongo.OwnerScopedDocumentID(s.owner, "planner-scope-1")}).Decode(&stored); err != nil {
@@ -195,8 +174,6 @@ func TestLive_JobWrittenIntoAPlannerIsReadBackFromIt(t *testing.T) {
 	}
 }
 
-// The account's own planner does not see what was written into the shared one.
-// This is the assertion every account-owner test could not make.
 func TestLive_APlannersJobsStayOutOfTheAccountsOwnPlanner(t *testing.T) {
 	s := newPlannerScope(t)
 
@@ -205,7 +182,6 @@ func TestLive_APlannersJobsStayOutOfTheAccountsOwnPlanner(t *testing.T) {
 		t.Fatalf("write = %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// No planner header: the account's own.
 	rec, jobs := s.plannerJobs(s.account, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("read = %d: %s", rec.Code, rec.Body.String())
@@ -217,8 +193,6 @@ func TestLive_APlannersJobsStayOutOfTheAccountsOwnPlanner(t *testing.T) {
 	}
 }
 
-// An account holding no membership row for the planner is refused, and told
-// nothing about whether it exists.
 func TestLive_APlannerTheAccountCannotReachIsRefused(t *testing.T) {
 	s := newPlannerScope(t)
 
@@ -234,8 +208,6 @@ func TestLive_APlannerTheAccountCannotReachIsRefused(t *testing.T) {
 	}
 }
 
-// Two members of one planner both reach the same job, which is the point of a
-// shared planner.
 func TestLive_ASecondMemberReadsTheSameJob(t *testing.T) {
 	s := newPlannerScope(t)
 
@@ -258,7 +230,6 @@ func TestLive_ASecondMemberReadsTheSameJob(t *testing.T) {
 	}
 }
 
-// Every write counts itself, so a conditional write has something to compare.
 func TestLive_AWriteIncrementsTheDocumentVersion(t *testing.T) {
 	s := newPlannerScope(t)
 	job := plannerScopeJob("planner-scope-5")
@@ -289,8 +260,6 @@ func TestLive_AWriteIncrementsTheDocumentVersion(t *testing.T) {
 	}
 }
 
-// A handle the cipher cannot read is a bad request rather than a silent fall
-// back to the account's own planner, which would write into the wrong one.
 func TestLive_AnUnreadablePlannerHandleIsRefused(t *testing.T) {
 	s := newPlannerScope(t)
 

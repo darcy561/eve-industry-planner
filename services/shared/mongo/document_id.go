@@ -16,13 +16,6 @@ const documentIDSeparator = "|"
 
 // OwnerScopedDocumentID is the stored _id of a document belonging to one planner:
 // {ownerKey}|{id}.
-//
-// `_id` is unique across a collection, so a bare id could exist only once and an
-// upsert filtered on owner and id would insert a duplicate rather than update the
-// document it meant. The owner in the id is what keeps the two in step.
-//
-// The bare id is what a client sends and receives; compose here and split with
-// [BareDocumentID] at the boundary.
 func OwnerScopedDocumentID(owner models.Owner, id string) string {
 	if owner.IsZero() || id == "" {
 		return ""
@@ -46,10 +39,6 @@ func OwnerScopedDocumentIDs(owner models.Owner, ids []string) []string {
 }
 
 // BareDocumentID is the id a client knows, taken back out of a stored one.
-//
-// An id carrying no owner is returned unchanged: documents an account owns
-// wherever it works are keyed by the account id alone, and so are the collections
-// that predate owner scoping.
 func BareDocumentID(storedID string) string {
 	_, bare, found := strings.Cut(storedID, documentIDSeparator)
 	if !found {
@@ -60,14 +49,6 @@ func BareDocumentID(storedID string) string {
 
 // SetDocumentWithRevision is the update for a write that replaces a document and
 // counts itself.
-//
-// Mongo refuses to $set a subdocument and $inc a path inside it in one update —
-// "would create a conflict at _meta" — and every scoped document carries its
-// revision inside `_meta`. So the document is marshalled, `_meta` lifted out and
-// set field by field, and the revision left to $inc alone.
-//
-// Setting `_meta` whole would also reset the counter to whatever the caller's
-// struct held, which for a decoded request body is zero.
 func SetDocumentWithRevision(doc any, unset bson.M) (bson.M, error) {
 	raw, err := bson.Marshal(doc)
 	if err != nil {
@@ -84,8 +65,6 @@ func SetDocumentWithRevision(doc any, unset bson.M) (bson.M, error) {
 			set[key] = value
 			continue
 		}
-		// Nested documents decode as bson.D, so the meta block is walked as one
-		// rather than asserted to a map.
 		meta, ok := value.(bson.D)
 		if !ok {
 			return nil, fmt.Errorf("document %s is not a subdocument", metaField)
@@ -98,9 +77,6 @@ func SetDocumentWithRevision(doc any, unset bson.M) (bson.M, error) {
 }
 
 // OwnerFromDocumentID reads the owner out of a stored id.
-//
-// The error names the id rather than assuming a caller can, because an id that
-// does not parse is a document nothing can route.
 func OwnerFromDocumentID(storedID string) (models.Owner, error) {
 	key, _, found := strings.Cut(storedID, documentIDSeparator)
 	if !found {
@@ -111,14 +87,6 @@ func OwnerFromDocumentID(storedID string) (models.Owner, error) {
 
 // MetaSetByPath is a `_meta` block as the field paths that set it, the revision
 // left out.
-//
-// Two reasons it is left out, and both matter: an $inc of it in the same update
-// would have a conflict to hit, and a writer that owns `_meta` outright still
-// does not own the counter — it belongs to the document's history rather than to
-// the struct being written, so a $set of the whole block would drop it.
-//
-// Takes either shape a decode can produce: a nested document arrives as bson.M
-// from the shared client and as bson.D from a caller that decoded it another way.
 func MetaSetByPath(meta any) bson.M {
 	set := bson.M{}
 	for key, value := range AsDocumentM(meta) {

@@ -21,11 +21,6 @@ import {
   nextRunToFinish,
 } from "./jobSelectors";
 
-/**
- * Each selector is read off plain job data and checked against the figure it
- * should give, written out.
- */
-
 const jobWith = (setup, setupToEdit) =>
   new Job({
     jobID: "job-1",
@@ -73,8 +68,6 @@ describe("the setup a new one continues from", () => {
     expect(setupToBuildFrom(job.toDocument()).id).toBe("setup-2");
   });
 
-  // A job always builds from something, so a reader who has closed the panel
-  // still gets a setup to copy rather than the player's bare defaults.
   it("falls back to the first where none is open, as the job says", () => {
     const job = jobWith(twoSetups, undefined);
 
@@ -94,8 +87,6 @@ describe("the setup a new one continues from", () => {
   });
 });
 
-// A selector is handed plain data, which a draft is and a job part-way through
-// loading may not be.
 describe("a job that is not there yet", () => {
   it("answers nothing rather than throwing", () => {
     expect(selectedSetup(undefined)).toBeUndefined();
@@ -105,9 +96,6 @@ describe("a job that is not there yet", () => {
   });
 });
 
-// One rule, read two ways: the screens that link a child job count one built
-// but not yet saved, and the screens that only read what the job is made of do
-// not. Both used to have their own copy of the fold.
 describe("the child jobs a material counts", () => {
   const linked = ["job-a"];
   const temporary = { jobID: "job-temp" };
@@ -152,8 +140,6 @@ describe("the child jobs a material counts", () => {
   });
 });
 
-// How much of a material a job calls for is every setup's requirement summed,
-// which is what decides whether enough of it has been bought.
 describe("what the setups call for of a material", () => {
   const setups = {
     "setup-1": { id: "setup-1", materialCount: { 34: { quantity: 100 } } },
@@ -173,8 +159,6 @@ describe("what the setups call for of a material", () => {
     expect(materialRequirementOf(undefined, 34)).toBe(0);
   });
 
-  // A quantity stored as text still counts: what is stored has been through the
-  // wire, and a NaN here would take the whole requirement with it.
   it("reads a quantity stored as text", () => {
     const stored = { "setup-1": { materialCount: { 34: { quantity: "40" } } } };
 
@@ -196,8 +180,6 @@ describe("the setup a reader has open, read off the setups alone", () => {
   });
 });
 
-// A job that makes nothing has no cost per item, and must not report one as
-// Infinity or NaN: the panels hand this straight to the number formatter.
 describe("a cost spread over what was produced", () => {
   it("divides the cost by the count", () => {
     expect(perItem(100, 4)).toBe(25);
@@ -220,8 +202,6 @@ describe("the jobs a job is linked to", () => {
     expect(childJobIDs(linked)).toEqual(["child-1"]);
   });
 
-  // A material with no child job against it contributes nothing rather than an
-  // empty entry, and the two directions are one list, parents first.
   it("names both directions as one list", () => {
     expect(relatedJobIDs(linked)).toEqual(["parent-1", "child-1"]);
   });
@@ -253,9 +233,6 @@ describe("the systems a job's setups build in", () => {
   });
 });
 
-// Which types a job needs priced: what it makes, and what it is made from. A
-// child job's type is a material of this job only where it happens to be one,
-// so reading the child jobs left any other material unpriced.
 describe("the types a job prices", () => {
   it("names what it makes first, then what it is made from", () => {
     const job = {
@@ -270,7 +247,6 @@ describe("the types a job prices", () => {
 const TRITANIUM = 34;
 const PYERITE = 35;
 
-/** A job calling for the materials named, each bought as much as stated. */
 const jobNeeding = (bought, runs = {}, status = 1) => ({
   jobStatus: status,
   build: {
@@ -313,8 +289,6 @@ describe("whether a job is bought for", () => {
     ).toBe(false);
   });
 
-  // A job calling for nothing has not been planned yet, rather than having had
-  // everything bought.
   it("is not ready for a job that calls for nothing", () => {
     expect(isReadyToBuild({ build: { materials: {}, setup: {} } })).toBe(false);
     expect(isReadyToBuild(undefined)).toBe(false);
@@ -359,8 +333,6 @@ describe("when a job's runs finish", () => {
     expect(lastRunToFinish(job).job_id).toBe(1);
   });
 
-  // A run with no end date has not started, so nothing can be said about when
-  // it lands and it is not waited on.
   it("does not wait on a run that has not started", () => {
     const withUnstarted = {
       esi: { industryJobs: { ...runs, 4: { job_id: 4 } }, marketOrders: {} },

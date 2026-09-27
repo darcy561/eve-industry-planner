@@ -17,11 +17,7 @@ import { isJobID } from "../../Functions/Helper/ids";
  */
 export const coreActions = (set, get) => ({
   /**
-   * Resets the job data store to its default state.
-   *
-   * Clears all job-related data including job arrays, group arrays,
-   * multi-selection, active job/group tracking, and watchlist data,
-   * while preserving the actions object.
+   * Resets the job data store to its default state, keeping the actions object.
    */
   resetJobDataStore: () => {
     set(
@@ -128,7 +124,6 @@ export const coreActions = (set, get) => ({
   updateOrAddJobsToJobArray: (jobs) => {
     const inputArray = Array.isArray(jobs) ? jobs : [jobs];
 
-    // Deduplicate incoming jobs (keep last occurrence of each jobID)
     const jobsMap = new Map();
     inputArray.forEach((job) => {
       jobsMap.set(job.jobID, job);
@@ -137,16 +132,12 @@ export const coreActions = (set, get) => ({
 
     set(
       (state) => {
-        // Create a Set of incoming job IDs for quick lookup
         const incomingJobIDs = new Set(inputJobs.map((j) => j.jobID));
 
-        // Remove all jobs that match incoming job IDs (removes duplicates)
-        // Keep only jobs that don't match any incoming job IDs
         const jobsToKeep = state.jobData.jobArray.filter(
           (job) => !incomingJobIDs.has(job.jobID),
         );
 
-        // Add all incoming jobs (replaces any duplicates)
         return {
           jobData: {
             ...state.jobData,
@@ -319,9 +310,8 @@ export const coreActions = (set, get) => ({
   },
 
   /**
-   * Resolves full job objects from mixed job + group id strings: expands groups, then
-   * {@link jobsFromIdsOrObjects} (local `jobArray` + API for missing when logged in).
-   * Used by shopping list, price entry, and similar selection flows.
+   * Resolves full job objects from mixed job and group ids, expanding each group to
+   * the jobs it holds.
    *
    * @param {string|string[]} inputJobIDs
    * @returns {Promise<Array<Object>>}

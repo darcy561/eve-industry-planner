@@ -269,6 +269,13 @@ lost either way; refusing it here is what names the two paths that disagreed. Th
 same correction for itself over json names before the model has resolved anything — see
 § Stage C of [plan.md](./plan.md) for why both exist.
 
+**The overlap check orders paths by their segments, not as strings, and that is load-bearing.** Sorted
+by segments, anything sorting between a path and a path inside it shares the first as a prefix too, so
+an overlap anywhere in the set is an overlap between neighbours — which is what lets the check compare
+only each adjacent pair. Plain string order does not have that property, because a row key may hold a
+character below `.`: material ids are routinely hyphenated, and `34-old` sorts between `34` and
+`34.quantity`, hiding the pair from a neighbours-only comparison.
+
 `BulkUpsertJobFields` applies each write conditionally and never upserts. A write carrying no
 revision is refused rather than written: setting some fields into a document that is not there would
 store a job made only of those fields. The handler never sends it one, so that refusal is a guard

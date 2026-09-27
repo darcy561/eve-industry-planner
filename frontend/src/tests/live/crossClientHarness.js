@@ -2,28 +2,15 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 /**
- * Two or more browsers against one websocket service.
- *
- * What a shared planner is for cannot be seen from one client: a change one
- * member makes is only interesting where it arrives, and whether the arriving
- * client writes anything back is the part no unit test can see. The store is a
- * module singleton, so each client is its own process — see `clientProcess.js`.
- *
- * Between them sits the Go integration fixture, standing in for the api and the
- * change stream. Everything above the two transports is the SPA's own.
- *
- * Needs a Go toolchain; no stack.
+ * Runs two or more browsers, each its own process, against one websocket service
+ * standing in for the api and the change stream.
  */
 
 const FRONTEND = path.resolve(import.meta.dirname, "../../..");
 
 /**
- * Waits for something a client does asynchronously, without a fixed sleep.
- *
- * Throws naming what it was waiting for: a scenario that fails here is usually
- * failing because a change never arrived, and the wait is the only place that
- * knows what the change was. `what` may be a function, for a caller whose
- * message includes what it last saw — which it only knows once the wait is over.
+ * Waits for something a client does asynchronously, throwing with `what` — a
+ * string or a function giving one — when it gives up.
  *
  * @param {() => boolean | Promise<boolean>} predicate
  * @param {string | (() => string)} what
@@ -41,11 +28,8 @@ export async function until(predicate, what, timeoutMs = 10_000) {
 }
 
 /**
- * Points a client's two transports at the harness, and records what it sends.
- *
- * Returned rather than installed, because the caller decides what "global"
- * means: a test in this process assigns them onto `globalThis`, and a client
- * process assigns them before it loads the app at all.
+ * Builds a client's two transports pointed at the harness, recording what it
+ * sends, for the caller to install as its own globals.
  *
  * @param {{apiBase: string, wsBase: string, origin: string}} at
  * @returns {{requests: {url: string, method: string}[], fetch: typeof fetch, WebSocket: typeof WebSocket}}
@@ -111,7 +95,6 @@ export function startWebsocketHarness({ sessions, origin, ttlSeconds = 180 }) {
             .map((s) => `${s.accountID}:${s.sessionID}:${s.corporationID}`)
             .join(","),
           EIP_WS_HARNESS_TTL: String(ttlSeconds),
-          // A browser sends its document origin and the server checks it.
           EIP_WS_HARNESS_ORIGINS: origin,
         },
         stdio: ["pipe", "pipe", "pipe"],
@@ -148,11 +131,8 @@ export function startWebsocketHarness({ sessions, origin, ttlSeconds = 180 }) {
 }
 
 /**
- * Opens one browser, connected and working in the planner it names.
- *
- * Resolves once the socket is open and the planner is taken, so a caller never
- * has to wait for either — naming a planner before the socket opens drops the
- * message silently, which leaves every scoped read on the account instead.
+ * Opens one browser, resolving once its socket is open and the planner it names
+ * has been taken.
  *
  * @param {object} params
  * @param {string} params.accountID
@@ -248,7 +228,6 @@ export function openClient(params) {
         await until(
           async () =>
             predicate((last = await send("read", { path: statePath }))),
-          // What the path held is the whole diagnosis when a wait gives up.
           () => `${what}; ${statePath} was ${JSON.stringify(last)}`,
           timeoutMs,
         );
@@ -262,11 +241,8 @@ export function openClient(params) {
 }
 
 /**
- * A whole-document job write, as the envelope `PUT /api/v1/job-documents`
- * reads: the job's id and group beside the document itself.
- *
- * Built here rather than through `wholeJobWrites` because the argument crosses
- * into a browser as JSON, so it cannot be a Job instance carrying `toDocument`.
+ * A whole-document job write, as the envelope `PUT /api/v1/job-documents` reads:
+ * the job's id and group beside the document itself.
  *
  * @param {object} document - The job document being saved
  * @returns {{jobID: string, includedInGroup: boolean, groupID: string, document: object}}

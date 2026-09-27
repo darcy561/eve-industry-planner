@@ -6,12 +6,6 @@ import (
 	"testing"
 )
 
-// A field-scoped write names stored paths, and the names it uses are read from
-// the model's own bson tags everywhere but two: the schema version and the
-// account a write is stamped with, which are written by constants because the
-// walk never visits them. A constant is a copy, and a copy can fall behind the
-// tag it restates — silently, because a write to a path nothing reads fails at
-// nothing. These pin the two together.
 func storedNameOf(t *testing.T, held any, field string) string {
 	t.Helper()
 	found, ok := reflect.TypeOf(held).FieldByName(field)

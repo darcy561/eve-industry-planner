@@ -269,6 +269,17 @@ that they pass unchanged across the conversion rather than recording whatever it
 members with both a live caller and a command equivalent — `importPurchaseToMaterial`,
 `attachNewSetupToJob`, `recalculateSelectedSetup`.
 
+### What a document may share with the job it came from
+
+`toDocument()` is what a job is copied through: `new Job(source.toDocument())` is how a merge, a delete,
+a mass build and a planner move each clone one before changing it, and every one of them relies on the
+copy leaving the planner alone until its writes have landed. Every member is rebuilt on the way out
+except four — `parentJobs`, `rawData`, `skills` and `materialPriceOverrides` — which are still handed
+out live. They are safe only because every mutator replaces them rather than changing them in place. A
+mutator that changes one in place needs it copied on the way out too, the way `childJobs` already is;
+without that, a change to the copy reaches the job it was copied from, and a write that fails still
+leaves the planner altered.
+
 Owed here: the cutover. What the store holds, how a job reaches the save path, and confirmation the lens
 is gone rather than kept as a wrapper. `moveItemsOnPlanner.js` is the one caller known to break on it —
 it clones through `new Job(source.toDocument())`, and `toDocument()` is the call that goes.

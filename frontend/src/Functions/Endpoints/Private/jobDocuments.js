@@ -72,11 +72,8 @@ export async function fetchPlannerJobDocuments() {
 }
 
 /**
- * Merges fetched planner jobs into `jobArray`.
- *
- * Jobs inside a group are not in the planner's answer, so they are kept — but
- * only while the array still holds the same planner. A group's jobs would
- * otherwise outlive the planner they belong to, invisible among another's.
+ * Merges fetched planner jobs into `jobArray`, keeping a group's jobs while the
+ * array still holds the same planner.
  *
  * @param {import("../../../Classes/job.js").default[]} plannerJobs
  * @param {string} owner - the planner these jobs are for
@@ -172,13 +169,8 @@ export async function fetchJobDocumentsByIdsFromApi(jobIDs) {
 }
 
 /**
- * Batch upsert (`PUT /api/v1/job-documents`).
- *
- * Each write is an envelope built by
- * [`jobWriteEnvelope`](../../JobDocuments/jobWriteEnvelope.js) — the job's id
- * and group beside the document it carries — not a bare job document. A write
- * the server cannot read is refused for the whole request, so nothing else
- * builds this shape by hand.
+ * Batch upsert (`PUT /api/v1/job-documents`), taking the envelopes
+ * `jobWriteEnvelope` builds rather than bare job documents.
  *
  * @param {Array<object>} writes
  */
@@ -199,9 +191,6 @@ export async function putJobDocumentsBatch(writes) {
         size: MAX_PUT_JOB_DOCUMENTS_BATCH,
         arrayKey: "jobs",
         errorLabel: "PUT /api/v1/job-documents",
-        // The refusal itself is what the caller acts on — its status says
-        // whether the write can ever succeed — and aggregating would rewrite it
-        // as a message with the status dropped.
         failure: "first",
       },
     },

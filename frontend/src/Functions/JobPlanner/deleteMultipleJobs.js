@@ -22,13 +22,8 @@ import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import { asIDList } from "../Helper/ids";
 
 /**
- * Deletes one or more jobs with clone-on-write safety and strict persistence ordering.
- *
- * Flow:
- *   deletes target job docs from the API.
- *
- * If any logged-in persistence step fails, local linked-ESI account sets are restored from
- * snapshot and no local delete commit is applied.
+ * Deletes one or more jobs, restoring the account's linked-ESI sets and
+ * committing nothing locally if any persistence step fails.
  *
  * @param {string|Array<string>|Set<string>} inputJobIDs - Job ID(s) to delete
  * @returns {Promise<void>} Promise that resolves when deletion is complete
@@ -102,7 +97,6 @@ export default async function deleteMultipleJobs(inputJobIDs) {
       linkedTransIdsToRemove.add(transactionID),
     );
 
-    // Removes deleted job IDs from child jobs.
     for (const mat of Object.values(inputJob.build.materials ?? {})) {
       for (const jobID of inputJob.build.childJobs?.[mat.typeID] ?? []) {
         if (selectedJobIDSet.has(jobID)) continue;
@@ -113,7 +107,6 @@ export default async function deleteMultipleJobs(inputJobIDs) {
       }
     }
 
-    // Removes deleted job IDs from parent jobs (canonical `parentJobs`; legacy `parentJob` from Firestore).
     const rawParents = inputJob.parentJobs ?? inputJob.parentJob;
     const parentJobIds = Array.isArray(rawParents)
       ? rawParents

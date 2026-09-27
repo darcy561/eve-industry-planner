@@ -2,11 +2,8 @@ import useUsersStore from "../../Zustand/usersStore.js";
 import { flushPendingJobDocumentsSave } from "../Debounce/jobDocumentsPersistSchedule.js";
 
 /**
- * Queues jobs for `PUT /api/v1/job-documents` and flushes immediately.
- *
- * Answers what the write did, so a caller can tell one that landed from one the
- * server refused. The user-facing warning for a refusal is raised by the flush
- * itself, so a caller that does not care about the outcome can ignore it.
+ * Queues jobs for `PUT /api/v1/job-documents`, flushes immediately, and answers
+ * what the write did.
  *
  * @param {Array<object>|object} inputJobs - Job instance(s) with `jobID` and `toDocument`
  * @param {Record<string, Array<object>>} [changes] - Log entries per job id; a

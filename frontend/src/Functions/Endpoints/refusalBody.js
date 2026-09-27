@@ -1,19 +1,11 @@
 /**
- * The envelope a refused write is answered with.
- *
- * Two refusals share it — a document lock held elsewhere and a revision
- * conflict — and they are told apart on `error` alone. The rows beneath differ
- * because they carry different facts, so each caller maps its own; what is
- * shared, and stated here once, is the envelope and the rule that a body whose
- * `error` does not match is not this refusal whatever else it carries.
+ * The envelope a refused write is answered with, shared by every refusal and told
+ * apart on `error` alone.
  */
 
 /**
- * Reads a refusal body, or null when it is not the refusal `errorCode` names.
- *
- * Null rather than an empty result for a body naming no usable row: a caller
- * clears a queue from what it is told, and "refused nothing" would be read as
- * "refused everything" by the code that answers an empty list.
+ * Reads a refusal body, or null when it is not the refusal `errorCode` names or
+ * names no usable row.
  *
  * @template T
  * @param {string} text - Raw response body, already read from the `Response`.
@@ -38,13 +30,7 @@ export function parseRefusalBody(text, errorCode, mapRow) {
 
   return {
     collection: typeof body.collection === "string" ? body.collection : "",
-    // How many of the batch still landed. A refusal does not mean nothing
-    // happened, and a caller that treats it that way re-sends what was written.
     saved: typeof body.saved === "number" ? body.saved : 0,
-    // Which documents landed, rather than how many. One batch can hold a
-    // document and refuse another on its revision, and a response states one
-    // refusal — so a caller taking the refusals away from what it sent would
-    // count a document that never landed.
     savedDocIDs: Array.isArray(body.savedDocIDs)
       ? body.savedDocIDs.filter((id) => typeof id === "string" && id !== "")
       : [],

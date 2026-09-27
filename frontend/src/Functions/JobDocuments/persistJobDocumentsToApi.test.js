@@ -3,8 +3,7 @@ import { CLIENT_ERROR_REVISION_CONFLICT } from "./revisionConflict.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../DocumentLock/documentLockEvents.js";
 
 const putJobDocumentsBatch = vi.fn();
-// Only the write is replaced: the module also exports the collection name, which
-// the websocket handlers import, and a mock that drops it breaks their import.
+
 vi.mock("../Endpoints/Private/jobDocuments.js", async (importOriginal) => ({
   ...(await importOriginal()),
   putJobDocumentsBatch: (...args) => putJobDocumentsBatch(...args),
@@ -23,7 +22,6 @@ function queued() {
   return Object.keys(useUsersStore.getState().jobData.pendingJobDocumentWrites);
 }
 
-/** Queues one job id with a document behind it, as a real edit would. */
 function queueOneJob(jobID = "job-1") {
   useUsersStore.setState((state) => ({
     account: { ...state.account, isLoggedIn: true },
@@ -35,7 +33,6 @@ function queueOneJob(jobID = "job-1") {
     ]);
 }
 
-/** Queues several jobs, each holding the revision it was delivered at. */
 function queueJobsAtRevisions(revisions) {
   useUsersStore.setState((state) => ({
     account: { ...state.account, isLoggedIn: true },
@@ -81,10 +78,6 @@ describe("a refused write leaves the queue", () => {
     useUsersStore.getState().jobData.actions.resetJobDataStore();
   });
 
-  // The queue holds job ids and resolves them against `jobArray` at flush time,
-  // so a kept id re-sends whatever the array holds against a document the server
-  // has already refused. That write cannot start succeeding, so keeping it is an
-  // endless loop with nothing shown to the user.
   it("clears the pending ids so the stale batch stops re-sending", async () => {
     queueOneJob();
     expect(queued()).toHaveLength(1);
@@ -111,8 +104,6 @@ describe("a refused write leaves the queue", () => {
     expect(warned.mock.calls[0][0]).toContain("changed elsewhere");
   });
 
-  // A lock conflict is a different outcome: the document is blocked, not stale,
-  // so the write can still succeed later and its ids stay queued.
   it("keeps the queue for a lock conflict", async () => {
     queueOneJob();
     putJobDocumentsBatch.mockRejectedValueOnce(lockConflictError(["job-1"]));
@@ -124,9 +115,6 @@ describe("a refused write leaves the queue", () => {
     expect(warned).not.toHaveBeenCalled();
   });
 
-  // The server drops held jobs and writes the rest, so a lock conflict no longer
-  // means nothing landed. Keeping the whole queue would re-send jobs that
-  // already saved; clearing it would lose the edits still owed.
   it("keeps only the held ids when part of the batch wrote", async () => {
     queueOneJob("job-held");
     queueOneJob("job-wrote");
@@ -142,8 +130,6 @@ describe("a refused write leaves the queue", () => {
     expect(queued()).toEqual(["job-held"]);
   });
 
-  // A conflict naming no documents cannot be told apart from one naming every
-  // document, so the whole queue is kept rather than guessed at.
   it("keeps the whole queue when the conflict names nothing", async () => {
     queueOneJob("job-1");
     queueOneJob("job-2");
@@ -168,10 +154,6 @@ describe("a refused write leaves the queue", () => {
   });
 });
 
-// The server counts a write by moving the document on by one and refuses a write
-// built on an older count. A client that waited for the document to come back
-// would be stale in between, and a second edit in that window would be refused
-// against nothing but its own earlier write.
 describe("a landed write counts against the jobs it wrote", () => {
   beforeEach(() => {
     putJobDocumentsBatch.mockReset();
@@ -201,9 +183,6 @@ describe("a landed write counts against the jobs it wrote", () => {
     expect(revisionOf("job-2")).toBe(9);
   });
 
-  // A batch can hold one document and refuse another on its revision, and the
-  // answer states one of the two. Working out what wrote by taking the refusals
-  // away from what was sent would count the one nothing said anything about.
   it("counts only what the answer names, not what it failed to mention", async () => {
     queueJobsAtRevisions({ "job-held": 2, "job-moved": 4, "job-clean": 6 });
     putJobDocumentsBatch.mockRejectedValue(
@@ -219,10 +198,6 @@ describe("a landed write counts against the jobs it wrote", () => {
     expect(queued()).not.toContain("job-clean");
   });
 
-  // A part that landed before the part that failed is credited from the error,
-  // because the answer describes only the request it came from. Left uncredited,
-  // those jobs would be sent again against documents they had already written,
-  // and refused as stale — losing work that had in fact been saved.
   it("counts the parts that landed before the part that failed", async () => {
     queueJobsAtRevisions({ "job-early": 4, "job-late": 9 });
     const err = revisionConflictError(
@@ -239,8 +214,6 @@ describe("a landed write counts against the jobs it wrote", () => {
     expect(queued()).not.toContain("job-early");
   });
 
-  // Above the request limit a save is sent in parts, so a part that was refused
-  // says nothing about the parts behind it and they stay owed.
   it("keeps a job the failed answer never mentioned", async () => {
     queueJobsAtRevisions({ "job-1": 4, "job-unsent": 9 });
     putJobDocumentsBatch.mockRejectedValue(
@@ -269,10 +242,6 @@ describe("a landed write counts against the jobs it wrote", () => {
   });
 });
 
-// A write the server cannot read is the one failure retrying cannot help: the
-// queue rebuilds the same envelopes from the same jobs at every flush, so a kept
-// id re-sends a request that has already been refused for as long as the tab
-// stays open, and nothing tells the reader.
 describe("a write the server refuses to read", () => {
   beforeEach(() => {
     putJobDocumentsBatch.mockReset();
@@ -296,8 +265,6 @@ describe("a write the server refuses to read", () => {
     expect(queued()).toHaveLength(0);
   });
 
-  // Discarding an edit silently is the worst of both, so the one outcome that
-  // loses work says so.
   it("tells the reader the changes were discarded", async () => {
     queueOneJob("job-1");
     putJobDocumentsBatch.mockRejectedValueOnce(unreadableWriteError());
@@ -320,9 +287,6 @@ describe("a write the server refuses to read", () => {
     expect(revisionOf("job-bad")).toBe(9);
   });
 
-  // The queue is cleared by the ids read before the request, never wholesale: an
-  // edit made while the request was in the air was never sent, and discarding it
-  // would lose work the refusal says nothing about.
   it("leaves a change queued while the request was in the air", async () => {
     queueOneJob("job-1");
     putJobDocumentsBatch.mockImplementationOnce(async () => {

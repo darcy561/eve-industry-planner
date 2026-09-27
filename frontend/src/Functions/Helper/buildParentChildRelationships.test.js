@@ -12,7 +12,6 @@ const { default: Job } = await import("../../Classes/job.js");
 const TRITANIUM = 34;
 const PYERITE = 35;
 
-/** A job that makes `itemID` out of the materials named. */
 function job(jobID, itemID, materials = []) {
   return new Job({
     jobID,
@@ -27,8 +26,6 @@ function job(jobID, itemID, materials = []) {
   });
 }
 
-// A job that makes what another job is built from supplies it, and the planner
-// works that out from the recipes rather than being told.
 describe("linking jobs that feed each other", () => {
   it("hangs the maker of a material under the job that needs it", () => {
     const ship = job("ship", 587, [TRITANIUM]);

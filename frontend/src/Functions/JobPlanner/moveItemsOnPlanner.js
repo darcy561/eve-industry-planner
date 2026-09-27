@@ -14,18 +14,12 @@ import {
 } from "../Job/jobStepNavigation";
 
 /**
- * Moves jobs or groups forward/backward in the planner workflow.
- *
- * Uses clone-on-write updates for selected items, then commits modified objects to the store.
- * For logged-in users, job and group writes are scheduled through debounced persistence so
- * repeated rapid moves coalesce into fewer API calls.
+ * Moves jobs or groups a stage forward or backward, committing copies and queuing
+ * their writes.
  *
  * @param {string|Array<string>|Set<string>} inputIDs - Job ID(s) and/or group ID(s) to move
  * @param {string} direction - Direction to move ("forward" or "backward")
  * @returns {Promise<void>} Promise that resolves when movement is complete
- *
- * @example
- * await moveItemsOnPlanner(["job_123", "group_456"], "forward");
  */
 export default async function moveItemsOnPlanner(inputIDs, direction) {
   const {

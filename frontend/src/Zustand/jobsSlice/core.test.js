@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/** Ids the API was asked for, one entry per call. */
 const requested = [];
 let apiResponse = [];
 let apiError = null;
@@ -37,11 +36,6 @@ describe("the planner's jobs", () => {
     useUsersStore.getState().account.actions.setLoggedIn(false);
   });
 
-  /*
-   * Every test here resets before it runs, so a field the reset stopped
-   * clearing would go unnoticed by all of them — this is the one place that
-   * looks at what a reset leaves behind.
-   */
   it("resets every field the planner holds", () => {
     actions().replaceJobArray([job("job-1")], { owner: "corp:1" });
     actions().replaceGroupArray([{ groupID: "group-1" }]);
@@ -130,10 +124,6 @@ describe("the planner's jobs", () => {
       expect(jobIDs()).toEqual(["job-2", "job-1", "job-3"]);
     });
 
-    /*
-     * A websocket flush can carry the same job twice — the later one is the
-     * document as it now stands, so it is the one kept.
-     */
     it("keeps the last of a repeated job", () => {
       actions().updateOrAddJobsToJobArray([
         job("job-1", "first"),
@@ -158,11 +148,6 @@ describe("the planner's jobs", () => {
       expect(jobIDs()).toEqual(remaining);
     });
 
-    /*
-     * Nothing removed is a no-change path, and the store compares with
-     * `Object.is` — returning a rebuilt array would wake every subscriber for a
-     * removal that did not happen.
-     */
     it("leaves the state object alone when it holds none of them", () => {
       const before = useUsersStore.getState();
 
@@ -254,10 +239,6 @@ describe("the planner's jobs", () => {
         expect(requested).toEqual([]);
       });
 
-      /*
-       * A failed read leaves the caller with what could be resolved rather than
-       * failing the flow that asked — a shopping list still opens.
-       */
       it("leaves the rest resolved when the read fails", async () => {
         useUsersStore.getState().account.actions.setLoggedIn(true);
         apiError = new Error("network");

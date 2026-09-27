@@ -11,9 +11,6 @@ const body = (extra = {}) =>
     ...extra,
   });
 
-// The answer names what was held, and separately what was written. A caller
-// cannot work the second out from the first: one batch can hold a document and
-// refuse another for a different reason the answer does not mention.
 describe("the documents a partly refused batch wrote", () => {
   it("reads them from the body", () => {
     expect(

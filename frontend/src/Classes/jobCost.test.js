@@ -19,11 +19,6 @@ import { describe, expect, test } from "vitest";
 import Job from "./job.js";
 import Setup from "./jobSetup.js";
 
-// What a job cost is pinned by the shared corpus, which the backend reads too.
-// These cover what only the SPA does with it.
-
-// A job produces what its setups are set to make, so the quantity is expressed
-// as one setup of one run producing `totalQuantity` items.
 function jobWith({ materials = [], invention = 0, totalQuantity = 10 }) {
   return new Job({
     jobID: "job-1",
@@ -73,15 +68,12 @@ describe("cost per item", () => {
   test("build cost per item divides what it cost to make", () => {
     const job = jobWith({ materials: [60, 40], invention: 2 });
 
-    // 100 materials + 5 install + 3 extras + 2 invention, over 10
     expect(buildCostPerItem(job)).toBe(11);
   });
 
-  // A parent build pays a child's build cost, so these cannot be one method:
-  // the parent is not paying the child's broker fees.
   test("total cost per item adds the cost of selling, build cost does not", () => {
     const job = jobWith({ materials: [100] });
-    // The fee is carried by the order it was charged against.
+
     job.esi.marketOrders = { 700001: { order_id: 700001, fee: 10 } };
     job.esi.transactions = {
       0: { transaction_id: 0, tax: 10, amount: 0, quantity: 1 },
@@ -91,8 +83,6 @@ describe("cost per item", () => {
     expect(totalCostPerItem(job)).toBe(12.8);
   });
 
-  // Producing nothing must not divide by zero and report Infinity as a cost —
-  // the figure is passed up into parent builds.
   test("a job producing nothing costs nothing per item", () => {
     const job = jobWith({ materials: [100], totalQuantity: 0 });
 
@@ -102,8 +92,6 @@ describe("cost per item", () => {
 });
 
 describe("what the installs cost", () => {
-  // Summed on every call from the rows themselves, so linking and unlinking
-  // cannot leave the figure behind.
   test("the linked ESI jobs are what the installs cost", () => {
     const job = jobWith({ materials: [100] });
     job.esi.industryJobs = {
@@ -115,8 +103,6 @@ describe("what the installs cost", () => {
     expect(buildCost(job)).toBe(123);
   });
 
-  // Setup estimates are a planning figure — getJobInstallCostForPlanning owns
-  // them — so nothing linked costs nothing here.
   test("nothing linked costs nothing", () => {
     const job = jobWith({ materials: [100] });
     job.esi.industryJobs = {};
@@ -135,8 +121,6 @@ describe("what the installs cost", () => {
 });
 
 describe("invention is its own cost", () => {
-  // Invention is its own component: a job that had to invent its blueprint paid
-  // that on top of its materials, and neither figure belongs in the other.
   test("invention is counted on top of the material total", () => {
     const job = jobWith({ materials: [100], invention: 25 });
 
@@ -159,10 +143,8 @@ describe("what the job cost in total", () => {
     return new Job({
       ...document,
       esi: {
-        // The runs the job is installed on carry its install cost, so they
-        // travel with it rather than being replaced by the sale.
         ...document.esi,
-        // Each fee rides the order it was charged against, so one order per fee.
+
         marketOrders: Object.fromEntries(
           fees.map((fee, i) => [
             String(700000 + i),
@@ -234,8 +216,6 @@ describe("reading a job's figures", () => {
     expect(remainingMaterialCount(job)).toBe(1);
   });
 
-  // Every character that worked on the job, counted once, whether they ran it or
-  // sold its output.
   test("who was involved is one set", () => {
     const job = jobWith({ materials: [100] });
     job.esi.industryJobs = {

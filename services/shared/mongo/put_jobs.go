@@ -13,11 +13,6 @@ import (
 )
 
 // RevisionConflict is one document a conditional write did not apply to.
-//
-// Gone separates the two reasons a conditional filter matches nothing, which a
-// caller has to tell apart: the document moved under the writer, or it no longer
-// exists. The revision alone cannot say which — a filter naming both the id and
-// the revision misses for either reason.
 type RevisionConflict struct {
 	JobID    string
 	Expected int64
@@ -25,10 +20,8 @@ type RevisionConflict struct {
 	Gone     bool
 }
 
-// conditionalJobWrite is one write held back from the batch because its answer
-// has to be read on its own: BulkWrite reports only totals, and an unconditional
-// write matching an existing document contributes to them exactly as a
-// conditional one that landed does.
+// conditionalJobWrite is one write held back from the batch because its answer has
+// to be read on its own rather than in BulkWrite's totals.
 type conditionalJobWrite struct {
 	jobID    string
 	expected int64
@@ -37,22 +30,6 @@ type conditionalJobWrite struct {
 
 // BulkUpsertJobs upserts job documents into one planner (unordered BulkWrite).
 // Intended for mongo.JobDocuments.
-//
-// owner is the planner the documents belong to; accountID is who wrote them, and
-// the two differ whenever a member writes in a planner that is not their own.
-//
-// A job carrying a revision in its `_meta` is written conditionally: the filter
-// names the revision as well as the id, so a document somebody else has written
-// since is not overwritten. Such a write is reported in conflicts rather than as
-// an error, and the rest of the batch still lands — a batch in which one job
-// moved writes the others.
-//
-// A job carrying no revision is written unconditionally, which is what lets a
-// client that does not yet send one keep working.
-//
-// The jobs it could not write are named rather than counted, because a caller
-// answering a partly refused batch has to tell the client which documents it
-// must stop believing it saved, and a total cannot say that.
 func (d *Docs) BulkUpsertJobs(ctx context.Context, owner models.Owner, accountID string, jobs []models.Job, now time.Time, sessionID, wsClientID string) (*mongo.BulkWriteResult, []string, []RevisionConflict, error) {
 	coll, err := d.requireColl()
 	if err != nil || accountID == "" || owner.IsZero() {
@@ -112,12 +89,6 @@ func (d *Docs) BulkUpsertJobs(ctx context.Context, owner models.Owner, accountID
 
 // applyConditionalWrites issues each conditional write on its own and reports the
 // ones the document had moved under.
-//
-// One at a time because the answer is per write: an UpdateOne says whether its
-// filter matched, where a batch reports only totals that an unconditional write
-// in the same batch also contributes to. Reading the revision back afterwards
-// cannot substitute — a refused write and a successful one leave the document at
-// the same revision, because in both cases exactly one write landed.
 func (d *Docs) applyConditionalWrites(ctx context.Context, owner models.Owner, writes []conditionalJobWrite) ([]RevisionConflict, int64, error) {
 	if len(writes) == 0 {
 		return nil, 0, nil
@@ -149,10 +120,6 @@ func (d *Docs) applyConditionalWrites(ctx context.Context, owner models.Owner, w
 
 // conditionalJobFilter names both the document and the revision it was read at,
 // which is what stops the write landing on one somebody else has since written.
-//
-// No upsert accompanies it: a filter naming a revision the document does not
-// carry matches nothing, and an upsert would answer that by writing the document
-// the filter just refused to match.
 func conditionalJobFilter(owner models.Owner, write conditionalJobWrite) bson.M {
 	return bson.M{
 		"_id":             OwnerScopedDocumentID(owner, write.jobID),
@@ -161,10 +128,6 @@ func conditionalJobFilter(owner models.Owner, write conditionalJobWrite) bson.M 
 }
 
 // describeConflict reads what the refused write must be reconciled against.
-//
-// The revision is read only for a write already known to have been refused, so
-// what it finds cannot change that answer — it only says what to reconcile
-// against, and whether there is anything left to reconcile with.
 func (d *Docs) describeConflict(ctx context.Context, owner models.Owner, jobID string, expected int64) RevisionConflict {
 	conflict := RevisionConflict{JobID: jobID, Expected: expected, Gone: true}
 	coll, err := d.requireColl()
@@ -190,11 +153,6 @@ func (d *Docs) describeConflict(ctx context.Context, owner models.Owner, jobID s
 
 // buildJobUnconditionalUpsertModel is one job's write when the client sent no
 // revision to write against.
-//
-// Upsert is on, which is what it has always been: a client that does not say
-// which version it read is asking for the document to hold what it sent,
-// whether or not one exists. A conditional write takes a different path
-// entirely — see [conditionalJobWrite].
 func buildJobUnconditionalUpsertModel(owner models.Owner, jobID string, update bson.M) *mongo.UpdateOneModel {
 	return mongo.NewUpdateOneModel().
 		SetUpdate(update).

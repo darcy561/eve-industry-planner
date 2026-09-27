@@ -35,8 +35,6 @@ func TestDecodeJobWriteNamesTheJobFromTheEnvelope(t *testing.T) {
 	}
 }
 
-// The typed decode is what bounds a body: a member the model does not carry
-// cannot be written, whatever else the request says.
 func TestDecodeJobWriteRefusesAMemberTheModelDoesNotCarry(t *testing.T) {
 	_, err := decodeJobWrite(writeBody(`{"somethingElse":1}`))
 	if err == nil || !strings.Contains(err.Error(), "job-1") {
@@ -68,9 +66,6 @@ func TestFieldWriteForCarriesTheFieldsAndTheRowsThatWent(t *testing.T) {
 	}
 }
 
-// A write says which shape it was written under. Without it a document that is
-// only ever written field by field keeps claiming the shape it had the last
-// time something sent it whole.
 func TestFieldWriteForRestatesTheSchemaVersion(t *testing.T) {
 	body := writeBody(`{"name":"A job"}`)
 	job, err := decodeJobWrite(body)
@@ -101,8 +96,6 @@ func TestFieldWriteForRefusesARemovalThatLeavesTheModel(t *testing.T) {
 	}
 }
 
-// The envelope says which job is being written and the document says what it
-// contains. A document naming a different job must not move the write to it.
 func TestDecodeJobWriteKeepsTheEnvelopesJobOverTheDocuments(t *testing.T) {
 	body := writeBody(`{"jobID":"another-job","name":"A job"}`)
 
@@ -126,8 +119,6 @@ func TestDecodeJobWriteKeepsTheEnvelopesJobOverTheDocuments(t *testing.T) {
 	}
 }
 
-// A write says the shape it was written under, whatever shape the request
-// claimed the document already had.
 func TestFieldWriteForRestatesTheSchemaVersionOverAStaleOne(t *testing.T) {
 	body := writeBody(`{"schemaVersion":0,"name":"A job"}`)
 	job, err := decodeJobWrite(body)
@@ -165,9 +156,6 @@ func readAll(t *testing.T, bodies []models.JobWriteBody) []readJobWrite {
 	return read
 }
 
-// A write naming no revision carries its whole document; one that names a
-// revision carries the fields it changed. The two are made by different
-// writers, so they are separated before either is asked to write anything.
 func TestSplitJobWritesSendsAWholeDocumentAndTheRestByField(t *testing.T) {
 	bodies := []models.JobWriteBody{
 		envelope("job-new", 0, `{"name":"A new job"}`),
@@ -187,7 +175,6 @@ func TestSplitJobWritesSendsAWholeDocumentAndTheRestByField(t *testing.T) {
 	}
 }
 
-// One write the caller got wrong does not cost the others in the same save.
 func TestSplitJobWritesNamesOnlyTheWriteItCannotMake(t *testing.T) {
 	bodies := []models.JobWriteBody{
 		envelope("job-1", 4, `{"name":"A job"}`),
@@ -222,10 +209,6 @@ func TestWrittenIDsLeavesOutEveryWriteThatMissed(t *testing.T) {
 	}
 }
 
-// A linked run's character id has no stored path of its own — the cipher turns
-// it into a ref — so a write naming it carries the whole row. That is only
-// right if the cipher has already run when the row is read: read before it, the
-// write would store the id the client sent and no ref at all.
 func TestFieldWriteForCarriesACipheredRowAsTheCipherLeftIt(t *testing.T) {
 	cipher, err := entityid.New(bytes.Repeat([]byte("k"), 32))
 	if err != nil {

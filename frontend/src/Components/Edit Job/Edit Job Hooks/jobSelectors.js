@@ -1,15 +1,6 @@
 /**
- * Figures read off a job, as functions of the document rather than getters on an
- * instance.
- *
- * A selector takes the job as plain data and returns what it derives, so a panel
- * can read one from a draft without a class being built around it. Each reads
- * only the part of the job it names, which is what lets a reader subscribe to
- * that part rather than to the whole job.
- *
- * Most come in a pair: the one named for the figure takes the job, and the `…Of`
- * beside it takes only the rows that figure is read from, for a caller that
- * already holds them.
+ * Figures read off a job as functions of the document, each `…Of` variant taking
+ * only the rows its figure is read from.
  */
 
 import { asNumberIDList, asStringIDList } from "../../../Functions/Helper/ids";
@@ -108,11 +99,8 @@ export function selectedSetupOf(setups, setupToEdit) {
 }
 
 /**
- * The setup another one should continue from: the one open, or the first.
- *
- * A job always builds from something, so a new setup copies what is already
- * there rather than starting from the player's defaults — the reader has
- * usually already said how this job is made.
+ * The setup another one should continue from: the one open, or the first, rather
+ * than the player's defaults.
  *
  * @param {object} job
  * @returns {object|undefined}
@@ -122,11 +110,8 @@ export function setupToBuildFrom(job) {
 }
 
 /**
- * The parents this job will have once the links the reader asked for are
- * carried out.
- *
- * A link is held as an intent until the job closes, so what the screen shows is
- * the document's own list with those intents folded over it.
+ * The parents this job will have once the links the reader asked for are carried
+ * out, which is the document's list with those intents folded over it.
  *
  * @param {Array<string>|undefined} parentJobIDs - What the job holds
  * @param {{add?: Array<string>, remove?: Array<string>}} [parentJobEdits]
@@ -137,12 +122,8 @@ export function parentJobIDsAfterEdits(parentJobIDs, parentJobEdits = {}) {
 }
 
 /**
- * The child jobs a material would have once those links are carried out.
- *
- * A child job built for the material but not yet saved counts as linked where
- * one is given: the reader asked for it, and the screens that offer to link one
- * must not offer it again. The screens that only read what the job is made of
- * leave it out, which is the whole of the difference between them.
+ * The child jobs a material would have once those links are carried out, counting
+ * an unsaved child job as linked where one is given.
  *
  * @param {object} job
  * @param {number|string} materialTypeID
@@ -385,10 +366,8 @@ export function remainingMaterialCount(job) {
 }
 
 /**
- * What the job spent buying materials rather than building them.
- *
- * A purchase imported from a child job is that child's cost, not a spend of
- * this job's, so it is left out.
+ * What the job spent buying materials rather than building them, leaving out
+ * anything imported from a child job.
  *
  * @param {object} job
  * @returns {number}
@@ -401,10 +380,8 @@ export function totalBoughtMaterialCost(job) {
 }
 
 /**
- * Whether every material the job calls for has been bought.
- *
- * A job calling for nothing is not ready: it has not been planned yet, rather
- * than having had everything bought.
+ * Whether every material the job calls for has been bought, with a job calling
+ * for nothing not yet ready.
  *
  * @param {object} job
  * @returns {boolean}
@@ -416,10 +393,8 @@ export function isReadyToBuild(job) {
 }
 
 /**
- * Whether the job is bought for and has not been started.
- *
- * The group tree's "Ready" chip. A job that has linked a run has started, and
- * one that is finished or being sold is past the question.
+ * Whether the job is bought for and has not been started, which is the group
+ * tree's "Ready" chip.
  *
  * @param {object} job
  * @returns {boolean}
@@ -452,10 +427,8 @@ export function lastRunToFinish(job) {
 }
 
 /**
- * The linked run whose finish wins the given comparison.
- *
- * A run with no end date is not waited on: it has not started, so nothing can
- * be said about when it lands.
+ * The linked run whose finish wins the given comparison, ignoring any run with no
+ * end date.
  *
  * @param {object} job
  * @param {(a: number, b: number) => boolean} wins
@@ -548,9 +521,8 @@ export function buildCost(job) {
 }
 
 /**
- * What a build costs is these four and nothing else, which is a rule worth
- * having in one place: a panel adding them up itself is a second answer to keep
- * in step with this one.
+ * What a build costs: these four figures and nothing else, totalled in one place
+ * so no panel adds them up itself.
  *
  * @param {object} parts
  * @returns {number}
@@ -647,11 +619,8 @@ export function salesOf(transactions) {
 }
 
 /**
- * Tax expected on orders that have not sold yet.
- *
- * Counted only while an order has produced no transaction: once it has,
- * {@link totalTransactionFees} carries what EVE actually charged, and counting
- * both would charge the same sale twice.
+ * Tax expected on orders that have not sold yet, counted only while an order has
+ * produced no transaction of its own.
  *
  * @param {object} job
  * @returns {number}
@@ -700,10 +669,8 @@ export function totalCostOf({ buildCost, brokersFees, transactionFees }) {
 }
 
 /**
- * What one unit cost to make, before any cost of selling it.
- *
- * This is the figure a parent build pays for a child job's output, so it must
- * not carry the child's selling costs.
+ * What one unit cost to make, before any cost of selling it, which is what a
+ * parent build pays for a child job's output.
  *
  * @param {object} job
  * @returns {number}
@@ -757,11 +724,8 @@ export function averageSalePriceOf(transactions) {
 }
 
 /**
- * The job's sales, newest first.
- *
- * A panel reads this through {@link salesNewestFirst} instead: a list is built
- * fresh every time it is asked for, so selecting it out of the draft would
- * subscribe the panel to the whole job. Select the sales and order them here.
+ * The job's sales, newest first; a panel reads them through
+ * {@link salesNewestFirst} rather than selecting this out of a draft.
  *
  * @param {object} job
  * @returns {Array<object>}

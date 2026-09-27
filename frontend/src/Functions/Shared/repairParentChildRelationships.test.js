@@ -26,10 +26,6 @@ beforeEach(() => {
   store.current = { jobData: { actions: { findJobInJobArray: () => null } } };
 });
 
-// A repair runs over every material on the way to saving, and a material with
-// no child jobs has no entry to walk rather than an empty one. The function
-// swallows what it throws, so a test that only asserts it did not throw proves
-// nothing — what it answers is the evidence.
 describe("repairing a job's links", () => {
   it("passes over a material that has no child jobs", () => {
     const failed = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -41,8 +37,6 @@ describe("repairing a job's links", () => {
     failed.mockRestore();
   });
 
-  // The caller spreads what comes back, so a repair that gave up partway used
-  // to turn one failure into a second, stranger one further down the save.
   it("answers with what it repaired even when something goes wrong", () => {
     const failed = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -53,8 +47,6 @@ describe("repairing a job's links", () => {
     failed.mockRestore();
   });
 
-  // A child the planner no longer holds is cut loose rather than left naming a
-  // job nothing answers to.
   it("cuts loose a child job the planner has lost", () => {
     const withChild = job({
       build: {

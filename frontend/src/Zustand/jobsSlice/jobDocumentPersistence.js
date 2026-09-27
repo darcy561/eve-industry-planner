@@ -5,13 +5,8 @@ import { scheduleDebouncedJobDocumentsSave } from "../../Functions/Debounce/jobD
 import { jobWriteEnvelope } from "../../Functions/JobDocuments/jobWriteEnvelope.js";
 
 /**
- * Adds to the queue what a write must carry for each job it names.
- *
- * A job is queued against the log entries behind its write, or against `null`
- * where they are not known — an ESI refresh, a group operation, a job the close
- * recalculated. Joining the two keeps `null`: a write that cannot say what
- * changed carries the whole document, and a later write that can say does not
- * narrow it back.
+ * Adds to the queue what a write must carry for each job it names, keeping
+ * `null` — the whole document — wherever what changed is not known.
  *
  * @param {Record<string, Array<object>|null>|undefined} prev
  * @param {Record<string, Array<object>|null>} owed
@@ -134,12 +129,6 @@ export const jobDocumentPersistenceActions = (set, get) => ({
    * Counts a landed write against the jobs it wrote, so the next write from the
    * same copy is checked against where the document now stands.
    *
-   * The server increments the counter by one per write and answers a write built
-   * on an older one with a refusal, so a write that landed moved its document on
-   * by exactly one. Waiting for the document to come back instead would leave
-   * every job stale between the write and its arrival, and a second edit in that
-   * window would be refused against nothing but itself.
-   *
    * @param {string|string[]} jobIDs
    */
   countWrittenJobRevisions: (jobIDs) => {
@@ -151,8 +140,6 @@ export const jobDocumentPersistenceActions = (set, get) => ({
           if (!written.has(job.jobID) || !job?._meta) continue;
           job._meta.revision = (job._meta.revision ?? 0) + 1;
         }
-        // Nothing draws a revision, so the array is left as it is rather than
-        // rebuilt: a new one here would re-render every job surface on each save.
         return state;
       },
       false,
@@ -161,11 +148,8 @@ export const jobDocumentPersistenceActions = (set, get) => ({
   },
 
   /**
-   * The queued writes, each as the envelope the API reads.
-   *
-   * A queued id with no job behind it is dropped: the job was removed between
-   * the change being queued and the flush, and there is nothing left to write.
-   * So is one whose changes cancelled out before the flush reached them.
+   * The queued writes, each as the envelope the API reads, dropping any id with
+   * no job left behind it or no change left to write.
    *
    * @returns {Array<object>}
    */

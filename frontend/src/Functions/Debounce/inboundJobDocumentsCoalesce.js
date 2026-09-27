@@ -15,11 +15,8 @@ let pendingUpserts = new Map();
 let pendingDeletes = new Map();
 
 /**
- * Which of two deliveries for one document happened later.
- *
- * Without positions there is no answer, and a delete wins — the older rule, kept
- * for a server that sends none, because resurrecting a deleted row is the worse
- * of the two mistakes.
+ * Which of two deliveries for one document happened later, a delete winning where
+ * neither carries a position.
  *
  * @param {number|null} candidate
  * @param {number|null} queued
@@ -75,8 +72,6 @@ function flush() {
     actions.removePendingInboundNewJobSkeletons(ids);
     actions.removeJobsFromJobArray(ids);
     actions.clearPendingJobDocumentWrites(ids);
-    // Announced as well as applied: a page holding one of these open is showing
-    // a copy of a document that no longer exists, and nothing else would tell it.
     window.dispatchEvent(
       new CustomEvent(JOBS_DELETED_REMOTELY_EVENT, { detail: { jobIDs: ids } }),
     );
@@ -99,10 +94,6 @@ function flush() {
       new Job(held.document),
     ]);
     actions.updateOrAddJobsToJobArray(arrived.map(([, job]) => job));
-    // An editor holding one of these has it as the document it started from
-    // plus what the reader has changed since. Handing it the new document
-    // replaces the first without disturbing the second; one it is not holding
-    // is ignored.
     for (const [jobID, job] of arrived) {
       editSession.actions.documentArrived(jobID, job.toDocument());
     }
@@ -124,9 +115,8 @@ const coalesce = createCoalesceFlush({
 });
 
 /**
- * After sign-out or before tearing down the session, cancel any pending coalesced flush
- * and drop in-memory WS job payloads. Otherwise a timer may still run and re-add jobs
- * to Zustand after `resetJobDataStore`.
+ * Cancels any pending coalesced flush and drops the delivered payloads held in
+ * memory, for a session being torn down.
  */
 export function clearInboundJobDocumentCoalesce() {
   coalesce.cancel();
@@ -135,11 +125,8 @@ export function clearInboundJobDocumentCoalesce() {
 }
 
 /**
- * Raised when jobs this client held were deleted somewhere else, carrying the
- * ids in `detail.jobIDs`.
- *
- * The job arrays are already correct by the time it fires; this is for whatever
- * is looking at one of them.
+ * Raised when jobs this client held were deleted somewhere else, carrying the ids
+ * in `detail.jobIDs`, once the job arrays are already correct.
  */
 export const JOBS_DELETED_REMOTELY_EVENT = "eip-jobs-deleted-remotely";
 
@@ -157,8 +144,6 @@ export function enqueueInboundJobDocumentChange(
 ) {
   if (!docID) return;
   if (kind === "delete") {
-    // An upsert known to be later is the one that happened: restoring an archived
-    // job writes the same id back, and both deliveries can land inside one flush.
     const queued = pendingUpserts.get(docID);
     if (queued && isLaterThan(queued.position, position)) {
       return;

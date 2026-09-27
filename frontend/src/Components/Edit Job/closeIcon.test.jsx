@@ -56,10 +56,6 @@ beforeEach(() => {
 const close = () =>
   fireEvent.click(screen.getByRole("button", { name: /returns to the job/i }));
 
-// Closing without saving drops what the reader changed. What goes back is the
-// document the session holds underneath those changes, not a copy taken when
-// they opened the page — so a co-member's save that landed while they were
-// editing survives their leaving.
 describe("closing a job without saving", () => {
   it("puts back the document the session holds, not the reader's changes", async () => {
     renderOverEditJob(storedJob({ jobStatus: 1 }), ({ state, actions }) => (
@@ -93,10 +89,6 @@ describe("closing a job without saving", () => {
     expect(restored[0].name).toBe("Renamed by somebody else");
   });
 
-  // The job put back joins the planner's own, which are changed in place all
-  // over the app. What the session holds is frozen, so a copy that aliased it
-  // would throw somewhere else entirely, a save away from the close that caused
-  // it.
   it("puts back a job that can still be changed in place", async () => {
     renderOverEditJob(
       storedJob({
@@ -124,8 +116,6 @@ describe("closing a job without saving", () => {
     ).not.toThrow();
   });
 
-  // A job deleted while the reader had it open is not there to put back, and
-  // adding it again would show them what they have just been told is gone.
   it("does not put back a job that has since been deleted", async () => {
     held.current = false;
     renderOverEditJob(storedJob(), () => <CloseJobIcon />);

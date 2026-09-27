@@ -1,10 +1,6 @@
 /**
- * The jobs slice's own starting shape, with nothing else in it.
- *
- * A leaf module so anything needing the shape — the slice, a reset, the test
- * harness — reads it from one place. `core.js` cannot serve that: importing it
- * reaches the job-documents API client, which is what drove the harness to keep
- * a second copy that then drifted three fields behind this one.
+ * The jobs slice's starting shape, in a leaf module so the slice, a reset and the
+ * test harness all read it from one place.
  */
 
 /**
@@ -23,9 +19,8 @@
 export const stateDefault = () => ({
   multiSelect: [],
   /**
-   * The planner `jobArray` and `groupArray` hold, as an owner handle. A load for
-   * a different planner replaces them rather than merging, so one planner's jobs
-   * cannot survive among another's.
+   * The planner `jobArray` and `groupArray` hold, as an owner handle; a load for
+   * another planner replaces them rather than merging.
    */
   owner: null,
   jobArray: [],
@@ -38,9 +33,8 @@ export const stateDefault = () => ({
   /** Group IDs with a pending write to the API (`PUT /api/v1/groups`; keeps WS fan-out to touched docs only). */
   pendingJobGroupWrites: [],
   /**
-   * Each job with a pending write to the API (`PUT /api/v1/job-documents`),
-   * against the log entries behind that write — or `null` where nothing
-   * recorded what changed, which is a write of the whole document.
+   * Each job with a pending write, against the log entries behind it — or `null`,
+   * meaning the whole document is written.
    */
   pendingJobDocumentWrites: {},
   activeGroupID: null,

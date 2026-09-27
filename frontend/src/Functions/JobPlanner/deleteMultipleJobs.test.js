@@ -36,7 +36,6 @@ const { default: Group } = await import("../../Classes/group.js");
 
 const TRITANIUM = 34;
 
-/** A parent and the child it builds, linked both ways as the planner links them. */
 function linkedPair() {
   const child = new Job({
     jobID: "child",
@@ -64,7 +63,6 @@ const actions = {
   findJobInJobArray: vi.fn(),
 };
 
-/** The store these functions read, with nothing in the planner yet. */
 function standUpPlanner() {
   standUpStore(() => ({
     account: {
@@ -94,7 +92,6 @@ function seedStore(jobs, groups = []) {
   }));
 }
 
-/** The one write the delete sent, which is always a batch of envelopes. */
 function sentWrites() {
   expect(putJobDocumentsBatch).toHaveBeenCalledOnce();
   return putJobDocumentsBatch.mock.calls[0][0];
@@ -119,9 +116,6 @@ describe("deleting a job that something else was built from", () => {
     expect(written.document.build.childJobs[TRITANIUM]).toEqual([]);
   });
 
-  // Nothing records what a delete changed on the jobs it leaves behind, so each
-  // one is written whole and checked against the revision its own `_meta`
-  // carries. A bare document here is refused by the endpoint outright.
   it("writes the jobs it leaves behind as whole-document envelopes", async () => {
     const { child, parent } = linkedPair();
     seedStore([parent, child]);
@@ -149,9 +143,6 @@ describe("deleting a job that something else was built from", () => {
   });
 });
 
-// The local delete is committed only once every write has landed. A job removed
-// from the planner while the server still holds it comes back on the next fetch,
-// with whatever the failed write was meant to change still undone.
 describe("a delete the server refused", () => {
   it("removes nothing from the planner", async () => {
     const { child, parent } = linkedPair();
@@ -176,8 +167,6 @@ describe("deleting a job that is not held", () => {
   });
 });
 
-// A job in a group is named by the group as well as by the planner, so deleting
-// it leaves the group holding an id nothing answers to.
 describe("deleting a job that belongs to a group", () => {
   function groupedJob() {
     const job = new Job({
@@ -216,7 +205,6 @@ describe("deleting a job that belongs to a group", () => {
     expect(actions.updateModifiedGroups).toHaveBeenCalledOnce();
   });
 
-  // The group write is part of the same all-or-nothing step as the job writes.
   it("removes nothing when the group write is refused", async () => {
     const { job, kept, group } = groupedJob();
     seedStore([job, kept], [group]);

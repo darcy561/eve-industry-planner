@@ -8,22 +8,8 @@ import Transaction from "../../../Classes/transaction";
 import { asIDList } from "../../../Functions/Helper/ids";
 
 /**
- * What a reader can do to a job, as changes against the document rather than
- * writes into an object.
- *
- * Each command is a plain function of the job and its input: it is handed the
- * document and changes it in place, and the store around it records which paths
- * moved and what puts them back. A command therefore has no access to anything
- * outside the job — whatever it needs that the document does not hold, such as a
- * minted id or a figure read from a store, is an argument.
- *
- * `name` is what an undo step is called, so it reads as the thing the player
- * did rather than as the field that moved.
- *
- * A command that stores a new row builds it through the row's own class and
- * stores what that says. The classes are cheap and read only their own fields,
- * and they are where a row's defaults live — a command filling those in itself
- * would be a second statement of the row's shape, and the two would part.
+ * What a reader can do to a job, each as a named recipe changing the document it
+ * is handed in place.
  */
 
 /** @typedef {(job: object) => void} Recipe */
@@ -31,16 +17,8 @@ import { asIDList } from "../../../Functions/Helper/ids";
 const command = (name, recipe) => ({ name, recipe });
 
 /**
- * Applies commands to a job, in order, and answers the job they leave.
- *
- * The editor runs a command through the draft, which records what moved so a
- * step can be taken back. A caller outside the editor — a merge relinking
- * parents, a delete cutting children loose — has no draft and no undo, but must
- * change a job the same way: this runs the same command against the job it is
- * given rather than letting each caller restate the rule.
- *
- * The job is changed in place, so a caller that must not disturb what it was
- * handed copies first.
+ * Applies commands to a job in order, changing it in place, for a caller outside
+ * the editor that has no draft to run them through.
  *
  * @param {object} job
  * @param {...{recipe: Recipe}} commands
@@ -72,19 +50,14 @@ export const setJobStatus = (statusID) =>
   });
 
 /**
- * Links an industry job ESI reported to this job.
- *
- * Which character read the run is not something the job knows, so the owner is
- * given rather than looked up.
+ * Links an industry job ESI reported to this job, taking the owner rather than
+ * looking it up.
  *
  * @param {object} esiJob - The run as ESI reported it
  * @param {{CharacterHash: string, CharacterID?: number}} jobOwner
  */
 export const linkESIJob = (esiJob, jobOwner) =>
   command("link industry job", (job) => {
-    // A run whose installer is none of the account's characters has no owner to
-    // resolve, and "link all" reaches those rows even though the list does not
-    // draw them. Storing one leaves a run on the job that names nobody.
     if (!esiJob || !jobOwner) return;
     const linked = LinkedESIJob.fromESI(esiJob, jobOwner);
     const id = String(linked.job_id);
@@ -157,11 +130,8 @@ export const keepOnlyChildJobs = (includedJobIDs) =>
   });
 
 /**
- * Adds a child job under a material.
- *
- * The material has to be one the job already builds: a child job is a decision
- * about how a material is sourced, so there is nothing to attach one to where
- * the job does not need that material.
+ * Adds a child job under a material, which has to be one the job already builds
+ * from.
  *
  * @param {number|string} materialTypeID
  * @param {string|Array<string>|Set<string>} childIDToAdd
@@ -218,10 +188,8 @@ export const assignToGroup = (groupID) =>
   });
 
 /**
- * Marks a grouped job ready to sell, or takes the mark off.
- *
- * A job ready for sale shows on the planner while still belonging to its group,
- * so the two flags move together.
+ * Marks a grouped job ready to sell, or takes the mark off, showing it on the
+ * planner while it still belongs to its group.
  */
 export const toggleGroupJobReadyForSale = () =>
   command("mark ready for sale", (job) => {
@@ -245,8 +213,6 @@ export const refreshLinkedMarketOrders = (latestOrders) =>
       );
       if (reported.length === 0) continue;
 
-      // A corporation order is reported by every character holding the role,
-      // and the corporation's own reading is the one that owns it.
       const latest =
         reported.find((order) => order.is_corporation) ?? reported[0];
       const order = new MarketOrder(stored);
@@ -257,11 +223,8 @@ export const refreshLinkedMarketOrders = (latestOrders) =>
   });
 
 /**
- * Offers a grouped job for sale, which also finishes it.
- *
- * Marking a job for sale is the reader saying it is built and on the market, so
- * it moves on a stage with the mark. Taking the mark off leaves the stage alone
- * — the job was built either way.
+ * Offers a grouped job for sale, moving it on a stage; taking the mark off leaves
+ * the stage where it is.
  */
 export const toggleReadyForSaleFromGroup = () =>
   command("offer for sale", (job) => {
@@ -272,10 +235,7 @@ export const toggleReadyForSaleFromGroup = () =>
   });
 
 /**
- * Records a sale the reader entered by hand.
- *
- * `addTransaction` is for a sale that came from a linked order and stamps that
- * order onto it, which a sale typed in by hand has none of.
+ * Records a sale the reader entered by hand, with no order stamped onto it.
  *
  * @param {object} transaction
  */
@@ -316,11 +276,8 @@ export const removeTransaction = (transaction) =>
   });
 
 /**
- * Records who is selling and from where.
- *
- * A key the caller does not name is left alone, while a key given as null
- * clears it — a player taking an override off is saying something different
- * from a caller that had nothing to say about it.
+ * Records who is selling and from where, leaving a key the caller does not name
+ * alone and clearing one given as null.
  *
  * @param {{sellerCharacter?: string|null, saleLocationID?: string|null}} plan
  */
@@ -335,9 +292,6 @@ export const setSellingPlan = (plan) =>
 
 /**
  * Unlinks a market order, and the sales recorded against where it was listed.
- *
- * ESI carries no link between an order and the sales made from it, so where it
- * was listed is the only thing tying them together.
  *
  * @param {{order_id: number, location_id: number}} order
  */
@@ -365,13 +319,8 @@ export const removeMaterialPurchase = (materialID, purchaseID) =>
   });
 
 /**
- * Records sales ESI reported against this job.
- *
- * A sale is attributed to the job's order only where there is exactly one to
- * attribute it to: ESI carries no link between an order and a transaction, so
- * with two orders on a job there is nothing to choose between them. The
- * attribution is made when the sale is recorded and never revisited, so an
- * order linked afterwards does not claim sales recorded before it.
+ * Records sales ESI reported against this job, attributing one to the job's order
+ * only where the job has exactly one.
  *
  * @param {object|Array<object>} transaction - One sale, or several
  */
@@ -430,11 +379,8 @@ export const updateLinkedJobData = (latestESIJobs) =>
   });
 
 /**
- * Records what was bought for a material.
- *
- * How many the job still needs is a figure over the whole job — every setup's
- * requirement, less what is already bought — so it is given rather than read
- * here, and the command reports what it took through {@link importedQuantities}.
+ * Records what was bought for a material, taking how many the job still needs
+ * rather than working it out.
  *
  * @param {number|string} materialID
  * @param {object} purchase - What was bought, carrying its own id
@@ -446,9 +392,7 @@ export const importPurchaseToMaterial = (materialID, purchase, options) =>
   });
 
 /**
- * Imports several purchases as one step, for a paste covering many materials.
- *
- * One command rather than one per row, so taking the paste back takes all of it
+ * Imports several purchases as one step, so taking a paste back takes all of it
  * back.
  *
  * @param {Array<{materialID: number|string, purchase: object, options?: object}>} imports
@@ -484,12 +428,8 @@ function recordPurchase(job, materialID, purchase, options) {
 }
 
 /**
- * What a purchase of this size would take and leave, for a caller deciding
- * where the rest goes.
- *
- * Kept beside the command rather than inside it because the answer is wanted
- * before the change is made: a caller spreading one purchase across several
- * materials needs to know what each will absorb.
+ * What a purchase of this size would take and leave, asked before the change is
+ * made by a caller deciding where the rest goes.
  *
  * @param {object} purchase
  * @param {number} availableToBuy
@@ -504,10 +444,8 @@ export function importedQuantities(purchase, availableToBuy) {
 }
 
 /**
- * Puts a setup on the job and opens it for editing.
- *
- * What a new setup holds is decided from the player's settings and their
- * blueprints, so it is built by the caller and attached here.
+ * Puts a setup on the job and opens it for editing, the caller having built what
+ * it holds.
  *
  * @param {object} setup - The setup to attach, carrying its own id
  */
@@ -534,11 +472,8 @@ export const deleteActiveSetup = () =>
   });
 
 /**
- * Stores a changed setup and works out again what it needs.
- *
- * The caller changes a copy rather than the setup on screen, because the job the
- * page reads is rebuilt from what the session holds and a change written into it
- * reaches nothing.
+ * Stores a changed setup — a copy, not the one on screen — and works out again
+ * what it needs.
  *
  * @param {object} setup - The setup as the reader has now set it
  * @param {string} name - What the reader did, for the undo step
