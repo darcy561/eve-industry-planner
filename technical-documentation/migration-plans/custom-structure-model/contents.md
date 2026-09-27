@@ -2,7 +2,7 @@
 
 ## Owns
 
-How a player's custom structures are shaped and stored: one class and one array keyed by the kind each
+How a player's custom structures are shaped and stored: one shape and one array keyed by the kind each
 row already carries, in place of four lanes filled by three classes.
 
 - **The stored shape.** One `CustomStructure` with the fields every kind shares and the optional ones
@@ -12,8 +12,10 @@ row already carries, in place of four lanes filled by three classes.
   them — not what a rig applies to, which is § Does not own.
 - **The upgrade that gets there.** A schema bump and a fold, in memory and idempotent, on the pattern
   the existing `Invention` seed step set.
-- **The one class in the SPA**, and where reprocessing's rig and structure bonus calculations live
-  once there is no class of its own to hold them.
+- **What the SPA holds a structure as**, and where reprocessing's rig and structure bonus calculations
+  live once no class of its own holds them. The three classes became one in Stage B; Stage E makes that
+  one a row and a set of functions, because the store and two screens share a mutable row between
+  them.
 - **What a screen reads** to list structures, once there is no lane to name.
 
 **[market-price-delivery](../market-price-delivery/contents.md) was shelved until this project landed
@@ -22,9 +24,10 @@ in the browser on the reader's own characters.
 
 **A market has left this model.** [market-locations](../market-locations/contents.md) moved a saved
 market onto its own lane with its own panel — a reversal of where a market row lives, not of this
-project's finding that the four build kinds belong in one class. That project has promoted, which is
-what this one waited on, so the gate has cleared and this one is ready to promote — see
-[plan.md](./plan.md) § Status. What is left here is the four build kinds.
+project's finding that the four build kinds belong in one shape. That project has promoted, which is
+what this one waited on, so that gate has cleared — see [plan.md](./plan.md) § Status. What is left here
+is the four build kinds, and **promotion now waits on Stage E** rather than on another project: it
+changes the same sentence the promotion drafts would write about what the SPA holds.
 
 **Not live SoT** until this project is complete and promotion is approved.
 
@@ -70,4 +73,7 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know why a structure carries two rig slots rather than one combined rig | [plan.md](./plan.md) § Stage BR, [overlay.md](./overlay.md) § Rigs became slots on every kind |
 | Find the UI and job-setup work the rig change still needs | [plan.md](./plan.md) § Stage BR |
 | Know why every rig applies to all items, and what reading one against an item would take | [plan.md](./plan.md) § Stage BR2, [overlay.md](./overlay.md) § What a rig applies to |
+| Know why the SPA stops holding a structure as a class, and what replaces it | [plan.md](./plan.md) § Stage E |
+| Understand how the Reprocessing page came to edit a saved structure | [measurements.md](./measurements.md) § The reprocessing page edits the saved structure |
+| Size what the conversion touches | [measurements.md](./measurements.md) § What holds a structure as an instance |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |

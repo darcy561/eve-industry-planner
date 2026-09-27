@@ -245,3 +245,65 @@ places list carries stations and citadels alike — one source serves both marke
 
 Nothing new has to be built for the form. The region is derived from the chosen place through the
 ESI chain above rather than asked for.
+
+## The reprocessing page edits the saved structure (2026-09-27)
+
+Measured while working out what a functional structure would change, by following what the
+Reprocessing page holds rather than by reading a figure. The page seeds itself from the store and
+then edits what it was given in place, so the row it edits is the row the store holds.
+
+| Step | Site | What it does |
+|---|---|---|
+| Seed | `Components/Reprocessing/Hooks/useReprocessingReducer.js:125` | `getDefaultReprocessingStructure(jobTypes.reprocessing)` — which is `getDefaultCustomStructureWithJobType`, returning the row found in `applicationSettings.customStructures` itself |
+| Edit | `Components/Reprocessing/reprocessingStructurePanel.jsx` | five handlers — structure type, security, both rig slots and the implant — making nine calls to `pageState.currentStructure.setStructureType`, `setSystemType`, `setRigSlot1`, `setRigSlot2` and `setImplant`, because each rig slot branches to clear or set. Each then re-wraps the same object to force a render |
+| Persist | `Components/Reprocessing/reprocessingSettingsPanel.jsx:70` | `scheduleDebouncedApplicationSettingsSave()`, on the same page under the advanced view |
+
+So a reader comparing yields under a different rig is editing their **saved** default reprocessing
+structure, not a copy of it. Two consequences, of different weight:
+
+- **Always.** The store's row now carries the tried values, so the Settings screen shows them and
+  every reprocessing figure for the rest of the session is worked out under them.
+- **Whenever the same visit also changes a reprocessing setting.** Prefer-compressed and the three
+  multipliers sit on that same page and schedule a settings save, which writes the whole array through
+  `toPersistPayload`. The tried fitting is then stored, and the structure the reader saved is gone.
+
+**Choosing a structure from the dropdown is safe**, which is why this has not been obvious:
+`reprocessingStructurePanel.jsx:202` wraps the match in `new Structure(matchedStructure)` and so edits
+a copy. Only the structure the page opens with is shared, and that is the one most readers use.
+
+`addCustomStructure` in `Zustand/applicationSettings/structures.js` has the same shape more mildly: it
+calls `structure.setDefault(...)` on the object the form still holds in its own state, so for the
+moment between the add and the form's reset, the store's row and the form's draft are one object.
+
+Neither is a bug in a calculation. Both are the consequence of a mutable row being handed between a
+store and a screen, which is what a copy-on-change model removes rather than patches.
+
+## What holds a structure as an instance (2026-09-27)
+
+Counted to size the conversion. `Classes/structure.js` is 284 lines, of which 116 are comment lines.
+
+| Site | `new Structure` | Setter calls | Needs |
+|---|---|---|---|
+| `Functions/Helper/customStructuresFromServer.js` | 2 | — | the read function |
+| `Zustand/applicationSettings/core.js` | 1 | — | `toDocument`; its three-way instance/object/passthrough branch collapses |
+| `Zustand/applicationSettings/structures.js` | — | 3 | rows mapped anew rather than flagged in place |
+| `Components/Settings/.../structureForm.jsx` | 8 | 12 | the update function |
+| `Components/Settings/.../useRigSlots.js` | — | 2 | returns the changed row |
+| `Components/Reprocessing/reprocessingStructurePanel.jsx` | 10 | 9 | the update function, across five handlers |
+| `Components/Reprocessing/Hooks/useReprocessingReducer.js` | 1 | — | a copy at the seed |
+| `Classes/reprocessingItem.js` | 1 | — | the three bonus selectors |
+| `Functions/Structure/addCustomStructure.js` | — | — | `fieldsForKind`, in place of `structure.fields?.systemID` |
+
+**Two surfaces need nothing at all**, which is the measurement that says how far the field map already
+carried this: `structureFields.jsx` reads plain fields and takes the kind's field entry as an
+argument, and `currentStructures.jsx` reads `name`, `default`, the two rig slots and the system id
+without ever calling a method.
+
+`useReprocessingReducer.js` holds a second `new Structure` in a JSDoc `@example`, which is not a
+construction site and is not counted.
+
+Tests: 52 `new Structure` calls across five files — `Classes/structure.test.js` (35),
+`Classes/reprocessing.test.js` (11), `Functions/Structure/addCustomStructure.test.js` (4),
+`Functions/Reprocessing/toMinerals.test.js` (1) and the structure form's (1). Every one is a swap to
+the read function; the class is nobody's oracle here, which is what made the job conversion's tests
+the expensive part and does not apply to this one.

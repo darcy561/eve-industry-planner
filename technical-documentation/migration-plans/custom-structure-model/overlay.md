@@ -433,8 +433,11 @@ calculations, and the tax and rig rules.
 
 ### Still to do
 
-*Nothing outstanding in Stages A to D.* Stage BR2 remains and is not scheduled here — see
-[plan.md](./plan.md).
+*Nothing outstanding in Stages A to D.* **Stage E is open**: the array is right and the class holding
+each row is not, and the Reprocessing page edits the reader's saved structure in place because of it —
+[plan.md](./plan.md) § Stage E, measured in [measurements.md](./measurements.md) § The reprocessing page
+edits the saved structure. What is written below describes the class while it is still what the SPA
+holds; it is rewritten as that stage lands. Stage BR2 remains and is not scheduled here.
 
 ### The surfaces that write a rig
 
