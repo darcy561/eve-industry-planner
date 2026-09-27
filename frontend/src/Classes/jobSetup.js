@@ -9,8 +9,6 @@ import {
   getSystemTypeFromID,
 } from "../Functions/Helper/getStructureInfo";
 import materialQuantitiesForSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
-import { asStringID } from "../Functions/Helper/ids";
-import rigSlotBonuses from "../Functions/Helper/rigSlotBonuses";
 /**
  * Setup class for EVE Online industry job configurations.
  *
@@ -86,16 +84,6 @@ class Setup {
   }
 
   /**
-   * How many of a material this setup calls for.
-   *
-   * @param {number} typeID - EVE type id of the material
-   * @returns {number} Quantity required by this setup
-   */
-  materialQuantity(typeID) {
-    return this.materialCount?.[asStringID(typeID)]?.quantity || 0;
-  }
-
-  /**
    * Converts the setup instance to a document object for storage.
    *
    * @returns {Object} Document object ready for storage
@@ -143,15 +131,6 @@ class Setup {
    */
   getStructureObject() {
     return getStructureInfoFromID(this.jobType, this.structureID);
-  }
-
-  /**
-   * What this setup's two rigs give, taken per axis.
-   *
-   * @returns {{material: number, time: number, cost: number, value: number}}
-   */
-  get rigBonuses() {
-    return rigSlotBonuses(this.jobType, this.rigSlot1, this.rigSlot2);
   }
 
   /**
@@ -411,13 +390,6 @@ class Setup {
     }
     this.alternativeSystemIndexValue = inputValue;
     this.useAlternativeSystemIndexValue = true;
-  }
-
-  /**
-   * Toggles the use of alternative system index value.
-   */
-  toggleUseAlternativeSystemIndexValue() {
-    this.useAlternativeSystemIndexValue = !this.useAlternativeSystemIndexValue;
   }
 
   /**
