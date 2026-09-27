@@ -2,18 +2,12 @@
  * One thing invention consumed for a job — a datacore, a decryptor — and what
  * it cost.
  *
- * The same fields are `models.InventionEntry` on the backend, and
- * {@link InventionEntry#toDocument} defines the shape for the SPA. `id` is
- * minted when the entry is added, and only ever identifies the row within its
- * job. Rows written before it became a uuid carry a number.
- *
  * @class InventionEntry
  */
 class InventionEntry {
   /**
    * The shape a row written today has. `models.InventionEntrySchemaCurrent` is
    * the same number on the backend, and both sides read a row carrying none as
-   * v1 — the field was added to name the shape those rows already had.
    *
    * @type {number}
    */
@@ -47,12 +41,6 @@ class InventionEntry {
 
   /**
    * Mints an id for a new entry.
-   *
-   * The clock repeats: entries minted in the same millisecond took the same id,
-   * and since a row is removed by matching on it, removing one removed both.
-   *
-   * Rows written before this carry a millisecond timestamp instead, and both are
-   * read the same way — the id is only ever compared, never parsed.
    *
    * @returns {string}
    */

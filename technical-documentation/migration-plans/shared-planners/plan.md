@@ -1043,9 +1043,10 @@ root — `job.go`, `group.go`, `user_account_document.go`, `accountDocuments.go`
 batch selects on the root field. A second inside `_meta` would be two sources for one fact, and would
 not drive the rotation.
 
-**The owner does not go on the wire by the API.** `_meta.accountID` is read in exactly one place in the
-SPA (`Classes/job.js`), nothing downstream reads it back, and the server overwrites whatever a client
-uploads. So the field is decorative and the client change is a deletion rather than a repoint.
+**The owner does not go on the wire by the API.** Nothing in the SPA reads `_meta.accountID` — the only
+account id it writes into `_meta` is `lastUpdatedBy`, seeded from the store by `jobFromDocument` in
+`Functions/JobDocuments/jobDocument.js` — and the server overwrites whatever a client uploads. So the
+field is decorative and the client change is a deletion rather than a repoint.
 
 A change delivery is the exception, and an unintended one: the watcher copies `_meta` as a raw map,
 where `json:"-"` means nothing, so an organisation planner's ref does reach a browser — recorded at

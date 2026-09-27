@@ -784,11 +784,11 @@ backwards compatible while the other half catches up.
 The same is true of anything else breaking this endpoint in the same cutover. Two projects each
 changing its wire shape is not a thing to sequence; they go together.
 
-**Stage E is what to pick up next**, and its open editor half is unblocked —
-[job-document-drafts](../job-document-drafts/plan.md) Stage 3 has landed, so an open job is already a
-base plus a log a delta can be applied onto. Applying a delta to a job nobody is editing still wants
-that project's Stage 5, which has not started: `jobArray` holds `Job` instances, and a delta needs
-something plainer to land on.
+**Stage E is what to pick up next, and both halves are now unblocked.** The open editor half rests on
+[job-document-drafts](../job-document-drafts/plan.md) Stage 3: an open job is a base plus a log, which
+is already something a delta applies onto. The other half — a delta reaching a job nobody is editing —
+waited on that project's Stage 5, and Stage 5 has landed: `jobArray` holds plain job documents, so a
+delta has something plain to land on and `Classes/job.js` no longer stands between the two.
 
 **Stage C does not need that project's slice 5.** Slice 5 converts the panels to read from the draft,
 which narrows re-rendering; the log is complete without it, because every change already goes through

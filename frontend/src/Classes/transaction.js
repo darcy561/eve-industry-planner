@@ -2,15 +2,6 @@
  * One sale of a job's output — money that arrived, whether through the market
  * or entered by hand.
  *
- * A row keeps ESI's own field names, because that is where it came from:
- * `unit_price`, `is_corp`, `transaction_id`. The same fields are
- * `models.Transaction` on the backend, and {@link Transaction#toDocument}
- * defines the shape for the SPA.
- *
- * `character_id` and `corporation_id` say whose sale it is. They travel as ids
- * and are held as refs once stored, which `shared/jobidentity` converts at the
- * boundary.
- *
  * @class Transaction
  */
 class Transaction {
@@ -37,16 +28,6 @@ class Transaction {
 
   /**
    * Builds a sale from what ESI returned.
-   *
-   * A wallet transaction does not say what the sale was worth or what it cost:
-   * the money is on the journal entry it points at, and the sales tax is a
-   * journal entry of its own, recorded as a charge and so taken as a magnitude.
-   * ESI states the opposite of what the row holds — `is_personal` — because the
-   * planner cares which sales were the corporation's.
-   *
-   * The character is the one whose wallet was read, so its id is the recorded
-   * seller. A corporation id is only ever what the corporation endpoint
-   * returned, never inferred from the character.
    *
    * @param {Object} esiTransaction - A wallet transaction from ESI
    * @param {Object} [context]
@@ -86,13 +67,6 @@ class Transaction {
 
   /**
    * Mints an id for a sale entered by hand.
-   *
-   * Negative is what tells it from a market sale, and it keeps a made-up id out
-   * of the space ESI issues from — where it could collide with a real
-   * transaction the account has not linked yet. The 48 bits are drawn at
-   * random rather than from the clock: two tabs minting in the same
-   * millisecond would otherwise be choosing between a thousand values, and the
-   * ids these become are unique per account rather than per job.
    *
    * @returns {number} A negative safe integer
    */
@@ -151,10 +125,6 @@ class Transaction {
 
   /**
    * Whether the planner attributed this sale to a given market order.
-   *
-   * ESI links a transaction to a journal entry and nothing else — neither it
-   * nor a market order names the other — so `order_id` is the planner's own
-   * attribution, made when the sale was linked, not a fact from the market.
    *
    * @param {number} orderID
    * @returns {boolean}

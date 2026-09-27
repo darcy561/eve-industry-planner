@@ -3,21 +3,6 @@ import { isActive } from "../Components/Edit Job/Edit Job Hooks/linkedRunSelecto
 /**
  * An EVE industry job linked to one of the planner's jobs.
  *
- * A row keeps ESI's own field names, because that is where it came from and
- * where its updates come from: `job_id`, `end_date`, `is_corporation`. The same
- * fields are `models.LinkedESIJob` on the backend, and
- * {@link LinkedESIJob#toDocument} defines the shape for the SPA.
- *
- * What a row says about itself — whether it is running, when it finishes, how
- * far through it is — is read by the selectors in
- * `Edit Job Hooks/linkedRunSelectors.js`, which answer for a stored row as well
- * as for one ESI has just returned.
- *
- * `character_id` and `corporation_id` say whose run it is. They travel as ids
- * and are held as refs once stored, which `shared/jobidentity` converts at the
- * boundary, so the planner sends and receives ids and the database holds
- * neither.
- *
  * @class LinkedESIJob
  */
 class LinkedESIJob {
@@ -47,16 +32,6 @@ class LinkedESIJob {
 
   /**
    * Builds a linked job from what ESI returned, for the character that holds it.
-   *
-   * ESI calls the structure the job runs in `facility_id`; the row keeps it as
-   * `station_id`, which is what the universe data is looked up by.
-   *
-   * The character is the one whose industry jobs were read, so its id is the
-   * recorded owner of the run. A corporation id is only ever what the
-   * corporation endpoint returned — a character's corporation is not the
-   * installer of its personal jobs, so it is never filled in from the owner.
-   * Both ids reach the backend as ids and are stored as refs
-   * (`shared/jobidentity`).
    *
    * @param {Object} esiJob - An industry job from ESI
    * @param {Object} owner - The character the job was fetched for

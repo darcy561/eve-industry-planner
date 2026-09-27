@@ -2,13 +2,6 @@
  * A cost someone added to a job by hand — shipping, a courier contract, a fee
  * the planner has no other way to know about.
  *
- * The same fields are `models.ExtraCost` on the backend, and
- * {@link ExtraCost#toDocument} defines the shape for the SPA.
- *
- * `category` is a string — what the document and the backend hold — and a row
- * can arrive with it missing, empty or numeric. It is settled as the row is
- * built, so nothing downstream has to ask again: no category is `"0"`, which
- * means unassigned.
  * @class ExtraCost
  */
 class ExtraCost {

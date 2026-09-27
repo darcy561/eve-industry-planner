@@ -91,8 +91,6 @@ class Group {
    * @returns {Object} Document object ready for storage
    */
   toDocument() {
-    // Sorted, so an unchanged group is not rewritten as modified, and a document
-    // written here matches one the backend derives from the same jobs.
     const intArrayFromSet = (set) => asNumberIDList(set).sort((a, b) => a - b);
     const doc = {
       groupName: this.groupName,
@@ -181,8 +179,6 @@ class Group {
     if (!inputGroupName || inputGroupName.length === 0) return;
 
     if (Array.isArray(inputGroupName)) {
-      // An unnamed output is still an output, but it must not leave an empty
-      // segment in the name.
       const names = inputGroupName
         .map((obj) => (typeof obj?.name === "string" ? obj.name.trim() : ""))
         .filter((name) => name !== "");
@@ -229,9 +225,6 @@ class Group {
 
   /**
    * Replaces membership with the live jobs given, keeping archived members.
-   *
-   * `jobArray` holds only jobs on the planner, so a recompute would otherwise
-   * evict every archived member.
    *
    * @private
    * @param {string|Array<string>|Set<string>} inputJobIDs

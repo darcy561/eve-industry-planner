@@ -270,7 +270,7 @@ again, and the old pair stops being written and ages out with the documents.
 7. ~~Stop writing the old fields, once the shared-planners release has backfilled the stored ones.~~
    Done. `defaultMarketLocation` / `defaultOrderType` are off `ApplicationSettings`, the SPA store no
    longer carries or persists them, and the job's `localMarketDisplay` / `localOrderDisplay` are gone
-   from `JobLayout` and from `Classes/job.js` — see [overlay.md](./overlay.md) § A4.
+   from `JobLayout` and from the job itself — see [overlay.md](./overlay.md) § A4.
 
 **Done when** every surface in the table names a side, no code reads `defaultMarketLocation` or
 `defaultOrderType`, and a player can buy against one market and sell against another without touching

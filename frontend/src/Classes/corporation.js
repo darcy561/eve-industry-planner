@@ -3,21 +3,6 @@ import { canonicalCharacterHashKey } from "../Functions/Auth/characterHashCanoni
 /**
  * Corporation class for EVE Online corporation data management.
  *
- * This class represents a corporation in EVE Online with:
- * - Corporation identification and public information
- * - Member management and tracking
- * - Office location management
- * - Wallet and hangar division management
- * - Alliance relationship tracking
- *
- * The Corporation class provides comprehensive corporation management:
- * - Corporation identification (ID, name, ticker)
- * - Member addition and removal
- * - Office location tracking from assets
- * - Wallet and hangar division management
- * - Alliance relationship tracking
- * - Tax rate management
- *
  * @class Corporation
  * @example
  * // Create corporation from user and public data
@@ -122,9 +107,6 @@ class Corporation {
   /**
    * Records the stations and structures the corporation rents an office at.
    *
-   * Assets arrive in pages and each caller sees only what its own roles reveal, so what arrives is
-   * merged with what is already held rather than replacing it.
-   *
    * @param {Array<number>} locationIDs
    */
   addOfficeLocations(locationIDs = []) {
@@ -136,11 +118,6 @@ class Corporation {
 
 /**
  * Builds hangar structure from corporation divisions data.
- *
- * This function processes corporation hangar divisions and creates a structured format:
- * - Maps hangar divisions to structured objects
- * - Adds asset location references for each division
- * - Includes a default "Projects" division
  *
  * @param {Object} divisionsData - Corporation divisions data
  * @param {Array<Object>} [divisionsData.hangar] - Array of hangar division objects

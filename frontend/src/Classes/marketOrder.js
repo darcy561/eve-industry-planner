@@ -1,27 +1,9 @@
 /**
  * A market order a job's output is being sold through.
  *
- * A row keeps ESI's own field names, because that is where it came from and
- * where its updates come from: `order_id`, `volume_remain`, `is_corporation`.
- * The same fields are `models.MarketOrder` on the backend, and
- * {@link MarketOrder#toDocument} defines the shape for the SPA.
- *
- * ESI calls the listed price `price`; the row keeps it as `item_price`, because
- * a job's own figures are per item.
- *
- * `character_id` and `corporation_id` say whose order it is. They travel as ids
- * and are held as refs once stored, which `shared/jobidentity` converts at the
- * boundary.
- *
- * `fee`, `salesTax` and `feeDate` are the broker fee charged for listing it —
- * see {@link MarketOrder#recordBrokerFee}.
- *
  * @class MarketOrder
  */
 class MarketOrder {
-  // Whether a fee has been recorded, which `fee` cannot answer: an order
-  // charged nothing holds 0, and a number cannot say the difference between
-  // that and no charge known. Private, so it stays out of the document.
   #feeRecorded = false;
 
   /**
@@ -53,21 +35,10 @@ class MarketOrder {
   /**
    * Records the broker fee charged for listing this order.
    *
-   * The fee is a field of the order rather than a row beside it: a fee has no
-   * identity of its own, because the journal entry it arrives from is shared
-   * between every order sold together in one multi-sell.
-   *
-   * Where two fees name one order the earlier is kept, which is the charge for
-   * listing it — a later entry against the same order is a relist.
-   *
    * @param {{amount: number, salesTax: number, date: string|null}} fee
    */
   recordBrokerFee(fee) {
     if (!fee) return;
-    // Held unless the incoming one is strictly older, so the first read wins
-    // wherever neither can be shown to be. A date is needed to be older at all:
-    // a dateless fee cannot displace a dated one, and comparing the two dates
-    // alone would let it, because a comparison with a missing side is false.
     const older =
       Boolean(fee.date) && (!this.feeDate || fee.date < this.feeDate);
     if (this.#feeRecorded && !older) return;
@@ -79,11 +50,6 @@ class MarketOrder {
 
   /**
    * Builds an order from what ESI returned, for the character that placed it.
-   *
-   * Every field is named rather than passed through, so a rename on either side
-   * shows up here instead of quietly changing what is stored. ESI's `price`
-   * becomes `item_price`, and the issue date opens the timestamp history that
-   * every later update is appended to.
    *
    * @param {Object} esiOrder - A market order from ESI
    * @param {Object} [owner] - The character the order was fetched for
@@ -125,10 +91,6 @@ class MarketOrder {
   /**
    * Whether the order is finished: everything listed has sold, or it left the
    * market without selling.
-   *
-   * Read from the volume and state rather than stored beside them, so an order
-   * cannot claim to be finished while it is still listed and holding volume.
-   * `models.MarketOrder.IsComplete` on the backend is the same reading.
    *
    * @returns {boolean}
    */
@@ -180,12 +142,6 @@ class MarketOrder {
 
   /**
    * Takes the latest state of the order from ESI.
-   *
-   * A finished order is left alone: it will not change again, and re-taking it
-   * would append to the timestamp history on every poll. Otherwise the row is
-   * only written when something it tracks has actually moved — what is left,
-   * when it was issued, its state, or its having just finished — so an
-   * unchanged order does not mark the job modified.
    *
    * @param {Object} latest - The same order as ESI last returned it
    * @returns {boolean} Whether anything was taken

@@ -10,14 +10,13 @@ import getCharacterPublicInfo from "../Functions/EveESI/Character/getPublicData"
 /**
  * EVE Online character identity. Access tokens are **not** here: they live in the ESI credential
  * provider, so refreshing one does not write the store and does not re-render the roster's
- * subscribers.
  *
  * @class Character
  * @example
  * const character = new Character({
- *   jwtPayload: decodedAccessJwt,
- *   tokenResponse: { access_token, refresh_token },
- *   isMainCharacter: true,
+ * jwtPayload: decodedAccessJwt,
+ * tokenResponse: { access_token, refresh_token },
+ * isMainCharacter: true,
  * });
  */
 class Character {

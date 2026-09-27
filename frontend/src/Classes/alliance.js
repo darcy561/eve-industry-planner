@@ -1,10 +1,5 @@
 /**
  * An EVE alliance the account can see, built from its corporations.
- *
- * The sibling of `Corporation`, and the difference is what it holds: a corporation tracks the
- * characters the account has linked in it, while an alliance tracks the corporations — that is the
- * membership EVE itself models, and the account reaches an alliance only through a corporation it
- * is in.
  */
 class Alliance {
   /**

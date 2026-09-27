@@ -217,9 +217,8 @@ worst case is an order carrying 65 rows, 64 of them byte-identical copies of one
 been hiding.
 
 **So the fee moves onto the order**: `esi.marketOrders.<order_id>.fee`, one entry per order. The
-invariant the comments assert becomes structural rather than something
-[`job.js`](../../../frontend/src/Classes/job.js)'s removal filter has to remember, and a change to a fee
-is one path on one order, which is what this project is for.
+invariant the comments assert becomes structural rather than something the job's own removal filter has
+to remember, and a change to a fee is one path on one order, which is what this project is for.
 
 **One entry, and the conversion keeps the oldest.** 42 archived orders carry more than one — 38 of them
 from 2022, where only 136 of the archive's 3,021 fee-bearing orders sit, against none at all in 2024 or
@@ -1739,6 +1738,28 @@ five units with three ISK already spent is costed at fifteen.
 change no figure, and this one is a pricing decision — whether the fallback should be the spend so far,
 the spend per unit bought, or the market price of what is left. It was in the code before this project
 and is preserved exactly.
+
+#### What the end-of-project sweep found
+
+**A stored field nothing reads.** `appliedRequirementID` is written by `applyRequirements` and
+`removeRequirements`, kept by `Setup.toDocument`, and carried on the wire as
+`AppliedRequirementID int64` with no `omitzero`. Nothing in either language reads it back. It is the
+same shape as the `FeeID`, `complete` and `CharacterHash` fields Stage 1 removed, and it wants the same
+treatment — which means the release script rather than a tidy, because it is a stored shape. It is also
+the seam the rig-requirement repair above might use instead of re-deriving from three objects, so the
+two are worth deciding together rather than apart.
+
+**The row classes were never held to the comment rule.** Thirty doc comments past the two-line cap
+across twelve classes, and in-body comments in three. The same slice's new code — `jobDocument.js`,
+`jobSelectors.js` — keeps every doc comment to one line, so the standard existed and this layer was
+simply never brought to it. Taken, with the JSDoc annotations kept: they are the SPA's only type
+surface and are exempt.
+
+**A cascade that changes jobs without a command.** `closeActiveJob`'s recalculation, through
+`getAllRelatedJobs` and `materialTreeShaker`, changes live `jobArray` jobs in place rather than through
+a command or a working copy. It predates this project and was never among the eleven mutation methods
+Stage 5 converted, so it is not a regression — but `jobArray` now holds plain objects, and nothing
+structural stops it. Worth its own look before it is relied on.
 
 #### Two defects in the install cost, one fixed
 

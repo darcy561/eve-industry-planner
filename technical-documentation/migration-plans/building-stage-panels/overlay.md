@@ -26,7 +26,8 @@ same way.
 **A run says what it is through the selectors.** `Edit Job Hooks/linkedRunSelectors.js` answers for a
 row whether or not it is a class instance, and it takes the moment from its caller, so a panel that
 ticks a clock cannot have its bar and its words disagree. `LinkedESIJob` no longer carries its own
-copies of those answers; `Classes/job.js`, the group job cards and both lists read the selectors.
+copies of those answers; the group job cards and both lists read the selectors, as does every reader
+that used to ask the job class.
 
 **Characters resolve once for the panel.** Each list subscribes to the account's characters and
 resolves a run's owner while building its rows, rather than reading the store imperatively inside a
