@@ -269,7 +269,7 @@ async function getStationStandings(stationID, queryClient, characterHash) {
   // The station names the race that built it; the standing is held against that
   // race's faction, so the two are not the same id and looking the standing up by
   // the race finds nothing.
-  const raceFactions = await queryClient.fetchQuery(raceFactionsQuery());
+  const raceFactions = await queryClient.query(raceFactionsQuery());
   const factionID = raceFactions.get(station.race_id) ?? null;
 
   // Named so a reader can check the answer. Cosmetic, so a failure here does not

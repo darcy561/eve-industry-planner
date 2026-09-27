@@ -78,7 +78,7 @@ export function useAccountTotalsQuery(typeID, { enabled: enabledOption } = {}) {
 export async function prefetchAccountTotalsQuery(queryClient, typeID) {
   const id = normalizeTotalsTypeID(typeID);
   if (!id || !useUsersStore.getState().account.isLoggedIn) return;
-  await queryClient.prefetchQuery(totalsQueryOptions(typeID));
+  await queryClient.query(totalsQueryOptions(typeID)).catch(() => {});
 }
 
 /**

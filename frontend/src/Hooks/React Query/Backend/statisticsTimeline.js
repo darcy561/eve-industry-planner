@@ -160,5 +160,5 @@ export function useAccountTimelineItemsQuery(options = {}, { enabled } = {}) {
  */
 export async function prefetchAccountTimelineQuery(queryClient, options = {}) {
   if (!useUsersStore.getState().account.isLoggedIn) return;
-  await queryClient.prefetchQuery(timelineQueryOptions(options));
+  await queryClient.query(timelineQueryOptions(options)).catch(() => {});
 }

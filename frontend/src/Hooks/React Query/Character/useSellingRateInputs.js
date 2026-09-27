@@ -9,14 +9,6 @@ import { isQueryObserverResultLoading } from "../../EveEsi/queryLoadingState";
  * The two reads every broker fee and sales tax is worked out from, subscribed
  * for a set of characters.
  *
- * `sellingRates` reads skills and standings through their cached accessors,
- * which never start a fetch. Whatever needs a fee therefore has to subscribe
- * first, and the two stages had different ideas about who to subscribe for:
- * Planning quoted one seller, while Selling subscribed for the account's main
- * and then worked each order's fee out against the character who placed it — so
- * an order from an alt was costed against a cache nobody had filled, and the fee
- * is stored on the job rather than re-derived later.
- *
  * @param {string[]|string} characterHashes
  * @returns {{isLoading: boolean, isError: boolean, error: Error|null, updatedAt: number}}
  */
@@ -57,14 +49,8 @@ export function useSellingRateInputs(characterHashes) {
 }
 
 /**
- * Puts the same two reads in the cache for one character, fetching them if they
- * are not there.
- *
- * The subscription above keeps a panel current for characters it knows about,
- * but a fee is worked out and **stored** the moment an order is linked, and the
- * orders offered for linking come from every character on the account — not only
- * the ones with orders already linked. A figure that goes onto the job cannot
- * depend on some other component having subscribed first.
+ * Puts the same two reads in the cache for one character, fetching them only
+ * where they are not there already.
  *
  * @param {import("@tanstack/react-query").QueryClient} queryClient
  * @param {string|null} characterHash
@@ -74,7 +60,13 @@ export async function ensureSellingRateInputs(queryClient, characterHash) {
   if (!characterHash) return;
 
   await Promise.all([
-    queryClient.ensureQueryData(characterSkillsQuery(characterHash)),
-    queryClient.ensureQueryData(characterStandingsQuery(characterHash)),
+    queryClient.query({
+      ...characterSkillsQuery(characterHash),
+      staleTime: "static",
+    }),
+    queryClient.query({
+      ...characterStandingsQuery(characterHash),
+      staleTime: "static",
+    }),
   ]);
 }

@@ -143,7 +143,7 @@ function isBucketExhausted({ group, budgetHash }) {
 async function fetchItem(queryClient, item) {
   const trackQuery = startQueryTracking(item.name, item.budgetHash);
   try {
-    await queryClient.fetchQuery(item.query);
+    await queryClient.query(item.query);
   } catch (error) {
     // Reported unconditionally: an unlogged failure is a collection silently missing with nothing
     // to show for it.
@@ -314,9 +314,10 @@ function ensureDraining(queryClient) {
  */
 async function tranquilityIsOnline(queryClient) {
   try {
-    const status = await queryClient.ensureQueryData(
-      tranquilityServerStatusQueryOptions(),
-    );
+    const status = await queryClient.query({
+      ...tranquilityServerStatusQueryOptions(),
+      staleTime: "static",
+    });
     return status?.online === true;
   } catch (error) {
     console.error("Tranquility status unavailable; nothing prefetched", error);

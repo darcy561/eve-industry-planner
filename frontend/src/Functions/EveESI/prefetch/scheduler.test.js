@@ -29,6 +29,7 @@ vi.mock("../../Debugging/queryWaterfallLogger", () => ({
 
 import { planPrefetch, prefetchCollections } from "./scheduler";
 import { COLLECTIONS, PHASE, SCOPE } from "./collections";
+import { TRANQUILITY_SERVER_STATUS_QUERY_KEY } from "../../../Hooks/React Query/tranquilityServerStatus";
 
 function character(hash, corporationId) {
   return {
@@ -50,13 +51,12 @@ function queryClientSpy() {
   const fetched = [];
   return {
     fetched,
-    fetchQuery: vi.fn(async (query) => {
-      fetched.push(query.queryKey);
-    }),
-    // The prefetch asks for the Tranquility status before planning; a test decides what it finds.
-    ensureQueryData: vi.fn(async () => {
-      if (tranquility.value instanceof Error) throw tranquility.value;
-      return tranquility.value;
+    query: vi.fn(async ({ queryKey }) => {
+      if (queryKey[0] === TRANQUILITY_SERVER_STATUS_QUERY_KEY[0]) {
+        if (tranquility.value instanceof Error) throw tranquility.value;
+        return tranquility.value;
+      }
+      fetched.push(queryKey);
     }),
   };
 }
@@ -213,16 +213,17 @@ describe("prefetchCollections", () => {
 
     await prefetchCollections(queryClient, []);
 
-    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(queryClient.fetched).toHaveLength(0);
   });
 
   it("runs first paint before deferred", async () => {
     setAccount([character("hash-a", 98000001)]);
     const order = [];
     const queryClient = {
-      ensureQueryData: async () => tranquility.value,
-      fetchQuery: vi.fn(async (query) => {
-        order.push(query.queryKey[0]);
+      query: vi.fn(async ({ queryKey }) => {
+        if (queryKey[0] === TRANQUILITY_SERVER_STATUS_QUERY_KEY[0])
+          return tranquility.value;
+        order.push(queryKey[0]);
       }),
     };
 
@@ -248,7 +249,7 @@ describe("prefetchCollections", () => {
 
     await prefetchCollections(queryClient, ["hash-a"]);
 
-    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(queryClient.fetched).toHaveLength(0);
   });
 
   it("reports a failed collection without abandoning the rest", async () => {
@@ -258,8 +259,9 @@ describe("prefetchCollections", () => {
       .mockImplementation(() => {});
     let calls = 0;
     const queryClient = {
-      ensureQueryData: async () => tranquility.value,
-      fetchQuery: vi.fn(async () => {
+      query: vi.fn(async ({ queryKey }) => {
+        if (queryKey[0] === TRANQUILITY_SERVER_STATUS_QUERY_KEY[0])
+          return tranquility.value;
         calls += 1;
         if (calls === 1) throw new Error("esi down");
       }),
@@ -285,7 +287,7 @@ describe("prefetchCollections", () => {
 
     await prefetchCollections(queryClient, ["hash-a"]);
 
-    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(queryClient.fetched).toHaveLength(0);
   });
 
   // Login warms the main character from one place and the linked characters from another. Before
@@ -295,9 +297,10 @@ describe("prefetchCollections", () => {
     setAccount([character("hash-a", 98000001), character("hash-b", 98000002)]);
     const order = [];
     const queryClient = {
-      ensureQueryData: async () => tranquility.value,
-      fetchQuery: vi.fn(async (query) => {
-        order.push(query.queryKey);
+      query: vi.fn(async ({ queryKey }) => {
+        if (queryKey[0] === TRANQUILITY_SERVER_STATUS_QUERY_KEY[0])
+          return tranquility.value;
+        order.push(queryKey);
       }),
     };
 
@@ -362,9 +365,12 @@ describe("prefetchCollections", () => {
     setAccount([character("hash-a", 98000001), character("hash-b", 98000002)]);
     let inFlight = 0;
     let peak = 0;
+    const fetched = [];
     const queryClient = {
-      ensureQueryData: async () => tranquility.value,
-      fetchQuery: vi.fn(async () => {
+      query: vi.fn(async ({ queryKey }) => {
+        if (queryKey[0] === TRANQUILITY_SERVER_STATUS_QUERY_KEY[0])
+          return tranquility.value;
+        fetched.push(queryKey);
         inFlight += 1;
         peak = Math.max(peak, inFlight);
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -389,9 +395,12 @@ describe("prefetchCollections", () => {
     ]);
     let inFlight = 0;
     let peak = 0;
+    const fetched = [];
     const queryClient = {
-      ensureQueryData: async () => tranquility.value,
-      fetchQuery: vi.fn(async () => {
+      query: vi.fn(async ({ queryKey }) => {
+        if (queryKey[0] === TRANQUILITY_SERVER_STATUS_QUERY_KEY[0])
+          return tranquility.value;
+        fetched.push(queryKey);
         inFlight += 1;
         peak = Math.max(peak, inFlight);
         await new Promise((resolve) => setTimeout(resolve, 0));
@@ -403,7 +412,7 @@ describe("prefetchCollections", () => {
 
     // Three characters carry well over eight requests between them; the cap is on requests, not
     // on characters, so the old three-characters-at-a-time bound would have allowed far more.
-    expect(queryClient.fetchQuery.mock.calls.length).toBeGreaterThan(8);
+    expect(fetched.length).toBeGreaterThan(8);
     expect(peak).toBeLessThanOrEqual(8);
   });
 
@@ -435,7 +444,7 @@ describe("prefetchCollections", () => {
 
     await prefetchCollections(queryClient, ["hash-a"]);
 
-    expect(queryClient.fetchQuery).toHaveBeenCalled();
+    expect(queryClient.fetched.length).toBeGreaterThan(0);
   });
 });
 
@@ -450,17 +459,17 @@ describe("waiting for the Tranquility status", () => {
     });
     setAccount([character("hash-1", 98000001)]);
     const queryClient = queryClientSpy();
-    queryClient.ensureQueryData = vi.fn(() => held);
+    tranquility.value = held;
     queryGateOpen.value = false;
 
     const prefetching = prefetchCollections(queryClient, ["hash-1"]);
-    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(queryClient.fetched).toHaveLength(0);
 
     queryGateOpen.value = true;
     answer({ online: true });
     await prefetching;
 
-    expect(queryClient.fetchQuery).toHaveBeenCalled();
+    expect(queryClient.fetched.length).toBeGreaterThan(0);
   });
 
   it("fetches nothing at an offline server", async () => {
@@ -470,7 +479,7 @@ describe("waiting for the Tranquility status", () => {
 
     await prefetchCollections(queryClient, ["hash-1"]);
 
-    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(queryClient.fetched).toHaveLength(0);
   });
 
   it("fetches nothing when the status cannot be had", async () => {
@@ -481,7 +490,7 @@ describe("waiting for the Tranquility status", () => {
 
     await prefetchCollections(queryClient, ["hash-1"]);
 
-    expect(queryClient.fetchQuery).not.toHaveBeenCalled();
+    expect(queryClient.fetched).toHaveLength(0);
     expect(reported).toHaveBeenCalled();
     reported.mockRestore();
   });

@@ -65,7 +65,8 @@ Tranquility outage — is honoured rather than overridden, so an outage does not
 at an offline server.
 
 **The Tranquility status is awaited before anything is planned**, through
-`ensureQueryData(tranquilityServerStatusQueryOptions())`. Every collection query disables itself
+`query({ ...tranquilityServerStatusQueryOptions(), staleTime: "static" })`, which answers from the
+cache where the status is already held. Every collection query disables itself
 until `isTranquilityOnlineFromCache()` is true, and that status is fetched from `App.jsx` at app
 start — in parallel with login rather than before it. Planning on an unanswered status builds a
 table of disabled queries, drops all of them and reports success having fetched nothing, which is

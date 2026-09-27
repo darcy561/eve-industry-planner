@@ -8,7 +8,7 @@ import {
 async function attemptsUnder(client, queryOptions = {}) {
   let attempts = 0;
   await client
-    .fetchQuery({
+    .query({
       queryKey: ["probe", Math.random()],
       queryFn: () => {
         attempts += 1;

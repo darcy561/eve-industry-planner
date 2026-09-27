@@ -23,7 +23,7 @@ describe("the race to faction map", () => {
       { race_id: 4, alliance_id: 500003, name: "Amarr" },
     ]);
 
-    const map = await client().fetchQuery(raceFactionsQuery());
+    const map = await client().query(raceFactionsQuery());
 
     expect(map.get(1)).toBe(500001);
     expect(map.get(4)).toBe(500003);
@@ -35,7 +35,7 @@ describe("the race to faction map", () => {
       { race_id: 135, name: "Triglavian" },
     ]);
 
-    const map = await client().fetchQuery(raceFactionsQuery());
+    const map = await client().query(raceFactionsQuery());
 
     expect(map.has(135)).toBe(false);
     expect(map.size).toBe(1);
@@ -47,8 +47,8 @@ describe("the race to faction map", () => {
     getRaces.mockResolvedValue([{ race_id: 1, alliance_id: 500001 }]);
     const shared = client();
 
-    await shared.fetchQuery(raceFactionsQuery());
-    await shared.fetchQuery(raceFactionsQuery());
+    await shared.query(raceFactionsQuery());
+    await shared.query(raceFactionsQuery());
 
     expect(getRaces).toHaveBeenCalledTimes(1);
   });
@@ -62,10 +62,10 @@ describe("the race to faction map", () => {
     const once = { ...raceFactionsQuery(), retry: false };
     getRaces.mockRejectedValue(new Error("ESI is down"));
 
-    await expect(shared.fetchQuery(once)).rejects.toThrow("ESI is down");
+    await expect(shared.query(once)).rejects.toThrow("ESI is down");
 
     getRaces.mockResolvedValue([{ race_id: 1, alliance_id: 500001 }]);
-    const map = await shared.fetchQuery(once);
+    const map = await shared.query(once);
 
     expect(map.get(1)).toBe(500001);
   });
@@ -79,7 +79,7 @@ describe("the race to faction map", () => {
       { name: "nameless" },
     ]);
 
-    const map = await client().fetchQuery(raceFactionsQuery());
+    const map = await client().query(raceFactionsQuery());
 
     expect(map.size).toBe(1);
   });

@@ -33,7 +33,7 @@ vi.mock("../../WebSocket/handlers/accountReconcile.js", () => ({
 
 import { runPostLoginAccountSync } from "./runPostLoginAccountSync.js";
 
-const queryClient = { fetchQuery: vi.fn() };
+const queryClient = {};
 
 describe("post-login account sync", () => {
   beforeEach(() => {

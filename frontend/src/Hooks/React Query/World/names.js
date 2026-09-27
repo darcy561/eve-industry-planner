@@ -64,7 +64,7 @@ export async function fetchNames(queryClient, ids_, characters = []) {
   if (ids.length === 0) return {};
 
   const settled = await Promise.allSettled(
-    ids.map((id) => queryClient.fetchQuery(nameQuery(id, characters))),
+    ids.map((id) => queryClient.query(nameQuery(id, characters))),
   );
 
   const names = {};

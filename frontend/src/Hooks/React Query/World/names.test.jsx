@@ -35,9 +35,9 @@ describe("nameQuery", () => {
     const queryClient = client();
 
     const [first, second] = await Promise.all([
-      queryClient.fetchQuery(nameQuery(JITA, characters)),
+      queryClient.query(nameQuery(JITA, characters)),
       // A second consumer, asking with a different character list, wants the same fact.
-      queryClient.fetchQuery(nameQuery(JITA, [{ CharacterHash: "hash-b" }])),
+      queryClient.query(nameQuery(JITA, [{ CharacterHash: "hash-b" }])),
     ]);
 
     expect(requestMock).toHaveBeenCalledTimes(1);
@@ -53,7 +53,7 @@ describe("nameQuery", () => {
     // Retries are switched off here so the failure is one call: that the shipped config asks for
     // them is pinned below.
     await expect(
-      queryClient.fetchQuery({
+      queryClient.query({
         ...nameQuery(JITA, characters),
         retry: false,
       }),
@@ -64,7 +64,7 @@ describe("nameQuery", () => {
       name: "Jita IV-4",
       resolutionStatus: LOCATION_OUTCOME.NAMED,
     });
-    const retried = await queryClient.fetchQuery({
+    const retried = await queryClient.query({
       ...nameQuery(JITA, characters),
       retry: false,
     });
@@ -81,8 +81,8 @@ describe("nameQuery", () => {
     });
     const queryClient = client();
 
-    await queryClient.fetchQuery(nameQuery(JITA, characters));
-    await queryClient.fetchQuery(nameQuery(JITA, characters));
+    await queryClient.query(nameQuery(JITA, characters));
+    await queryClient.query(nameQuery(JITA, characters));
 
     expect(requestMock).toHaveBeenCalledTimes(1);
   });
@@ -142,7 +142,7 @@ describe("fetchNames", () => {
     });
 
     const names = await fetchNames(
-      { ...client(), fetchQuery: (options) => options.queryFn() },
+      { ...client(), query: (options) => options.queryFn() },
       [JITA, 60008494],
       characters,
     );
