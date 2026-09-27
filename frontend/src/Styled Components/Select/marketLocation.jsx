@@ -8,11 +8,12 @@ import {
 import GLOBAL_CONFIG from "../../global-config-app";
 import { getAppShellMarketSelectProps } from "../../Context/appShell";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
+import {
+  overrideUnlessDefault,
+  resolvePricingSide,
+} from "../../Functions/MarketData/defaults/pricingSide";
 import { sourceIn } from "../../Functions/MarketData/registry/marketSources.js";
 import { useMarketSources } from "../../Hooks/Static/useMarketSources";
-
-const { DEFAULT_MARKET_OPTION } = GLOBAL_CONFIG;
 
 /**
  * A select component for choosing market locations.
@@ -59,8 +60,6 @@ function MarketLocationSelect({
   const resolvedSelectVariant = appShell?.selectVariant ?? selectVariant;
   const resolvedMenuProps = { ...(appShell?.menuProps || {}), ...menuProps };
 
-  // A value the registry does not carry falls back to the default rather than
-  // leaving the select showing nothing.
   const validValue = sourceIn(marketSources, value)
     ? value
     : GLOBAL_CONFIG.DEFAULT_MARKET_OPTION;
@@ -161,24 +160,20 @@ export function MarketLocationSelectApplicationSettings({
   alternativeDefaultMarketLocation,
   ...rest
 }) {
-  const storeDefault = useUsersStore(
-    (s) => s.applicationSettings.defaultPricing?.[side]?.market,
+  const accountPricing = useUsersStore(
+    (s) => s.applicationSettings.defaultPricing,
   );
-  const applicationDefault = alternativeDefaultMarketLocation ?? storeDefault;
-  const value =
-    overrideMarketLocation ?? applicationDefault ?? DEFAULT_MARKET_OPTION;
+  const applicationDefault =
+    alternativeDefaultMarketLocation ??
+    resolvePricingSide({ accountPricing, side }).marketLocation;
 
   return (
     <MarketLocationSelect
       {...rest}
-      value={value}
+      value={overrideMarketLocation ?? applicationDefault}
       onChange={(location) =>
         onMarketLocationCommit(
-          normalizedOverrideWhenMatchesDefault(
-            location.id,
-            applicationDefault,
-            DEFAULT_MARKET_OPTION,
-          ),
+          overrideUnlessDefault(location.id, applicationDefault),
         )
       }
     />

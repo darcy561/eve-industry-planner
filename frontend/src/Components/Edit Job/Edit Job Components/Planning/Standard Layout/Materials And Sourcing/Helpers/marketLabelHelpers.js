@@ -1,6 +1,8 @@
 import { ORDER_TYPES } from "../../../../../../../Context/defaultValues.jsx";
-import { sourceNameIn } from "../../../../../../../Functions/MarketData/registry/marketSources.js";
-import { readMarketSources } from "../../../../../../../Hooks/Static/useMarketSources";
+import {
+  allMarketSources,
+  sourceNameIn,
+} from "../../../../../../../Functions/MarketData/registry/marketSources.js";
 
 const listingLabelById = Object.fromEntries(
   ORDER_TYPES.map((entry) => [entry.id, entry.name]),
@@ -22,10 +24,7 @@ export function getListingOrdersLabel(orderType) {
 }
 
 export function getMarketLocationLabel(marketLocation) {
-  // Read per call rather than mapped once at module load: the registry gains
-  // reader-saved markets while the app runs, and a map built at import time
-  // would name only the four it started with.
-  return sourceNameIn(readMarketSources(), marketLocation);
+  return sourceNameIn(allMarketSources(), marketLocation);
 }
 
 export function buildRowSourceText(marketLocation, orderType) {

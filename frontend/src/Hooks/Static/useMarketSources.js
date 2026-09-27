@@ -29,21 +29,6 @@ export function useMarketSources() {
     (state) => state.applicationSettings.marketLocations,
   );
 
-  // The registry reads both of these out of module state rather than taking
-  // them, so neither appears inside the memo — but they are what it is built
-  // from, and naming them is what rebuilds the list when either moves. Without
-  // them the list is computed once and a market shared with the reader never
-  // appears; with them and no memo, every render hands surfaces a new array.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(() => allMarketSources(), [composed, own]);
-}
-
-/**
- * The registry for a caller outside render — a class method, a reducer, a
- * helper a component hands a value to. The same list the hooks read.
- *
- * @returns {import("../../Functions/MarketData/registry/marketSources.js").MarketSource[]}
- */
-export function readMarketSources() {
-  return allMarketSources();
 }

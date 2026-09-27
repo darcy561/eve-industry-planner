@@ -21,7 +21,7 @@ import {
 import { SOURCE_KIND } from "../../../../../../Functions/MarketData/registry/marketSources.js";
 import { BROKER_FEE_TERMS } from "../../../../../../Functions/MarketOrders/sellingRates";
 import AssignUsersSelect from "../../../../../../Styled Components/Select/users";
-import { readMarketSources } from "../../../../../../Hooks/Static/useMarketSources";
+import { allMarketSources } from "../../../../../../Functions/MarketData/registry/marketSources.js";
 
 /**
  * Where the build is sold from, and what selling there costs.
@@ -298,7 +298,7 @@ function SaleLocationSelect({ plan, onPlanChange }) {
  * @returns {Array<{label: string, options: Array<{id: string, name: string}>}>}
  */
 function saleLocationGroups() {
-  const sources = readMarketSources();
+  const sources = allMarketSources();
   const named = (kinds) =>
     sources
       .filter(({ kind }) => kinds.includes(kind))

@@ -1,7 +1,6 @@
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { resolvePricingSide } from "../defaults/pricingSide";
-import { sourceIn } from "./marketSources.js";
-import { readMarketSources } from "../../../Hooks/Static/useMarketSources";
+import { allMarketSources, sourceIn } from "./marketSources.js";
 
 const { DEFAULT_REGION } = GLOBAL_CONFIG;
 
@@ -24,7 +23,7 @@ export function resolveMarketLinkTarget({
   accountPricing,
   needsRegion = false,
 }) {
-  const sources = readMarketSources();
+  const sources = allMarketSources();
 
   if (typeof given === "string") {
     return sourceIn(sources, given);

@@ -2,10 +2,10 @@ import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import { ORDER_TYPES } from "../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../global-config-app";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { normalizedOverrideWhenMatchesDefault } from "./applicationSettingsMarketUtils.js";
-import { orderTypeForExit } from "../../Functions/MarketData/defaults/pricingSide";
-
-const { DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
+import {
+  overrideUnlessDefault,
+  resolvePricingSide,
+} from "../../Functions/MarketData/defaults/pricingSide";
 
 /**
  * Which side of the order book a figure is read from.
@@ -116,29 +116,20 @@ export function OrderTypeSelectApplicationSettings({
   alternativeDefaultOrderType,
   ...rest
 }) {
-  // The selling side stores a route rather than an order type, so its order type is derived
-  // the same way the ladder derives it. Reading `.orderType` alone would answer
-  // undefined for that side and fall through to the global default, which looks
-  // like a working control quietly ignoring the account.
-  const storeSide = useUsersStore(
-    (s) => s.applicationSettings.defaultPricing?.[side],
+  const accountPricing = useUsersStore(
+    (s) => s.applicationSettings.defaultPricing,
   );
-  const storeDefault =
-    storeSide?.orderType || orderTypeForExit(storeSide?.exit);
-  const applicationDefault = alternativeDefaultOrderType ?? storeDefault;
-  const value = overrideOrderType ?? applicationDefault ?? DEFAULT_ORDER_TYPE;
+  const applicationDefault =
+    alternativeDefaultOrderType ??
+    resolvePricingSide({ accountPricing, side }).orderType;
 
   return (
     <OrderTypeSelect
       {...rest}
-      value={value}
+      value={overrideOrderType ?? applicationDefault}
       onChange={(orderType) =>
         onOrderTypeCommit(
-          normalizedOverrideWhenMatchesDefault(
-            orderType.id,
-            applicationDefault,
-            DEFAULT_ORDER_TYPE,
-          ),
+          overrideUnlessDefault(orderType.id, applicationDefault),
         )
       }
     />

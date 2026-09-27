@@ -113,6 +113,18 @@ function answer(job, account, global) {
 }
 
 /**
+ * A choice worth storing as an override, or undefined where it only repeats the
+ * default beneath it.
+ *
+ * @param {string|null|undefined} chosen
+ * @param {string|null|undefined} beneath - What the ladder answers without it
+ * @returns {string|null|undefined}
+ */
+export function overrideUnlessDefault(chosen, beneath) {
+  return chosen === beneath ? undefined : chosen;
+}
+
+/**
  * A job's pricing override with one field of one side set, and null once the last
  * choice is cleared.
  *

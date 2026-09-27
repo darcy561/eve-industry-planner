@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  overrideUnlessDefault,
   setGroupPricing,
   PRICING_RUNG,
   PRICING_SIDE,
@@ -358,5 +359,23 @@ describe("setGroupPricing", () => {
 
     expect(byString[1857]).toEqual({ market: "hek", orderType: "buy" });
     expect(Object.keys(byString)).toHaveLength(2);
+  });
+});
+
+describe("overrideUnlessDefault", () => {
+  it("keeps a choice that differs from the default beneath it", () => {
+    expect(overrideUnlessDefault("amarr", "jita")).toBe("amarr");
+  });
+
+  it("stores nothing for a choice that only repeats the default", () => {
+    expect(overrideUnlessDefault("jita", "jita")).toBeUndefined();
+  });
+
+  it("keeps a choice made where the ladder answers nothing", () => {
+    expect(overrideUnlessDefault("jita", undefined)).toBe("jita");
+  });
+
+  it("clears an override rather than storing the absence of one", () => {
+    expect(overrideUnlessDefault(undefined, undefined)).toBeUndefined();
   });
 });

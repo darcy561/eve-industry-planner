@@ -2,10 +2,10 @@ import GLOBAL_CONFIG from "../../global-config-app";
 import useUsersStore from "../../Zustand/usersStore";
 import {
   SOURCE_KIND,
+  allMarketSources,
   savedCitadels,
   sourceIn,
 } from "../MarketData/registry/marketSources.js";
-import { readMarketSources } from "../../Hooks/Static/useMarketSources";
 
 /**
  * The kinds of place a job can be sold from.
@@ -53,7 +53,7 @@ export const SALE_LOCATION_KIND = {
  * @returns {SaleStructure[]}
  */
 export function getSaleCitadels() {
-  return savedCitadels(readMarketSources());
+  return savedCitadels(allMarketSources());
 }
 
 /**
@@ -65,7 +65,7 @@ export function getSaleCitadels() {
  * @returns {SaleStructure|null}
  */
 export function getDefaultSaleStructure() {
-  const sources = readMarketSources();
+  const sources = allMarketSources();
   const chosen =
     useUsersStore.getState().applicationSettings.defaultPricing?.selling
       ?.market;
@@ -89,17 +89,15 @@ export function getDefaultSaleStructure() {
  */
 export function resolveSaleLocation(saleLocationID, marketID) {
   if (saleLocationID) {
-    const named = sourceIn(readMarketSources(), saleLocationID);
+    const named = sourceIn(allMarketSources(), saleLocationID);
     if (named?.kind === SOURCE_KIND.CITADEL) {
       return saleLocationFromCitadel(named);
     }
 
-    // A named NPC station is a choice like any other, and is not overridden by
-    // the market the materials happen to be priced against.
     if (named) return saleLocationFromStation(named);
   }
 
-  const sources = readMarketSources();
+  const sources = allMarketSources();
   const station =
     sourceIn(sources, marketID) ??
     sourceIn(sources, GLOBAL_CONFIG.DEFAULT_MARKET_OPTION);
@@ -131,7 +129,6 @@ function saleLocationFromCitadel(citadel) {
     kind: SALE_LOCATION_KIND.CITADEL,
     id: citadel.id,
     name: citadel.name,
-    // No standings apply: the owner sets the rate.
     feeStationID: null,
     brokerFee: citadel.brokerFee,
   };

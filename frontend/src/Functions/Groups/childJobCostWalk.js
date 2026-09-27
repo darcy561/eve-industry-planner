@@ -1,23 +1,3 @@
-/**
- * The walk down a job's linked child jobs, shared by the two costs the planner
- * quotes from it.
- *
- * Both descend the same child jobs and both divide a job's cost by what it
- * produces. They differ in one rule: what a material that no child job builds
- * costs to buy. An estimate prices it at the market; a cost so far counts only
- * what was actually paid for it. That rule is the `buyCost` the caller passes,
- * and it is the only thing the two disagree about — everything the walk itself
- * does is deliberately identical, so the two figures stay comparable.
- *
- * The walk costs one visit per path rather than per job, so a job reachable more
- * than one way is walked more than once. Measured against the live data that is
- * not worth removing: the largest chain there is 118 jobs over 986 visits, and
- * the whole walk took well under a millisecond when a visit read a stored
- * install figure. A visit now works that figure out from the setup's materials,
- * and the walk has not been timed since. Caching a job's cost, or folding
- * bottom-up instead, are the levers if it ever matters.
- */
-
 import { captureException } from "@sentry/react";
 
 import {
@@ -34,7 +14,8 @@ import coerceFiniteNumber from "../Helper/coerceFiniteNumber";
  */
 
 /**
- * What one material of a job contributes to that job's cost.
+ * What one material of a job contributes to that job's cost, spreading several
+ * children over their combined output and skipping one already on this path.
  *
  * @param {object} material
  * @param {unknown} childJobIDs - The child jobs building this material, if any
@@ -61,10 +42,6 @@ export function materialCostThroughChildJobs(
   let produced = 0;
 
   for (const childJobID of childIDs) {
-    // Skipping costs the branch nothing, so a material whose only child cycles
-    // is bought below rather than given a part-counted figure. The
-    // displayed cost is understated with no on-screen sign of it, which is why
-    // the skip is reported.
     if (ancestry.has(childJobID)) {
       reportChildJobCycle(childJobID, ancestry);
       continue;
@@ -76,8 +53,6 @@ export function materialCostThroughChildJobs(
     cost += rules.installCost(childJob) + totalExtrasCost(childJob);
     produced += coerceFiniteNumber(totalQuantityProduced(childJob));
 
-    // Ancestry is per path, not per walk: the same job reached down two separate
-    // branches is two real contributions and must still be counted twice.
     const branchAncestry = new Set(ancestry).add(childJobID);
 
     for (const childMaterial of Object.values(childJob.build.materials ?? {})) {
@@ -90,9 +65,6 @@ export function materialCostThroughChildJobs(
     }
   }
 
-  // Several children of one material are spread over their combined output
-  // rather than charged one after another, because they are parallel ways of
-  // producing the same thing rather than separate costs.
   if (produced <= 0) {
     return rules.buyCost(material);
   }
@@ -118,8 +90,6 @@ export function jobCostPerUnit(job, rules) {
   const produced = coerceFiniteNumber(totalQuantityProduced(job));
   if (produced <= 0) return 0;
 
-  // The job being costed opens the walk's ancestry so a job listing itself as
-  // its own child is caught on the first descent rather than the second.
   const ancestry = job.jobID ? new Set([job.jobID]) : new Set();
 
   let cost = rules.installCost(job) + totalExtrasCost(job);
@@ -136,11 +106,8 @@ export function jobCostPerUnit(job, rules) {
 }
 
 /**
- * Cycles already reported this session, so one is not sent again.
- *
- * This runs inside a render rather than behind a user action, so a card showing
- * a cyclic job would otherwise report the same cycle on every re-render for as
- * long as it stays mounted. One id per distinct cycle is enough to find it.
+ * Cycles already reported this session, so a card re-rendering does not send
+ * the same one again.
  */
 const reportedChildJobCycles = new Set();
 
