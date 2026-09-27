@@ -42,9 +42,6 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
 
   const { buyingPrice, sellWorth } = useWatchlistPricing();
 
-  const { getCustomStructureWithID } =
-    useUsersStore.getState().applicationSettings.actions;
-
   const queryClient = useQueryClient();
   async function handleRemove() {
     let newUserWatchlistItems = [...userWatchlist.items];
@@ -94,10 +91,7 @@ export function WatchListRow({ item, index, onEditWatchlistItem }) {
 
   const isItemDataOutdated = !item?.buildData;
 
-  const isStructureMissing = setupHasOrphanedCustomStructure(
-    item?.buildData,
-    getCustomStructureWithID,
-  );
+  const isStructureMissing = setupHasOrphanedCustomStructure(item?.buildData);
 
   const calculatedCosts = buildCosts();
 

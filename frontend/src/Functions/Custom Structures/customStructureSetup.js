@@ -1,51 +1,43 @@
-/**
- * Helpers for job setups that reference account custom structures.
- */
+import useUsersStore from "../../Zustand/usersStore";
 
 /**
+ * Whether the saved structure a setup names is no longer there.
+ *
  * @param {{ customStructureID?: string }} setup
- * @param {(id: string) => unknown} getCustomStructureWithID
  * @returns {boolean}
  */
-export function setupHasOrphanedCustomStructure(
-  setup,
-  getCustomStructureWithID,
-) {
+export function setupHasOrphanedCustomStructure(setup) {
   const id = setup?.customStructureID;
   if (!id) return false;
-  return !getCustomStructureWithID(id);
+
+  return !useUsersStore
+    .getState()
+    .applicationSettings.actions.getCustomStructureWithID(id);
 }
 
 /**
- * Manual structure fields apply when no custom structure is selected, or the
- * stored ID no longer exists in account settings.
+ * Manual structure fields apply when no custom structure is chosen, or the one it
+ * names is no longer there.
  *
  * @param {{ customStructureID?: string }} setup
- * @param {(id: string) => unknown} getCustomStructureWithID
  * @returns {boolean}
  */
-export function setupShowsManualStructureFields(
-  setup,
-  getCustomStructureWithID,
-) {
+export function setupShowsManualStructureFields(setup) {
   if (!setup?.customStructureID) return true;
-  return setupHasOrphanedCustomStructure(setup, getCustomStructureWithID);
+  return setupHasOrphanedCustomStructure(setup);
 }
 
 /**
- * Clears orphaned custom structure references in memory (denormalized fields kept).
+ * Clears a reference to a structure that is gone, in memory, keeping the fields
+ * the setup was built with.
  *
  * @param {Record<string, { customStructureID?: string }>} setups
- * @param {(id: string) => unknown} getCustomStructureWithID
  */
-export function clearOrphanedCustomStructureOnSetups(
-  setups,
-  getCustomStructureWithID,
-) {
+export function clearOrphanedCustomStructureOnSetups(setups) {
   if (!setups) return;
 
   for (const setup of Object.values(setups)) {
-    if (setupHasOrphanedCustomStructure(setup, getCustomStructureWithID)) {
+    if (setupHasOrphanedCustomStructure(setup)) {
       setup.customStructureID = "";
     }
   }

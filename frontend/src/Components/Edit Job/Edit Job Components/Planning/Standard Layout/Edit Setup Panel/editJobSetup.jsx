@@ -191,13 +191,7 @@ function ManualStructureSelection({ selectedSetup }) {
   const jobType = useJobDraft((job) => job.jobType);
   const actions = useJobActions();
 
-  const getCustomStructureWithID =
-    useUsersStore.getState().applicationSettings.actions
-      .getCustomStructureWithID;
-
-  if (
-    !setupShowsManualStructureFields(selectedSetup, getCustomStructureWithID)
-  ) {
+  if (!setupShowsManualStructureFields(selectedSetup)) {
     return null;
   }
 

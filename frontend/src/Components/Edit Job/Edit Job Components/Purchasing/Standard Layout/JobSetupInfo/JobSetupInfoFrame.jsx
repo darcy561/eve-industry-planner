@@ -66,8 +66,6 @@ export default function JobSetupInfoFrame() {
 }
 
 function JobSetupItem({ setupEntry }) {
-  const { getCustomStructureWithID } =
-    useUsersStore.getState().applicationSettings.actions;
   const itemsProducedPerRun = useJobDraft((job) => job.itemsProducedPerRun);
   const quantityProduced =
     itemsProducedPerRun * setupEntry.runCount * setupEntry.jobCount;
@@ -177,10 +175,7 @@ function JobSetupItem({ setupEntry }) {
             </Box>
           </Box>
 
-          {setupShowsManualStructureFields(
-            setupEntry,
-            getCustomStructureWithID,
-          ) ? (
+          {setupShowsManualStructureFields(setupEntry) ? (
             <UseDefaultStructures setupEntry={setupEntry} />
           ) : (
             <UseCustomStructure setupEntry={setupEntry} />
@@ -240,12 +235,7 @@ function UseCustomStructure({ setupEntry }) {
 }
 
 function UseDefaultStructures({ setupEntry }) {
-  const { getCustomStructureWithID } =
-    useUsersStore.getState().applicationSettings.actions;
-  const structureWasDeleted = setupHasOrphanedCustomStructure(
-    setupEntry,
-    getCustomStructureWithID,
-  );
+  const structureWasDeleted = setupHasOrphanedCustomStructure(setupEntry);
 
   const structureTypeData = getStructureInfoFromID(
     setupEntry.jobType,

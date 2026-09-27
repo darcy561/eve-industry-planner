@@ -34,13 +34,7 @@ export function useEditJobInitialState({ jobID, currentActiveJobID, actions }) {
 
         const { requestedSystemIndexes } = await getMissingESIData(linkedJobs);
 
-        const getCustomStructureWithID =
-          useUsersStore.getState().applicationSettings.actions
-            .getCustomStructureWithID;
-        clearOrphanedCustomStructureOnSetups(
-          matchedJob.build.setup,
-          getCustomStructureWithID,
-        );
+        clearOrphanedCustomStructureOnSetups(matchedJob.build.setup);
 
         if (!matchedJob.layout.setupToEdit) {
           matchedJob.layout.setupToEdit =

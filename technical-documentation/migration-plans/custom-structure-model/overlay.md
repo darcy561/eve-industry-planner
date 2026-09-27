@@ -912,6 +912,24 @@ mapping does.
 "does the stored id still resolve" test, which is the only thing the two predicates ever differed
 about — what to answer when no structure is chosen at all.
 
+### The setup helpers read the store, rather than being handed a way to
+
+`setupHasOrphanedCustomStructure`, `setupShowsManualStructureFields` and
+`clearOrphanedCustomStructureOnSetups` take the setup and nothing else. Each took
+`getCustomStructureWithID` as a second argument, and every one of the six call sites passed the same
+thing — the store's own action — so the injection had one implementation and bought only that the module
+imported no store. Against that, it was the exception: sixty-nine modules under `Functions/` read
+`useUsersStore.getState()` themselves, including `setupHelpers.js` in the same flow, and four call sites
+were fetching the action for no other purpose.
+
+Their test reads through `tests/usersStoreHarness.js` now, which wires the **real** `structureActions`
+rather than a stub — the harness says why: a stub that filtered its own way could answer differently from
+the store and prove the wrong rule.
+
+**`Setup.updateCustomStructureID` keeps its injected resolver**, because nothing in `Classes/` imports
+the store and that is worth keeping: a class takes what it needs and stays something a test can build in
+isolation. Functions read the store; classes are handed what they read.
+
 ### One predicate answers whether a setup's structure is gone
 
 `setupHasOrphanedCustomStructure` is what the watchlist row asks. It had asked

@@ -35,8 +35,6 @@ import {
 } from "../../../../Edit Job Hooks/useJobDraft";
 
 export function JobSetupCard({ setupEntry }) {
-  const { getCustomStructureWithID } =
-    useUsersStore.getState().applicationSettings.actions;
   const setupToEdit = useJobDraft((job) => job.layout.setupToEdit);
   const actions = useJobActions();
   const installCostPerJob = calculateInstallCostfromSetup(setupEntry);
@@ -110,10 +108,7 @@ export function JobSetupCard({ setupEntry }) {
                   {assignedCharacterName}
                 </Typography>
               </Grid>
-              {setupShowsManualStructureFields(
-                setupEntry,
-                getCustomStructureWithID,
-              ) ? (
+              {setupShowsManualStructureFields(setupEntry) ? (
                 <UseDefaultStructures setupEntry={setupEntry} />
               ) : (
                 <UseCustomStructure setupEntry={setupEntry} />
@@ -195,12 +190,7 @@ function UseCustomStructure({ setupEntry }) {
 }
 
 function UseDefaultStructures({ setupEntry }) {
-  const { getCustomStructureWithID } =
-    useUsersStore.getState().applicationSettings.actions;
-  const structureWasDeleted = setupHasOrphanedCustomStructure(
-    setupEntry,
-    getCustomStructureWithID,
-  );
+  const structureWasDeleted = setupHasOrphanedCustomStructure(setupEntry);
 
   const structureTypeData = getStructureInfoFromID(
     setupEntry.jobType,

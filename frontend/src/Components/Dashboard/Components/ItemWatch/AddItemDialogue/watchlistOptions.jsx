@@ -84,7 +84,7 @@ export function WatchListSetupOptions_WatchlistDialogue({
           </Grid>
         </Grid>
       )}
-      {setupShowsManualStructureFields(jobSetup, getCustomStructureWithID) && (
+      {setupShowsManualStructureFields(jobSetup) && (
         <Grid container spacing={2} size={12}>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <StructureTypeSelect

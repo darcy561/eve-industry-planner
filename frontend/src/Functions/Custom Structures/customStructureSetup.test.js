@@ -1,57 +1,57 @@
 import { describe, expect, it, vi } from "vitest";
-import {
+
+const { store } = vi.hoisted(() => ({ store: { current: null } }));
+
+vi.mock("../../Zustand/usersStore", async () => {
+  const { usersStoreMock, usersStoreState } =
+    await import("../../tests/usersStoreHarness.js");
+  return usersStoreMock(() => usersStoreState(store.current));
+});
+
+const {
   clearOrphanedCustomStructureOnSetups,
   setupFieldsFromCustomStructure,
   setupHasOrphanedCustomStructure,
   setupShowsManualStructureFields,
-} from "./customStructureSetup.js";
-import { structureFromDocument } from "./customStructure.js";
-import { jobTypes, structureKinds } from "../../Context/defaultValues";
+} = await import("./customStructureSetup.js");
+const { structureFromDocument } = await import("./customStructure.js");
+const { jobTypes, structureKinds } =
+  await import("../../Context/defaultValues");
+
+const SAVED = structureFromDocument({
+  id: "exists",
+  jobType: jobTypes.manufacturing,
+  name: "Sotiyo",
+});
+
+function saved(rows = [SAVED]) {
+  store.current = { applicationSettings: { customStructures: rows } };
+}
 
 describe("customStructureSetup helpers", () => {
-  const getCustomStructureWithID = vi.fn((id) =>
-    id === "exists" ? { id: "exists" } : null,
-  );
+  saved();
 
   it("detects orphaned custom structure references", () => {
+    expect(setupHasOrphanedCustomStructure({ customStructureID: "gone" })).toBe(
+      true,
+    );
     expect(
-      setupHasOrphanedCustomStructure(
-        { customStructureID: "gone" },
-        getCustomStructureWithID,
-      ),
-    ).toBe(true);
-    expect(
-      setupHasOrphanedCustomStructure(
-        { customStructureID: "exists" },
-        getCustomStructureWithID,
-      ),
+      setupHasOrphanedCustomStructure({ customStructureID: "exists" }),
     ).toBe(false);
-    expect(
-      setupHasOrphanedCustomStructure(
-        { customStructureID: "" },
-        getCustomStructureWithID,
-      ),
-    ).toBe(false);
+    expect(setupHasOrphanedCustomStructure({ customStructureID: "" })).toBe(
+      false,
+    );
   });
 
   it("shows manual fields when no custom structure or when orphaned", () => {
+    expect(setupShowsManualStructureFields({ customStructureID: "" })).toBe(
+      true,
+    );
+    expect(setupShowsManualStructureFields({ customStructureID: "gone" })).toBe(
+      true,
+    );
     expect(
-      setupShowsManualStructureFields(
-        { customStructureID: "" },
-        getCustomStructureWithID,
-      ),
-    ).toBe(true);
-    expect(
-      setupShowsManualStructureFields(
-        { customStructureID: "gone" },
-        getCustomStructureWithID,
-      ),
-    ).toBe(true);
-    expect(
-      setupShowsManualStructureFields(
-        { customStructureID: "exists" },
-        getCustomStructureWithID,
-      ),
+      setupShowsManualStructureFields({ customStructureID: "exists" }),
     ).toBe(false);
   });
 
@@ -62,7 +62,7 @@ describe("customStructureSetup helpers", () => {
       c: { customStructureID: "", structureID: 3 },
     };
 
-    clearOrphanedCustomStructureOnSetups(setups, getCustomStructureWithID);
+    clearOrphanedCustomStructureOnSetups(setups);
 
     expect(setups.a.customStructureID).toBe("");
     expect(setups.a.structureID).toBe(1);
