@@ -35,9 +35,9 @@ The Edit Job **Building** stage: what it asks, what it answers, and the shape it
   [planning-stage-panels](../planning-stage-panels/contents.md) § Stage Q, and it confirms that
   independence rather than relying on it — no stage panel imports anything from `editJob.jsx`, so it
   can land before, after or beside this project.
-- **Listing and resolving a custom structure.** That belongs to
-  [custom-structure-model](../custom-structure-model/contents.md); this stage reads whatever it
-  resolves, and falls back to the size-class list where a setup names none.
+- **Listing and resolving a custom structure.** That is
+  [frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md); this stage
+  reads whatever it resolves, and falls back to the size-class list where a setup names none.
 - **The shared components this stage reuses.** The worklist row, the muted destructive control, the
   Job costs panel and its setup table are
   [purchasing-stage-panels](../purchasing-stage-panels/contents.md)'. This project uses them and

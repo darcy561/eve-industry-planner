@@ -31,8 +31,8 @@ for managing one — in place of a row in the custom-structures array whose kind
 **Promoted (2026-09-25).** Every stage landed and the live topics now carry it:
 [frontend/settings/market-locations.md](../../frontend/settings/market-locations.md) and
 [backend/api/market-locations.md](../../backend/api/market-locations.md). This folder is **history
-only** — not live SoT — and is kept because custom-structure-model cites what its promotion waited
-on.
+only** — not live SoT — and is kept because market-price-delivery and market-pricing-defaults cite its
+stages.
 
 Named for the **work**, not a git branch. **Project close** = plan tracks done + live-SoT **promote**
 (go-ahead).
@@ -44,10 +44,10 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
   the per-character read, the derivation, both tiers and the hourly rotation. This project changes
   where a saved market is *stored* and how it is *managed*, and must leave that registry reading the
   same facts under another name.
-- **The four build kinds**, which keep the one class and the one array
-  [custom-structure-model](../custom-structure-model/contents.md) landed. That project's reasoning for
-  unifying them is not disturbed by a market leaving: see [plan.md](./plan.md) § Why a market leaves
-  a model that was right to unify.
+- **The four build kinds**, which keep the one shape and the one array they were unified into —
+  [frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md). That
+  reasoning is not disturbed by a market leaving: see [plan.md](./plan.md) § Why a market leaves a
+  model that was right to unify.
 - **What a sale costs** — broker fees, sales tax, standings, the owner's rate →
   [planning-stage-panels/contents.md](../planning-stage-panels/contents.md). A market location stores
   the owner's rate; what is done with it is not this project's.
@@ -67,6 +67,5 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | Know what must survive the move | [plan.md](./plan.md) § What must not be lost |
 | Know what is additive, what breaks the wire, and what needs a migration | [plan.md](./plan.md) § Wire compatibility |
 | Know what this project owes market-price-delivery, and what it must not decide for it | [plan.md](./plan.md) § Who owns what |
-| Know why custom-structure-model cannot promote until this project has landed | [plan.md](./plan.md) § This project unblocks custom-structure-model, not the other way round |
 | Know what the stored market looks like, where it lives and how a reader's set is composed | [plan.md](./plan.md) § Stage A — the settled shape |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |

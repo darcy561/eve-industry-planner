@@ -1233,7 +1233,7 @@ Nothing. The dialogue shows a reader's private markets beside the public ones.
 
 ## Stage F — Custom market locations
 
-**Built by [custom-structure-model](../custom-structure-model/overlay.md) § Stage D, not by this
+**Built by the custom structures work, not by this
 project** — a saved location that is a market is a kind of structure, and that project owns the
 shape. What it produced is the row this project prices: see [plan.md](./plan.md) § Stage F for what
 was asked for and what was decided differently.

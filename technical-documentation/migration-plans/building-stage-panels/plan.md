@@ -352,6 +352,6 @@ The project is paused here rather than finished. Nothing in it is blocked and no
 has moved; Stage B is available to whoever picks it up next.
 
 Two things this project depends on and does not own: the shared components from
-[purchasing-stage-panels](../purchasing-stage-panels/contents.md), and whatever
-[custom-structure-model](../custom-structure-model/contents.md) resolves for a setup's place. If either
-promotes before this project starts, read the promoted live docs rather than those project folders.
+[purchasing-stage-panels](../purchasing-stage-panels/contents.md), and whatever a setup's custom
+structure resolves for its place, which is live in
+[frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md).

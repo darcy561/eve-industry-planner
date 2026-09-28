@@ -395,16 +395,15 @@ from, and what happens when the receiving job is later resized.
 It is described in the design reference and deliberately left out of the stage order. The excess chip
 and its figure are correct without it.
 
-## Inherited from custom-structure-model
+## Inherited: the duplicated structure display
 
 **The structure display this stage redraws is duplicated with the Planning setup card.**
 `JobSetupInfoFrame`'s `UseCustomStructure` and `UseDefaultStructures` are copied into
 `jobSetupCard.jsx` — the store read, the system-index calculation, the four table lookups, the rig
 label and the deleted-structure notice are identical, and only the layout wrapper differs. The
 derivation wants one owner; extracting it before this stage rewrites the frame would be discarded by
-the rewrite, so it is handed here rather than done there. See
-[custom-structure-model/overlay.md](../custom-structure-model/overlay.md) § Handed to the panel
-redesigns.
+the rewrite, so it is handed here rather than done there. What both copies display is live in
+[frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md).
 
 Both copies already read one predicate for whether a setup uses a saved structure, and both show what
 a job was built with plus a warning when that structure has been deleted — that part is landed and this

@@ -1290,8 +1290,8 @@ Stages A–O.
 section task map [`../contents.md`](../contents.md) carries a row of its own for the Setups panel and the
 Blueprint Library, pointing straight at the design rather than at this plan. That row survives the
 delete, which is the whole reason it points where it does. When that work is scheduled it takes a folder
-like any other — the pattern `market-pricing-defaults` and `custom-structure-model` already follow for
-work found inside one project that belongs to another.
+like any other — the pattern `market-pricing-defaults` and `rig-and-structure-attributes` already follow
+for work found inside one project that belongs to another.
 
 The **stepper-to-tabs** change appears in the first proposal as well, and the question of whether it had
 to land before the stage work could start was raised while this project was open and left unanswered.
@@ -1563,7 +1563,7 @@ them:
 
 The open questions below are still open, and none of them blocks promotion.
 
-## Inherited from custom-structure-model
+## Inherited: the Edit Setup panel's second rig slot
 
 **The Edit Setup panel offers one rig picker where a structure carries two slots.**
 `editJobSetup.jsx` renders a single `RigTypeSelect` bound to `rigSlot1`, so `rigSlot2` cannot be set or
@@ -1575,9 +1575,9 @@ The pieces to close it exist: `Hooks/useRigSlots.js` holds the two-slot rule and
 `Setup.updateRigSlot(slot, rig)` writes either slot, with slot 1 keeping the requirement handling
 `updateRigID` has always done. The watchlist editor was closed this way, and what a second rig's
 requirement should do to a setup that already applied the first one's is still unanswered. Left to this
-stage because it redesigns the panel that would carry the second picker — see
-[custom-structure-model/overlay.md](../custom-structure-model/overlay.md) § Handed to the panel
-redesigns.
+stage because it redesigns the panel that would carry the second picker. What a structure's two slots
+are and how they combine is live in
+[frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md).
 
 ## Open questions
 

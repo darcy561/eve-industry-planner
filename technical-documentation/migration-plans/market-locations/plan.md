@@ -4,9 +4,8 @@
 is read, every reader that asked for one out of `customStructures` now asks the lane, and a reader
 lists, adds and edits their own markets and their organisations' on a tab of their own — see
 [overlay.md](./overlay.md) §§ Stage A, Stage B, Stage C, and § Handoff status below for what is left.
-The release window it rides is open. This project is what unblocks custom-structure-model's promotion
-rather than waiting on it: see § This project unblocks custom-structure-model, not the other way
-round.
+The release window it rides is open. It landed ahead of the custom structures work promoting, which is
+the order § A market leaves before the build kinds promote sets out.
 
 **Rules:** Read and following [`../documentation-rules.md`](../documentation-rules.md)
 and [`../technical-rules.md`](../technical-rules.md) (migration-plans).
@@ -40,8 +39,9 @@ a kind table, not state from a market.
 
 ## Why a market leaves a model that was right to unify
 
-[custom-structure-model](../custom-structure-model/contents.md) folded four lanes and three classes
-into one class and one array, on the finding that the four kinds differed in almost nothing. **That
+The custom structures work folded four lanes and three classes into one shape and one array, on the
+finding that the four kinds differed in almost nothing —
+[frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md). **That
 reasoning is not disturbed by a market leaving, because the market was never part of it.** The four
 build kinds share a security modifier, a structure type carrying bonuses, an installation tax and two
 rig slots. A market has none of those four things and carries a region, a place, an owner's rate and
@@ -399,10 +399,10 @@ carries twenty-odd steps, several of them document reshapes — the custom-struc
 rig-slot folds, the job-document reshape — and Stage A has added one to it. Stage B rides the same
 window. Nothing else is outstanding: **Stage B is available now.**
 
-## This project unblocks custom-structure-model, not the other way round
+## A market leaves before the build kinds promote
 
 An earlier draft had this project waiting on
-[custom-structure-model](../custom-structure-model/contents.md) promoting, so that Stage A would
+the build kinds promoting, so that Stage A would
 start from live SoT. That is the wrong way round, and following it would have promoted documentation
 that is about to stop being true.
 
@@ -415,11 +415,11 @@ project exists to remove. A reader of live SoT would be taught it, and then it w
 There is no way to promote around it, either: a market cannot leave the shared form until it has
 somewhere else to be managed, so the move (Stage B) and the panel (Stage C) are one shipment.
 
-**So the order is A, B and C here, then custom-structure-model promotes** describing the four build
+**So the order was A, B and C here, then the build kinds promoted** describing the four build
 kinds it actually keeps. Stage D can follow that promotion.
 
 **That order has run.** A, B, C and D have landed and this project has promoted, so nothing stands in
-front of custom-structure-model's promotion any longer — its plan says so in § Status.
+in front of that promotion any longer, and it has since happened.
 
 **[market-price-delivery](../market-price-delivery/contents.md) is coupled more loosely and is not a
 gate.** Its registry reads saved markets out of `customStructures` today, so Stage B changes where
@@ -435,7 +435,7 @@ owns the edit.
 | Where a saved market is stored, and what a row holds | This project |
 | How a saved market is managed, and what a reader is told about one | This project |
 | How a market's prices are fetched, derived, held and rotated | [market-price-delivery](../market-price-delivery/contents.md) |
-| The four build kinds' class and array | [custom-structure-model](../custom-structure-model/contents.md) |
+| The four build kinds' shape and array | [frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md) |
 | What a sale from a market costs | [planning-stage-panels](../planning-stage-panels/contents.md) |
 
 ## Open decisions
@@ -482,7 +482,7 @@ One offer for the list rather than one per row, because linking is an account-wi
 [frontend/settings/market-locations.md](../../frontend/settings/market-locations.md) and
 [backend/api/market-locations.md](../../backend/api/market-locations.md); what is here is history.
 
-It was on the critical path: custom-structure-model could not promote until Stages A to C had landed
+It was on the critical path: the build kinds could not promote until Stages A to C had landed
 and a saved market had left the shared form, which it now has. The decision that gated Stage C is settled:
 editing an organisation's markets is ungated until there is a roles model to gate it with. Every question in § Open decisions
 that this project owns is now settled; what remains is promotion. The region id widths are settled: `int64` throughout, as ESI

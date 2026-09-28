@@ -1789,9 +1789,11 @@ references — assigns `structureID` straight from the structure, bypassing the 
 setup referencing a structure of a kind that carries no structure type would therefore hold
 `structureID: undefined`, which is exactly what this branch compares against, and the install cost
 would come back `NaN`. What actually keeps that out of reach is that no setup can reference a structure
-of another kind: both pickers offer only the setup's own kind, and a job's kind comes from its recipe.
-Checked in [custom-structure-model/overlay.md](../custom-structure-model/overlay.md) § Still open in
-this stage's area, which owns that half.
+of another kind. Every path was checked: both pickers pass the setup's own `jobType`, the
+default-structure helper asks for the default of a kind, a job's kind comes from its recipe and nothing
+mutates it, and a group template's node carries the `itemID` its job is rebuilt from — so an
+instantiated job has the kind the template was made from. Widening a picker past one kind, or applying a
+template to a different item, is what would make this branch reachable.
 
 #### A defect this found, which the cutover does not fix
 
@@ -1811,9 +1813,9 @@ figures for every affected job rather than only what is shown, which makes it a 
 tidy-up. It wants deciding on its own terms — whether the requirement was meant to apply, and what
 happens to setups already stored against the wrong multiplier — rather than riding a cutover that is
 meant to change no behaviour at all. The shape that would answer it is
-[custom-structure-model/plan.md](../custom-structure-model/plan.md) § Stage BR3, which puts a rig's
-security multipliers on the rig row and the structure's legality rules in a declared list, and carries
-the `prepareRelease` recalculation this needs.
+[rig-and-structure-attributes/plan.md](../rig-and-structure-attributes/plan.md) § A requirement belongs
+to the thing it describes, which puts a rig's security multipliers on the rig row and the structure's
+legality rules in a declared list, and carries the `prepareRelease` recalculation this needs.
 
 ## Stage status
 

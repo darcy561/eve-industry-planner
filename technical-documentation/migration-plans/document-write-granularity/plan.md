@@ -781,6 +781,98 @@ and keeps only the last upsert — correct for whole documents, lossy for deltas
 consecutive deltas together, and the revision chain is what makes that safe: merge while the revisions
 run consecutively, and reload where they do not.
 
+#### What it costs the change listener, which is less than it looks
+
+**The delta itself costs no query.** `updatedFields` and `removedFields` come out of the oplog entry
+and are already in the change event. The revision comes with them: `$inc` on `_meta.revision` reports
+the field in `updatedFields` with its resulting value, so a delta states the revision it produced
+without asking Mongo anything.
+
+**Nothing about the stream's setup moves.** `updateDescription` is delivered on every `update` without
+being asked for, and `MatchPipelineForCollections` is a `$match` on `ns.coll` that projects nothing
+away. No option, no pipeline change, no reason to touch resume tokens, the per-group streams or the
+primary-only guard. The reconstruction is one branch in the `switch collection` that already decides
+what `previousDocument` carries, under `CollectionJobDocuments` alone; every other collection takes the
+path it takes today. `insert`, `replace` and `delete` carry no `updateDescription`, so they carry no
+delta and the client replaces as it does now.
+
+**`isSchemaMaintenanceOnlyUpdate` becomes load-bearing.** It already parses the same
+`updateDescription` to suppress a maintenance-only write, and those writes do not increment the
+revision. A maintenance write reaching a client as a delta would therefore carry a revision that had
+not moved and read as a gap, costing a reload for nothing. The suppression is why the contiguity rule
+above holds, rather than a coincidence beside it. It also means the parse is wanted twice in one
+function, so it is lifted above the check and passed down rather than done again.
+
+**The reconstruction may never fail the event.** `processChangeEvent` returns an `error`, and the
+planner stream carries `jobs`, `job_groups` and `planner_settings` beside job documents. A path the
+walker cannot resolve must drop the delta and publish the full document exactly as today — never
+return an error — because an event failed over a malformed path would turn a cosmetic problem into
+lost delivery for every collection sharing that stream. Best effort, or nothing.
+
+#### What the breaking half actually removes, and what it costs
+
+The saving is not the payload. `SetFullDocument(options.UpdateLookup)` makes Mongo run a **post-image
+lookup per update event**, and that is what fills the full document. Dropping the full document drops
+that query, which is worth more than the bytes.
+
+It is not a payload edit, though. Three things read the full document on every update:
+
+| Read from the document today | What the breaking half needs |
+|---|---|
+| The owner, for routing — `ownerFromDocument` | `OwnerFromDocumentID` already answers it and already runs, but only when the operation is a `delete` with no preimage. It has to run for every operation type. Load-bearing: a wrong owner delivers a planner's document to the wrong subscribers or to nobody |
+| `sourceClientID` / `sourceSessionID`, which stop the change echoing to the client that caused it | Already solved — `JobWriteStamp` writes the session and client into `_meta` on every field write, so both are in `updatedFields` |
+| `accountID` | Read from the document root for groups and from `_meta` otherwise |
+
+**And the stream is shared.** `job_documents` is in the `planner` group with `jobs`, `job_groups` and
+`planner_settings`, which is one `Watch` and one set of options — so the lookup cannot be dropped for
+jobs alone unless all four are delta-delivered, which is § Open questions' *which documents*, or
+`job_documents` is given a group of its own. `CollectionGroups()` says the second is a one-line change:
+a collection in a group of its own is isolated from the others. Accounts are already on a separate
+stream, so nothing there is affected either way.
+
+#### The message shape, and where the derivation is proved
+
+Both shapes gain the same four fields — `updated`, `removed`, `revision`, `appliesTo` — and both
+additively.
+
+- **The NATS message** (`ChangeStreamMessage`) is cross-process and JetStream-persisted, so a rolling
+  deploy pairs an old producer with a new consumer and the reverse. Safe in both directions: the
+  fields are `omitempty` / `omitzero` and nothing requires them.
+- **The client frame** gains them for free. `ClientPayload` strips only `routingOnlyFields` and copies
+  the rest, and the SPA reads each field defensively, so the server half ships without a client change.
+- **The family vocabulary does not move.** This stays the `document` family with the same `collection`
+  and `operationType`, so [realtime-messages/kinds.json](../../../testing/fixtures/realtime-messages/kinds.json)
+  and the Go and vitest tests reading it are untouched.
+
+**The proof belongs in a test that already exists.**
+`services/websocket/server/outgoinglogic/client_shape_parity_test.go` was written to assert that a name
+derived from a stored bson key lands on the model's json tag, because a client reads the same document
+over two transports and both must name an entity id identically. That is exactly what this
+reconstruction depends on. It is extended to drive the partial through the same assertion rather than
+only the full document — otherwise the one load-bearing assumption is proved for the old shape and not
+the new one. It runs without Mongo, so it is also the earliest signal that a model field has been added
+whose ref rewrite does not land on its tag.
+
+#### Where it starts
+
+Four slices, and the first three need no database.
+
+1. **`models.JobJSONPartial` and `models.JobJSONRemoved`**, beside `JobSetPaths` in
+   `services/shared/models/job_write.go`, with the bson-to-json index built once per type rather than
+   scanned per segment. Pure functions, wired to nothing, covered by a table of stored path to json
+   partial: an ordinary field, a keyed row, a row set whole, a ref, the `protected` drop, and the
+   slice refusal.
+2. **Extend the parity test** to the partial, per § The message shape.
+3. **Wire it into the watcher** — the lifted parse, the one collection branch, the four message
+   fields, the never-fail contract.
+4. **A live test**: a field-scoped write through the real handler, read back off the change stream,
+   asserting the partial is exactly the fields that moved in the names the SPA reads. § What proves
+   this works is explicit that the first three do not stand in for this one.
+
+That is the whole server half, additive and consumed by nothing. The client's apply path — the
+coalescer merging, the gap check, the base update — is a separate slice after it, and can be written
+against a delta that is already flowing.
+
 #### What this owes before it is built
 
 **The payload figure is unmeasured**, and this plan does not quote one. It is measured against a

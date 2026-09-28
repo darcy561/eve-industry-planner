@@ -6,8 +6,9 @@ Shared Go libraries under `services/shared` that are not owned by a single servi
 the messaging layer — streams, subjects, publish and consume, and schedules — the Redis handle and
 its keyspace, the backoff loop every retried operation runs through, the outbound HTTP client and ESI
 rate limiter, the JSON encoding policy every service reads and writes through, the shared
-S3-compatible object store and the buckets it holds, and the stored shape of an account's and a job's
-pricing defaults with the schema upgrader that seeds them.
+S3-compatible object store and the buckets it holds, the stored shape of an account's and a job's
+pricing defaults with the schema upgrader that seeds them, and the stored shape of a player's custom
+structures with the decode-time fold and prerelease steps that keep every settings document on it.
 
 ## Does not own
 
@@ -28,6 +29,11 @@ pricing defaults with the schema upgrader that seeds them.
 - Which market and order type a client resolves for a side, and the resolution ladder →
   [frontend/pricing/defaults.md](../../frontend/pricing/defaults.md) (this section owns the stored
   shape and its seed; the frontend owns what reads it)
+- A saved market's own stored fields, and what composes the set an account may price against →
+  [api/market-locations.md](../api/market-locations.md) (this section owns the four build kinds a
+  structure can be; a market is a different shape entirely)
+- What the SPA holds a structure as, the field map that decides what a kind's form asks for, and the
+  rig-conflict rule → [frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md)
 
 ## Task map
 
@@ -83,3 +89,6 @@ pricing defaults with the schema upgrader that seeds them.
 | Read or write an object in the shared object store, or add a bucket | [objectstore.md](./objectstore.md) |
 | Hold a Go and a Deployment Tool bucket list together | [objectstore.md](./objectstore.md) § Buckets |
 | Replay a region's market pages on a 304, or drop a region's pages | [objectstore.md](./objectstore.md) § `MarketPages` |
+| Find a custom structure's stored fields, or which ones a kind carries | [custom-structures.md](./custom-structures.md) § The stored shape |
+| Know why `RigType` is still declared and cannot be removed yet | [custom-structures.md](./custom-structures.md) § Rigs are two slots, on every kind |
+| Know how a settings document is folded onto one array, and when it is converted on disk | [custom-structures.md](./custom-structures.md) § The fold, at decode, § Prerelease steps |

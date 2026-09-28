@@ -39,7 +39,7 @@ until it happens.
 [backend/worker/market-orders.md](../../backend/worker/market-orders.md) and
 [backend/shared/objectstore.md](../../backend/shared/objectstore.md). This folder is **history
 only** — not live SoT — and is kept because market-locations, market-pricing-defaults and
-custom-structure-model cite its stages.
+react-19-idioms cites its stages.
 
 Named for the **work**, not a git branch. **Project close** = plan tracks done + live-SoT **promote**
 (go-ahead).
