@@ -37,9 +37,13 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 
 | I need to… | Read |
 |------------|------|
-| Goals, scope, done-when | [plan.md](./plan.md) |
-| Know why every rig applies to all items, and what reading one against an item would take | [plan.md](./plan.md) § A rig knows what it applies to |
-| Know why a rig's security multipliers and a structure's legality rules do not belong in one table | [plan.md](./plan.md) § A requirement belongs to the thing it describes |
-| Know what is additive, what breaks the wire, and what needs a migration | [plan.md](./plan.md) § A requirement belongs to the thing it describes, **Wire** |
-| Understand the stored-figure gate on the second half | [plan.md](./plan.md) § What it owes another project |
+| Goals, stages, done-when, open questions | [plan.md](./plan.md) |
+| Know which stage to pick up, and why that one | [plan.md](./plan.md) § Start here |
+| See what the three requirement entries actually hold, and everything that points at them | [measurements.md](./measurements.md) § The requirements table, in full |
+| Know why one table read two ways is one problem rather than four | [plan.md](./plan.md) § What one table is doing today |
+| Know why every rig applies to all items, and what reading one against an item would take | [plan.md](./plan.md) § Stage D |
+| See how far manufacturing is from reprocessing's item vocabulary | [measurements.md](./measurements.md) § Manufacturing has no item vocabulary; reprocessing does |
+| Know what is additive, what needs a migration, and what moves a stored figure | [plan.md](./plan.md) § Wire compatibility |
+| Understand the stored-figure gate this owes job-document-drafts | [plan.md](./plan.md) § What it owes another project |
+| Check the `go fix` position before writing Go | [measurements.md](./measurements.md) § `go fix -diff` |
 | Read how this behaves after a slice lands | [overlay.md](./overlay.md) |

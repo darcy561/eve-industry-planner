@@ -6,14 +6,18 @@ wherever this file is silent; where it speaks, it wins for this project's in-fli
 Sections are written as their slice lands, not in advance — an overlay describing work that has not
 happened is a plan, and the plan is [plan.md](./plan.md).
 
-## What a rig helps
+## Stage A — A rig carries its own security multipliers
 
 *Not started.*
 
-## Where a constraint lives
+## Stage B — A constraint is declared where it is read
 
 *Not started.*
 
-## What a setup stops storing
+## Stage C — The setup stops storing what the game decides
+
+*Not started.*
+
+## Stage D — A rig knows which items it helps
 
 *Not started.*
