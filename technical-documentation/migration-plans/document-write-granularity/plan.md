@@ -803,11 +803,12 @@ not moved and read as a gap, costing a reload for nothing. The suppression is wh
 above holds, rather than a coincidence beside it. It also means the parse is wanted twice in one
 function, so it is lifted above the check and passed down rather than done again.
 
-**The reconstruction may never fail the event.** `processChangeEvent` returns an `error`, and the
-planner stream carries `jobs`, `job_groups` and `planner_settings` beside job documents. A path the
-walker cannot resolve must drop the delta and publish the full document exactly as today — never
-return an error — because an event failed over a malformed path would turn a cosmetic problem into
-lost delivery for every collection sharing that stream. Best effort, or nothing.
+**The reconstruction may never fail the event.** A path the walker cannot resolve must drop the delta
+and publish the full document exactly as today, rather than returning an error. A failed
+`processChangeEvent` is logged and the loop continues, so the stream survives — but **that event's
+message is lost outright**: the next event's token save moves the resume point past it and nothing
+redelivers it. So a malformed path would cost a change its whole delivery, not merely its delta. Best
+effort, or nothing.
 
 #### What the breaking half actually removes, and what it costs
 
@@ -820,7 +821,7 @@ It is not a payload edit, though. Three things read the full document on every u
 | Read from the document today | What the breaking half needs |
 |---|---|
 | The owner, for routing — `ownerFromDocument` | `OwnerFromDocumentID` already answers it and already runs, but only when the operation is a `delete` with no preimage. It has to run for every operation type. Load-bearing: a wrong owner delivers a planner's document to the wrong subscribers or to nobody |
-| `sourceClientID` / `sourceSessionID`, which stop the change echoing to the client that caused it | Already solved — `JobWriteStamp` writes the session and client into `_meta` on every field write, so both are in `updatedFields` |
+| `sourceClientID` / `sourceSessionID`, which stop the change echoing to the client that caused it | Already solved. `ApplyMetaSessionClient` sets each only when the caller passes a non-empty value and both are `omitempty`, so a write from a caller sending no websocket client id — the header is optional — stores no `clientID`. `ShouldSuppressRecipient` is written for that: with no client id it falls back to suppressing the whole session, so the author is still not told what it just did, at the cost of the author's other tabs. The lock gate makes the session id non-empty wherever Redis-backed locking is configured |
 | `accountID` | Read from the document root for groups and from `_meta` otherwise |
 
 **And the stream is shared.** `job_documents` is in the `planner` group with `jobs`, `job_groups` and
@@ -832,8 +833,17 @@ stream, so nothing there is affected either way.
 
 #### The message shape, and where the derivation is proved
 
-Both shapes gain the same four fields — `updated`, `removed`, `revision`, `appliesTo` — and both
+Both shapes gain the same four fields — `changed`, `removed`, `revision`, `appliesTo` — and both
 additively.
+
+**The partial is not called `document`, and that is the one place the envelope diverges.** § Whose
+vocabulary travels on the wire takes the Stage C write envelope for delivery, and it is the same
+*shape* — a partial document in the client's field names, beside the paths of rows that went. It cannot
+take the same *key*, because this message already carries a `document` and that one is the whole job.
+So while both travel, the partial is `changed` and
+[job-write/body.json](../../../testing/fixtures/job-write/body.json) pins the shape rather than the
+spelling. When the breaking half removes the full document, `changed` can take the name `document` back
+and the two envelopes become identical in both directions.
 
 - **The NATS message** (`ChangeStreamMessage`) is cross-process and JetStream-persisted, so a rolling
   deploy pairs an old producer with a new consumer and the reverse. Safe in both directions: the
@@ -866,8 +876,9 @@ Four slices, and the first three need no database.
 3. **Wire it into the watcher** — the lifted parse, the one collection branch, the four message
    fields, the never-fail contract.
 4. **A live test**: a field-scoped write through the real handler, read back off the change stream,
-   asserting the partial is exactly the fields that moved in the names the SPA reads. § What proves
-   this works is explicit that the first three do not stand in for this one.
+   asserting the partial is exactly the fields that moved in the names the SPA reads.
+   [overlay.md](./overlay.md) § What proves this works is explicit that the first three do not stand
+   in for this one.
 
 That is the whole server half, additive and consumed by nothing. The client's apply path — the
 coalescer merging, the gap check, the base update — is a separate slice after it, and can be written
