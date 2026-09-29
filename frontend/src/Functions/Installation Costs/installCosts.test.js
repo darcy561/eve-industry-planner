@@ -37,6 +37,8 @@ vi.mock("../../Zustand/usersStore", () => ({
 
 const world = { indexes: {} };
 
+const { pirateFactions } = await import("../../Context/defaultValues.jsx");
+
 const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
 const { jobCostSoFar } = await import("../Groups/jobCostSoFar.js");
 const {
@@ -182,6 +184,58 @@ describe("installCosts", () => {
     const stored = job.build.setup.s1;
 
     expect(calculateInstallCostfromSetup(stored)).toBeGreaterThan(0);
+  });
+});
+
+describe("what the place a job runs in does to its cost", () => {
+  function atTheFulcrum(faction) {
+    return {
+      ...setupFields(),
+      structureID: 4,
+      ...(faction === undefined ? {} : { enlistedFaction: faction }),
+    };
+  }
+
+  it("charges an NPC station's tax however little the setup stored", () => {
+    omega("me");
+
+    const stored = { ...setupFields(), structureID: 0, taxValue: 0 };
+
+    expect(calculateInstallCostfromSetup(stored)).toBe(
+      calculateInstallCostfromSetup({ ...stored, taxValue: 12 }),
+    );
+  });
+
+  it("reduces the surcharge for a character flying for a pirate militia", () => {
+    omega("me");
+
+    const enlisted = calculateInstallCostfromSetup(
+      atTheFulcrum(pirateFactions.guristas),
+    );
+    const notEnlisted = calculateInstallCostfromSetup(atTheFulcrum(null));
+
+    expect(enlisted).toBeLessThan(notEnlisted);
+  });
+
+  it("leaves the surcharge alone for the wrong militia", () => {
+    omega("me");
+
+    expect(calculateInstallCostfromSetup(atTheFulcrum(500003))).toBe(
+      calculateInstallCostfromSetup(atTheFulcrum(null)),
+    );
+  });
+
+  it("leaves the surcharge alone at a place that names no militia", () => {
+    omega("me");
+
+    const npcStation = { ...setupFields(), structureID: 0 };
+
+    expect(
+      calculateInstallCostfromSetup({
+        ...npcStation,
+        enlistedFaction: pirateFactions.guristas,
+      }),
+    ).toBe(calculateInstallCostfromSetup(npcStation));
   });
 });
 

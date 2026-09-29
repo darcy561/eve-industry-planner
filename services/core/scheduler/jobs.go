@@ -21,6 +21,7 @@ type Job struct {
 // here and nowhere else. Expressions are UTC.
 var jobs = []Job{
 	{"cron.industrySystemsRefresh", "50 * * * *", esi.IndustrySystemsRefresh},
+	{"cron.militiaSystemsRefresh", "55 * * * *", esi.MilitiaSystemsRefresh},
 	{"cron.adjustedPricesRefresh", "20 * * * *", esi.AdjustedPricesRefresh},
 	{"cron.regionMarketOrdersRefresh", "*/15 * * * *", esi.RegionMarketOrdersRefresh},
 	{"cron.retireUnaskedMarkets", "40 3 * * *", esi.RetireUnaskedMarkets},

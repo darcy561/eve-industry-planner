@@ -1,11 +1,15 @@
-import reprocessIntoMinerals from "./toMinerals";
-import reprocessFromMinerals from "./fromMinerals";
+import {
+  reprocessFromMinerals,
+  reprocessIntoMinerals,
+} from "./reprocessingRuns";
 import { captureException } from "@sentry/react";
 import { AppEvent } from "../../analytics/appEventNames";
 import { trackAppEvent } from "../../analytics/trackAppEvent";
 
 /**
- * Performs reprocessing calculation based on the current page state
+ * Runs the reprocessing the page is asking for, in whichever direction it is set
+ * to, and hands the result back to the page.
+ *
  * @param {Object} params - The calculation parameters
  * @param {Object} params.pageState - Current page state
  * @param {Object} params.pageActions - Page action functions

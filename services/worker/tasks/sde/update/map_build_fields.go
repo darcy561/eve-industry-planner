@@ -16,16 +16,18 @@ import "eve-industry-planner/worker/tasks/sde/update/conversion"
 var mapBuildFields = map[string][]string{
 	"types.jsonl": {
 		"_key", "published", "name", "marketGroupID", "groupID",
-		"metaGroupID", "raceID", "volume", "basePrice", "graphicID", "portionSize",
+		"metaGroupID", "raceID", "factionID", "volume", "basePrice", "graphicID",
+		"portionSize",
 	},
-	"typeDogma.jsonl":       {"_key", "dogmaAttributes"},
+	"typeDogma.jsonl":       {"_key", "dogmaAttributes", "dogmaEffects"},
 	"mapSolarSystems.jsonl": {"_key", "name"},
 	"marketGroups.jsonl":    {"_key", "name", "parentGroupID"},
 	"groups.jsonl":          {"_key", "categoryID"},
 	"dogmaAttributes.jsonl": {"_key", "name", "description"},
+	"dogmaEffects.jsonl":    {"_key", "modifierInfo"},
 	// The reprocessing conversion ranges every value of the row rather than naming
 	// "materials", so randomizedMaterials (10 rows) contributes to output too.
-	"typeMaterials.jsonl":   {"_key", "materials", "randomizedMaterials"},
+	"typeMaterials.jsonl": {"_key", "materials", "randomizedMaterials"},
 }
 
 // localisedNameFiles names the files whose `name` is an object of translations.

@@ -22,12 +22,18 @@ type SystemIndexesBody struct {
 	RequestedIDs []string `json:"system_ids"`
 }
 
-// SystemIndexesHandler handles POST /api/v1/systemindexes/query with JSON body { system_ids: string[] }.
-// Public: rate limit → handler. Client retries: withRequestRetries (408, 429, 5xx).
-//
-//	405 — not POST
-//	400 — invalid JSON, missing system_ids, empty array, too many IDs, or invalid IDs
-//	200 — JSON map of systemID → index rows; missing Redis keys appear as empty arrays (no per-id 404)
+// militiaHolding is the faction holding a system in factional warfare, and zero
+// for a system no militia holds.
+func (a *Handlers) militiaHolding(ctx context.Context, systemID int32) int32 {
+	var militia esitypes.MilitiaSystem
+	if err := a.Redis.Cache(eipredis.DatasetMilitiaSystems).Entry(ctx, systemID, &militia); err != nil {
+		return 0
+	}
+	return militia.OwnerFactionID
+}
+
+// SystemIndexesHandler answers POST /api/v1/systemindexes/query with each asked
+// system's cost indexes and the militia holding it.
 func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
@@ -115,6 +121,7 @@ func (a *Handlers) SystemIndexesHandler(w http.ResponseWriter, r *http.Request) 
 		} else {
 			systemsFound++
 		}
+		index.MilitiaFactionID = a.militiaHolding(ctx, int32(systemID))
 		result[idStr] = index
 	}
 

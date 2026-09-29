@@ -1,4 +1,4 @@
-import { getStructureInfoFromID } from "../Custom Structures/getStructureInfo";
+import { getStructureInfoFromID } from "../Industry Facilities/getStructureInfo";
 import { industrySkillIDs, jobTypes } from "../../Context/defaultValues";
 /**
  * Calculates the time modifier value for a reaction job setup based on the user's skills, structure, and rig.

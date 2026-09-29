@@ -28,8 +28,12 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	dogmaAttributesData := mapResult.StructuredData["DogmaAttributes"]
 	typeDogmaData := mapResult.StructuredData["TypeDogma"]
 	solarSystemsData := mapResult.StructuredData["SolarSystems"]
+	dogmaEffectsData := mapResult.StructuredData["DogmaEffects"]
+	targetFiltersData := mapResult.StructuredData["IndustryTargetFilters"]
+	modifierSourcesData := mapResult.StructuredData["IndustryModifierSources"]
 	if blueprintsData == nil || typesData == nil || groupsData == nil || typeMaterialsData == nil || marketGroupsData == nil ||
-		dogmaAttributesData == nil || typeDogmaData == nil || solarSystemsData == nil {
+		dogmaAttributesData == nil || typeDogmaData == nil || solarSystemsData == nil ||
+		dogmaEffectsData == nil || targetFiltersData == nil || modifierSourcesData == nil {
 		return nil, fmt.Errorf("missing one or more required structured data maps")
 	}
 
@@ -50,6 +54,8 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	if err != nil {
 		return nil, err
 	}
+	industryBonuses := conversion.GenerateIndustryBonusesOutput(
+		typesData, groupsData, typeDogmaData, dogmaEffectsData, modifierSourcesData, targetFiltersData)
 
 	files := make(map[string][]byte)
 	if err := addJSONFile(files, "output/searchIndex", searchIndex); err != nil {
@@ -73,6 +79,9 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 	if err := addJSONFile(files, "output/inventionModifiers", inventionModifiers); err != nil {
 		return nil, err
 	}
+	if err := addJSONFile(files, "output/industryBonuses", industryBonuses); err != nil {
+		return nil, err
+	}
 
 	logs.DebugCtx(context.Background(), "SDE conversion stage completed (in-memory files ready)",
 		"files_generated", len(files),
@@ -82,6 +91,7 @@ func runSDEConversionStage(mapResult *sdeMapBuildResult) (*sdeConversionResult, 
 		"reprocessing_items", len(reprocessingObjects),
 		"invention_modifier_items", len(inventionModifiers.Items),
 		"solar_systems", len(solarSystems),
+		"industry_bonus_sources", len(industryBonuses.Sources),
 	)
 	return &sdeConversionResult{
 		Files:      files,

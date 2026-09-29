@@ -1,6 +1,7 @@
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import { systemTypeMap } from "../../Context/defaultValues";
-import { getSystemTypeFromID } from "../../Functions/Custom Structures/getStructureInfo";
+import { offerableOptions } from "../../Functions/Industry Facilities/placeConstraints";
+import { getSystemTypeFromID } from "../../Functions/Industry Facilities/getStructureInfo";
 
 /**
  * A select component for choosing system types based on job type.
@@ -22,6 +23,7 @@ import { getSystemTypeFromID } from "../../Functions/Custom Structures/getStruct
 function SystemTypeSelect({
   value = 0,
   jobType = 1,
+  options,
   onChange,
   selectVariant = "standard",
   menuProps = {},
@@ -59,7 +61,7 @@ function SystemTypeSelect({
         }}
         sx={customSelectStyling}
       >
-        {Object.values(systemTypeMap[jobType]).map((entry) => {
+        {(options ?? offerableOptions(systemTypeMap[jobType])).map((entry) => {
           return (
             <MenuItem key={entry.id} value={entry.id}>
               {entry.label}

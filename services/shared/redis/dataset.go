@@ -25,6 +25,7 @@ type CachedDataset string
 const (
 	DatasetMarketPrices    CachedDataset = "market_prices"
 	DatasetIndustrySystems CachedDataset = "industry_systems"
+	DatasetMilitiaSystems  CachedDataset = "militia_systems"
 )
 
 // Dataset lets a cached dataset be used where any dataset is expected.
@@ -35,6 +36,7 @@ func (c CachedDataset) Dataset() Dataset { return Dataset(c) }
 const (
 	ttlMarketPrice    = 24 * time.Hour
 	ttlIndustrySystem = 24 * time.Hour
+	ttlMilitiaSystem  = 24 * time.Hour
 
 	// Expires with the values it would ask ESI to confirm.
 	ttlETag = 24 * time.Hour
@@ -58,10 +60,14 @@ func (c CachedDataset) entryKey(id int32) string {
 
 // entryTTL is how long one of this dataset's values lives.
 func (c CachedDataset) entryTTL() time.Duration {
-	if c == DatasetIndustrySystems {
+	switch c {
+	case DatasetIndustrySystems:
 		return ttlIndustrySystem
+	case DatasetMilitiaSystems:
+		return ttlMilitiaSystem
+	default:
+		return ttlMarketPrice
 	}
-	return ttlMarketPrice
 }
 
 func (c CachedDataset) etagKey() string        { return "esi:" + string(c) + ":etag" }

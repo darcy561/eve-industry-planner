@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClientProvider } from "@tanstack/react-query";
 
@@ -26,7 +25,7 @@ const { jobTypes, rigTypeMap } =
 const ITEM = 34;
 const rigs = rigTypeMap[jobTypes.manufacturing];
 
-function show({ rigSlot1 = 0, rigSlot2 = 0 } = {}) {
+function show({ rigSlot1 = 0, rigSlot2 = 0, structureID = 2 } = {}) {
   store.current = { applicationSettings: { customStructures: [] } };
   const setMaterialJobs = vi.fn();
 
@@ -38,7 +37,7 @@ function show({ rigSlot1 = 0, rigSlot2 = 0 } = {}) {
             id: "setup-1",
             jobType: jobTypes.manufacturing,
             customStructureID: "",
-            structureID: 0,
+            structureID,
             rigSlot1,
             rigSlot2,
             systemTypeID: 0,
@@ -74,16 +73,6 @@ function rigPickers() {
     .filter((box) => box.id?.startsWith("rig-type-select"));
 }
 
-async function fit(picker, rigLabel) {
-  await userEvent.click(picker);
-  await userEvent.click(screen.getByRole("option", { name: rigLabel }));
-}
-
-function storedSetup(setMaterialJobs) {
-  const [changed] = setMaterialJobs.mock.calls.at(-1);
-  return changed[ITEM].build.setup["setup-1"];
-}
-
 describe("fitting a watched item's rigs by hand", () => {
   it("offers a picker for each of the two slots a structure carries", () => {
     show();
@@ -91,22 +80,21 @@ describe("fitting a watched item's rigs by hand", () => {
     expect(rigPickers()).toHaveLength(2);
   });
 
-  it("fits a rig chosen for the second slot to the second slot", async () => {
-    const { setMaterialJobs } = show();
+  it("gives each slot its own field, showing what it holds", () => {
+    show({ rigSlot1: 1 });
 
-    await fit(rigPickers()[1], rigs[2].label);
+    const [first, second] = rigPickers();
 
-    expect(storedSetup(setMaterialJobs).rigSlot2).toBe(2);
-    expect(storedSetup(setMaterialJobs).rigSlot1).toBe(0);
+    expect(first).toHaveValue(rigs[1].label);
+    expect(second).toHaveValue("None");
   });
 
-  it("refuses a rig in the second slot that competes with the first", async () => {
-    const competing = rigs[2].relatedTo[0];
-    const { setMaterialJobs } = show({ rigSlot1: competing });
+  it("empties both slots at a place that allows no rig", () => {
+    show({ structureID: 0, rigSlot1: 1, rigSlot2: 3 });
 
-    await fit(rigPickers()[1], rigs[2].label);
+    const [first, second] = rigPickers();
 
-    expect(storedSetup(setMaterialJobs).rigSlot2).toBe(0);
-    expect(storedSetup(setMaterialJobs).rigSlot1).toBe(competing);
+    expect(first).toHaveValue("None");
+    expect(second).toHaveValue("None");
   });
 });

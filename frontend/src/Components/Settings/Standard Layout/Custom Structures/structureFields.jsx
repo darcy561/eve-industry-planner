@@ -3,7 +3,7 @@ import { Box } from "@mui/material";
 import { FormField } from "../../../../Styled Components/Textfield/FormField";
 import StructureTypeSelect from "../../../../Styled Components/Select/structureType";
 import SystemTypeSelect from "../../../../Styled Components/Select/systemType";
-import RigTypeSelect from "../../../../Styled Components/Select/rigType";
+import VirtualisedRigSearch from "../../../../Styled Components/autocomplete/virtualisedRigSearch";
 import ImplantSelect from "../../../../Styled Components/Select/implantSelector";
 import TaxPercentageTextField from "../../../../Styled Components/Textfield/tax";
 import VirtualisedSystemSearch from "../../../../Styled Components/autocomplete/virtualisedSystemSearch";
@@ -32,11 +32,18 @@ export const STRUCTURE_FIELDS = [
     title: "Structure Type",
     description:
       "The structure type determines the bonuses and available rigs.",
-    render: ({ structure, jobType, fieldProps, onStructureType }) => (
+    render: ({
+      structure,
+      jobType,
+      fieldProps,
+      onStructureType,
+      optionsFor,
+    }) => (
       <StructureTypeSelect
         {...fieldProps}
         value={structure.structureType}
         jobType={jobType}
+        options={optionsFor("structureID")}
         onChange={onStructureType}
       />
     ),
@@ -46,11 +53,13 @@ export const STRUCTURE_FIELDS = [
     shows: (fields) => Boolean(fields.rigSlots),
     title: "Rig slot 1",
     description: RIG_HELP,
-    render: ({ structure, jobType, fieldProps, rigSlots }) => (
-      <RigTypeSelect
-        {...fieldProps}
+    render: ({ structure, jobType, rigSlots, rigSize, catalogue }) => (
+      <VirtualisedRigSearch
         value={structure.rigSlot1}
         jobType={jobType}
+        rigSize={rigSize}
+        catalogue={catalogue}
+        label="Rig slot 1"
         error={rigSlots.slot1.error}
         onChange={rigSlots.slot1.onChange}
       />
@@ -61,11 +70,13 @@ export const STRUCTURE_FIELDS = [
     shows: (fields) => Boolean(fields.rigSlots),
     title: "Rig slot 2",
     description: RIG_HELP,
-    render: ({ structure, jobType, fieldProps, rigSlots }) => (
-      <RigTypeSelect
-        {...fieldProps}
+    render: ({ structure, jobType, rigSlots, rigSize, catalogue }) => (
+      <VirtualisedRigSearch
         value={structure.rigSlot2}
         jobType={jobType}
+        rigSize={rigSize}
+        catalogue={catalogue}
+        label="Rig slot 2"
         error={rigSlots.slot2.error}
         onChange={rigSlots.slot2.onChange}
       />
@@ -92,11 +103,12 @@ export const STRUCTURE_FIELDS = [
     title: "Security Status",
     description:
       "The security status of the system determines the effectiveness of the rigs that are fitted to the structure.",
-    render: ({ structure, jobType, fieldProps, onSystemType }) => (
+    render: ({ structure, jobType, fieldProps, onSystemType, optionsFor }) => (
       <SystemTypeSelect
         {...fieldProps}
         value={structure.systemType}
         jobType={jobType}
+        options={optionsFor("systemTypeID")}
         onChange={onSystemType}
       />
     ),
@@ -107,9 +119,10 @@ export const STRUCTURE_FIELDS = [
     title: "Structure Tax",
     description:
       "Facility tax percentage for using the services at this structure. This is applied when calculating install costs for jobs.",
-    render: ({ structure, textFieldSx, onTax }) => (
+    render: ({ structure, textFieldSx, onTax, isFixed }) => (
       <TaxPercentageTextField
         initialState={structure.tax}
+        disabled={isFixed("taxValue")}
         onBlur={onTax}
         variant="outlined"
         label="Tax %"

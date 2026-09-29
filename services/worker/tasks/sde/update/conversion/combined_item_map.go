@@ -110,6 +110,9 @@ func createEVETypeFromData(itemData map[string]any) *EVEType {
 	if raceID, ok := itemData["raceID"].(float64); ok {
 		item.RaceID = int(raceID)
 	}
+	if factionID, ok := itemData["factionID"].(float64); ok {
+		item.FactionID = int(factionID)
+	}
 	if volume, ok := itemData["volume"].(float64); ok {
 		item.Volume = volume
 	}

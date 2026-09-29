@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { rigsCompete } from "../Functions/Custom Structures/rigs";
+import { rigsCompete } from "../Functions/Industry Facilities/rigs";
 
 const errorText = "Cannot have the same rig or related rigs in both slots";
 
@@ -10,9 +10,10 @@ const errorText = "Cannot have the same rig or related rigs in both slots";
  *
  * @param {{rigSlot1: number, rigSlot2: number}} slots - What is fitted now
  * @param {(slot: string, rigID: number, selectedEntry: object) => void} onChoose - Applies a slot's new rig
+ * @param {number} [jobType] - The kind of job, which names the rigs in the slots
  * @returns {{slot1: object, slot2: object}} A field's `error` and `onChange` per slot
  */
-export default function useRigSlots(slots, onChoose) {
+export default function useRigSlots(slots, onChoose, jobType) {
   const [slot1Error, setSlot1Error] = useState(false);
   const [slot2Error, setSlot2Error] = useState(false);
 
@@ -23,7 +24,7 @@ export default function useRigSlots(slots, onChoose) {
       chosen = 0;
       setSlot1Error(false);
       setSlot2Error(false);
-    } else if (rigsCompete(selectedEntry, otherSlotValue)) {
+    } else if (rigsCompete(selectedEntry, otherSlotValue, jobType)) {
       chosen = 0;
       setThisError(true);
     } else {

@@ -2,14 +2,12 @@ package conversion
 
 import "testing"
 
-// The SPA asks the item list whether a type is a ship, and a type names only its group, so the
-// join has to happen here.
 func TestBuildCategoryByGroupID(t *testing.T) {
 	groups := map[string]any{
-		"25":  map[string]any{"categoryID": float64(6)}, // Frigate
-		"18":  map[string]any{"categoryID": float64(4)}, // Mineral
-		"448": map[string]any{},                         // no category stated
-		"bad": map[string]any{"categoryID": float64(6)}, // not a group id
+		"25":  map[string]any{"categoryID": float64(6)},
+		"18":  map[string]any{"categoryID": float64(4)},
+		"448": map[string]any{},
+		"bad": map[string]any{"categoryID": float64(6)},
 		"7":   "not an object",
 	}
 
@@ -33,8 +31,7 @@ func TestGenerateFullItemListOutputCarriesCategory(t *testing.T) {
 	combined := map[string]*EVEType{
 		"587": {ItemID: 587, Name: "Rifter", MarketGroupID: 25},
 		"34":  {ItemID: 34, Name: "Tritanium", MarketGroupID: 18},
-		// A group the SDE did not give a category for still belongs in the list.
-		"99": {ItemID: 99, Name: "Oddity", MarketGroupID: 448},
+		"99":  {ItemID: 99, Name: "Oddity", MarketGroupID: 448},
 	}
 	byGroupID := map[int]int{25: 6, 18: 4}
 
@@ -48,6 +45,12 @@ func TestGenerateFullItemListOutputCarriesCategory(t *testing.T) {
 	}
 	if out["99"].CategoryID != 0 {
 		t.Errorf("uncategorised item = %d, want 0", out["99"].CategoryID)
+	}
+	if out["587"].GroupID != 25 {
+		t.Errorf("Rifter group = %d, want 25", out["587"].GroupID)
+	}
+	if out["99"].GroupID != 448 {
+		t.Errorf("uncategorised item group = %d, want 448", out["99"].GroupID)
 	}
 	if out["587"].Name != "Rifter" {
 		t.Errorf("Rifter name = %q", out["587"].Name)

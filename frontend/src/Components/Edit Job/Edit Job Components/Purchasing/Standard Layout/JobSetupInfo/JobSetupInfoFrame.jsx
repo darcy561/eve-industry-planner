@@ -5,12 +5,13 @@ import { jobTypes } from "../../../../../../Context/defaultValues";
 import {
   getStructureInfoFromID,
   getSystemTypeFromID,
-} from "../../../../../../Functions/Custom Structures/getStructureInfo";
+} from "../../../../../../Functions/Industry Facilities/getStructureInfo";
 import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
-import { rigSlotLabel } from "../../../../../../Functions/Custom Structures/rigs";
+import { rigSlotLabel } from "../../../../../../Functions/Industry Facilities/rigs";
+import { settledSetup } from "../../../../../../Functions/Industry Facilities/placeConstraints";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 import {
   setupHasOrphanedCustomStructure,
@@ -234,7 +235,9 @@ function UseCustomStructure({ setupEntry }) {
   );
 }
 
-function UseDefaultStructures({ setupEntry }) {
+function UseDefaultStructures({ setupEntry: chosen }) {
+  const setupEntry = settledSetup(chosen);
+
   const structureWasDeleted = setupHasOrphanedCustomStructure(setupEntry);
 
   const structureTypeData = getStructureInfoFromID(

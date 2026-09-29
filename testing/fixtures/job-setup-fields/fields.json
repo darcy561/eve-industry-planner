@@ -1,0 +1,27 @@
+{
+  "why": "Every field a stored job setup carries, as the server names it. An incremental job write resolves each member of the body against this struct and fails the whole write when one has no field here, so a key the SPA writes and the server does not declare drops the save silently. Regenerate with: EIP_UPDATE_JOB_SETUP_FIELDS=1 go test ./shared/models/ -run TestTheJobSetupFieldListIsCurrent",
+  "always": [
+    "ME",
+    "TE",
+    "alternativeSystemIndexValue",
+    "customStructureID",
+    "id",
+    "jobCount",
+    "jobType",
+    "materialCount",
+    "militiaUpgradeLevel",
+    "rawTime",
+    "rigSlot1",
+    "rigSlot2",
+    "runCount",
+    "selectedCharacter",
+    "structureID",
+    "systemID",
+    "systemTypeID",
+    "taxValue",
+    "useAlternativeSystemIndexValue"
+  ],
+  "optional": [
+    "enlistedFaction"
+  ]
+}

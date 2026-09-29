@@ -72,6 +72,13 @@ var (
 		DefaultTimeout:  60 * time.Second,
 		MaxRetries:      3,
 	})
+	RefreshMilitiaSystems = defineTask(Definition{
+		Name:            "refreshMilitiaSystems",
+		Subject:         "task.scheduled.refreshMilitiaSystems",
+		DefaultPriority: Priority3,
+		DefaultTimeout:  60 * time.Second,
+		MaxRetries:      3,
+	})
 	RefreshAdjustedPrices = defineTask(Definition{
 		Name:            "refreshAdjustedPrices",
 		Subject:         "task.scheduled.refreshAdjustedPrices",
@@ -252,6 +259,12 @@ func PublishReconcileOwnerStatistics(ctx context.Context, n *NATS, kind, id stri
 // TriggerRefreshSystemIndexes asks the worker to refresh industry system indexes.
 func TriggerRefreshSystemIndexes(ctx context.Context, n *NATS) error {
 	return trigger(ctx, n, RefreshSystemIndexes)
+}
+
+// TriggerRefreshMilitiaSystems asks the worker to refresh which faction holds
+// each system in factional warfare.
+func TriggerRefreshMilitiaSystems(ctx context.Context, n *NATS) error {
+	return trigger(ctx, n, RefreshMilitiaSystems)
 }
 
 // TriggerRefreshAdjustedPrices asks the worker to refresh adjusted prices.

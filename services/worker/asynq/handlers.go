@@ -33,6 +33,7 @@ func SetupHandlers(mux *asynq.ServeMux, taskDeps *taskrun.Dependencies) error {
 
 	handlers := map[string]asynq.HandlerFunc{}
 	handleTrigger(handlers, eipnats.RefreshSystemIndexes, taskDeps, esi.RefreshSystemIndexes)
+	handleTrigger(handlers, eipnats.RefreshMilitiaSystems, taskDeps, esi.RefreshMilitiaSystems)
 	handleTrigger(handlers, eipnats.RefreshAdjustedPrices, taskDeps, esi.RefreshAdjustedPrices)
 	handle(handlers, eipnats.RefreshRegionMarketOrders, taskDeps, esi.RefreshRegionMarketOrders)
 	handle(handlers, eipnats.DeriveRegionMarketPrices, taskDeps, esi.DeriveRegionMarketPrices)

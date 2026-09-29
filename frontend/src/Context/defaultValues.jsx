@@ -320,17 +320,59 @@ export const industrySkillIDs = {
  * @type {Object}
  * @property {Object} manStructure - Manufacturing structure options
  * @property {Object} manRigs - Manufacturing rig options
- * @property {Object} manSystem - Manufacturing system security modifiers
- * @property {Object} reactionSystem - Reaction system security modifiers
+ * @property {Object} manSystem - Manufacturing system security bands
+ * @property {Object} reactionSystem - Reaction system security bands
  * @property {Object} reactionStructure - Reaction structure options
  * @property {Object} reactionRigs - Reaction rig options
- * @property {Object} reprocessingSystem - Reprocessing system security modifiers
+ * @property {Object} reprocessingSystem - Reprocessing system security bands
  * @property {Object} reprocessingStructure - Reprocessing structure options
  * @property {Object} reprocessingRigs - Reprocessing rig options
  * @property {Object} inventionStructure - Invention structure options
  * @property {Object} inventionRigs - Invention rig options
- * @property {Object} inventionSystem - Invention system security modifiers
+ * @property {Object} inventionSystem - Invention system security bands
  */
+/**
+ * The pirate militias a character can fly for, whose bonuses The Fulcrum carries.
+ *
+ * @type {Object<string, number>}
+ */
+export const pirateFactions = {
+  guristas: 500010,
+  angelCartel: 500011,
+};
+
+/**
+ * The ore kinds each published reprocessing rig group helps, which the game names
+ * in the group rather than in a family.
+ *
+ * @type {Object<number, Array<number>>}
+ */
+export const reprocessingRigFamilies = {
+  1941: [reprocessingItemTypes.ore, reprocessingItemTypes.unrefinedOre],
+  1942: [reprocessingItemTypes.ice],
+  1943: [reprocessingItemTypes.moonOre],
+  1944: [
+    reprocessingItemTypes.ore,
+    reprocessingItemTypes.unrefinedOre,
+    reprocessingItemTypes.moonOre,
+    reprocessingItemTypes.ice,
+  ],
+  1945: [
+    reprocessingItemTypes.ore,
+    reprocessingItemTypes.unrefinedOre,
+    reprocessingItemTypes.moonOre,
+    reprocessingItemTypes.ice,
+  ],
+};
+
+/**
+ * The published family holding capital hulls, which The Fulcrum's bonus stops
+ * short of.
+ *
+ * @type {number}
+ */
+export const capitalShipFamilyID = 11;
+
 export const structureOptions = {
   manStructure: {
     0: {
@@ -339,31 +381,51 @@ export const structureOptions = {
       material: 0,
       time: 0,
       cost: 0,
-      requirementID: 2,
+      npcStation: true,
     },
-    1: { id: 1, label: "Medium", material: 1, time: 0.15, cost: 0.03 },
-    2: { id: 2, label: "Large", material: 1, time: 0.2, cost: 0.04 },
-    3: { id: 3, label: "X-Large", material: 1, time: 0.3, cost: 0.05 },
+    1: {
+      id: 1,
+      label: "Medium",
+      material: 1,
+      time: 0.15,
+      cost: 0.03,
+      rigSize: 2,
+    },
+    2: {
+      id: 2,
+      label: "Large",
+      material: 1,
+      time: 0.2,
+      cost: 0.04,
+      rigSize: 3,
+    },
+    3: {
+      id: 3,
+      label: "X-Large",
+      material: 1,
+      time: 0.3,
+      cost: 0.05,
+      rigSize: 4,
+    },
     4: {
       id: 4,
       label: "The Fulcrum",
-      material: 1.06,
+      npcStation: true,
+      material: 6,
       time: 0.7,
       cost: 0.9,
-      requirementID: 0,
+      appliesTo: {
+        factions: [pirateFactions.angelCartel, pirateFactions.guristas],
+        exceptFamilies: [capitalShipFamilyID],
+      },
     },
   },
 
-  // A real manufacturing rig helps one family of items — ships, modules, drones
-  // — the way a reprocessing rig helps one kind of ore. These entries all carry
-  // appliesToAll because that is what is actually known: a stored setup named a
-  // rig by a combined id that never recorded which items it applied to, so the
-  // bonus can only be read as applying to everything. A rig that helps one
-  // family would leave the flag off and name them instead.
   manRigs: {
     0: { id: 0, label: "None", material: 0, time: 0, relatedTo: [] },
     1: {
       id: 1,
+      security: { 0: 1, 1: 1.9, 2: 2.1 },
       label: "T1 - ME - All",
       material: 2.0,
       time: 0,
@@ -372,6 +434,7 @@ export const structureOptions = {
     },
     2: {
       id: 2,
+      security: { 0: 1, 1: 1.9, 2: 2.1 },
       label: "T2 - ME - All",
       material: 2.4,
       time: 0,
@@ -380,6 +443,7 @@ export const structureOptions = {
     },
     3: {
       id: 3,
+      security: { 0: 1, 1: 1.9, 2: 2.1 },
       label: "T1 - TE - All",
       material: 0,
       time: 0.2,
@@ -388,6 +452,7 @@ export const structureOptions = {
     },
     4: {
       id: 4,
+      security: { 0: 1, 1: 1.9, 2: 2.1 },
       label: "T2 - TE - All",
       material: 0,
       time: 0.24,
@@ -396,29 +461,24 @@ export const structureOptions = {
     },
     9: {
       id: 9,
+      security: { 0: 0.1, 1: 1.9, 2: 0.1 },
       label: "Faction - ME - All",
       material: 3.7,
       time: 0.2,
       relatedTo: [1, 2],
       appliesToAll: true,
-      requirementID: 1,
     },
   },
 
   manSystem: {
-    0: { id: 0, label: "High Sec", value: 1 },
-    1: { id: 1, label: "Low Sec", value: 1.9 },
-    2: { id: 2, label: "Null Sec / WH", value: 2.1 },
-    3: {
-      id: 3,
-      label: "Zarzakh",
-      value: 1,
-      requirementID: 0,
-    },
+    0: { id: 0, label: "High Sec", band: "hiSec" },
+    1: { id: 1, label: "Low Sec", band: "lowSec" },
+    2: { id: 2, label: "Null Sec / WH", band: "nullSec" },
+    3: { id: 3, label: "Zarzakh", band: "hiSec", legacy: true },
   },
   reactionSystem: {
-    0: { id: 0, label: "Low Sec", value: 1 },
-    1: { id: 1, label: "Null Sec / WH", value: 1.1 },
+    0: { id: 0, label: "Low Sec", band: "lowSec" },
+    1: { id: 1, label: "Null Sec / WH", band: "nullSec" },
   },
   reactionStructure: {
     0: { id: 0, label: "Medium", material: 1, time: 0, cost: 0 },
@@ -428,6 +488,7 @@ export const structureOptions = {
     0: { id: 0, label: "None", material: 0, time: 0, relatedTo: [] },
     1: {
       id: 1,
+      security: { 0: 1, 1: 1.1 },
       label: "T1 - ME - All",
       material: 2.0,
       time: 0,
@@ -436,6 +497,7 @@ export const structureOptions = {
     },
     2: {
       id: 2,
+      security: { 0: 1, 1: 1.1 },
       label: "T2 - ME - All",
       material: 2.4,
       time: 0,
@@ -444,6 +506,7 @@ export const structureOptions = {
     },
     3: {
       id: 3,
+      security: { 0: 1, 1: 1.1 },
       label: "T1 - TE - All",
       material: 0,
       time: 0.2,
@@ -452,6 +515,7 @@ export const structureOptions = {
     },
     4: {
       id: 4,
+      security: { 0: 1, 1: 1.1 },
       label: "T2 - TE - All",
       material: 0,
       time: 0.24,
@@ -460,9 +524,9 @@ export const structureOptions = {
     },
   },
   reprocessingSystem: {
-    0: { id: 0, label: "High Sec", value: 0 },
-    1: { id: 1, label: "Low Sec", value: 0.06 },
-    2: { id: 2, label: "Null Sec / WH", value: 0.12 },
+    0: { id: 0, label: "High Sec", band: "hiSec" },
+    1: { id: 1, label: "Low Sec", band: "lowSec" },
+    2: { id: 2, label: "Null Sec / WH", band: "nullSec" },
   },
   reprocessingStructure: {
     0: {
@@ -471,12 +535,27 @@ export const structureOptions = {
       ore: 0,
       gas: 0,
       cost: 0,
+      npcStation: true,
     },
-    1: { id: 1, label: "Medium Refinary", ore: 0.02, gas: 4, cost: 0 },
-    2: { id: 2, label: "Medium Other", ore: 0, gas: 0, cost: 0 },
-    3: { id: 3, label: "Large Refinary", ore: 0.055, gas: 10, cost: 0 },
-    4: { id: 4, label: "Large Other", ore: 0, gas: 0, cost: 0 },
-    5: { id: 5, label: "X-Large Other", ore: 0, gas: 0, cost: 0 },
+    1: {
+      id: 1,
+      label: "Medium Refinary",
+      ore: 0.02,
+      gas: 4,
+      cost: 0,
+      rigSize: 2,
+    },
+    2: { id: 2, label: "Medium Other", ore: 0, gas: 0, cost: 0, rigSize: 2 },
+    3: {
+      id: 3,
+      label: "Large Refinary",
+      ore: 0.055,
+      gas: 10,
+      cost: 0,
+      rigSize: 3,
+    },
+    4: { id: 4, label: "Large Other", ore: 0, gas: 0, cost: 0, rigSize: 3 },
+    5: { id: 5, label: "X-Large Other", ore: 0, gas: 0, cost: 0, rigSize: 4 },
   },
   reprocessingRigs: {
     0: {
@@ -488,6 +567,7 @@ export const structureOptions = {
     },
     1: {
       id: 1,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T1 - Ore",
       value: 1,
       relatedTo: [4, 7, 8],
@@ -498,6 +578,7 @@ export const structureOptions = {
     },
     2: {
       id: 2,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T1 - Moon",
       value: 1,
       relatedTo: [5, 7, 8],
@@ -505,6 +586,7 @@ export const structureOptions = {
     },
     3: {
       id: 3,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T1 - Ice",
       value: 1,
       relatedTo: [6, 7, 8],
@@ -512,6 +594,7 @@ export const structureOptions = {
     },
     4: {
       id: 4,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T2 - Ore",
       value: 3,
       relatedTo: [1, 7, 8],
@@ -522,6 +605,7 @@ export const structureOptions = {
     },
     5: {
       id: 5,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T2 - Moon ",
       value: 3,
       relatedTo: [2, 7, 8],
@@ -529,6 +613,7 @@ export const structureOptions = {
     },
     6: {
       id: 6,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T2 - Ice ",
       value: 3,
       relatedTo: [3, 7, 8],
@@ -536,6 +621,7 @@ export const structureOptions = {
     },
     7: {
       id: 7,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T1 - All",
       value: 1,
       relatedTo: [1, 2, 3, 4, 5, 6, 7, 8],
@@ -548,6 +634,7 @@ export const structureOptions = {
     },
     8: {
       id: 8,
+      security: { 0: 1, 1: 1.06, 2: 1.12 },
       label: "T2 - All",
       value: 3,
       relatedTo: [1, 2, 3, 4, 5, 6, 7, 8],
@@ -560,7 +647,7 @@ export const structureOptions = {
     },
   },
   inventionStructure: {
-    0: { id: 0, label: "NPC Station", time: 0, cost: 0 },
+    0: { id: 0, label: "NPC Station", time: 0, cost: 0, npcStation: true },
     1: { id: 1, label: "Medium - Engineering Complex", time: 0.15, cost: 0.03 },
     2: { id: 2, label: "Medium - Other", time: 0, cost: 0 },
     3: { id: 3, label: "Large - Engineering Complex", time: 0.2, cost: 0.04 },
@@ -620,9 +707,9 @@ export const structureOptions = {
     },
   },
   inventionSystem: {
-    0: { id: 0, label: "High Sec", value: 1 },
-    1: { id: 1, label: "Low Sec", value: 1.9 },
-    2: { id: 2, label: "Null Sec / WH", value: 2.1 },
+    0: { id: 0, label: "High Sec", band: "hiSec" },
+    1: { id: 1, label: "Low Sec", band: "lowSec" },
+    2: { id: 2, label: "Null Sec / WH", band: "nullSec" },
   },
 };
 
@@ -706,58 +793,59 @@ export const customStructureLocationMap = {
 };
 
 /**
- * System structure requirements for different job types.
+ * The solar system The Fulcrum sits in, which is the only place industry runs in
+ * Zarzakh.
  *
- * @type {Object}
- * @property {Object} 30100000 - System ID requirements
- * @property {Array<number>} 30100000.allowedJobTypes - Allowed job types for this system
- * @property {number} 30100000.requirementID - Requirement ID for this system
+ * @type {number}
  */
-export const systemStructureRequirements = {
-  30100000: {
-    allowedJobTypes: [jobTypes.manufacturing],
-    requirementID: 0,
-  },
-};
+export const ZARZAKH_SYSTEM_ID = 30100000;
 
 /**
- * Requirements mapping for structures and rigs.
+ * The security band a setup names when it was built at The Fulcrum, kept so those
+ * setups still read.
  *
- * @type {Object}
- * @property {Object} 0 - The Fulcrum requirements
- * @property {Object} 1 - Thukker Manufacturing Rigs requirements
- * @property {Object} 2 - NPC Station requirements
+ * @type {number}
  */
-export const requirements = {
-  0: {
-    id: 0,
-    rigID: 0,
-    systemTypeID: 3,
-    structureID: 4,
-    systemID: 30100000,
-    taxValue: 0.25,
-    allowedJobTypes: [jobTypes.manufacturing],
-    label: "The Fulcrum - Zarzak",
-  },
-  1: {
-    id: 1,
-    rigID: 9,
-    alternativeSystemValue: {
-      0: 0.1,
-      1: 1.9,
-      2: 0.1,
+export const zarzakhSecurityBandID = 3;
+
+/**
+ * Where a job may be run, and what that place fixes about the setup that runs
+ * there.
+ *
+ * @type {Array<{id: string, label: string, jobTypes: Array<number>|null,
+ * when: Array<Object>, forces: Object, enlistedValues?: Object}>}
+ */
+export const placeConstraints = [
+  {
+    id: "theFulcrum",
+    label: "The Fulcrum",
+    jobTypes: [jobTypes.manufacturing],
+    when: [
+      { structureID: 4 },
+      { systemID: ZARZAKH_SYSTEM_ID },
+      { systemTypeID: zarzakhSecurityBandID },
+    ],
+    forces: {
+      structureID: 4,
+      systemTypeID: 0,
+      systemID: ZARZAKH_SYSTEM_ID,
+      rigSlot1: 0,
+      rigSlot2: 0,
+      taxValue: 0.25,
     },
-    allowedJobTypes: [jobTypes.manufacturing],
-    label: "Thukker Manufacturing Rigs",
+    enlistedValues: {
+      factions: [pirateFactions.angelCartel, pirateFactions.guristas],
+      sccSurchargeReduction: 0.9,
+    },
   },
-  2: {
-    id: 2,
-    rigID: 0,
-    structureID: 0,
-    taxValue: 0.25,
+  {
+    id: "npcStation",
     label: "NPC Station",
+    jobTypes: null,
+    when: [{ structureID: 0 }],
+    forces: { rigSlot1: 0, rigSlot2: 0, taxValue: 0.25 },
   },
-};
+];
 
 /**
  * Defines the SCC surcharge for EVE Online industry jobs.
@@ -766,6 +854,14 @@ export const requirements = {
  * @type {number}
  */
 export const SCC_SURCHARGE = 0.04;
+
+/**
+ * What one level of a holding faction's system upgrades takes off industry cost in
+ * its own NPC stations.
+ *
+ * @type {number}
+ */
+export const MILITIA_DISCOUNT_PER_LEVEL = 0.1;
 
 /**
  * Defines the Alpha clone tax for EVE Online industry jobs.
@@ -889,6 +985,7 @@ export const CACHED_DATA_FILES = {
   INVENTION_MODIFIERS: "INVENTION_MODIFIERS",
   MARKET_GROUPS: "MARKET_GROUPS",
   SOLAR_SYSTEMS: "SOLAR_SYSTEMS",
+  INDUSTRY_BONUSES: "INDUSTRY_BONUSES",
 };
 
 /**

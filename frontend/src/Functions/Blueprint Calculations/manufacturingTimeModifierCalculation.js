@@ -1,4 +1,4 @@
-import { getStructureInfoFromID } from "../Custom Structures/getStructureInfo";
+import { getStructureInfoFromID } from "../Industry Facilities/getStructureInfo";
 import { industrySkillIDs, jobTypes } from "../../Context/defaultValues";
 
 /**

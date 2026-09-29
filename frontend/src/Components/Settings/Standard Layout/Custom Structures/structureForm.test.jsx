@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 
@@ -63,8 +63,8 @@ describe("the structure form", () => {
     renderForm();
 
     expect(screen.getByText("Display name")).toBeInTheDocument();
-    expect(screen.getByText("Rig slot 1")).toBeInTheDocument();
-    expect(screen.getByText("Rig slot 2")).toBeInTheDocument();
+    expect(screen.getAllByText("Rig slot 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rig slot 2").length).toBeGreaterThan(0);
     expect(screen.getByText("Solar System")).toBeInTheDocument();
     expect(screen.getAllByText("Structure Type").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Security Status").length).toBeGreaterThan(0);
@@ -114,52 +114,52 @@ describe("the structure form", () => {
 });
 
 describe("fitting two rigs", () => {
-  function fieldHolding(title) {
-    let node = screen.getByText(title);
-    while (node && !node.querySelector('[role="combobox"]')) {
-      node = node.parentElement;
+  it("gives each slot its own field", () => {
+    renderForm();
+
+    expect(screen.getAllByText("Rig slot 1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rig slot 2").length).toBeGreaterThan(0);
+  });
+
+  it("holds no rig at an NPC station, which takes none", async () => {
+    renderForm();
+
+    const slots = await screen.findAllByLabelText(/Rig slot/);
+
+    for (const slot of slots) {
+      expect(slot).toHaveValue("None");
     }
-    return node;
+  });
+});
+
+describe("leaving a place that fixes a structure's other choices", () => {
+  function structurePicker() {
+    return screen
+      .getAllByRole("combobox")
+      .find((box) => box.id?.startsWith("structure-type-select"));
   }
 
-  async function chooseRig(slotLabel, rigLabel) {
-    await userEvent.click(
-      within(fieldHolding(slotLabel)).getByRole("combobox"),
-    );
-    await userEvent.click(screen.getByRole("option", { name: rigLabel }));
+  function pick(name) {
+    fireEvent.mouseDown(structurePicker());
+    fireEvent.click(screen.getByRole("option", { name }));
   }
 
-  it("takes a rig in each slot when they do not compete", () => {
+  it("still offers every structure once The Fulcrum is chosen", () => {
     renderForm();
 
-    expect(screen.getByText("Rig slot 1")).toBeInTheDocument();
-    expect(screen.getByText("Rig slot 2")).toBeInTheDocument();
+    pick("The Fulcrum");
+    fireEvent.mouseDown(structurePicker());
+
+    expect(screen.getAllByRole("option").length).toBeGreaterThan(1);
   });
 
-  it("refuses a rig that competes with the one already fitted", async () => {
+  it("lets a reader choose their way back out again", () => {
     renderForm();
 
-    await chooseRig("Rig slot 1", "T1 - ME - All");
-    await chooseRig("Rig slot 2", "T2 - ME - All");
+    pick("The Fulcrum");
+    pick("Large");
 
-    expect(
-      screen.getByText(
-        "Cannot have the same rig or related rigs in both slots",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("takes a rig that does something else", async () => {
-    renderForm();
-
-    await chooseRig("Rig slot 1", "T1 - ME - All");
-    await chooseRig("Rig slot 2", "T1 - TE - All");
-
-    expect(
-      screen.queryByText(
-        "Cannot have the same rig or related rigs in both slots",
-      ),
-    ).not.toBeInTheDocument();
+    expect(structurePicker()).toHaveTextContent("Large");
   });
 });
 

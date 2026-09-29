@@ -3,7 +3,7 @@ import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { FormControl, FormHelperText } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { systemStructureRequirements } from "../../Context/defaultValues";
+import { jobTypesAllowedIn } from "../../Functions/Industry Facilities/placeConstraints";
 import { useSolarSystemNames } from "../../Hooks/useSolarSystemNames";
 import GLOBAL_CONFIG from "../../global-config-app";
 import {
@@ -21,7 +21,8 @@ const defaultAutocompleteFilter = createFilterOptions();
 
 /**
  * A virtualized autocomplete component for searching EVE Online solar systems.
- * Uses TanStack Virtual for performance and filters systems based on job type requirements.
+ * Uses TanStack Virtual for performance and offers only the systems that allow the
+ * kind of job being planned.
  *
  * @param {Object} props - Component props
  * @param {number} [props.selectedValue=0] - Currently selected system ID
@@ -34,6 +35,7 @@ function VirtualisedSystemSearch({
   selectedValue = 0,
   updateSelectedValue,
   jobType = null,
+  disabled = false,
   appShellStyled = false,
 }) {
   const theme = useTheme();
@@ -69,13 +71,8 @@ function VirtualisedSystemSearch({
     const options = [];
     for (const [systemID, name] of Object.entries(systemNames)) {
       const id = Number(systemID);
-      const availableJobTypes =
-        systemStructureRequirements[id]?.allowedJobTypes || [];
-      if (
-        jobType === null ||
-        availableJobTypes.length === 0 ||
-        availableJobTypes.includes(jobType)
-      ) {
+      const allowed = jobTypesAllowedIn(id);
+      if (jobType === null || allowed === null || allowed.includes(jobType)) {
         options.push({ id, name });
       }
     }
@@ -147,6 +144,7 @@ function VirtualisedSystemSearch({
     >
       <Autocomplete
         id="System Search"
+        disabled={disabled}
         value={
           optionsByID[selectedValue] ?? optionsByID[DEFAULT_SYSTEM] ?? null
         }

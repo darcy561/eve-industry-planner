@@ -1,12 +1,3 @@
-/**
- * Install cost estimates — the setup formula and the sum of those estimates
- * across a job's setups.
- *
- * What a job's installs actually cost is `totalInstallCost` in `jobSelectors`:
- * the ESI jobs linked to it. Only getJobInstallCostForPlanning mixes the two,
- * and only to stand in with estimates before anything is linked.
- */
-
 import findSystemIndexForJob from "../Helper/findSystemIndexValue";
 import {
   structureTypeMap,
@@ -17,15 +8,16 @@ import {
 import useUsersStore from "../../Zustand/usersStore";
 import { readAdjustedPriceForType } from "../MarketData/prices/marketPriceForType.js";
 import { quotedCharacterHash } from "../Skills/quotedCharacter";
+import {
+  enlistedValuesFor,
+  settledFieldFor,
+} from "../Industry Facilities/placeConstraints";
+import enlistedFactionForSetup from "../Industry Facilities/enlistedFaction";
+import militiaDiscountForSetup from "../Industry Facilities/militiaDiscount";
 import { costOfInstalls } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
- * Calculates the install cost for a single setup (per job slot, before × jobCount).
- *
- * Takes the setup as it is stored as readily as an instance of the class built
- * over it: every figure it reads is a field of the row, and the job being edited
- * holds plain rows. A setup carrying none of them costs nothing either way,
- * because the material count it prices is what the estimate is made of.
+ * What installing one setup costs, for one job slot.
  *
  * @param {Setup|Object} setup
  * @param {Object} [additionalSystemIndexValues]
@@ -37,30 +29,27 @@ export function calculateInstallCostfromSetup(
 ) {
   if (!setup || typeof setup !== "object") return 0;
 
-  // Nothing to price means nothing to charge for, and the answer would be zero
-  // anyway — every term below is a share of this. It is a guard rather than a
-  // shortcut because a setup this incomplete usually has no job type either,
-  // and the facility lookup indexes a map by that before it checks anything.
   const estimatedItemValue = estimatedItemPriceCalc(
     setup.materialCount,
     setup.jobCount,
   );
   if (!estimatedItemValue) return 0;
 
+  const militiaDiscount = militiaDiscountForSetup(setup);
   const facilityModifier = findFacilityModifier(
-    setup.structureID,
+    settledFieldFor(setup, "structureID", setup.structureID),
     setup.jobType,
   );
 
   const facilityTax = findFacilityTax(
     setup.customStructureID,
-    setup.structureID,
+    settledFieldFor(setup, "structureID", setup.structureID),
     setup.jobType,
-    setup.taxValue,
+    settledFieldFor(setup, "taxValue", setup.taxValue),
   );
 
   const systemIndexValue = findSystemIndexForJob(
-    setup.systemID,
+    settledFieldFor(setup, "systemID", setup.systemID),
     setup.jobType,
     setup.useAlternativeSystemIndexValue,
     setup.alternativeSystemIndexValue,
@@ -68,15 +57,22 @@ export function calculateInstallCostfromSetup(
   );
 
   const cloneValue = findCloneValue(quotedCharacterHash(setup));
+  const surcharge =
+    SCC_SURCHARGE *
+    (1 -
+      (enlistedValuesFor(setup, enlistedFactionForSetup(setup))
+        .sccSurchargeReduction ?? 0));
 
   const taxModifierTotal =
     estimatedItemValue *
-    (systemIndexValue * facilityModifier +
+    (systemIndexValue * (1 - militiaDiscount) * facilityModifier +
       facilityTax +
-      SCC_SURCHARGE +
+      surcharge +
       cloneValue);
 
-  const systemIndexDeduction = Math.ceil(systemIndexValue * estimatedItemValue);
+  const systemIndexDeduction = Math.ceil(
+    systemIndexValue * estimatedItemValue * (1 - militiaDiscount),
+  );
 
   const facilityBonusDeduction = Math.ceil(
     facilityModifier * systemIndexDeduction,
@@ -103,11 +99,8 @@ export function sumSetupInstallCostEstimates(setups) {
 }
 
 /**
- * Edit job / planning rollups: what the linked ESI jobs cost once any are
- * linked, and the setup estimates until they are.
- *
- * A linked job that has not reported a cost yet is still linked, so the
- * estimates do not come back once the build has started.
+ * What a job's installs cost: the linked ESI jobs once any are linked, and the
+ * setup estimates until they are.
  *
  * @param {Job} job
  * @returns {number}

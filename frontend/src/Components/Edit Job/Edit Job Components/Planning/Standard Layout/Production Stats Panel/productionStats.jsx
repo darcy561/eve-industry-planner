@@ -38,7 +38,6 @@ export function ProductionStats() {
         itemID,
         jobID,
       }),
-    // The ids are a string because the list is rebuilt on every read of it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [jobArray, parentKey, findJobInJobArray, itemID, jobID],
   );
@@ -47,7 +46,7 @@ export function ProductionStats() {
 
   const totalQuantityProduced = quantityProduced(setups, itemsProducedPerRun);
   const timeDisplayFigure = formatTimeDuration(
-    calculateTimeForSetup(selectedSetup, skills, queryClient),
+    calculateTimeForSetup(selectedSetup, skills, queryClient, itemID),
   );
   const parentRequirements = calculateParentRequirements();
 

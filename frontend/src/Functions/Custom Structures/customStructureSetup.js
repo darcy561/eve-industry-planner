@@ -61,3 +61,27 @@ export function setupFieldsFromCustomStructure(structure) {
     taxValue: structure.tax,
   };
 }
+
+/**
+ * The same fields named the way a stored custom structure names them, for writing
+ * back what a setup-shaped reader worked out.
+ *
+ * @param {Object} fields - Fields in a setup's vocabulary
+ * @returns {Object} The same values under a structure's own field names
+ */
+export function customStructureFieldsFromSetup(fields) {
+  const byStructureName = {
+    structureID: "structureType",
+    systemTypeID: "systemType",
+    taxValue: "tax",
+    rigSlot1: "rigSlot1",
+    rigSlot2: "rigSlot2",
+    systemID: "systemID",
+  };
+
+  return Object.fromEntries(
+    Object.entries(fields)
+      .filter(([field]) => Object.hasOwn(byStructureName, field))
+      .map(([field, value]) => [byStructureName[field], value]),
+  );
+}

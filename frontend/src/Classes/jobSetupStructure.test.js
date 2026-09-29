@@ -76,31 +76,27 @@ describe("fitting a rig to one of a setup's two slots", () => {
     expect(built.rigSlot2).toBe(0);
   });
 
-  it("carries the requirement a first-slot rig names", () => {
-    const withRequirement = Object.values(
-      rigTypeMap[jobTypes.manufacturing],
-    ).find((rig) => rig.requirementID !== undefined);
-    expect(withRequirement).toBeDefined();
+  it("sets only the slot it was given when a rig is fitted", () => {
+    const built = setup({ rigSlot2: 3 });
 
-    const built = setup();
+    built.updateRigSlot("rigSlot1", rigTypeMap[jobTypes.manufacturing][9]);
 
-    built.updateRigSlot("rigSlot1", withRequirement);
-
-    expect(built.appliedRequirementID).toBe(withRequirement.requirementID);
+    expect(built.rigSlot1).toBe(9);
+    expect(built.rigSlot2).toBe(3);
   });
 
-  it("leaves the requirement alone for a second-slot rig", () => {
-    const withRequirement = Object.values(
-      rigTypeMap[jobTypes.manufacturing],
-    ).find((rig) => rig.requirementID !== undefined);
-
+  it("fits a rig the game publishes, which carries no flat figure", () => {
+    const published = {
+      id: 46633,
+      label: "Asteroid Ore Grading Processor I",
+      groupID: 1941,
+      bonuses: [{ activity: "reprocessing", axis: "value", value: 1 }],
+    };
     const built = setup();
-    const before = built.appliedRequirementID;
 
-    built.updateRigSlot("rigSlot2", withRequirement);
+    built.updateRigSlot("rigSlot1", published);
 
-    expect(built.rigSlot2).toBe(withRequirement.id);
-    expect(built.appliedRequirementID).toBe(before);
+    expect(built.rigSlot1).toBe(46633);
   });
 
   it("ignores something that is not a rig", () => {

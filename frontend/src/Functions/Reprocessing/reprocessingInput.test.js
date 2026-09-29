@@ -12,7 +12,7 @@ vi.mock("../Helper/getCachedData", async () => {
 
 const { primeReprocessing, resetReprocessing } =
   await import("../Static/reprocessing.js");
-const { default: parseReprocessingInput } = await import("./parseOreInput.js");
+const { parseReprocessingInput } = await import("./reprocessingInput.js");
 
 const FILE = {
   1230: {

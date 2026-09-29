@@ -21,14 +21,17 @@ const (
 )
 
 var requiredFiles = map[string]string{
-	"blueprints.jsonl":      "Blueprints",
-	"types.jsonl":           "Types",
-	"groups.jsonl":          "Groups",
-	"typeMaterials.jsonl":   "TypeMaterials",
-	"marketGroups.jsonl":    "MarketGroups",
-	"dogmaAttributes.jsonl": "DogmaAttributes",
-	"typeDogma.jsonl":       "TypeDogma",
-	"mapSolarSystems.jsonl": "SolarSystems",
+	"blueprints.jsonl":              "Blueprints",
+	"types.jsonl":                   "Types",
+	"groups.jsonl":                  "Groups",
+	"typeMaterials.jsonl":           "TypeMaterials",
+	"marketGroups.jsonl":            "MarketGroups",
+	"dogmaAttributes.jsonl":         "DogmaAttributes",
+	"typeDogma.jsonl":               "TypeDogma",
+	"mapSolarSystems.jsonl":         "SolarSystems",
+	"dogmaEffects.jsonl":            "DogmaEffects",
+	"industryTargetFilters.jsonl":   "IndustryTargetFilters",
+	"industryModifierSources.jsonl": "IndustryModifierSources",
 }
 
 // sdeDownloadResult carries the downloaded archive to the map-build stage.

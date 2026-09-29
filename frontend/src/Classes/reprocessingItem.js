@@ -1,13 +1,11 @@
 import { jobTypes, reprocessingItemTypes } from "../Context/defaultValues";
-import {
-  getImplantFromID,
-  getSystemTypeFromID,
-} from "../Functions/Custom Structures/getStructureInfo";
+import { getImplantFromID } from "../Functions/Industry Facilities/getStructureInfo";
 import { reprocessFromItemType } from "../Functions/Reprocessing/reprocessingFormulas";
 import {
   rigBonusFor,
+  rigSecurityFor,
   structureBonusFor,
-} from "../Functions/Reprocessing/structureBonuses";
+} from "../Functions/Reprocessing/reprocessingBonuses";
 import { structureFromDocument } from "../Functions/Custom Structures/customStructure";
 
 const reprocessingSkillTypeID = 3385;
@@ -16,35 +14,9 @@ const reprocessingEffSkillTypeID = 3389;
 /**
  * ReprocessingItem class for EVE Online reprocessing calculations and management.
  *
- * @class ReprocessingItem
- * @example
- * // Create a new reprocessing item
- * const ore = new ReprocessingItem({
- * id: 12345,
- * name: 'Veldspar',
- * materials: { 34: 100 },
- * batchSize: 100,
- * itemType: reprocessingItemTypes.ore,
- * reprocessingSkill: 12196
- * });
- *
- * @example
- * // Add quantity and reprocess materials
- * ore.addToTotalQuantity(1000);
- * ore.reprocessMaterials(skillsMap, reprocessingStructure);
- * console.log('Yield:', ore.percentageYield);
- * console.log('Output:', ore.reprocessedMaterials);
- *
- * @example
- * // Calculate reprocessable quantity
- * ore.setTotalQuantity(1500);
- * console.log('Reprocessable:', ore.reprocessableQuantity);
- * console.log('Remaining:', ore.remainingQuantity);
  */
 class ReprocessingItem {
   /**
-   * Creates a new ReprocessingItem instance.
-   *
    * @param {Object} ore - Ore/item data object
    * @param {number} ore.id - Item ID
    * @param {string} ore.name - Item name
@@ -114,13 +86,6 @@ class ReprocessingItem {
    * @param {Object} [reprocessingSkillsMap={}] - Map of skill type IDs to levels
    * @param {Object} [reprocessingStructure] - Structure configuration; an NPC station when absent
    *
-   * @example
-   * // Reprocess with skills and structure
-   * ore.reprocessMaterials({
-   * 3385: 5,  // Reprocessing V
-   * 3389: 4,  // Reprocessing Efficiency IV
-   * 12196: 3  // Veldspar Processing III
-   * }, myReprocessingStructure);
    */
   reprocessMaterials(
     reprocessingSkillsMap = {},
@@ -139,13 +104,8 @@ class ReprocessingItem {
       this.itemType,
     );
 
-    const systemValue =
-      getSystemTypeFromID(
-        reprocessingStructure.jobType,
-        reprocessingStructure.systemType,
-      )?.value ?? 0;
-
     const rigValue = rigBonusFor(reprocessingStructure, this.itemType);
+    const rigSecurity = rigSecurityFor(reprocessingStructure, this.itemType);
     const implantValue =
       getImplantFromID(
         reprocessingStructure.jobType,
@@ -155,7 +115,7 @@ class ReprocessingItem {
     this.percentageYield = reprocessFromItemType(
       this.itemType,
       rigValue,
-      systemValue,
+      rigSecurity,
       structureValue,
       reprocessingLvl,
       reprocessingEffLvl,

@@ -68,7 +68,7 @@ describe("a card for one of the job's setups", () => {
     show();
 
     expect(screen.getByText(/Est Total Install Costs:/).textContent).toBe(
-      "Est Total Install Costs: 45,000.00",
+      "Est Total Install Costs: 46,250.00",
     );
   });
 

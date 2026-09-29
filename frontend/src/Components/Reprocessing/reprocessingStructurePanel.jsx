@@ -4,7 +4,9 @@ import { Box, Divider } from "@mui/material";
 import StructureTypeSelect from "../../Styled Components/Select/structureType";
 import { jobTypes } from "../../Context/defaultValues";
 import SystemTypeSelect from "../../Styled Components/Select/systemType";
-import RigTypeSelect from "../../Styled Components/Select/rigType";
+import VirtualisedRigSearch from "../../Styled Components/autocomplete/virtualisedRigSearch";
+import { useIndustryBonuses } from "../../Hooks/Static/useIndustryBonuses";
+import { getStructureInfoFromID } from "../../Functions/Industry Facilities/getStructureInfo";
 import SkillSelector from "../../Styled Components/Select/skillSelector";
 import getAllReprocessingSkills from "../../Functions/Skills/getAllReprocessingSkills";
 import AssignUsersSelect from "../../Styled Components/Select/users";
@@ -61,10 +63,19 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageState.selectedUser, skillsLoading, skillsError]);
 
-  const rigSlots = useRigSlots(pageState.currentStructure, (slot, rigID) =>
-    pageActions.setCurrentStructure(
-      updateStructure(pageState.currentStructure, { [slot]: rigID }),
-    ),
+  const { catalogue } = useIndustryBonuses();
+  const rigSize = getStructureInfoFromID(
+    jobTypes.reprocessing,
+    pageState.currentStructure?.structureType,
+  )?.rigSize;
+
+  const rigSlots = useRigSlots(
+    pageState.currentStructure,
+    (slot, rigID) =>
+      pageActions.setCurrentStructure(
+        updateStructure(pageState.currentStructure, { [slot]: rigID }),
+      ),
+    jobTypes.reprocessing,
   );
 
   return (
@@ -104,17 +115,23 @@ function ReprocessingStructurePanel({ pageState, pageActions }) {
       </Box>
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
         <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
-          <RigTypeSelect
+          <VirtualisedRigSearch
             value={pageState.currentStructure.rigSlot1}
             jobType={jobTypes.reprocessing}
+            rigSize={rigSize}
+            catalogue={catalogue}
+            label="Rig slot 1"
             error={rigSlots.slot1.error}
             onChange={rigSlots.slot1.onChange}
           />
         </Box>
         <Box sx={{ flexBasis: "calc(50% - 8px)", minWidth: 0 }}>
-          <RigTypeSelect
+          <VirtualisedRigSearch
             value={pageState.currentStructure.rigSlot2}
             jobType={jobTypes.reprocessing}
+            rigSize={rigSize}
+            catalogue={catalogue}
+            label="Rig slot 2"
             error={rigSlots.slot2.error}
             onChange={rigSlots.slot2.onChange}
           />

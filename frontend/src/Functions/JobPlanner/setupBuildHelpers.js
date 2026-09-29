@@ -155,7 +155,7 @@ export function buildSetupFromQuantity(
     jobType: job.jobType,
   });
 
-  newSetup.recalculateMaterials(job.rawData.materials);
+  newSetup.recalculateMaterials(job.rawData.materials, job.itemID);
   return newSetup.toDocument();
 }
 
@@ -170,6 +170,6 @@ export function recalculateSetupMaterials(job, setupID) {
   if (!row) return;
 
   const setup = new Setup(row);
-  setup.recalculateMaterials(job.rawData?.materials);
+  setup.recalculateMaterials(job.rawData?.materials, job?.itemID);
   job.build.setup[setupID] = setup.toDocument();
 }

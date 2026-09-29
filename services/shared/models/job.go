@@ -123,7 +123,8 @@ type JobSetup struct {
 	MaterialCount                  map[string]MaterialCount `json:"materialCount" bson:"materialCount"`
 	RawTime                        float64                  `json:"rawTime" bson:"rawTime"`
 	JobType                        int                      `json:"jobType" bson:"jobType"`
-	AppliedRequirementID           int64                    `json:"appliedRequirementID" bson:"appliedRequirementID"`
+	EnlistedFaction                *int64                   `json:"enlistedFaction,omitempty" bson:"enlistedFaction,omitempty"`
+	MilitiaUpgradeLevel            int                      `json:"militiaUpgradeLevel" bson:"militiaUpgradeLevel"`
 	AlternativeSystemIndexValue    float64                  `json:"alternativeSystemIndexValue" bson:"alternativeSystemIndexValue"`
 	UseAlternativeSystemIndexValue bool                     `json:"useAlternativeSystemIndexValue" bson:"useAlternativeSystemIndexValue"`
 }

@@ -26,6 +26,7 @@ function coercePercentToNumber(value) {
  *   save is going to be refused for
  * @param {number} [props.initialState] - Initial value for the text field
  * @param {Function} props.onBlur - Callback function called on blur. Receives the rounded percentage value.
+ * @param {boolean} [props.disabled] - Given when the place fixes the rate
  * @returns {JSX.Element} Tax percentage text field component
  */
 function TaxPercentageTextField({
@@ -36,6 +37,7 @@ function TaxPercentageTextField({
   variant = "standard",
   label,
   helperText = "Tax Percentage",
+  disabled = false,
   sx: sxProp,
 }) {
   const [inputValue, updateInputValue] = useState(() =>
@@ -57,6 +59,7 @@ function TaxPercentageTextField({
       variant={variant}
       label={label}
       helperText={helperText}
+      disabled={disabled}
       type="number"
       sx={[
         {

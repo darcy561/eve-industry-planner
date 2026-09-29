@@ -9,7 +9,8 @@ import {
   structureTypeMap,
   structureTypeTooltip,
 } from "../../Context/defaultValues";
-import { getStructureInfoFromID } from "../../Functions/Custom Structures/getStructureInfo";
+import { offerableOptions } from "../../Functions/Industry Facilities/placeConstraints";
+import { getStructureInfoFromID } from "../../Functions/Industry Facilities/getStructureInfo";
 
 /**
  * A select component for choosing structure types based on job type.
@@ -31,6 +32,7 @@ import { getStructureInfoFromID } from "../../Functions/Custom Structures/getStr
 function StructureTypeSelect({
   value = 0,
   jobType = 1,
+  options,
   onChange,
   selectVariant = "standard",
   menuProps = {},
@@ -71,13 +73,15 @@ function StructureTypeSelect({
           }}
           sx={customSelectStyling}
         >
-          {Object.values(structureTypeMap[jobType]).map((entry) => {
-            return (
-              <MenuItem key={entry.id} value={entry.id}>
-                {entry.label}
-              </MenuItem>
-            );
-          })}
+          {(options ?? offerableOptions(structureTypeMap[jobType])).map(
+            (entry) => {
+              return (
+                <MenuItem key={entry.id} value={entry.id}>
+                  {entry.label}
+                </MenuItem>
+              );
+            },
+          )}
         </Select>
         <FormHelperText
           id="structure-type-helper"

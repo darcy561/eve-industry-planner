@@ -10,6 +10,15 @@ type SystemIndexes struct {
 	Copying          float64 `json:"copying,omitzero"`
 	Invention        float64 `json:"invention,omitzero"`
 	Reaction         float64 `json:"reaction,omitzero"`
+	// MilitiaFactionID is the faction holding the system in factional warfare,
+	// absent for a system no militia holds.
+	MilitiaFactionID int32 `json:"militiaFactionID,omitzero"`
+}
+
+// MilitiaSystem is one solar system's standing in factional warfare.
+type MilitiaSystem struct {
+	SolarSystemID  int32 `json:"solar_system_id"`
+	OwnerFactionID int32 `json:"owner_faction_id"`
 }
 
 // AdjustedPrice is the normalised structure used internally (only adjusted price per user request).

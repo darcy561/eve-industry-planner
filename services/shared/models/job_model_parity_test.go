@@ -388,7 +388,8 @@ func TestJob_JSON_DisallowUnknownFields_representativePlannerDocument(t *testing
 					},
 					"rawTime": 1500000,
 					"jobType": 1,
-					"appliedRequirementID": -1,
+					"enlistedFaction": 500011,
+					"militiaUpgradeLevel": 3,
 					"alternativeSystemIndexValue": 0,
 					"useAlternativeSystemIndexValue": false
 				}

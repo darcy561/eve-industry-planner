@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   getRigInfoFromID,
@@ -6,7 +6,13 @@ import {
   rigSlotLabel,
   rigsCompete,
 } from "./rigs";
-import { jobTypes, rigTypeMap } from "../../Context/defaultValues";
+import {
+  jobTypes,
+  rigTypeMap,
+  systemTypeMap,
+} from "../../Context/defaultValues";
+import { offerableOptions } from "./placeConstraints";
+import * as industryBonuses from "./industryBonuses";
 
 const kind = jobTypes.manufacturing;
 const table = rigTypeMap[kind];
@@ -111,11 +117,109 @@ describe("what two fitted rigs give", () => {
     }
   });
 
-  it("keeps the faction rig whole", () => {
-    const faction = rigSlotBonuses(kind, 9, 0);
+  it("scales a rig's material figure by its own multiplier for the band", () => {
+    expect(rigSlotBonuses(kind, 1, 0, 0).material).toBeCloseTo(2.0, 10);
+    expect(rigSlotBonuses(kind, 1, 0, 1).material).toBeCloseTo(3.8, 10);
+    expect(rigSlotBonuses(kind, 1, 0, 2).material).toBeCloseTo(4.2, 10);
+  });
 
-    expect(faction.material).toBe(3.7);
-    expect(faction.time).toBe(0.2);
+  it("gives the faction rig its own band multipliers, not the standard ones", () => {
+    expect(rigSlotBonuses(kind, 9, 0, 0).material).toBeCloseTo(0.37, 10);
+    expect(rigSlotBonuses(kind, 9, 0, 1).material).toBeCloseTo(7.03, 10);
+    expect(rigSlotBonuses(kind, 9, 0, 2).material).toBeCloseTo(0.37, 10);
+  });
+
+  it("leaves time unscaled by the band", () => {
+    for (const band of [0, 1, 2]) {
+      expect(rigSlotBonuses(kind, 9, 0, band).time).toBe(0.2);
+    }
+  });
+
+  it("takes the better scaled figure, not the better raw one", () => {
+    const nullSec = rigSlotBonuses(kind, 1, 9, 2);
+
+    expect(nullSec.material).toBeCloseTo(4.2, 10);
+  });
+
+  it("gives every rig on a security-scaled axis its own multipliers", () => {
+    for (const kindName of ["manufacturing", "reaction", "reprocessing"]) {
+      const jobType = jobTypes[kindName];
+      const bands = offerableOptions(systemTypeMap[jobType]).map((band) =>
+        String(band.id),
+      );
+
+      for (const rig of Object.values(rigTypeMap[jobType])) {
+        if (!rig.material && !rig.value) continue;
+        expect({
+          kindName,
+          id: rig.id,
+          bands: Object.keys(rig.security ?? {}),
+        }).toEqual({ kindName, id: rig.id, bands });
+      }
+    }
+  });
+
+  it("gives a rig in a band no rig is rated for its bonus unscaled", () => {
+    const legacyBand = 3;
+
+    expect(rigSlotBonuses(kind, 1, 0, legacyBand).material).toBe(2.0);
+    expect(rigSlotBonuses(kind, 9, 0, legacyBand).material).toBe(3.7);
+  });
+
+  it("leaves invention rigs without multipliers, because no axis scales", () => {
+    for (const rig of Object.values(rigTypeMap[jobTypes.invention])) {
+      expect(rig.security).toBeUndefined();
+    }
+  });
+
+  it("makes two published rigs of one group compete", () => {
+    const published = {
+      id: 46633,
+      groupID: 1941,
+      bonuses: [{ activity: "reprocessing", axis: "value", value: 1 }],
+    };
+    const other = { ...published, id: 46634 };
+
+    vi.spyOn(industryBonuses, "readIndustryBonuses").mockReturnValue({
+      families: {},
+      sources: { 46633: published, 46634: other },
+    });
+
+    expect(rigsCompete(published, 46634, kind)).toBe(true);
+    expect(rigsCompete(published, 46633, kind)).toBe(true);
+    expect(rigsCompete({ ...published, groupID: 1942 }, 46634, kind)).toBe(
+      false,
+    );
+
+    vi.restoreAllMocks();
+  });
+
+  it("makes one of our own rigs compete with a published rig on its axis", () => {
+    const publishedME = {
+      id: 37154,
+      groupID: 1824,
+      bonuses: [{ activity: "manufacturing", axis: "material", value: 2 }],
+    };
+    const publishedTE = {
+      id: 37162,
+      groupID: 1825,
+      bonuses: [{ activity: "manufacturing", axis: "time", value: 20 }],
+    };
+
+    vi.spyOn(industryBonuses, "readIndustryBonuses").mockReturnValue({
+      families: {},
+      sources: { 37154: publishedME, 37162: publishedTE },
+    });
+
+    const legacyME = table[1];
+    const legacyTE = table[3];
+
+    expect(rigsCompete(legacyME, 37154, kind)).toBe(true);
+    expect(rigsCompete(legacyME, 37162, kind)).toBe(false);
+    expect(rigsCompete(legacyTE, 37162, kind)).toBe(true);
+    expect(rigsCompete(publishedME, 1, kind)).toBe(true);
+
+    vi.restoreAllMocks();
   });
 
   it("reads an unknown kind or an unknown rig as nothing", () => {

@@ -274,6 +274,7 @@ export function useGroupScheduler(
           tempSetup,
           job.skills,
           queryClient,
+          job.itemID,
         );
 
         if (duration && duration > 0) {

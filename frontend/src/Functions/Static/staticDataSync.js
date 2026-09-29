@@ -15,6 +15,10 @@ import {
 } from "../MarketData/defaults/marketGroupData";
 import { resetReprocessing } from "./reprocessing.js";
 import { resetRecipes } from "./recipes.js";
+import {
+  primeIndustryBonuses,
+  resetIndustryBonuses,
+} from "./industryBonuses.js";
 
 /**
  * How far apart clients spread their download once a build is announced.
@@ -66,12 +70,13 @@ export function refreshStaticData(force = false) {
         resetMarketGroupData();
         resetReprocessing();
         resetRecipes();
+        resetIndustryBonuses();
         queryClient.invalidateQueries({ queryKey: ["static"] });
       }
 
-      // Material pricing walks the market group tree while building a row, so
-      // it needs these readable without awaiting.
-      await primeMarketGroupData();
+      // Material pricing walks the market group tree while building a row, and a
+      // job's figures read the bonuses its place gives, both without awaiting.
+      await Promise.all([primeMarketGroupData(), primeIndustryBonuses()]);
 
       // Only a pass that got an answer counts as having checked. Stamping a
       // failed one would let the wake floor below suppress the retry that a tab

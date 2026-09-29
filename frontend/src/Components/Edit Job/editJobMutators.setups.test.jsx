@@ -37,14 +37,10 @@ vi.mock("../../Events/editJobNavigationEvents", () => ({
   requestEditJobNavigation: vi.fn(),
 }));
 
-/* Changing a setup asks the server what the system's index is; the change does
- * not wait on the answer to be worth making. */
 vi.mock("../../Functions/System Indexes/findSystemIndex", () => ({
   default: async () => ({}),
 }));
 
-/* Adding a setup reads the blueprint index; an empty one is enough to build the
- * setup from the job it is based on. */
 vi.mock("../../Hooks/EveEsi/useBlueprintIndex", () => ({
   BLUEPRINT_SCOPE: { ALL: "all" },
   getCachedBlueprintIndex: () => ({
@@ -63,6 +59,9 @@ const { MarkAsCompleteButton } =
 const { EditJobSetup } =
   await import("./Edit Job Components/Planning/Standard Layout/Edit Setup Panel/editJobSetup.jsx");
 const { committedFor } = await import("./Edit Job Hooks/jobDraftStore.js");
+const { ZARZAKH_SYSTEM_ID } = await import("../../Context/defaultValues.jsx");
+const { fieldsReleasedBy } =
+  await import("../../Functions/Industry Facilities/placeConstraints.js");
 const { default: useUsersStore } = await import("../../Zustand/usersStore");
 
 let group = null;
@@ -71,13 +70,10 @@ beforeEach(() => {
   readOnly.current = false;
   group = new Group({ groupID: "group-1" });
   store.current = editJobStore({ group });
-  // Watched here rather than in the shared fixture, which stays clear of the
-  // test framework.
   store.current.jobData.actions.updateModifiedGroups = vi.fn();
   store.current.jobData.actions.queueJobGroupWritesAndSchedule = vi.fn();
 });
 
-/** A job with the setups given, the first of them being edited. */
 function withSetups(...ids) {
   const setup = {};
   for (const id of ids) {
@@ -113,7 +109,6 @@ describe("the setups a job is built from, end to end", () => {
     expect(setupIds(editJob.current)).toEqual(["setup-2"]);
   });
 
-  // Something has to be built, so the last setup cannot be deleted.
   it("refuses to delete the only setup", () => {
     const { editJob } = renderOverEditJob(withSetups("setup-1"), () => (
       <JobSetupPanel />
@@ -163,8 +158,6 @@ describe("marking a job finished within its group, end to end", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mark As Complete" }));
 
     expect(group.areComplete.has("job-1")).toBe(true);
-    // Finishing a job is a change to the group, and the group is written. The
-    // job itself is untouched, so it has nothing of its own to save.
     expect(editJob.current.jobModified).toBe(false);
     const { updateModifiedGroups, queueJobGroupWritesAndSchedule } =
       store.current.jobData.actions;
@@ -184,23 +177,13 @@ describe("marking a job finished within its group, end to end", () => {
   });
 });
 
-// The panel changes a setup by saying what the reader did. Changing the setup on
-// screen instead reaches nothing, because the job the page reads is rebuilt from
-// what the session holds — which is how these controls came to look like they
-// worked while changing nothing.
 describe("changing the setup a job is built from, end to end", () => {
   const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
 
-  /**
-   * The setup as the session holds it, not as the job on screen shows it: a
-   * control that changed the job in place would still be visible through the
-   * copy this render is reading, which is the defect itself.
-   */
   const storedSetup = () =>
     committedFor(useUsersStore.getState().editSession.draft, "job-1").build
       .setup["setup-1"];
 
-  /** The fields report what was typed when the reader leaves them. */
   const type = (label, value) => {
     const input = screen.getByLabelText(label).querySelector("input");
     fireEvent.change(input, { target: { value } });
@@ -221,5 +204,180 @@ describe("changing the setup a job is built from, end to end", () => {
     type("job-slots-textfield", "3");
 
     await vi.waitFor(() => expect(storedSetup().jobCount).toBe(3));
+  });
+});
+
+describe("costing a setup against a militia, end to end", () => {
+  const HELD_SYSTEM = 30045352;
+  const CALDARI = 500001;
+
+  const openSetup = (job) =>
+    renderOverEditJob(job, () => <EditJobSetup />, {
+      locationNames: { [CALDARI]: "Caldari State" },
+    });
+
+  const storedSetup = () =>
+    committedFor(useUsersStore.getState().editSession.draft, "job-1").build
+      .setup["setup-1"];
+
+  function inASystemHeldBy(militiaFactionID) {
+    store.current.worldData.systemIndexes = {
+      [HELD_SYSTEM]: { manufacturing: 0.01, militiaFactionID },
+    };
+  }
+
+  function jobInTheHeldSystem() {
+    const job = withSetups("setup-1");
+    job.build.setup["setup-1"].systemID = HELD_SYSTEM;
+    return job;
+  }
+
+  const choose = (label, value) => {
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: label }));
+    fireEvent.click(screen.getByRole("option", { name: value }));
+  };
+
+  it("offers neither control where no militia holds the system", () => {
+    openSetup(withSetups("setup-1"));
+
+    expect(screen.queryByText("Enlisted Militia")).toBeNull();
+    expect(screen.queryByText("System Upgrade Level")).toBeNull();
+  });
+
+  it("offers both where a militia holds the system", () => {
+    inASystemHeldBy(CALDARI);
+    openSetup(jobInTheHeldSystem());
+
+    expect(screen.getByText("Enlisted Militia")).toBeInTheDocument();
+    expect(screen.getByText("System Upgrade Level")).toBeInTheDocument();
+  });
+
+  it("keeps the militia the reader chose", async () => {
+    inASystemHeldBy(CALDARI);
+    openSetup(jobInTheHeldSystem());
+
+    choose("Enlisted Militia", "Caldari State");
+
+    await vi.waitFor(() => expect(storedSetup().enlistedFaction).toBe(CALDARI));
+  });
+
+  it("keeps the upgrade level the reader stated", async () => {
+    inASystemHeldBy(CALDARI);
+    openSetup(jobInTheHeldSystem());
+
+    choose("System Upgrade Level", "Level 4");
+
+    await vi.waitFor(() => expect(storedSetup().militiaUpgradeLevel).toBe(4));
+  });
+});
+
+describe("fitting both rig slots, end to end", () => {
+  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
+
+  it("offers a field for each of a structure's two rig slots", () => {
+    openSetup(withSetups("setup-1"));
+
+    expect(screen.getByLabelText("Rig 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Rig 2")).toBeInTheDocument();
+  });
+});
+
+describe("choosing a place that settles a setup's other choices, end to end", () => {
+  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
+
+  const storedSetup = () =>
+    committedFor(useUsersStore.getState().editSession.draft, "job-1").build
+      .setup["setup-1"];
+
+  function selectWithID(id) {
+    return screen
+      .getAllByRole("combobox")
+      .find((box) => box.id?.startsWith(id));
+  }
+
+  function jobInNullSec() {
+    const job = withSetups("setup-1");
+    Object.assign(job.build.setup["setup-1"], {
+      structureID: 2,
+      systemTypeID: 2,
+      systemID: 30000142,
+      taxValue: 5,
+      rigSlot1: 1,
+    });
+    return job;
+  }
+
+  function chooseTheFulcrum() {
+    fireEvent.mouseDown(selectWithID("structure-type-select"));
+    fireEvent.click(screen.getByRole("option", { name: "The Fulcrum" }));
+  }
+
+  it("shows the security band the place settles on, not the one left behind", async () => {
+    openSetup(jobInNullSec());
+
+    chooseTheFulcrum();
+
+    await vi.waitFor(() =>
+      expect(selectWithID("system-type-select")).toHaveTextContent("High Sec"),
+    );
+  });
+
+  it("shows the tax the place charges, not the one the reader typed elsewhere", async () => {
+    openSetup(jobInNullSec());
+
+    chooseTheFulcrum();
+
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getByLabelText("job-percentage-textfield")
+          .querySelector("input"),
+      ).toHaveValue(0.25),
+    );
+  });
+
+  it("offers every structure again, so the place can be left", () => {
+    openSetup(jobInNullSec());
+
+    chooseTheFulcrum();
+
+    fireEvent.mouseDown(selectWithID("structure-type-select"));
+
+    expect(screen.getAllByRole("option").length).toBeGreaterThan(1);
+  });
+
+  it("lets go of the system when the reader picks another structure", async () => {
+    openSetup(jobInNullSec());
+    chooseTheFulcrum();
+    await vi.waitFor(() => expect(storedSetup().structureID).toBe(4));
+
+    fireEvent.mouseDown(selectWithID("structure-type-select"));
+    fireEvent.click(screen.getByRole("option", { name: "Large" }));
+
+    await vi.waitFor(() => {
+      expect(storedSetup().structureID).toBe(2);
+      expect(storedSetup().systemID).not.toBe(ZARZAKH_SYSTEM_ID);
+    });
+  });
+
+  it("lets go of the structure when the reader picks another system", async () => {
+    openSetup(jobInNullSec());
+    chooseTheFulcrum();
+    await vi.waitFor(() => expect(storedSetup().structureID).toBe(4));
+
+    const released = fieldsReleasedBy(storedSetup(), "systemID", 30000142);
+
+    expect(released).toContain("structureID");
+    expect(released).toContain("rigSlot1");
+  });
+
+  it("empties the rig slots the place allows nothing in", async () => {
+    openSetup(jobInNullSec());
+
+    chooseTheFulcrum();
+
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText("Rig 1")).toHaveValue("None"),
+    );
   });
 });

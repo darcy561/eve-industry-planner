@@ -16,7 +16,7 @@ vi.mock("../MarketData/prices/priceCache.js", () => ({
 }));
 
 const { resetReprocessing } = await import("../Static/reprocessing.js");
-const { default: reprocessIntoMinerals } = await import("./toMinerals.js");
+const { reprocessIntoMinerals } = await import("./reprocessingRuns.js");
 const { structureFromDocument } =
   await import("../Custom Structures/customStructure.js");
 

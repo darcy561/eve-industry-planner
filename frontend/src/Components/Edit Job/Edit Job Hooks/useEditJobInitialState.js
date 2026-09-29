@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Custom Structures/customStructureSetup";
+import correctSetupFigures from "../../../Functions/JobPlanner/correctSetupFigures";
 import {
   jobFromDocument,
   toDocument,
@@ -35,6 +36,7 @@ export function useEditJobInitialState({ jobID, currentActiveJobID, actions }) {
         const { requestedSystemIndexes } = await getMissingESIData(linkedJobs);
 
         clearOrphanedCustomStructureOnSetups(matchedJob.build.setup);
+        correctSetupFigures(matchedJob);
 
         if (!matchedJob.layout.setupToEdit) {
           matchedJob.layout.setupToEdit =

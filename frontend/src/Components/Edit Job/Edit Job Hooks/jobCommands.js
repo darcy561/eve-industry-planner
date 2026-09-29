@@ -482,6 +482,6 @@ export const storeSetup = (setup, name) =>
   command(name, (job) => {
     if (!setup?.id) return;
     const next = new Setup(setup);
-    next.recalculateMaterials(job.rawData.materials);
+    next.recalculateMaterials(job.rawData.materials, job.itemID);
     job.build.setup[next.id] = next.toDocument();
   });

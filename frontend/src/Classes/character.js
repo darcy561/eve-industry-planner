@@ -11,14 +11,7 @@ import getCharacterPublicInfo from "../Functions/EveESI/Character/getPublicData"
  * EVE Online character identity. Access tokens are **not** here: they live in the ESI credential
  * provider, so refreshing one does not write the store and does not re-render the roster's
  *
- * @class Character
- * @example
- * const character = new Character({
- * jwtPayload: decodedAccessJwt,
- * tokenResponse: { access_token, refresh_token },
- * isMainCharacter: true,
- * });
- */
+ * @class Character */
 class Character {
   /**
    * @param {Character|CharacterFromSSOOptions} [options] - Another `Character` to clone, or a single options bag (see {@link CharacterFromSSOOptions}). Omit or pass `{}` for the logged-out placeholder row.
@@ -41,6 +34,7 @@ class Character {
     this.CharacterName = jwtPayload?.name || "Example Character";
     this.esiRefreshToken = tokenResponse?.refresh_token || "";
     this.corporation_id = null;
+    this.faction_id = null;
     this.isOmega = jwtPayload?.tier === "live";
     this.isMainCharacter = isMainCharacter;
   }
@@ -52,6 +46,7 @@ class Character {
     this.CharacterName = other.CharacterName;
     this.esiRefreshToken = other.esiRefreshToken;
     this.corporation_id = other.corporation_id;
+    this.faction_id = other.faction_id;
     this.isOmega = other.isOmega;
     this.isMainCharacter = other.isMainCharacter;
     this.accountRefreshTokens = other.accountRefreshTokens;
@@ -116,6 +111,7 @@ class Character {
       } else {
         console.warn("Character data is missing expected properties");
       }
+      this.faction_id = characterObject.faction_id ?? null;
     } catch (err) {
       console.error(`Failed to fetch character data: ${err.message}`);
     }

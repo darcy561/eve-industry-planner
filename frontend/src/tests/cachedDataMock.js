@@ -24,6 +24,7 @@ export function cachedDataMock(overrides = {}) {
     getRecipeListFromCache: vi.fn(async () => ({})),
     getMarketGroups: vi.fn(async () => ({})),
     getSolarSystems: vi.fn(async () => ({})),
+    getIndustryBonuses: vi.fn(async () => ({ families: {}, sources: {} })),
 
     // The cache itself. A test that mocks this module is not exercising the
     // cache, so these answer as though nothing is stored and no version is

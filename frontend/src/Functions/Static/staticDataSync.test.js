@@ -4,6 +4,8 @@ const refreshStaticDataCache = vi.fn();
 const primeMarketGroupData = vi.fn();
 const resetMarketGroupData = vi.fn();
 const resetReprocessing = vi.fn();
+const primeIndustryBonuses = vi.fn(async () => {});
+const resetIndustryBonuses = vi.fn();
 const resetRecipes = vi.fn();
 const invalidateQueries = vi.fn();
 
@@ -13,6 +15,10 @@ vi.mock("../Helper/getCachedData.js", () => ({
 vi.mock("../MarketData/defaults/marketGroupData", () => ({
   primeMarketGroupData: (...args) => primeMarketGroupData(...args),
   resetMarketGroupData: (...args) => resetMarketGroupData(...args),
+}));
+vi.mock("./industryBonuses.js", () => ({
+  primeIndustryBonuses: (...args) => primeIndustryBonuses(...args),
+  resetIndustryBonuses: (...args) => resetIndustryBonuses(...args),
 }));
 vi.mock("./reprocessing.js", () => ({
   resetReprocessing: (...args) => resetReprocessing(...args),

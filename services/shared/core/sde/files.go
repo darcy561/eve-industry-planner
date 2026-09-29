@@ -12,6 +12,7 @@ const (
 	InventionModifiersFile = "inventionModifiers.json"
 	MarketGroupsFile       = "marketGroups.json"
 	SolarSystemsFile       = "solarSystems.json"
+	IndustryBonusesFile    = "industryBonuses.json"
 )
 
 type StaticDataFileDef struct {
@@ -27,6 +28,7 @@ var staticDataFileDefs = []StaticDataFileDef{
 	{Key: "INVENTION_MODIFIERS", FileName: InventionModifiersFile},
 	{Key: "MARKET_GROUPS", FileName: MarketGroupsFile},
 	{Key: "SOLAR_SYSTEMS", FileName: SolarSystemsFile},
+	{Key: "INDUSTRY_BONUSES", FileName: IndustryBonusesFile},
 }
 
 type VersionJSON struct {

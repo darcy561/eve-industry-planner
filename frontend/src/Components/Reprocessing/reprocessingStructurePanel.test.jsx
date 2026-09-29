@@ -90,30 +90,18 @@ describe("fitting the refinery a reprocessing job is run in", () => {
     expect(rigPickers()).toHaveLength(2);
   });
 
-  it("fits a rig chosen for the second slot to the second slot", async () => {
-    const { setCurrentStructure } = show();
-
-    await pick(rigPickers()[1], rigs[1].label);
-
-    expect(setCurrentStructure).toHaveBeenCalledTimes(1);
-    expect(setCurrentStructure.mock.calls[0][0].rigSlot2).toBe(1);
-  });
-
-  it("refuses a second rig competing with the first, leaving the first fitted", async () => {
-    const competing = rigs[1].relatedTo?.[0];
-    expect(competing).toBeDefined();
-
-    const { setCurrentStructure } = show({
+  it("gives each slot its own field, showing what it holds", () => {
+    show({
       current: structureFromDocument({
         jobType: jobTypes.reprocessing,
-        rigSlot1: competing,
+        rigSlot1: 1,
       }),
     });
 
-    await pick(rigPickers()[1], rigs[1].label);
+    const [first, second] = rigPickers();
 
-    expect(setCurrentStructure.mock.calls[0][0].rigSlot2).toBe(0);
-    expect(setCurrentStructure.mock.calls[0][0].rigSlot1).toBe(competing);
+    expect(first).toHaveValue(rigs[1].label);
+    expect(second).toHaveValue("None");
   });
 
   it("changes the structure type on the copy the page holds", async () => {

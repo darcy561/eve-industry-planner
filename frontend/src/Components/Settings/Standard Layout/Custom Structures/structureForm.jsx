@@ -18,12 +18,23 @@ import {
   appShellTextFieldOutlinedSx,
 } from "../../../../Context/appShell";
 import {
-  requirements,
   rigTypeMap,
-  systemStructureRequirements,
   structureTypeMap,
   systemTypeMap,
 } from "../../../../Context/defaultValues";
+import { getStructureInfoFromID } from "../../../../Functions/Industry Facilities/getStructureInfo";
+import { useIndustryBonuses } from "../../../../Hooks/Static/useIndustryBonuses";
+import {
+  allowedOptionsFor,
+  fieldsReleasedBy,
+  forcedFieldsFor,
+  jobTypesAllowedIn,
+  offerableOptions,
+} from "../../../../Functions/Industry Facilities/placeConstraints";
+import {
+  customStructureFieldsFromSetup,
+  setupFieldsFromCustomStructure,
+} from "../../../../Functions/Custom Structures/customStructureSetup";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
@@ -74,39 +85,90 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
 
   const fields = fieldsForKind(structure.jobType);
 
-  const change = (changes) =>
-    setStructure((current) => updateStructure(current, changes));
+  /**
+   * What the place a structure describes fixes about it, applied over what the
+   * reader just chose.
+   */
+  function settled(draft) {
+    const asSetup = {
+      ...setupFieldsFromCustomStructure(draft),
+      jobType: draft.jobType,
+    };
+    const fixed = customStructureFieldsFromSetup(forcedFieldsFor(asSetup));
 
-  const rigSlots = useRigSlots(structure, (slot, rigID) =>
-    change({ [slot]: rigID }),
-  );
+    return updateStructure(draft, fixed);
+  }
 
   /**
-   * A preset structure type carries the rest of its setup with it, so choosing
-   * one fills the fields it decides rather than leaving them to be matched by
-   * hand.
+   * The fields a place no longer decides once these changes take the structure
+   * out of it, named the way a structure names them.
    */
-  function applyRequirements(requirementID) {
-    const preset =
-      requirementID == null || requirementID === -1
-        ? null
-        : requirements[requirementID];
-    if (!preset) return;
+  function releasedBy(current, changes) {
+    const before = {
+      ...setupFieldsFromCustomStructure(current),
+      jobType: current.jobType,
+    };
+    const after = setupFieldsFromCustomStructure({ ...current, ...changes });
 
-    const changes = {};
-    if (preset.structureID !== undefined)
-      changes.structureType = preset.structureID;
-    if (preset.rigID !== undefined) {
-      changes.rigSlot1 = preset.rigID;
-      changes.rigSlot2 = 0;
+    const letGo = new Set();
+    for (const [field, value] of Object.entries(after)) {
+      if (before[field] === value) continue;
+      for (const name of fieldsReleasedBy(before, field, value))
+        letGo.add(name);
     }
-    if (preset.taxValue !== undefined) changes.tax = preset.taxValue;
-    if (preset.systemID !== undefined) changes.systemID = preset.systemID;
-    if (preset.systemTypeID !== undefined)
-      changes.systemType = preset.systemTypeID;
-
-    setStructure((current) => updateStructure(current, changes));
+    return customStructureFieldsFromSetup(
+      Object.fromEntries([...letGo].map((name) => [name, null])),
+    );
   }
+
+  const change = (changes) =>
+    setStructure((current) => {
+      const blank = blankStructure(current.jobType);
+      const letGo = Object.fromEntries(
+        Object.keys(releasedBy(current, changes)).map((name) => [
+          name,
+          blank[name],
+        ]),
+      );
+
+      return settled(updateStructure(current, { ...letGo, ...changes }));
+    });
+
+  const rigSlots = useRigSlots(
+    structure,
+    (slot, rigID) => change({ [slot]: rigID }),
+    structure.jobType,
+  );
+
+  const optionsFor = (field) => {
+    const asSetup = {
+      ...setupFieldsFromCustomStructure(structure),
+      jobType: structure.jobType,
+    };
+    const candidates = {
+      structureID: offerableOptions(structureTypeMap[structure.jobType]),
+      systemTypeID: offerableOptions(systemTypeMap[structure.jobType]),
+      rigSlot1: offerableOptions(rigTypeMap[structure.jobType]),
+      rigSlot2: offerableOptions(rigTypeMap[structure.jobType]),
+    }[field];
+
+    return allowedOptionsFor(asSetup, field, candidates ?? []);
+  };
+
+  const isFixed = (field) =>
+    Object.hasOwn(
+      forcedFieldsFor({
+        ...setupFieldsFromCustomStructure(structure),
+        jobType: structure.jobType,
+      }),
+      field,
+    );
+
+  const { catalogue } = useIndustryBonuses();
+  const rigSize = getStructureInfoFromID(
+    structure.jobType,
+    structure.structureType,
+  )?.rigSize;
 
   const context = {
     structure,
@@ -114,29 +176,21 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     fieldProps,
     textFieldSx,
     rigSlots,
-    onStructureType: (entry) => {
-      change({ structureType: entry.id });
-      applyRequirements(entry.requirementID);
-    },
-    onSystemType: (entry) => {
-      change({ systemType: entry.id });
-      applyRequirements(entry.requirementID);
-    },
+    optionsFor,
+    isFixed,
+    rigSize,
+    catalogue,
+    onStructureType: (entry) => change({ structureType: entry.id }),
+    onSystemType: (entry) => change({ systemType: entry.id }),
     onImplant: (entry) => change({ implant: entry.id }),
     onTax: (value) => change({ tax: value }),
     onSystem: (systemID) => {
-      const preset =
-        systemStructureRequirements[systemID]?.requirementID ?? null;
-      const allowed = preset == null ? null : requirements[preset];
-      if (
-        allowed?.allowedJobTypes &&
-        !allowed.allowedJobTypes.includes(selectedJobType)
-      ) {
+      const allowed = jobTypesAllowedIn(systemID);
+      if (allowed !== null && !allowed.includes(selectedJobType)) {
         return new Error("This system does not allow this kind of job.");
       }
 
       change({ systemID });
-      applyRequirements(preset);
     },
   };
 

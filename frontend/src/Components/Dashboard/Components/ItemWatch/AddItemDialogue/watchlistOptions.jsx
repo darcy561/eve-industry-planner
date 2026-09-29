@@ -2,20 +2,32 @@ import { Grid } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
 
 import Setup from "../../../../../Classes/jobSetup";
-import { jobTypes } from "../../../../../Context/defaultValues";
+import {
+  jobTypes,
+  structureTypeMap,
+  systemTypeMap,
+} from "../../../../../Context/defaultValues";
 import { recalculateWatchListItemsFromSetup } from "../../../../../Functions/JobPlanner/applySetupChange";
 import VirtualisedSystemSearch from "../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 import CustomStructureSelect from "../../../../../Styled Components/Select/customStructure";
 import MaterialEfficiencySelect from "../../../../../Styled Components/Select/materialEfficiency";
 import TimeEfficiencySelect from "../../../../../Styled Components/Select/timeEfficiency";
 import StructureTypeSelect from "../../../../../Styled Components/Select/structureType";
-import RigTypeSelect from "../../../../../Styled Components/Select/rigType";
+import VirtualisedRigSearch from "../../../../../Styled Components/autocomplete/virtualisedRigSearch";
+import { useIndustryBonuses } from "../../../../../Hooks/Static/useIndustryBonuses";
+import { getStructureInfoFromID } from "../../../../../Functions/Industry Facilities/getStructureInfo";
 import SystemTypeSelect from "../../../../../Styled Components/Select/systemType";
 import TaxPercentageTextField from "../../../../../Styled Components/Textfield/tax";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import { setupShowsManualStructureFields } from "../../../../../Functions/Custom Structures/customStructureSetup";
 import useRigSlots from "../../../../../Hooks/useRigSlots";
-import { getRigInfoFromID } from "../../../../../Functions/Custom Structures/rigs";
+import { getRigInfoFromID } from "../../../../../Functions/Industry Facilities/rigs";
+import {
+  allowedOptionsFor,
+  forcedFieldsFor,
+  offerableOptions,
+  settledSetup,
+} from "../../../../../Functions/Industry Facilities/placeConstraints";
 
 export function WatchListSetupOptions_WatchlistDialogue({
   watchlistItemRequest,
@@ -45,10 +57,29 @@ export function WatchListSetupOptions_WatchlistDialogue({
     setMaterialJobs(changed);
   };
 
-  const rigSlots = useRigSlots(jobSetup, (slot, rigID) =>
-    changeSetup((setup) =>
-      setup.updateRigSlot(slot, getRigInfoFromID(jobSetup.jobType, rigID)),
-    ),
+  const { catalogue } = useIndustryBonuses();
+  const settled = settledSetup(jobSetup);
+  const fixed = forcedFieldsFor(jobSetup);
+  const isFixed = (field) => Object.hasOwn(fixed, field);
+  const offer = (field, table) =>
+    allowedOptionsFor(
+      jobSetup,
+      field,
+      offerableOptions(table[jobSetup?.jobType]),
+    );
+
+  const rigSize = getStructureInfoFromID(
+    jobSetup?.jobType,
+    settled?.structureID,
+  )?.rigSize;
+
+  const rigSlots = useRigSlots(
+    settled,
+    (slot, rigID) =>
+      changeSetup((setup) =>
+        setup.updateRigSlot(slot, getRigInfoFromID(jobSetup.jobType, rigID)),
+      ),
+    jobSetup?.jobType,
   );
 
   return (
@@ -88,33 +119,41 @@ export function WatchListSetupOptions_WatchlistDialogue({
         <Grid container spacing={2} size={12}>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <StructureTypeSelect
-              value={jobSetup.structureID}
+              value={settled.structureID}
               jobType={jobSetup.jobType}
+              options={offer("structureID", structureTypeMap)}
               onChange={(selectedEntry) =>
                 changeSetup((setup) => setup.updateStructureID(selectedEntry))
               }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingLeft: "10px" }}>
-            <RigTypeSelect
-              value={jobSetup.rigSlot1}
+            <VirtualisedRigSearch
+              value={settled.rigSlot1}
               jobType={jobSetup.jobType}
+              rigSize={rigSize}
+              catalogue={catalogue}
+              disabled={isFixed("rigSlot1")}
               error={rigSlots.slot1.error}
               onChange={rigSlots.slot1.onChange}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
-            <RigTypeSelect
-              value={jobSetup.rigSlot2}
+            <VirtualisedRigSearch
+              value={settled.rigSlot2}
               jobType={jobSetup.jobType}
+              rigSize={rigSize}
+              catalogue={catalogue}
+              disabled={isFixed("rigSlot2")}
               error={rigSlots.slot2.error}
               onChange={rigSlots.slot2.onChange}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <SystemTypeSelect
-              value={jobSetup.systemTypeID}
+              value={settled.systemTypeID}
               jobType={jobSetup.jobType}
+              options={offer("systemTypeID", systemTypeMap)}
               onChange={(selectedEntry) =>
                 changeSetup((setup) => setup.updateSystemType(selectedEntry))
               }
@@ -122,7 +161,7 @@ export function WatchListSetupOptions_WatchlistDialogue({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingLeft: "10px" }}>
             <VirtualisedSystemSearch
-              selectedValue={jobSetup.systemID}
+              selectedValue={settled.systemID}
               jobType={jobSetup.jobType}
               updateSelectedValue={(value) =>
                 changeSetup((setup) => setup.updateSystemID(Number(value)))
@@ -131,7 +170,8 @@ export function WatchListSetupOptions_WatchlistDialogue({
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }} sx={{ paddingRight: "10px" }}>
             <TaxPercentageTextField
-              initialState={jobSetup.taxValue}
+              initialState={settled.taxValue}
+              disabled={isFixed("taxValue")}
               onBlur={(value) =>
                 changeSetup((setup) => setup.updateTaxValue(value))
               }

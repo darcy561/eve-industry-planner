@@ -1,15 +1,28 @@
-import {
-  requirements,
-  systemStructureRequirements,
-} from "../Context/defaultValues";
 import GLOBAL_CONFIG from "../global-config-app";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 import {
   getStructureInfoFromID,
   getSystemTypeFromID,
-} from "../Functions/Custom Structures/getStructureInfo";
+} from "../Functions/Industry Facilities/getStructureInfo";
 import materialQuantitiesForSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
 import { setupFieldsFromCustomStructure } from "../Functions/Custom Structures/customStructureSetup";
+/**
+ * Whether something offered as a rig is one: the app's own tables carry a flat
+ * figure per axis, and the game's own rigs carry the bonuses they give.
+ *
+ * @param {Object} rigObject - What a picker handed back
+ * @returns {boolean}
+ */
+function isARig(rigObject) {
+  if (!rigObject || rigObject.id == null) return false;
+
+  return (
+    Object.hasOwn(rigObject, "material") ||
+    Object.hasOwn(rigObject, "value") ||
+    Array.isArray(rigObject.bonuses)
+  );
+}
+
 /**
  * Setup class for EVE Online industry job configurations.
  *
@@ -40,9 +53,10 @@ class Setup {
    * @param {number} [setupInstructions.rawTime] - Raw time value
    * @param {number} [setupInstructions.rawTimeValue] - Alternative raw time property
    * @param {number} setupInstructions.jobType - Type of job (manufacturing, reaction, etc.)
-   * @param {number} [setupInstructions.appliedRequirementID] - Applied requirement ID
    * @param {number} [setupInstructions.alternativeSystemIndexValue] - Alternative system index
    * @param {boolean} [setupInstructions.useAlternativeSystemIndexValue] - Whether to use alternative index
+   * @param {number|null} [setupInstructions.enlistedFaction] - The militia to cost against, when it is not the character's own
+   * @param {number} [setupInstructions.militiaUpgradeLevel] - How far the holding faction has upgraded the system
    */
   constructor(setupInstructions) {
     this.id = setupInstructions?.id || crypto.randomUUID();
@@ -69,11 +83,6 @@ class Setup {
     this.rawTime =
       setupInstructions?.rawTime || setupInstructions?.rawTimeValue || 0;
     this.jobType = setupInstructions.jobType;
-    if (setupInstructions?.appliedRequirementID == null) {
-      this.appliedRequirementID = -1;
-    } else {
-      this.appliedRequirementID = setupInstructions.appliedRequirementID;
-    }
     if (setupInstructions?.alternativeSystemIndexValue == null) {
       this.alternativeSystemIndexValue = 0;
     } else {
@@ -82,6 +91,8 @@ class Setup {
     }
     this.useAlternativeSystemIndexValue =
       setupInstructions?.useAlternativeSystemIndexValue || false;
+    this.enlistedFaction = setupInstructions?.enlistedFaction ?? null;
+    this.militiaUpgradeLevel = setupInstructions?.militiaUpgradeLevel ?? 0;
   }
 
   /**
@@ -107,9 +118,12 @@ class Setup {
       materialCount: this.materialCount,
       rawTime: this.rawTime,
       jobType: this.jobType,
-      appliedRequirementID: this.appliedRequirementID,
       alternativeSystemIndexValue: this.alternativeSystemIndexValue,
       useAlternativeSystemIndexValue: this.useAlternativeSystemIndexValue,
+      ...(this.enlistedFaction == null
+        ? {}
+        : { enlistedFaction: this.enlistedFaction }),
+      militiaUpgradeLevel: this.militiaUpgradeLevel,
     };
   }
 
@@ -117,11 +131,13 @@ class Setup {
    * Rebuilds the material quantities this setup calls for.
    *
    * @param {Array} rawMaterialQuantities - Raw material quantities from the job
+   * @param {number} [itemID] - What the job builds, which a scoped bonus is read against
    */
-  recalculateMaterials(rawMaterialQuantities) {
+  recalculateMaterials(rawMaterialQuantities, itemID) {
     this.materialCount = materialQuantitiesForSetup(
       this,
       rawMaterialQuantities,
+      itemID,
     );
   }
 
@@ -141,109 +157,6 @@ class Setup {
    */
   getSystemTypeObject() {
     return getSystemTypeFromID(this.jobType, this.systemTypeID);
-  }
-
-  /**
-   * Gets requirements for a specific object type.
-   *
-   * @param {Function} getObjectFunction - Function to get the object
-   * @returns {Object|null} Requirements object or null if not found
-   */
-  getObjectRequirements(getObjectFunction) {
-    if (typeof getObjectFunction !== "function") {
-      return null;
-    }
-
-    const requirementID = getObjectFunction.call(this)?.requirementID;
-
-    if (requirementID == null) return null;
-
-    return requirements[requirementID] || null;
-  }
-
-  /**
-   * Gets system ID requirements for this setup.
-   *
-   * @returns {string|null} Requirement ID or null if not found
-   */
-  getSystemIDRequirements() {
-    const requirementID =
-      systemStructureRequirements[this.systemID]?.requirementID;
-
-    return requirementID ?? null;
-  }
-
-  /**
-   * Gathers all requirements for this setup.
-   *
-   * @returns {Object} Combined requirements object
-   */
-  gatherRequirements() {
-    const structureRequirements = this.getObjectRequirements(
-      this.getStructureObject,
-    );
-    const rigRequirements = this.getObjectRequirements(this.getRigObject);
-    const systemTypeRequirements = this.getObjectRequirements(
-      this.getSystemTypeObject,
-    );
-
-    return {
-      ...structureRequirements,
-      ...rigRequirements,
-      ...systemTypeRequirements,
-    };
-  }
-
-  /**
-   * Manages requirements for this setup.
-   *
-   * @param {string|null} requirementID - Requirement ID to apply or null to remove
-   */
-  manageRequirements(requirementID = null) {
-    if (requirementID !== null) {
-      this.applyRequirements(requirementID);
-    } else {
-      this.removeRequirements();
-    }
-  }
-
-  /**
-   * Applies requirements to this setup.
-   *
-   * @param {string} requirementID - Requirement ID to apply
-   */
-  applyRequirements(requirementID) {
-    if (requirementID == -1) return;
-
-    const requirementObject = requirements[requirementID];
-
-    if (!requirementObject) return;
-
-    this.appliedRequirementID = requirementID;
-
-    if (Object.hasOwn(requirementObject, "structureID")) {
-      this.structureID = requirementObject.structureID;
-    }
-    if (Object.hasOwn(requirementObject, "rigID")) {
-      this.rigSlot1 = requirementObject.rigID;
-      this.rigSlot2 = 0;
-    }
-    if (Object.hasOwn(requirementObject, "systemTypeID")) {
-      this.systemTypeID = requirementObject.systemTypeID;
-    }
-    if (Object.hasOwn(requirementObject, "systemID")) {
-      this.systemID = requirementObject.systemID;
-    }
-    if (Object.hasOwn(requirementObject, "taxValue")) {
-      this.taxValue = requirementObject.taxValue;
-    }
-  }
-
-  /**
-   * Removes applied requirements from this setup.
-   */
-  removeRequirements() {
-    this.appliedRequirementID = -1;
   }
 
   /**
@@ -317,72 +230,53 @@ class Setup {
   }
 
   /**
-   * Updates the structure ID and manages its requirements.
+   * Updates the structure a setup is built in.
    *
-   * @param {Object} structureObject - Structure object with ID and optional requirementID
+   * @param {Object} structureObject - The chosen structure
    */
   updateStructureID(structureObject) {
     if (!structureObject) return;
     this.structureID = structureObject.id;
-    this.manageRequirements(
-      Object.hasOwn(structureObject, "requirementID")
-        ? structureObject.requirementID
-        : null,
-    );
   }
 
   /**
-   * Fits a rig to the first slot and manages its requirements.
+   * Fits a rig to the first slot.
    *
-   * @param {Object} rigObject - Rig object with ID and optional requirementID
+   * @param {Object} rigObject - The chosen rig
    */
   updateRigID(rigObject) {
     this.updateRigSlot("rigSlot1", rigObject);
   }
 
   /**
-   * Fits a rig to one of the two slots, the first slot also carrying whatever
-   * requirement the rig names.
+   * Fits a rig to one of the two slots.
    *
    * @param {"rigSlot1"|"rigSlot2"} slot - The slot to fit it to
-   * @param {Object} rigObject - Rig object with ID and optional requirementID
+   * @param {Object} rigObject - The chosen rig
    */
   updateRigSlot(slot, rigObject) {
-    if (!rigObject || !Object.hasOwn(rigObject, "material")) return;
+    if (!isARig(rigObject)) return;
     this[slot] = rigObject.id;
-
-    if (slot !== "rigSlot1") return;
-    this.manageRequirements(
-      Object.hasOwn(rigObject, "requirementID")
-        ? rigObject.requirementID
-        : null,
-    );
   }
 
   /**
-   * Updates the system type and manages its requirements.
+   * Updates the security band a setup is built in.
    *
-   * @param {Object} systemObject - System object with ID and optional requirementID
+   * @param {Object} systemObject - The chosen security band
    */
   updateSystemType(systemObject) {
-    if (!systemObject || !Object.hasOwn(systemObject, "value")) return;
+    if (!systemObject || !Object.hasOwn(systemObject, "id")) return;
     this.systemTypeID = systemObject.id;
-    this.manageRequirements(
-      Object.hasOwn(systemObject, "requirementID")
-        ? systemObject.requirementID
-        : null,
-    );
   }
 
   /**
-   * Updates the system ID and manages its requirements.
+   * Updates the solar system a setup is built in.
    *
    * @param {number} inputValue - New system ID
    */
   updateSystemID(inputValue) {
     if (inputValue == null) return;
     this.systemID = inputValue;
-    this.manageRequirements(this.getSystemIDRequirements());
   }
 
   /**
@@ -417,6 +311,39 @@ class Setup {
   updateTaxValue(inputValue) {
     if (inputValue == null) return;
     this.taxValue = inputValue;
+  }
+
+  /**
+   * Returns the given fields to what a new setup carries, for a setup that has
+   * left the place which set them.
+   *
+   * @param {Array<string>} fields - The fields to let go of
+   */
+  releaseFields(fields = []) {
+    const fresh = new Setup({ jobType: this.jobType });
+    for (const field of fields) {
+      if (Object.hasOwn(fresh, field)) this[field] = fresh[field];
+    }
+  }
+
+  /**
+   * Chooses the militia this setup is costed against, or none to fall back to the
+   * character's own.
+   *
+   * @param {number|null} inputValue - The militia's faction id
+   */
+  updateEnlistedFaction(inputValue) {
+    this.enlistedFaction = inputValue || null;
+  }
+
+  /**
+   * Records how far the holding faction has upgraded this setup's system.
+   *
+   * @param {number} inputValue - An upgrade level from 0 to 5
+   */
+  updateMilitiaUpgradeLevel(inputValue) {
+    if (inputValue == null) return;
+    this.militiaUpgradeLevel = Math.min(Math.max(Number(inputValue), 0), 5);
   }
 }
 export default Setup;

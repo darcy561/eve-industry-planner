@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 import { reprocessFromItemType } from "./reprocessingFormulas";
 import { reprocessingItemTypes } from "../../Context/defaultValues";
 
-// The arguments in the order the formula takes them.
 function yieldFor(
   itemType,
   {
     rig = 0,
-    sys = 0,
+    rigSecurity = 1,
     struct = 0,
     repro = 0,
     eff = 0,
@@ -19,7 +18,7 @@ function yieldFor(
   return reprocessFromItemType(
     itemType,
     rig,
-    sys,
+    rigSecurity,
     struct,
     repro,
     eff,
@@ -44,11 +43,10 @@ describe("what reprocessing an ore yields", () => {
     expect(yieldFor(reprocessingItemTypes.ore, { rig: 2 })).toBe(52);
   });
 
-  // A system's security bonus only applies in a structure that has a rig.
-  it("counts the system only alongside a rig", () => {
-    expect(yieldFor(reprocessingItemTypes.ore, { sys: 0.1 })).toBe(50);
+  it("counts the rig's band multiplier only alongside a rig", () => {
+    expect(yieldFor(reprocessingItemTypes.ore, { rigSecurity: 1.1 })).toBe(50);
     expect(
-      yieldFor(reprocessingItemTypes.ore, { rig: 2, sys: 0.1 }),
+      yieldFor(reprocessingItemTypes.ore, { rig: 2, rigSecurity: 1.1 }),
     ).toBeCloseTo(52 * 1.1, 10);
   });
 

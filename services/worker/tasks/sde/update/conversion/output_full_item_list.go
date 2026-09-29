@@ -18,6 +18,8 @@ func GenerateFullItemListOutput(combinedItemMap map[string]*EVEType, categoryByG
 			// `MarketGroupID` holds the SDE's `groupID` — the inventory group, which is what a
 			// category is looked up by. The market group is on `MarketSectionID`.
 			CategoryID:    categoryByGroupID[value.MarketGroupID],
+			GroupID:       value.MarketGroupID,
+			FactionID:     value.FactionID,
 			MarketGroupID: value.MarketSectionID,
 		}
 	}

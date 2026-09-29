@@ -72,6 +72,7 @@ type EVEType struct {
 	MarketGroupID      int               `json:"marketGroupID,omitzero"`
 	MetaGroupID        int               `json:"metaGroupID,omitzero"`
 	RaceID             int               `json:"raceID,omitzero"`
+	FactionID          int               `json:"factionID,omitzero"`
 	Volume             float64           `json:"volume,omitzero"`
 	BasePrice          float64           `json:"basePrice,omitzero"`
 	GraphicID          int               `json:"graphicID,omitzero"`
@@ -96,6 +97,12 @@ type FullItem struct {
 	Name   string `json:"name"`
 	// CategoryID is the SDE inventory category the type's group belongs to, absent when unknown.
 	CategoryID int `json:"category_id,omitzero"`
+	// GroupID is the SDE inventory group the type belongs to, which an industry
+	// bonus may be scoped to as readily as a category.
+	GroupID int `json:"group_id,omitzero"`
+	// FactionID is the militia a type belongs to, which a place may scope its own
+	// bonus by. Absent for a type belonging to none.
+	FactionID int `json:"faction_id,omitzero"`
 	// MarketGroupID is where the type sits in the market's own tree — the SDE's
 	// `marketGroupID`, which `EVEType` carries as `MarketSectionID`. It is not
 	// `EVEType.MarketGroupID`, which is the inventory group CategoryID comes from.

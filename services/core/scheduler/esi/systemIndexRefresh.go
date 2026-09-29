@@ -36,3 +36,28 @@ func IndustrySystemsRefresh(deps contract.Dependencies, jobName string) contract
 		return publish(ctx)
 	}
 }
+
+// MilitiaSystemsRefresh publishes the trigger that refreshes which faction holds
+// each system in factional warfare.
+func MilitiaSystemsRefresh(deps contract.Dependencies, jobName string) contract.TaskHandler {
+	natsHandle := deps.NATS
+	esi := deps.ESI
+	redisClient := deps.Redis
+	return func(ctx context.Context, data jsontext.Value) error {
+		publish := func(publishCtx context.Context) error {
+			if err := eipnats.TriggerRefreshMilitiaSystems(publishCtx, natsHandle); err != nil {
+				logs.ErrorCtx(publishCtx, "failed to publish militia systems refresh trigger", "component", schedulerLogComponent, "error", err)
+				return err
+			}
+			logs.InfoCtx(publishCtx, "militia systems refresh triggered", "component", schedulerLogComponent)
+			return nil
+		}
+		if deferred, err := DeferPublicationUntilAfterDowntime(ctx, natsHandle, jobName, esi); err != nil || deferred {
+			return err
+		}
+		if deferred, err := DeferPublicationUntilStale(ctx, natsHandle, jobName, eipredis.DatasetMilitiaSystems.Dataset(), redisClient, time.Now()); err != nil || deferred {
+			return err
+		}
+		return publish(ctx)
+	}
+}

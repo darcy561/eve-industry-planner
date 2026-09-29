@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const structureTime = { value: 0 };
 
-vi.mock("../Custom Structures/getStructureInfo", () => ({
+vi.mock("../Industry Facilities/getStructureInfo", () => ({
   getStructureInfoFromID: () => ({ time: structureTime.value }),
 }));
 

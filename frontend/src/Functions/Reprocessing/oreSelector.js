@@ -1,9 +1,8 @@
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * Selects optimal ore combinations to fulfil mineral requirements using a scoring algorithm.
- * Evaluates each ore based on cost efficiency, mineral yield, waste penalties, and user preferences.
- * Uses a greedy algorithm to build an optimal plan that minimizes cost while meeting requirements.
+ * The ores to buy to meet a mineral requirement, chosen one at a time by what each
+ * costs against what it yields.
  *
  * @param {Object} mineralRequirements - Object with mineral IDs as keys and required quantities
  * @param {Object} ores - Object with ore IDs as keys and ore objects as values

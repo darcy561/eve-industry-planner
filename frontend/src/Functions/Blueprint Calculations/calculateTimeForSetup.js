@@ -3,7 +3,7 @@ import manufacturingTimeModifierCalculation from "./manufacturingTimeModifierCal
 import reactionTimeModifierCalculation from "./reactionTimeModifierCalculation";
 import { getCachedCharacterSkills } from "../../Hooks/EveEsi/Character/useGetCharacterSkills";
 import { quotedCharacterHash } from "../Skills/quotedCharacter";
-import { rigSlotBonuses } from "../Custom Structures/rigs";
+import { rigSlotBonuses } from "../Industry Facilities/rigs";
 
 /**
  * How long this setup takes the account reading it.
@@ -16,6 +16,7 @@ import { rigSlotBonuses } from "../Custom Structures/rigs";
  * @param {Object<string, {typeID: number, level: number}>} jobSkillRequirements -
  *   The job's required skills, keyed by type id - The job skill requirements
  * @param {QueryClient} queryClient - The react query client
+ * @param {number} [itemID] - What the job builds, which a scoped bonus is read against
  * @returns {number} The time for the job setup
  */
 
@@ -23,6 +24,7 @@ export default function calculateTimeForSetup(
   setupObject,
   jobSkillRequirements,
   queryClient,
+  itemID,
 ) {
   // The raw time is the figure everything below multiplies, so a setup without
   // one has no time to state. A data check rather than a type check: the job
@@ -34,7 +36,7 @@ export default function calculateTimeForSetup(
     getCachedCharacterSkills(queryClient, quotedCharacterHash(setupObject))
       ?.data || {};
 
-  return timeForSetup(setupObject, jobSkillRequirements, usersSkills);
+  return timeForSetup(setupObject, jobSkillRequirements, usersSkills, itemID);
 }
 
 /**
@@ -48,12 +50,14 @@ export default function calculateTimeForSetup(
  * @param {Object<string, {typeID: number, level: number}>} jobSkillRequirements -
  *   The job's required skills, keyed by type id
  * @param {Object} usersSkills - Keyed by skill type id, `{ id, activeLevel }`
+ * @param {number} [itemID] - What the job builds, which a scoped bonus is read against
  * @returns {number} Seconds
  */
 export function timeForSetup(
   setupObject,
   jobSkillRequirements,
   usersSkills = {},
+  itemID,
 ) {
   const timeModifier = timeModifierCalc(setupObject, usersSkills);
   const skillModifier = skillModifierCalc(jobSkillRequirements, usersSkills);
@@ -67,6 +71,8 @@ export function timeForSetup(
       setupObject.jobType,
       setupObject.rigSlot1,
       setupObject.rigSlot2,
+      setupObject.systemTypeID,
+      itemID,
     ).time;
 
     switch (setupObject.jobType) {
