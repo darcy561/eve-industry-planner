@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { JOBS_DELETED_REMOTELY_EVENT } from "../../../Functions/Debounce/inboundJobDocumentsCoalesce.js";
+import { JOBS_DELETED_REMOTELY_EVENT } from "../../../Functions/JobDocuments/inboundJobDocuments.js";
 import { showSnackbarWarning } from "../../../Events/snackbarEvents";
 
 /**

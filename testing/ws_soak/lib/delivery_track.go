@@ -2,6 +2,7 @@ package soaklib
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -142,9 +143,7 @@ func (t *deliveryTracker) Start() {
 	if t == nil {
 		return
 	}
-	t.wg.Add(1)
-	go func() {
-		defer t.wg.Done()
+	t.wg.Go(func() {
 		for {
 			select {
 			case <-t.stop:
@@ -163,7 +162,7 @@ func (t *deliveryTracker) Start() {
 				t.trackRecv(ev.DocID, ev.AccountID)
 			}
 		}
-	}()
+	})
 }
 
 // Close stops ingress and drains the recv channel.
@@ -462,11 +461,8 @@ func (t *deliveryTracker) FormatPendingDump() string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "fanout pending dump (%d):", len(gaps))
-	limit := len(gaps)
-	if limit > maxPendingDumpLines {
-		limit = maxPendingDumpLines
-	}
-	for i := 0; i < limit; i++ {
+	limit := min(len(gaps), maxPendingDumpLines)
+	for i := range limit {
 		g := gaps[i]
 		fmt.Fprintf(&b, "\n  doc=%s kind=%s missing=%v got=%v expect=%v",
 			g.DocID, g.Kind, g.Missing, g.Got, g.Expect)
@@ -521,7 +517,7 @@ func (t *deliveryTracker) KindReportLine() string {
 		kinds = append(kinds, k)
 	}
 	t.kindMu.Unlock()
-	sort.Slice(kinds, func(i, j int) bool { return kinds[i] < kinds[j] })
+	slices.Sort(kinds)
 	parts := make([]string, 0, len(kinds))
 	for _, k := range kinds {
 		kc := t.kindCounters(k)

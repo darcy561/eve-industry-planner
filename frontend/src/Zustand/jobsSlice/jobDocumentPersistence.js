@@ -1,6 +1,3 @@
-/**
- * Queues job document writes for `PUT /api/v1/job-documents` (mirrors `groupManagement` + groups).
- */
 import { scheduleDebouncedJobDocumentsSave } from "../../Functions/Debounce/jobDocumentsPersistSchedule.js";
 import { jobWriteEnvelope } from "../../Functions/JobDocuments/jobWriteEnvelope.js";
 

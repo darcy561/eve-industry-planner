@@ -2,6 +2,7 @@ package soaklib
 
 import (
 	"eve-industry-planner/shared/models"
+	"eve-industry-planner/testing/wsclient"
 	"strings"
 	"testing"
 )
@@ -53,7 +54,7 @@ func TestBuildIdentitiesCorpRequiresID(t *testing.T) {
 }
 
 func TestWSURLForSession(t *testing.T) {
-	got, err := wsURLForSession("ws://ws-router:8080/ws", "sess-1")
+	got, err := wsclient.URLForSession("ws://ws-router:8080/ws", "sess-1")
 	if err != nil {
 		t.Fatal(err)
 	}

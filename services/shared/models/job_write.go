@@ -6,22 +6,26 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 
 	"encoding/json/jsontext"
 
 	"eve-industry-planner/shared/jsoncodec"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// metaFieldJSONName is the one field a body may never carry, because the server
-// states a document's owner, revision and stamps.
-const metaFieldJSONName = "_meta"
+type fieldIndexKey struct {
+	t   reflect.Type
+	tag string
+}
+
+var fieldIndexes sync.Map
 
 // JobWriteBody is one job's write as it arrives.
 type JobWriteBody struct {
-	JobID    string `json:"jobID"`
-	Revision int64  `json:"revision,omitzero"`
-	// IncludedInGroup and GroupID are what the lock gate asks about, stated here
-	// because it asks before any document is decoded.
+	JobID           string         `json:"jobID"`
+	Revision        int64          `json:"revision,omitzero"`
 	IncludedInGroup bool           `json:"includedInGroup,omitzero"`
 	GroupID         string         `json:"groupID,omitzero"`
 	Document        jsontext.Value `json:"document"`
@@ -86,8 +90,8 @@ func walkSet(present map[string]jsontext.Value, held reflect.Value, at []string,
 	resolved := make([]member, 0, len(present))
 	promote := false
 	for _, name := range slices.Sorted(maps.Keys(present)) {
-		if len(at) == 0 && name == metaFieldJSONName {
-			return fmt.Errorf("job write: a body may not carry %s", metaFieldJSONName)
+		if len(at) == 0 && name == MetaFieldName {
+			return fmt.Errorf("job write: a body may not carry %s", MetaFieldName)
 		}
 		stored, value, err := memberOf(held, name)
 		if err != nil {
@@ -131,7 +135,7 @@ func memberOf(held reflect.Value, name string) (stored string, value reflect.Val
 		if !ok {
 			return "", reflect.Value{}, fmt.Errorf("job write: %q is not a field of %s", name, held.Type().Name())
 		}
-		return bsonName(field), held.FieldByIndex(field.Index), nil
+		return storedTagName(field), held.FieldByIndex(field.Index), nil
 	case reflect.Map:
 		if err := usableAsKey(name); err != nil {
 			return "", reflect.Value{}, err
@@ -160,14 +164,14 @@ func resolveRowPath(t reflect.Type, path []string) (string, error) {
 		t = derefType(t)
 		switch t.Kind() {
 		case reflect.Struct:
-			if len(stored) == 0 && segment == metaFieldJSONName {
-				return "", fmt.Errorf("job write: a body may not remove from %s", metaFieldJSONName)
+			if len(stored) == 0 && segment == MetaFieldName {
+				return "", fmt.Errorf("job write: a body may not remove from %s", MetaFieldName)
 			}
 			field, ok := fieldByJSONName(t, segment)
 			if !ok {
 				return "", fmt.Errorf("job write: %q is not a field of %s", segment, t.Name())
 			}
-			name := bsonName(field)
+			name := storedTagName(field)
 			if name == "" {
 				return "", fmt.Errorf("job write: %q has no stored path", segment)
 			}
@@ -230,29 +234,42 @@ func objectMembers(raw jsontext.Value) (map[string]jsontext.Value, error) {
 }
 
 func fieldByJSONName(t reflect.Type, name string) (reflect.StructField, bool) {
-	for field := range t.Fields() {
-		tag, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-		if tag == name {
-			return field, true
-		}
-		if tag == "" && field.Anonymous {
-			if inner, ok := fieldByJSONName(derefType(field.Type), name); ok {
-				inner.Index = append(append([]int{}, field.Index...), inner.Index...)
-				return inner, true
-			}
-		}
-	}
-	return reflect.StructField{}, false
+	field, ok := fieldsNamedBy(t, "json", jsonTagName)[name]
+	return field, ok
 }
 
-func bsonName(field reflect.StructField) string {
-	name, _, _ := strings.Cut(field.Tag.Get("bson"), ",")
-	if name == "-" {
-		return ""
+// fieldsNamedBy indexes a struct's fields by the name one tag gives them,
+// reading through an embedded struct and built once per type and tag.
+func fieldsNamedBy(t reflect.Type, tag string, nameOf func(reflect.StructField) string) map[string]reflect.StructField {
+	key := fieldIndexKey{t: t, tag: tag}
+	if held, ok := fieldIndexes.Load(key); ok {
+		return held.(map[string]reflect.StructField)
 	}
-	if name == "" {
-		return strings.ToLower(field.Name)
+	index := map[string]reflect.StructField{}
+	indexFields(t, nameOf, nil, index)
+	fieldIndexes.Store(key, index)
+	return index
+}
+
+func indexFields(t reflect.Type, nameOf func(reflect.StructField) string, at []int, index map[string]reflect.StructField) {
+	for field := range t.Fields() {
+		field.Index = append(append([]int{}, at...), field.Index...)
+		name := nameOf(field)
+		if name == "" {
+			if field.Anonymous {
+				indexFields(derefType(field.Type), nameOf, field.Index, index)
+			}
+			continue
+		}
+		if _, held := index[name]; !held {
+			index[name] = field
+		}
 	}
+}
+
+// jsonTagName is the name a field's json tag gives it, empty where it names none.
+func jsonTagName(field reflect.StructField) string {
+	name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
 	return name
 }
 
@@ -271,4 +288,237 @@ func derefType(t reflect.Type) reflect.Type {
 		t = t.Elem()
 	}
 	return t
+}
+
+// EntityRefIDKey names the client field a stored ref stands in for, reporting
+// whether the key names a ref at all.
+func EntityRefIDKey(key string) (string, bool) {
+	if base, ok := strings.CutSuffix(key, "_ref"); ok && base != "" {
+		return base + "_id", true
+	}
+	if base, ok := strings.CutSuffix(key, "Ref"); ok && base != "" {
+		return base + "ID", true
+	}
+	return "", false
+}
+
+// JobJSONChange is one path a stored change set whole, in the names a client
+// reads, with the value it now holds there.
+type JobJSONChange struct {
+	Path  []string `json:"path"`
+	Value any      `json:"value"`
+}
+
+// JobJSONChanges turns each path a stored change set into the path a client
+// replaces at, refusing a ref set on its own since only a row carries one across.
+func JobJSONChanges(updatedFields map[string]any) ([]JobJSONChange, error) {
+	changes := make([]JobJSONChange, 0, len(updatedFields))
+	for _, stored := range slices.Sorted(maps.Keys(updatedFields)) {
+		path, at, err := storedPathToJSON(reflect.TypeFor[Job](), strings.Split(stored, "."))
+		if err != nil {
+			return nil, err
+		}
+		if path == nil {
+			continue
+		}
+		if err := refusePathEndingInRef(path); err != nil {
+			return nil, err
+		}
+		value, err := storedValueToJSON(at, updatedFields[stored])
+		if err != nil {
+			return nil, err
+		}
+		changes = append(changes, JobJSONChange{Path: path, Value: value})
+	}
+	return changes, nil
+}
+
+// JobJSONRemoved turns each cleared stored path into the path a client deletes at.
+func JobJSONRemoved(removed []string) ([][]string, error) {
+	paths := make([][]string, 0, len(removed))
+	for _, stored := range removed {
+		path, _, err := storedPathToJSON(reflect.TypeFor[Job](), strings.Split(stored, "."))
+		if err != nil {
+			return nil, err
+		}
+		if path == nil {
+			continue
+		}
+		if err := refusePathEndingInRef(path); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+// storedPathToJSON walks a stored path to the one a client reads and the type it
+// lands on, answering a nil path for a field a client is never sent.
+func storedPathToJSON(t reflect.Type, stored []string) ([]string, reflect.Type, error) {
+	path := make([]string, 0, len(stored))
+	for _, segment := range stored {
+		t = derefType(t)
+		switch t.Kind() {
+		case reflect.Struct:
+			field, ok := fieldByBSONName(t, segment)
+			if !ok {
+				return nil, nil, fmt.Errorf("job delta: %q is not a stored field of %s", segment, t.Name())
+			}
+			name, sent := clientName(field, segment)
+			if !sent {
+				return nil, nil, nil
+			}
+			path = append(path, name)
+			t = field.Type
+		case reflect.Map:
+			if err := usableAsKey(segment); err != nil {
+				return nil, nil, err
+			}
+			path = append(path, segment)
+			t = t.Elem()
+		default:
+			return nil, nil, fmt.Errorf("job delta: %q cannot be stepped into", segment)
+		}
+	}
+	return path, t, nil
+}
+
+// storedValueToJSON renames the keys inside a delta's value, which are stored
+// names wherever the value is a document or holds one.
+func storedValueToJSON(t reflect.Type, value any) (any, error) {
+	t = derefType(t)
+	switch t.Kind() {
+	case reflect.Struct:
+		document := asDocument(value)
+		if document == nil {
+			return value, nil
+		}
+		out := make(map[string]any, len(document))
+		for _, key := range slices.Sorted(maps.Keys(document)) {
+			field, ok := fieldByBSONName(t, key)
+			if !ok {
+				return nil, fmt.Errorf("job delta: %q is not a stored field of %s", key, t.Name())
+			}
+			name, sent := clientName(field, key)
+			if !sent {
+				continue
+			}
+			inner, err := storedValueToJSON(field.Type, document[key])
+			if err != nil {
+				return nil, err
+			}
+			out[name] = inner
+		}
+		return out, nil
+	case reflect.Map:
+		document := asDocument(value)
+		if document == nil {
+			return value, nil
+		}
+		out := make(map[string]any, len(document))
+		for key, row := range document {
+			if err := usableAsKey(key); err != nil {
+				return nil, err
+			}
+			inner, err := storedValueToJSON(t.Elem(), row)
+			if err != nil {
+				return nil, err
+			}
+			out[key] = inner
+		}
+		return out, nil
+	case reflect.Slice, reflect.Array:
+		items := asArray(value)
+		if items == nil {
+			return value, nil
+		}
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			inner, err := storedValueToJSON(t.Elem(), item)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, inner)
+		}
+		return out, nil
+	default:
+		return value, nil
+	}
+}
+
+// clientName is the name a stored field reaches a client under, reporting whether
+// it reaches one at all. A ref keeps its stored name for the id restore to rewrite.
+func clientName(field reflect.StructField, stored string) (string, bool) {
+	name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+	if name == "-" {
+		if _, isRef := EntityRefIDKey(stored); isRef {
+			return stored, true
+		}
+		return "", false
+	}
+	if name == "" {
+		return field.Name, true
+	}
+	return name, true
+}
+
+// refusePathEndingInRef refuses a path whose last step is a ref, which reaches a
+// client as ciphertext because the id restore rewrites keys inside a row only.
+func refusePathEndingInRef(path []string) error {
+	if _, isRef := EntityRefIDKey(path[len(path)-1]); isRef {
+		return fmt.Errorf("job delta: %s names a ref on its own", strings.Join(path, "."))
+	}
+	return nil
+}
+
+// fieldByBSONName finds the field a stored name refers to.
+func fieldByBSONName(t reflect.Type, name string) (reflect.StructField, bool) {
+	field, ok := fieldsNamedBy(t, "bson", storedTagName)[name]
+	return field, ok
+}
+
+// storedTagName is the name a field is stored under, empty where it is not
+// stored and where an embedded struct spreads its fields into this one.
+func storedTagName(field reflect.StructField) string {
+	name, _, _ := strings.Cut(field.Tag.Get("bson"), ",")
+	if name == "-" {
+		return ""
+	}
+	if name == "" && field.Anonymous {
+		return ""
+	}
+	if name == "" {
+		return strings.ToLower(field.Name)
+	}
+	return name
+}
+
+// asDocument reads a stored value as a document, answering nil for anything else.
+func asDocument(value any) map[string]any {
+	switch v := value.(type) {
+	case map[string]any:
+		return v
+	case bson.M:
+		return v
+	case bson.D:
+		out := make(map[string]any, len(v))
+		for _, entry := range v {
+			out[entry.Key] = entry.Value
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// asArray reads a stored value as a list, answering nil for anything else.
+func asArray(value any) []any {
+	switch v := value.(type) {
+	case []any:
+		return v
+	case bson.A:
+		return v
+	default:
+		return nil
+	}
 }

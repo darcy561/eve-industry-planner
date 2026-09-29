@@ -204,7 +204,7 @@ func pickLiveJob(rng *rand.Rand, snap liveSnapshot, seq int) (fanoutJob, bool) {
 	}
 	// Rotate preferred kind; fall back across kinds if the live mix cannot satisfy it.
 	start := seq % len(livePublishKinds)
-	for off := 0; off < len(livePublishKinds); off++ {
+	for off := range livePublishKinds {
 		kind := livePublishKinds[(start+off)%len(livePublishKinds)]
 		coll := fanoutCollections[seq%len(fanoutCollections)]
 		docID := fmt.Sprintf("soak-fanout-%s-%s-%d", kind, coll, seq+1)
@@ -258,10 +258,7 @@ func buildLiveJob(rng *rand.Rand, snap liveSnapshot, kind fanoutMsgKind, docID, 
 		if !ok {
 			return fanoutJob{}, false
 		}
-		n := max(len(members)/2, 1)
-		if n > len(members) {
-			n = len(members)
-		}
+		n := min(max(len(members)/2, 1), len(members))
 		start := seq % max(len(members)-n+1, 1)
 		scope := append([]string{}, members[start:start+n]...)
 		return fanoutJob{
@@ -318,7 +315,7 @@ func buildLiveJob(rng *rand.Rand, snap liveSnapshot, kind fanoutMsgKind, docID, 
 		n := min(2, len(members))
 		scope := make([]string, 0, n)
 		perm := rng.Perm(len(members))
-		for i := 0; i < n; i++ {
+		for i := range n {
 			scope = append(scope, members[perm[i]])
 		}
 		return fanoutJob{

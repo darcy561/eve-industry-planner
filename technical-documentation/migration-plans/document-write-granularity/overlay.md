@@ -41,8 +41,8 @@ was given and `$inc`s the counter. It is Stage C's shape, built for planner sett
 
 ## Stage A — A write that checks the revision
 
-**Landed, server side.** The SPA does not yet send a revision or read a refusal, so nothing in the
-product behaves differently yet — an unversioned write is accepted exactly as before.
+**Landed.** On this branch every write of a stored job carries its revision and a refusal is read,
+per § What a write is checked against; production runs neither until Stage C deploys.
 
 ### What a write carries
 
@@ -126,9 +126,8 @@ unconditional path.** Stage B then taught the client to recognise a `revision_co
 refused write and tell the reader, which is what made carrying one safe; a landed write also counts
 itself locally, so a second edit does not arrive stale against the client's own earlier write.
 
-What is still unconditional is nothing — every write either carries a revision or is a create. What
-is still *whole* is every write: the field-scoped path is built on both sides but not wired to the
-wire, so a job that changed one field still sends all of them. § Stage C.
+What is still unconditional is nothing — every write either carries a revision or is a create. A job
+whose change log is in hand sends only what changed, per § Stage C.
 
 ## Stage B — A refused write is an outcome the UI handles
 
@@ -193,10 +192,11 @@ local-only editing is the intended behaviour there, not a refusal.
 
 ## Stage C — Field-scoped writes
 
-*Not landed* for jobs. A whole document is still what reaches the endpoint: the payload a flush sends
-is the `jobArray` copy of each queued job, whatever the queue knows about it.
+**Landed, not deployed.** A flush sends one envelope per queued job, built by `jobWriteEnvelope`
+from the `jobArray` copy and whatever the queue knows about it: field-scoped where the change log and
+a revision are both in hand, whole otherwise.
 
-What the queue knows has changed. `pendingJobDocumentWrites` maps each job owed a write to the change
+What the queue knows: `pendingJobDocumentWrites` maps each job owed a write to the change
 log entries behind it, or to `null` where nothing recorded what changed — an ESI refresh, a group
 operation, a job a close resized. Closing a job supplies the entries for the job the reader had open;
 everything else a close writes was changed outside the editor and is queued whole. Joining a job that
@@ -205,7 +205,6 @@ narrowed by one that can, or the fields it does not name would stop being writte
 
 ### What a write body says
 
-One piece has landed ahead of the rest: what a write body *is*.
 [`writeBody.js`](../../../frontend/src/Functions/JobDocuments/writeBody.js) turns a job and the
 entries of its edit-draft change log into the two parts a field-scoped write carries.
 
@@ -228,13 +227,11 @@ and one stored without its `build` cannot be read back.
 
 ### What a close writes
 
-*Not landed.* A close collects every job it changed besides the edited one — the parent and child
-links the reader made, anything the defensive pass repaired, and anything the recalculation resized —
-and writes the edited job, its temporary children and all of those, whole and unconditionally,
-through `saveJobsViaApi`.
-
-What it will write is decided: the edited job from its change log, and every job it changed besides
-that one whole, but conditional on the revision of the copy it was written from. A job the client holds no stored
+A close collects every job it changed besides the edited one — the parent and child links the reader
+made, anything the defensive pass repaired, and anything the recalculation resized — and queues them
+through `saveJobsViaApi` beside the edited job. The edited job is written from its change log, and
+every job it changed besides that one whole, but conditional on the revision of the copy it was
+written from. A job the client holds no stored
 copy of is the exception — there is nothing for a revision to be read from, so it is written as a
 create. That is decided per job by whether a stored copy exists, not by the job having arrived as a
 new child: the map of children a close adds can also carry a group job that already exists. § Stage C of [plan.md](./plan.md)
@@ -386,16 +383,332 @@ machinery survives.
 
 ## Stage E — Delta delivery and client apply
 
-*Not landed.*
+*Landed end to end: a save is followed from the endpoint to what each client applies.*
 
 The change stream already captures `updatedFields` and `removedFields` and uses them only to suppress
 a schema-maintenance update. They are not yet meaningful: a `$set` of the whole job marks every field
 as updated, so the delta is the document under another name until Stage C lands.
 
-All three of those are now settled in [plan.md](./plan.md) § Stage E — the envelope is the Stage C write
-envelope travelling the other way, the client applies a merge onto the base it already holds, and a gap
-is proved by the pair of `_meta.revision` values a delta moves between and answered by reloading the
-document. Nothing of it runs yet, so this section stays empty of current behaviour until it does.
+### Slice 1 — a stored delta in the client's names
+
+`models.JobJSONChanges` turns Mongo's flat `updatedFields` into one `{path, value}` per stored path, in
+the names a client reads and in the order of the stored paths, and `models.JobJSONRemoved` does the
+same for the paths a write cleared. Each value is converted to the client's names on the way, so a row
+set whole arrives as the row a client reads. Both walk the
+model's own tags, so the mapping has one source: `fieldsNamedBy` indexes a struct's fields by the name
+one tag gives them, built once per type and tag, and both directions of the walk read it.
+
+A field the client is never sent is dropped rather than renamed — `protected`, and `_meta.owner`, which
+the full document still carries. A stored `*_ref` is the exception and keeps its stored name, because
+`restoreEntityIDs` downstream is what turns it into the `corporation_id` or `character_id` the client
+reads, and that field is stored nowhere else. `EntityRefIDKey` in `models` is now the one place that
+rule is written; the websocket service reads it rather than holding its own copy. Both spellings exist
+because a ref is named to match the id it stands in for, and those differ by area: a job body mirrors
+ESI's `corporation_id`, while `_meta` uses our own `accountID`.
+
+A path that cannot be resolved — a positional step into a list, a stored name the model does not carry,
+a ref standing at the end of a path — is answered as an error, and the watcher's answer to that error is
+to drop the delta and send the full document. The ref case is refused rather than translated because
+`restoreEntityIDs` rewrites a ref only as a map key inside a value; one set or cleared on its own would
+reach the browser as ciphertext.
+
+### Slice 2 — the derivation is proved over both transports
+
+`client_shape_parity_test.go` exists because a client reads the same document two ways — an API
+response and a `doc.update` push — and both have to name an entity id identically. It now builds one
+job and compares the same two rows over both: the whole document as the changestream copies it out of
+Mongo, and a delta built from the driver's own types and run through `JobJSONChanges`, rebuilt into the nested
+document the comparison reads. A ref dropped
+rather than kept fails the delta half and leaves the document half passing, which is what makes the
+second case worth its place.
+
+**The row's key is compared as well as its fields.** The whole document carries a row's key straight
+through the marshaller, but a delta rebuilds it by splitting a stored path, so a key dropped or
+mistaken is a failure only the delta can have. Comparing the fields inside one row would not see it —
+both fixture collections hold a single row, so a row under the wrong key still matches field for
+field. The two transports are asserted to key the rows the same way before any field is read.
+
+The delta's values are read through `eipmongo.AsDocumentM`, because the driver hands a nested document
+back as either `bson.M` or `bson.D` and a change event's values are whatever it gives. `models` has a
+narrower reader of its own for the same shapes and cannot use that one: `shared/mongo` imports
+`shared/models`, so the dependency only runs the one way.
+
+Three things were corrected while the file was open. Its envelope named the collection
+`user_job_documents`, which was its name before the rename. Its comments were removed rather than
+shortened, because the rule allows none in a test at all and the helper names carry what they do. And
+one of those comments recorded why the served copy rebuilds its row maps rather than sharing them — a
+struct copy copies the map header alone, so decrypting the copy would write restored ids into the rows
+the test still has to marshal as stored, leaving it comparing two views of one decrypted job. That is
+the reason, recorded here because it cannot live beside the code.
+
+### Slice 3 — the watcher publishes a delta beside the document
+
+A job document's update now carries `changed`, `removed`, `revision` and `appliesTo` on the NATS
+message and, through `ClientPayload`, to a browser. Every other collection and every other operation is
+untouched: the branch tests for the job documents collection and an `update`, and an `insert`, a
+`replace` or a `delete` has no `updateDescription` to read.
+
+`updateDescription` is parsed once at the top of `processChangeEvent` and handed to
+`isSchemaMaintenanceOnlyUpdate`, which used to parse it itself. That check now matters to more than
+itself: a schema-maintenance write does not increment the revision, so one reaching a client as a delta
+would name a revision that had not moved and read as a gap. It is suppressed before the delta is
+considered.
+
+**The revision is the one the update itself wrote.** An `$inc` reports `_meta.revision` in
+`updatedFields` as the value the write produced, and that is what the delta names; `appliesTo` is one
+below it because a job write increments by exactly one. The looked-up `fullDocument` is **not** read for
+it: `updateLookup` returns the document as it is when the event is read, which can already be a later
+write's, and a delta naming that later revision would carry fields from an earlier one — the client
+would then drop the delivery that did carry them as already applied. An update that writes no revision
+carries no delta.
+
+**A delta is stated or it is not; it is never partial.** `jobDeltaFor` answers false — and the message
+carries the whole document alone, as it does today — when the update writes no revision, when the
+revision is below the one a document is seeded with, when Mongo reports `truncatedArrays`, when a
+cleared path is not a string, when **any** path in the update cannot be read
+into the client's names, or when nothing survives the drop of what a client is never sent. The case
+that makes this a rule rather than a tidiness is an unreadable changed path beside a readable cleared
+one: answering true there would deliver a delta that silently omitted the field, and a client applying
+it would hold a document that no longer matches the store. Nothing is ever returned as an error to the
+event, so a change the delta cannot describe still reaches its clients whole.
+
+The log line a published event writes says whether one was carried.
+
+**What `appliesTo` rests on, and where that is not enforced.** It is one below the revision because a
+job write increments by exactly one — true of every ordinary write path, and not true of every writer.
+`schemamaint` writes a job document through `UpsertStructsPreservingMetaBulk`, which stamps
+`_meta.lastModified` and never increments the counter; today that write only ever changes
+`schemaVersion`, so the maintenance suppression swallows it before a delta is considered. Nothing in
+code holds it there. If the job upgrader is ever given a second field to change, that write escapes the
+suppression — mixed allowed and disallowed fields — while still not moving the revision. It is safe by
+construction rather than by care: an update that writes no `_meta.revision` carries no delta, so it
+reaches every client as the whole document it always did.
+
+The release step that seeds the counter is the other edge. A document that never held one is `$set` to
+the first revision, which states a delta applying onto revision zero — a state that never existed
+rather than one a client could have held. It is not suppressed, because a rename and a seed are not
+maintenance fields; a client holding the job without a revision reads it as a gap and reads the job
+again, which is the right answer. The step has already run against live data, so it is reachable only against a
+restored copy from before the counter, and nothing about it breaks the never-fail contract.
+
+The message struct's field comments were removed rather than extended while it was open, because the
+rule allows no trailing comment on a declaration. Two of them said something worth keeping: the source
+session id is stable across a client's reconnects, where the client id is per tab, and the owner key is
+what the websocket service routes a message on.
+
+### Slice 4 — what proves the delta, on both sides
+
+Three pieces, each in the structure this repo already keeps that kind of proof in.
+
+**One envelope, pinned for both languages.**
+[job-delta.json](../../../testing/fixtures/realtime-messages/job-delta.json) states the stored change
+Mongo reports and the delta it becomes. The Go side builds the second from the first with the real
+code. The SPA side does **not** re-state the field names — that would be a second copy of something
+already agreed — it checks every path the delta names against
+[job-schema.json](../../../testing/fixtures/model-parity/job-schema.json), the list both languages
+already hold of what a job carries. So a name this fixture invents, a changed path that stops at
+something a job holds other fields under rather than at a value, a cleared row the model has no place
+for, and a field the server keeps to itself leaking into a delta all fail on the SPA side — neither
+`protected` nor `_meta.owner` is in that list, so one check answers naming parity and the drop rule
+together.
+
+**What the schema check cannot catch** is a name swapped for a real sibling's — `jobCount` for
+`runCount` — because both resolve. That is a defect in the model rather than in the wire, and the
+places it shows are the job parity test and the Go corpus test, which compare values rather than
+membership. Recorded because the check reads stronger than it is. It sits
+beside [kinds.json](../../../testing/fixtures/realtime-messages/kinds.json), which pins the message
+vocabulary the same way.
+
+An earlier draft of the SPA half asserted the fixture's own values back at itself — that `appliesTo` is
+one below `revision`, that a row carries the field the fixture says it carries. Those read as coverage
+and were worth nothing: no SPA code computed them, so only the fixture could have contradicted the
+fixture. A second draft kept one of the same shape, checking that two names the server keeps to itself
+are absent from the schema without ever looking at the delta. Checking against the schema, and checking
+the delta rather than the list, is what makes the second side real while the apply path does not exist.
+
+**A live test, through a real change stream, and it has been run.** `live_job_delta_test.go` writes fields into a real job
+document, with a real `$inc` and a real `$unset`, and reads what the running core publishes: the
+each changed path in the client's names with its value, the cleared row as a path, the revision pair, and the
+whole document still beside them. Its second case proves the maintenance suppression by writing a
+schema bump and then a marker, and failing if the bump reached a subscriber — collecting what was
+published rather than filtering for the marker, because filtering would pass whether or not the bump
+was sent. Both need `EIP_MONGO_PARITY_LIVE=1` and the stack's NATS, and skip without them.
+
+**Three things only running them could find**, all now fixed and all of which had been keeping the
+three older `Live_Publish` tests red as well:
+
+- **The watcher was watching the wrong database.** Core watches `eve_industry_planner`; these tests
+  write in `eve_industry_planner_test`, which `mongolive` refuses to move off — rightly, since they
+  delete what they think they created. Nothing was watching where they wrote. The test now starts a
+  watcher over its own database, which is also why the objection in `live_publish_test.go` no longer
+  holds: core never watches that database, so a message about it can only be the test's own. That
+  comment has been corrected rather than left standing.
+- **A cold-started watcher publishes nothing until its change stream opens**, which took 93 seconds in
+  core's own logs. A test that writes immediately writes into silence. Each now probes until one comes
+  back.
+- **The seed's `insert` was being taken for the `update` under test**, because the wait matched on the
+  document id alone.
+
+### Slice 5 — one save, several tabs
+
+`live_full_loop_test.go` seeds sessions against the stack's own session store — the saver's tab,
+another tab of the same account, a second member of the planner, and a tab of the same account working
+in a different planner — connects each as a real websocket client, makes **one save through the real
+endpoint**, and asserts what each received: the delta reached the other member and the saver's other
+tab, and did not reach the tab that made the save. That last assertion is the one nothing else covers,
+and it is behaviour rather than plumbing: echo suppression is keyed on the websocket client id the save
+carried. Real Mongo, real change stream, real NATS, the stack's own websocket service, real browser
+connections. It has passed for an account, a corporation and an alliance planner.
+
+**A connection receives nothing until it says which planner it is working in.** It sends
+`{"type": "active_planner", "owner": "<handle>"}`, and that subscription is *replaced* rather than
+widened — one planner at a time, chosen by the client, so two tabs of one account can be in different
+planners. Every kind of planner travels the same path from there, which is why the test runs one loop
+over a list of owners rather than one test per kind.
+
+**The run carries the stack's `ENTITY_ID_KEY`**, because a corporation or alliance handle is an entity
+ref, and one minted with any other key is refused as naming an owner outside the connection's grants —
+`ws_active_planner_not_granted` in the stack's log. The account is joined to each corporation and
+alliance before the loop runs, because a planner the account is not a member of is not one it can save
+in.
+
+**A tab working in another planner is asserted to be told nothing, except for an account-owned
+planner.** The account's own key survives an `active_planner` switch — deliberately, because it carries
+settings and the watchlist — and a personal planner's jobs are owned by `account:<id>`, so they ride it
+too. The test logs that instead of asserting it, and the behaviour belongs to
+[shared-planners](../shared-planners/plan.md) § Stage G, item G6.
+
+**Every client is proved live before the save.** A probe is written into each planner until every
+client working in it has been told, and `wsclient.Quiet` fails on a closed connection — so the tabs
+asserted to hear nothing are proved to be listening, rather than passing because they had quietly gone
+away.
+
+**`testing/wsclient` drains its socket from a goroutine**, and that is not incidental: a gorilla
+connection whose read hits a deadline is unusable for every read after it, so polling with a deadline
+killed the first client silently and the stack's own logs showed a thousand deliveries arriving at a
+client that could no longer read any of them. Reading continuously and matching against what has
+arrived is the shape a test client has to take. [ws_soak](../../../testing/ws_soak/lib/) builds its
+connection URL through the same package.
+
+### Slice 6 — the client applies a delta onto what it holds
+
+`Functions/JobDocuments/jobDelta.js` is the whole rule, as pure functions over plain data:
+`deltaFromMessage` reads a delivery's delta or answers none, `deltaVerdict` says whether it applies,
+repeats one already applied, or proves a delivery was missed, and `applyJobDelta` sets each change's value whole at its
+path, clears each removed path, and answers a new document rather than changing the one it was given —
+copying each level on the way down, so what the store still holds is never touched.
+
+**The revision a client holds is the one on the document it holds.** `_meta.revision` is already on
+every stored job and already survives `jobFromDocument` and `toDocument`, so nothing new stores it and
+nothing has to be kept in step.
+
+**The coalescer folds rather than keeps the last.** It held one document per job for its 80ms window
+and replaced it on each delivery, which is right for whole documents and loses every delta but the
+final one. It now queues the deltas in arrival order beside the document and folds them at flush:
+skipping what the client already has, applying each in turn, and — the moment one does not join up —
+abandoning the fold for that job and **reading it again**, which is something this app already knows
+how to do. A document rebuilt from a stream with a hole in it is not the
+document the server holds, so a re-read is the only honest answer.
+
+**A job the client does not hold yet, and a delivery carrying no delta, both take the whole document**,
+which is what makes the server half additive: nothing about this changes what a client does with a
+message that has no delta in it.
+
+**A whole document in the window is the base for the deltas after it.** A window that sees a delivery
+with no delta and then one with a delta folds the second onto the first, not onto what the store held
+before the window, which the first has already moved past.
+
+**A job with writes this client has not yet had acknowledged takes the whole document.** Folding onto
+the held job would fold onto local edits the server has not seen, and that document would claim a
+revision it does not match.
+
+The receiving edge does the reading. `documentMessage.js` converts the message into that one internal
+shape and hands it on, rather than passing the wire's fields down for the coalescer to interpret.
+
+**The re-read reads and does not write.** `requestJobDocumentsByIdsFromApi` is the store-free half of
+this app's job fetch, and it is what a gap asks — `fetchJobDocumentByIdFromApi` beside it writes what it
+read into `jobArray` unconditionally, which would put a stale answer in the store before anything could
+judge it and leave the guard below inert.
+
+**A re-read is made once per job while one is in flight, and read again if the job gaps meanwhile.**
+Two gapped deliveries in a row would otherwise ask for the same job twice, and the slower answer would
+land last and undo what the faster one and the deltas after it had already got right. A gap arriving
+while the read is out is remembered, and the job is read once more when the first read settles, because
+the first answer can predate the write that gapped.
+
+**A re-read's answer is dropped if the client has moved on**: logged out or torn down since it asked,
+switched planner, no longer holding the job because it was deleted meanwhile, or already holding the
+revision the read returned or a later one. A read that fails
+is swallowed and the job stays where it was: the next delivery for it gaps again and asks again, so
+nothing is stuck, but nothing tells the reader either — which is the accepted limit here rather than an
+oversight.
+
+### Slice 7 — the replay, and the loop closed
+
+The live loop test writes what each connected client was **actually sent** to
+[job-delta-capture.json](../../../testing/fixtures/realtime-messages/job-delta-capture.json), keyed by
+planner kind, beside the document the server held before the save and after it. The runner mounts that
+folder into the test container for the purpose; without `EIP_CAPTURE_DIR` the test records nothing and
+behaves as before.
+
+`documentMessage.replay.test.js` reads it back and drives every recorded frame through
+`applyDocumentMessage` — the real receiving edge, the real coalescer, the real apply — starting from
+the `before` document, and asserts what it ends holding **equals** what the server stored. For an
+account, a corporation and an alliance planner.
+
+**It proves the delta and not the document beside it.** Breaking `applyJobDelta` so it drops what the
+delta changed fails all three cases, even though every frame still carries the whole document. The
+re-read is mocked to throw, so a gap cannot rescue the assertion either: if the fold does not join up,
+the test fails rather than quietly reloading its way to the right answer.
+
+**Both halves of a delta are replayed.** The save clears a row as well as changing a field, so the
+capture carries a real `removed` path and making that branch a no-op fails all three cases too. The
+save was a rename alone at first, which left `removeAt` — a whole branch of the apply — unexercised by
+the loop while looking covered.
+
+**Nothing in the capture is written by hand**, which is the whole point — a frame somebody typed would
+put the invented input back in the middle of the one journey this exists to prove. It is committed so
+the SPA suite runs without a stack, and rewritten by the next live run.
+
+**A capture is only trustworthy after a whole run.** The writer merges per planner kind rather than
+replacing the file, so a filtered `-test.run` refreshes one kind and leaves the others as an older run
+left them. The replay guards the shape of that rather than the freshness: it asserts all three kinds
+are present, and that each carries both a changed field and a cleared row, so a capture that shrank
+fails instead of quietly replaying less.
+
+**The live test encodes what it sends with the repo's codec.** Its request helper used
+`encoding/json`, which writes a nil list as `null`, so the job it seeded was stored with `null` where
+the SPA — and `jsoncodec` — send `[]`. The account run delivers that seed's insert to a tab as a whole
+document, and the replay caught the difference against the API's read. Nothing a real client sends
+stores that shape; the helper now encodes through `jsoncodec`.
+
+**What it does not prove.** That the revision moves when a delta does not name `_meta` — these real
+deltas all carry `_meta.revision` in their changed fields, so the explicit set is unobservable here and
+is pinned by `jobDelta.test.js` instead.
+
+### Slice 8 — what the coverage review found
+
+A review of this stage's test coverage found four defects the tests had been passing over, all fixed:
+
+- **Changes were merged rather than set.** The delta was a nested partial document, which cannot say the
+  level Mongo set a value at, so an emptied collection, a row written whole and a whole-document write
+  all left the client holding a document the server did not. It is now a list of paths set whole —
+  [plan.md](./plan.md) § Whose vocabulary travels on the wire records the reversal.
+- **The revision was read from the looked-up document**, which can be newer than the event. It is now
+  read from the update, per § Slice 3.
+- **A gap during a re-read was lost.** It is now remembered and the job read again, per § Slice 6.
+- **A re-read's answer landed after teardown, a planner switch, or the job's deletion.** It is now
+  dropped, per § Slice 6.
+
+The watcher gained unit tests over a fake NATS for what it publishes, and `wsclient.Quiet` now fails on a
+closed connection, because a closed socket's silence proves nothing. The loop test probes every client —
+including the one on another planner — for a live subscription before the save, for the same reason.
+Each guard was checked by breaking it and watching its test fail.
+
+Everything else in this stage is settled in [plan.md](./plan.md) § Stage E — a delta is each path the
+update set with its value and the removed row paths, the client sets each value whole onto the base it
+already holds, and a gap is proved by the pair of `_meta.revision` values a delta moves between and
+answered by reading the job again. All of it is built; §§ Slice 1 to Slice 8 say what each part does.
 
 ## What proves this works
 
@@ -433,7 +746,14 @@ document up (`SetFullDocument(options.UpdateLookup)`), so a live test driving a 
 through the fixture would see a job missing everything the write did not touch. Every write that
 suite makes today is whole-document, which is why it holds.
 
-**Still only unit-tested:** the Redis lock gate dropping held jobs. `testing/redislive` exists and no
-test in this project uses it, so nothing proves a lock really held by another session causes the
-handler to drop that job and write the rest. That is the largest remaining gap, and it belongs with
-Stage D's remaining work rather than ahead of it.
+**The lock gate is proved against the stack's Redis.** `live_lock_gate_test.go` takes each lock
+through the document lock service's own `Acquire` — the Lua path a browser's request takes — and puts
+a batch through the real handler. A job another session holds is dropped and named with its holder
+while the rest of the batch is written; a batch held throughout writes nothing; the holder's own write
+is not held back; and the holder of a group writes a member job another session holds. Breaking the
+gate, the group bypass, or the requester it compares against each fails the case written for it.
+
+It uses the stack's Redis rather than `testing/redislive`, as the full loop does for its sessions:
+`redislive` refuses the stack's port because its tests delete keys by prefix, and the runner already
+carries the stack's Redis credentials. A lock here sits under the scratch planner's own key and is
+deleted when its test ends, so nothing a live session holds is touched.

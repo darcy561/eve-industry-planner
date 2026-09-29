@@ -27,7 +27,7 @@ const {
   enqueueInboundJobDocumentChange,
   clearInboundJobDocumentCoalesce,
   JOBS_DELETED_REMOTELY_EVENT,
-} = await import("./inboundJobDocumentsCoalesce.js");
+} = await import("./inboundJobDocuments.js");
 
 const JOB = { jobID: "job-1" };
 

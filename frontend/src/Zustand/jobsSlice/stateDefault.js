@@ -26,7 +26,7 @@ export const stateDefault = () => ({
   jobArray: [],
   /**
    * Inbound WS jobs not yet flushed into `jobArray`: jobID -> { stageId, groupID }.
-   * Used for per-stage skeleton tiles until inbound job-document coalesce (`Functions/Debounce/inboundJobDocumentsCoalesce.js`) applies.
+   * Used for per-stage skeleton tiles until inbound job-document coalesce (`Functions/JobDocuments/inboundJobDocuments.js`) applies.
    */
   pendingInboundNewJobSkeletonByJobId: {},
   groupArray: [],

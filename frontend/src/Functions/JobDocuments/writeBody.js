@@ -1,20 +1,4 @@
 /**
- * What a write carries, worked out from what the reader changed.
- *
- * A job is saved as two parts. `document` is a partial job: a field that is
- * present is being written, a field that is absent is unchanged. `removed`
- * names the rows that went, as paths into the job, because a partial document
- * spends absence on "unchanged" and so has no way left to say "delete this
- * row". The server resolves each path against the job model itself, so a path
- * reaches only what the model says is a keyed collection.
- *
- * Both parts are checked against the job as it now stands rather than trusted
- * from the log: a path the job no longer has anything at is not written, and a
- * key the job still has is not removed. That is what keeps the two from naming
- * the same ground, which a stored document refuses as a conflicting update.
- */
-
-/**
  * The body for a write covering the given log entries.
  *
  * @param {object} document - The job as it now reads
@@ -26,8 +10,6 @@ export function writeBody(document, entries) {
 
   const cleared = [];
   for (const path of shortest(gone)) {
-    // A row cleared out of a list leaves a hole where it was, so the list goes
-    // whole instead. Only a keyed collection can have one of its rows named.
     if (Array.isArray(valueAt(document, path.slice(0, -1)))) {
       changed.push(path.slice(0, -1));
       continue;
@@ -65,8 +47,6 @@ function sort(entries) {
         changed.push([...patch.path]);
         continue;
       }
-      // A job has no optional top-level field, so dropping one would store a
-      // job that cannot be read back — the command that asked is the defect.
       if (patch.path.length === 1) {
         throw new Error(
           `a job's ${patch.path[0]} cannot be removed from the job`,
@@ -90,8 +70,6 @@ function sort(entries) {
 function removals(document, cleared, written) {
   const paths = [];
   for (const path of cleared) {
-    // A key the job still has was put back after it went, and a key inside a
-    // collection being written whole is already gone from what that carries.
     if (valueAt(document, path) !== MISSING) continue;
     if (written.some((other) => covers(other, path))) continue;
 

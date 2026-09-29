@@ -4,7 +4,7 @@ import { logoutPlannerSession } from "../Functions/Auth/sessionClient.js";
 import { getTabPlannerRefreshToken } from "../Functions/Auth/tabSessionStorage.js";
 import { clearPlannerAuthCookiesClientSide } from "../Functions/Auth/plannerAuthCookies.js";
 import { disconnectWebsocket } from "../WebSocket/websocketClient.js";
-import { clearInboundJobDocumentCoalesce } from "../Functions/Debounce/inboundJobDocumentsCoalesce.js";
+import { clearInboundJobDocumentCoalesce } from "../Functions/JobDocuments/inboundJobDocuments.js";
 import useUsersStore from "../Zustand/usersStore";
 import esiCredentials from "../Functions/Auth/esiCredentials/provider.js";
 import { isDeliberateSignout } from "../Functions/Auth/signoutIntent.js";

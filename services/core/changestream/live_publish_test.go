@@ -15,20 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// The watcher's own message, published from a real write.
-//
-// The two halves either side of this are covered — Mongo to the cursor by the
-// other live tests here, NATS to a browser by the websocket integration suites —
-// but each builds the message it works on. This drives the step between them, so
-// what a document states and what a subscriber receives are checked against one
-// another rather than against a fixture either side invented.
-//
-// The publisher under test is the stack's own core, not a watcher this test
-// starts. Starting a second one proves nothing while core is running: both watch
-// the same collections, so the test would pass on core's message whatever the
-// in-test watcher produced.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1, the stack's NATS, and a running core.
 func TestLive_Publish_ownerReachesTheSubscriberFromTheDocument(t *testing.T) {
 	m := mongolive.Require(t)
 
@@ -40,6 +26,7 @@ func TestLive_Publish_ownerReachesTheSubscriberFromTheDocument(t *testing.T) {
 		t.Skipf("stack NATS unreachable: %v", err)
 	}
 	t.Cleanup(func() { nats.Close() })
+	watchTestDatabase(t, nats)
 
 	const (
 		accountID = "eip-live-publish-account"
@@ -56,13 +43,12 @@ func TestLive_Publish_ownerReachesTheSubscriberFromTheDocument(t *testing.T) {
 	clear()
 	t.Cleanup(clear)
 
-	// Subscribe before writing: the watcher publishes as the event arrives, and a
-	// subscription made afterwards would race it.
 	sub, err := nats.Conn().SubscribeSync(eipnats.SubjectDocUpdate + ".>")
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
 	t.Cleanup(func() { _ = sub.Unsubscribe() })
+	awaitWatcherReady(t, sub, coll, ownerOf(owner))
 
 	if _, err := coll.InsertOne(ctx, bson.M{
 		"_id": jobID,
@@ -74,7 +60,7 @@ func TestLive_Publish_ownerReachesTheSubscriberFromTheDocument(t *testing.T) {
 		t.Fatalf("insert the job: %v", err)
 	}
 
-	msg := awaitDocUpdateFor(t, sub, jobID, 30*time.Second)
+	msg, _ := awaitPublished(t, sub, 30*time.Second, publishedFor(jobID))
 
 	var got struct {
 		Collection string `json:"collection"`
@@ -97,40 +83,64 @@ func TestLive_Publish_ownerReachesTheSubscriberFromTheDocument(t *testing.T) {
 		t.Fatalf("operationType = %q, want insert", got.Operation)
 	}
 
-	// The subject's tenant and the message's owner key are built from one value, so
-	// a subscriber filtering by subject and one reading the body agree on the owner.
 	wantSubject := eipnats.DocUpdateSubject(owner, eipmongo.CollectionJobDocuments, jobID)
 	if msg.Subject != wantSubject {
 		t.Fatalf("subject = %q, want %q", msg.Subject, wantSubject)
 	}
 }
 
-// awaitDocUpdateFor returns the first doc.update naming docID, ignoring traffic
-// the running stack produces alongside the test.
-func awaitDocUpdateFor(t *testing.T, sub *natslib.Subscription, docID string, within time.Duration) *natslib.Msg {
+func ownerOf(held any) models.Owner {
+	switch v := held.(type) {
+	case models.Owner:
+		return v
+	case string:
+		owner, err := models.ParseOwnerKey(v)
+		if err != nil {
+			return models.Owner{}
+		}
+		return owner
+	default:
+		return models.Owner{}
+	}
+}
+
+type publishedPeek struct {
+	DocID     string `json:"docID"`
+	Operation string `json:"operationType"`
+}
+
+func awaitPublished(t *testing.T, sub *natslib.Subscription, within time.Duration, match func(publishedPeek) bool) (*natslib.Msg, []publishedPeek) {
 	t.Helper()
+	var seen []publishedPeek
 	deadline := time.Now().Add(within)
 	for time.Now().Before(deadline) {
 		msg, err := sub.NextMsg(time.Until(deadline))
 		if err != nil {
 			break
 		}
-		var peek struct {
-			DocID string `json:"docID"`
+		var peek publishedPeek
+		if json.Unmarshal(msg.Data, &peek) != nil {
+			continue
 		}
-		if json.Unmarshal(msg.Data, &peek) == nil && peek.DocID == docID {
-			return msg
+		seen = append(seen, peek)
+		if match(peek) {
+			return msg, seen
 		}
 	}
-	t.Fatalf("no doc.update for %s within %s", docID, within)
-	return nil
+	t.Fatalf("nothing matching was published within %s (saw %v)", within, seen)
+	return nil, nil
 }
 
-// A planner-held document is stored under {ownerKey}|{id}, and what reaches a
-// subscriber is the bare id — the value a browser sends, keys its store on and
-// reads back. The owner travels beside it as ownerKey rather than inside it.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1, the stack's NATS, and a running core.
+func publishedFor(docID string) func(publishedPeek) bool {
+	return func(peek publishedPeek) bool { return peek.DocID == docID }
+}
+
+func updatePublishedFor(docID string) func(publishedPeek) bool {
+	return func(peek publishedPeek) bool {
+		return peek.DocID == docID && peek.Operation == "update"
+	}
+}
+
 func TestLive_Publish_sendsTheBareIDForAnOwnerScopedDocument(t *testing.T) {
 	m := mongolive.Require(t)
 
@@ -142,6 +152,7 @@ func TestLive_Publish_sendsTheBareIDForAnOwnerScopedDocument(t *testing.T) {
 		t.Skipf("stack NATS unreachable: %v", err)
 	}
 	t.Cleanup(func() { nats.Close() })
+	watchTestDatabase(t, nats)
 
 	const (
 		accountID = "eip-live-publish-scoped-account"
@@ -164,6 +175,7 @@ func TestLive_Publish_sendsTheBareIDForAnOwnerScopedDocument(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 	t.Cleanup(func() { _ = sub.Unsubscribe() })
+	awaitWatcherReady(t, sub, coll, ownerOf(owner))
 
 	if _, err := coll.InsertOne(ctx, bson.M{
 		"_id": storedID,
@@ -175,9 +187,7 @@ func TestLive_Publish_sendsTheBareIDForAnOwnerScopedDocument(t *testing.T) {
 		t.Fatalf("insert the job: %v", err)
 	}
 
-	// Awaited by the bare id, which is the assertion: a subscriber never sees the
-	// stored form.
-	msg := awaitDocUpdateFor(t, sub, jobID, 30*time.Second)
+	msg, _ := awaitPublished(t, sub, 30*time.Second, publishedFor(jobID))
 
 	var got struct {
 		DocID    string `json:"docID"`
@@ -193,19 +203,12 @@ func TestLive_Publish_sendsTheBareIDForAnOwnerScopedDocument(t *testing.T) {
 		t.Fatalf("published ownerKey = %q, want %q", got.OwnerKey, owner.Key())
 	}
 
-	// The subject carries the bare id too, so a filter built from what a client
-	// knows still matches.
 	wantSubject := eipnats.DocUpdateSubject(owner.Key(), eipmongo.CollectionJobDocuments, jobID)
 	if msg.Subject != wantSubject {
 		t.Fatalf("subject = %q, want %q", msg.Subject, wantSubject)
 	}
 }
 
-// A delete states no owner without a preimage. The stored id carries one, so the
-// message still routes to the planner's members instead of falling back to
-// explicit subscribers.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1, the stack's NATS, and a running core.
 func TestLive_Publish_recoversADeletedDocumentsOwnerFromItsID(t *testing.T) {
 	m := mongolive.Require(t)
 
@@ -217,6 +220,7 @@ func TestLive_Publish_recoversADeletedDocumentsOwnerFromItsID(t *testing.T) {
 		t.Skipf("stack NATS unreachable: %v", err)
 	}
 	t.Cleanup(func() { nats.Close() })
+	watchTestDatabase(t, nats)
 
 	const (
 		accountID = "eip-live-publish-delete-account"
@@ -244,18 +248,18 @@ func TestLive_Publish_recoversADeletedDocumentsOwnerFromItsID(t *testing.T) {
 		t.Fatalf("insert the job: %v", err)
 	}
 
-	// Subscribed after the insert, so the delete is the message awaited.
 	sub, err := nats.Conn().SubscribeSync(eipnats.SubjectDocUpdate + ".>")
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
 	t.Cleanup(func() { _ = sub.Unsubscribe() })
+	awaitWatcherReady(t, sub, coll, ownerOf(owner))
 
 	if _, err := coll.DeleteOne(ctx, bson.M{"_id": storedID}); err != nil {
 		t.Fatalf("delete the job: %v", err)
 	}
 
-	msg := awaitDocUpdateFor(t, sub, jobID, 30*time.Second)
+	msg, _ := awaitPublished(t, sub, 30*time.Second, publishedFor(jobID))
 
 	var got struct {
 		DocID     string `json:"docID"`

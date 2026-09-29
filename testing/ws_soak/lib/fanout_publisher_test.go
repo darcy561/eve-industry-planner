@@ -26,7 +26,7 @@ func TestPickLiveJobKinds(t *testing.T) {
 	}
 	rng := newTenantRNG(1)
 	seen := map[fanoutMsgKind]bool{}
-	for i := 0; i < 40; i++ {
+	for i := range 40 {
 		job, ok := pickLiveJob(rng, snap, i)
 		if !ok {
 			t.Fatalf("seq=%d no job", i)

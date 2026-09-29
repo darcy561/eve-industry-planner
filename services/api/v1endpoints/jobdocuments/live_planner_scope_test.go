@@ -3,15 +3,16 @@ package jobdocuments
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"eve-industry-planner/api/apideps"
 	"eve-industry-planner/api/helper"
 	"eve-industry-planner/shared/crypto/entityid"
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	sessionreq "eve-industry-planner/shared/plannersession/request"
@@ -38,10 +39,22 @@ type plannerScope struct {
 	account string
 }
 
+func scopeCipher(t *testing.T) *entityid.Cipher {
+	t.Helper()
+	if os.Getenv(entityid.EnvKey) == "" {
+		return keys.EntityCipher(t)
+	}
+	cipher, err := entityid.NewFromEnv()
+	if err != nil {
+		t.Fatalf("read %s: %v", entityid.EnvKey, err)
+	}
+	return cipher
+}
+
 func newPlannerScope(t *testing.T) *plannerScope {
 	t.Helper()
 	mongo := mongolive.Require(t)
-	cipher := keys.EntityCipher(t)
+	cipher := scopeCipher(t)
 
 	ref, err := cipher.Corporation(plannerScopeCorpID)
 	if err != nil {
@@ -92,7 +105,7 @@ func (s *plannerScope) request(method, path string, body any, accountID, planner
 
 	var payload []byte
 	if body != nil {
-		encoded, err := json.Marshal(body)
+		encoded, err := jsoncodec.Marshal(body)
 		if err != nil {
 			s.t.Fatalf("encode request: %v", err)
 		}
@@ -104,6 +117,15 @@ func (s *plannerScope) request(method, path string, body any, accountID, planner
 		r.Header.Set(helper.PlannerOwnerHeader, plannerHandle)
 	}
 	return r.WithContext(sessionreq.WithIdentity(r.Context(), accountID, "sess-planner-scope"))
+}
+
+func (s *plannerScope) requestAsSession(method, path string, body any, accountID, plannerHandle, sessionID, wsClientID string) *http.Request {
+	s.t.Helper()
+	r := s.request(method, path, body, accountID, plannerHandle)
+	if wsClientID != "" {
+		r.Header.Set(helper.WSClientIDHeader, wsClientID)
+	}
+	return r.WithContext(sessionreq.WithIdentity(r.Context(), accountID, sessionID))
 }
 
 func (s *plannerScope) putJobs(jobs []models.Job, accountID, plannerHandle string) *httptest.ResponseRecorder {
@@ -132,7 +154,7 @@ func (s *plannerScope) plannerJobs(accountID, plannerHandle string) (*httptest.R
 		return rec, nil
 	}
 	var jobs []models.Job
-	if err := json.Unmarshal(rec.Body.Bytes(), &jobs); err != nil {
+	if err := jsoncodec.Unmarshal(rec.Body.Bytes(), &jobs); err != nil {
 		s.t.Fatalf("decode jobs: %v (%s)", err, rec.Body.String())
 	}
 	return rec, jobs

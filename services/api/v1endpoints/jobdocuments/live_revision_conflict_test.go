@@ -1,26 +1,17 @@
-// A stale write refused over the handlers, with real Mongo behind them.
-//
-// The unit tests build filters and decide conflicts in isolation; this is the
-// only place the wiring is exercised — a request in, a 409 body out, with the
-// figures the client reconciles against coming from a document that really did
-// move.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 package jobdocuments
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// storedRevision is the counter the document carries now.
 func storedRevision(t *testing.T, s *plannerScope, jobID string) int64 {
 	t.Helper()
 	var stored models.Job
@@ -33,7 +24,6 @@ func storedRevision(t *testing.T, s *plannerScope, jobID string) int64 {
 	return stored.MetaData.Revision
 }
 
-// conflictBody is the 409 a refused write answers with.
 type conflictBody struct {
 	Error      string `json:"error"`
 	Collection string `json:"collection"`
@@ -49,14 +39,12 @@ type conflictBody struct {
 func decodeConflict(t *testing.T, body []byte) conflictBody {
 	t.Helper()
 	var parsed conflictBody
-	if err := json.Unmarshal(body, &parsed); err != nil {
+	if err := jsoncodec.Unmarshal(body, &parsed); err != nil {
 		t.Fatalf("decode 409 body: %v — %s", err, body)
 	}
 	return parsed
 }
 
-// A write carrying a revision the document has moved past is refused, and the
-// answer carries what the client must reconcile against.
 func TestLive_AStaleWriteIsRefusedWithAConflictBody(t *testing.T) {
 	s := newPlannerScope(t)
 	job := plannerScopeJob("revision-conflict-stale")
@@ -66,7 +54,6 @@ func TestLive_AStaleWriteIsRefusedWithAConflictBody(t *testing.T) {
 	}
 	readAt := storedRevision(t, s, job.JobID)
 
-	// Somebody else writes, moving the document past what this client read.
 	moved := plannerScopeJob(job.JobID)
 	moved.Name = "moved by somebody else"
 	moved.MetaData.Revision = readAt
@@ -75,7 +62,6 @@ func TestLive_AStaleWriteIsRefusedWithAConflictBody(t *testing.T) {
 	}
 	movedTo := storedRevision(t, s, job.JobID)
 
-	// The stale client writes from the copy it read before that.
 	stale := plannerScopeJob(job.JobID)
 	stale.Name = "written from a stale copy"
 	stale.MetaData.Revision = readAt
@@ -109,7 +95,6 @@ func TestLive_AStaleWriteIsRefusedWithAConflictBody(t *testing.T) {
 		t.Fatal("the document still exists, so the conflict must not report it gone")
 	}
 
-	// The refusal has to mean the write did not land.
 	var after models.Job
 	if err := s.mongo.JobDocuments.Collection().
 		FindOne(context.Background(),
@@ -122,8 +107,6 @@ func TestLive_AStaleWriteIsRefusedWithAConflictBody(t *testing.T) {
 	}
 }
 
-// A batch in which one job moved writes the others, and says how many landed.
-// The all-or-nothing refusal this replaces cost a member every job in a save.
 func TestLive_ABatchWithOneStaleJobWritesTheRestAndSaysSo(t *testing.T) {
 	s := newPlannerScope(t)
 	stale := plannerScopeJob("revision-conflict-batch-stale")
@@ -172,8 +155,6 @@ func TestLive_ABatchWithOneStaleJobWritesTheRestAndSaysSo(t *testing.T) {
 	}
 }
 
-// A write carrying no revision is accepted as it always was, which is what lets
-// a client that does not yet send one keep working.
 func TestLive_AnUnversionedWriteIsStillAccepted(t *testing.T) {
 	s := newPlannerScope(t)
 	job := plannerScopeJob("revision-conflict-unversioned")
@@ -182,7 +163,6 @@ func TestLive_AnUnversionedWriteIsStillAccepted(t *testing.T) {
 		t.Fatalf("seed write = %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// No revision on the body, and the stored document has moved past its first.
 	job.Name = "written without a revision"
 	rec := s.putJobs([]models.Job{job}, s.account, s.handle)
 

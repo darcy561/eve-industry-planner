@@ -62,6 +62,20 @@ MSYS_NO_PATHCONV=1 docker exec "$mongo_cid" mongosh --quiet \
     home.updateUser('$user', { roles });
   "
 
+# A test that has to be seen by the running stack — one seeding a session the
+# ws-router will read — needs the stack's own Redis rather than a throwaway, so
+# the container is given the same three values the services read it from.
+redis_pass="$(MSYS_NO_PATHCONV=1 docker exec "$core" cat //run/secrets/REDIS_PASSWORD 2>/dev/null || true)"
+# An owner whose id is a ref is only readable by the stack when the test mints it
+# with the stack's own key, so a planner that is not an account needs this.
+entity_holder="$(docker ps -q -f name=eip_api | head -1)"
+entity_key=""
+if [ -n "$entity_holder" ]; then
+  entity_key="$(MSYS_NO_PATHCONV=1 docker exec "$entity_holder" cat //run/secrets/ENTITY_ID_KEY 2>/dev/null || true)"
+fi
+redis_host="$(MSYS_NO_PATHCONV=1 docker exec "$core" printenv REDIS_HOST 2>/dev/null || echo redis)"
+redis_port="$(MSYS_NO_PATHCONV=1 docker exec "$core" printenv REDIS_PORT 2>/dev/null || echo 6379)"
+
 mkdir -p "$ROOT/.tmp"
 bin="$ROOT/.tmp/live-$(echo "$PKG" | tr -c 'a-zA-Z0-9' '-').test"
 
@@ -70,8 +84,11 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -o "$bin" "$PKG"
 
 # pwd -W gives the Windows path docker needs for a bind mount; plain pwd elsewhere.
 host_bin="$bin"
+captures="$ROOT/testing/fixtures/realtime-messages"
+host_captures="$captures"
 if command -v cygpath >/dev/null 2>&1; then
   host_bin="$(cygpath -w "$bin")"
+  host_captures="$(cygpath -w "$captures")"
 fi
 
 echo "running -test.run '$RUN' on network $NETWORK…"
@@ -81,7 +98,14 @@ MSYS_NO_PATHCONV=1 docker run --rm --network "$NETWORK" \
   -e MONGO_DATABASE="$DATABASE" \
   -e MONGO_USERNAME="$user" -e MONGO_PASSWORD="$pass" \
   -e NATS_URL="${NATS_URL:-nats://nats:4222}" \
+  -e REDIS_HOST="${redis_host:-redis}" \
+  -e REDIS_PORT="${redis_port:-6379}" \
+  -e REDIS_PASSWORD="$redis_pass" \
+  -e EIP_WS_URL="${EIP_WS_URL:-ws://traefik:80/ws}" \
+  -e ENTITY_ID_KEY="$entity_key" \
   -e LOG_LEVEL="${LOG_LEVEL:-error}" \
   -v "$host_bin:/live.test:ro" \
+  -v "$host_captures:/captures" \
+  -e EIP_CAPTURE_DIR=/captures \
   --entrypoint /live.test alpine:3.20 \
   -test.run "$RUN" "${@:3}"

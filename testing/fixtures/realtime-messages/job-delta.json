@@ -1,0 +1,33 @@
+{
+  "why": "The delta a job document's update publishes, and the stored change it is built from. The Go side builds the delivered half from the stored half with the real code, so a change to how a stored path becomes a client path turns it red. The SPA side checks every path the delta names, and every field inside a value set whole, against model-parity/job-schema.json — the list the two sides already agree a job carries — so a name this file invents, a cleared row the model has no place for, or a field the server keeps to itself leaking out, all turn it red without either side copying the other's names. What it cannot catch is a name swapped for a real sibling's, because both resolve; that is a model defect rather than a wire one, and job.parity.test.js and the Go corpus test are where it shows. The entity refs a value carries are restored to the ids a client reads on the way out, which the websocket client shape parity test pins rather than this file.",
+  "stored": {
+    "updatedFields": {
+      "name": "Rifter build",
+      "build.materials.34.volume": 4200,
+      "build.setup.s-1": { "id": "s-1", "jobCount": 2 },
+      "build.inventionEntries": {},
+      "protected": { "fields": ["name"] },
+      "_meta.revision": 8
+    },
+    "removedFields": ["build.extrasCosts.e-2"]
+  },
+  "delivered": {
+    "changed": [
+      { "path": ["_meta", "revision"], "value": 8 },
+      { "path": ["build", "inventionEntries"], "value": {} },
+      { "path": ["build", "materials", "34", "volume"], "value": 4200 },
+      { "path": ["build", "setup", "s-1"], "value": { "id": "s-1", "jobCount": 2 } },
+      { "path": ["name"], "value": "Rifter build" }
+    ],
+    "removed": [["build", "extrasCosts", "e-2"]],
+    "revision": 8,
+    "appliesTo": 7
+  },
+  "fields": {
+    "stored": "The change as Mongo reports it, flat: `updatedFields` keyed by dotted stored path, `removedFields` a list of the same. These are the oplog's own words, so the names in them are the ones the document is stored under, not the ones a client reads, and each key is the level Mongo set a value at.",
+    "changed": "The same change as one entry per path, in the names a client reads, in the order of the stored paths. A client sets each value at its path and replaces what was there — which is why `build.inventionEntries` arriving as `{}` empties the collection rather than merging into it, and why a row set whole drops fields the new row no longer has. A path is dropped entirely when the field it names is one a client is never sent, which is why `protected` is in `stored` and absent here.",
+    "removed": "The rows that went, each as the path into the job it sat at, in the client's names. The same shape a write sends upward, so one reader of both sees one vocabulary.",
+    "revision": "The write counter this update itself set — read from `_meta.revision` in `updatedFields`, never from the document looked up after it, which can already be a later write's. An update that sets no revision carries no delta and the whole document travels instead.",
+    "appliesTo": "The revision this delta applies onto, one below `revision` because a job write increments by exactly one. A client whose held revision is not this one has missed a delivery and reads the job again rather than applying."
+  }
+}

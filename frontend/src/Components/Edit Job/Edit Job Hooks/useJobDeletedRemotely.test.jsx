@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useJobDeletedRemotely } from "./useJobDeletedRemotely.js";
-import { JOBS_DELETED_REMOTELY_EVENT } from "../../../Functions/Debounce/inboundJobDocumentsCoalesce.js";
+import { JOBS_DELETED_REMOTELY_EVENT } from "../../../Functions/JobDocuments/inboundJobDocuments.js";
 import {
   resetSnackbars,
   snackbarSpies,
@@ -46,8 +46,6 @@ describe("a job deleted while its reader has it open", () => {
     expect(showSnackbarWarning).not.toHaveBeenCalled();
   });
 
-  // The editor unmounts when the reader leaves, and a listener outliving it
-  // would speak for a page that is gone.
   it("stops listening once the editor has gone", () => {
     const { unmount } = renderHook(() => useJobDeletedRemotely("job-1"));
 

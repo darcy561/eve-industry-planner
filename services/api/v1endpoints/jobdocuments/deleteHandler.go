@@ -99,7 +99,6 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 					return
 				}
 				if row.IncludedInGroup && row.GroupID != "" {
-					// The lock keys on the id a client sends, not the stored one.
 					jobGroupBypass[eipmongo.BareDocumentID(row.ID)] = row.GroupID
 				}
 			}

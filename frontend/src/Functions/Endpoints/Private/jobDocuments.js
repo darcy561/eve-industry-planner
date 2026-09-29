@@ -1,7 +1,3 @@
-/**
- * User job documents: `job_documents` collection (private API).
- * Must match `mongocore.CollectionUserJobDocuments` / changestream `collection` field.
- */
 import { jobFromDocument } from "../../JobDocuments/jobDocument.js";
 import useUsersStore from "../../../Zustand/usersStore.js";
 import {
@@ -11,6 +7,7 @@ import {
 import { requestJobDocumentsByIdsFromApi } from "./requestJobDocumentsByIds.js";
 import { activePlannerOwnerHandle } from "../../../Zustand/activePlanner/read.js";
 
+/** The job documents collection, named as the change stream's `collection` field names it. */
 export const USER_JOB_DOCUMENTS_COLLECTION = "job_documents";
 
 const jsonHeaders = { "Content-Type": "application/json" };

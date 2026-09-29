@@ -174,7 +174,7 @@ func buildFanoutTopology(clients int, allianceBase, corpBase, standaloneBase int
 	next := 0
 	addMembers := func(n int, corpID, allID int64) []clientIdentity {
 		out := make([]clientIdentity, 0, n)
-		for i := 0; i < n; i++ {
+		for range n {
 			next++
 			acct := fmt.Sprintf("soak-fanout-acct-%d", next)
 			id := clientIdentity{
@@ -212,10 +212,7 @@ func buildFanoutTopology(clients int, allianceBase, corpBase, standaloneBase int
 	}
 
 	// Alliances — count scales with client budget; each gets several corps of mixed sizes.
-	allianceCount := max(clients/60, 2)
-	if allianceCount > 12 {
-		allianceCount = 12
-	}
+	allianceCount := min(max(clients/60, 2), 12)
 	affSizes := []int{2, 3, 4, 6, 8, 10, 5, 12, 7, 15}
 	perAlliance := make([]int, allianceCount)
 	base := affN / allianceCount
@@ -232,7 +229,7 @@ func buildFanoutTopology(clients int, allianceBase, corpBase, standaloneBase int
 	// Re-normalise if floors grew past affN (rare); accept slightly more clients.
 	corpIdx := 0
 	sizeIdx := 0
-	for ai := 0; ai < allianceCount; ai++ {
+	for ai := range allianceCount {
 		allID := allianceBase + int64(ai)
 		a := fanoutAlliance{ID: allID}
 		remain = perAlliance[ai]
@@ -364,10 +361,7 @@ func makeFanoutJob(topo fanoutTopology, kind fanoutMsgKind, docID, collection st
 	case fanoutMsgCorpDownAccount:
 		// Prefer larger corps so downward filter is meaningful; include standalone + affiliated.
 		corp := pickCorpForDownAccount(topo, i)
-		n := max(len(corp.Members)/2, 1)
-		if n > len(corp.Members) {
-			n = len(corp.Members)
-		}
+		n := min(max(len(corp.Members)/2, 1), len(corp.Members))
 		// Rotate which half for variety.
 		start := (i / len(topo.Corps)) % max(len(corp.Members)-n+1, 1)
 		scope := make([]string, 0, n)

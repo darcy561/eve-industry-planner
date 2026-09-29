@@ -34,10 +34,6 @@ func DecodeOutboundMessage(messageData []byte) (DecodedOutbound, error) {
 
 // ownerFromKey parses the message's owner key, yielding the zero owner when it is
 // absent or unreadable.
-//
-// Parsed rather than split: an org kind whose id is not a ref would mean a raw EVE
-// id reached routing. A zero owner delivers to explicit subscribers only, so an
-// unreadable key under-delivers rather than fanning out to a scope.
 func ownerFromKey(v any) models.Owner {
 	key := strings.TrimSpace(stringFromScalar(v))
 	if key == "" {
@@ -72,31 +68,16 @@ func stringFromScalar(v any) string {
 	}
 }
 
-// routingOnlyFields are the message keys this service routes on. They name
-// internal identities — refs and source ids — and are stripped before a payload
-// reaches a browser, which has no use for them and should not learn them.
+// routingOnlyFields are the message keys this service routes on, stripped before
+// a payload reaches a browser.
 var routingOnlyFields = []string{
-	// Replaced by `owner`, the same owner as a handle rather than a key.
 	"ownerKey",
 	"sourceClientID",
 	"sourceSessionID",
 }
 
-// ClientPayload returns messageData shaped for a browser: routing metadata
-// removed, the owner named as the handle a client can read, the delivery's
-// position added, and every entity ref in the document body converted back to
-// the raw id the client is owed.
-//
-// This runs after routing has been decided, and only on the copy handed to
-// delivery. Routing matches on refs, so converting any earlier would leave a
-// message that matches nothing.
-//
-// The position is the stream's, not the document's. A delete carries one as
-// readily as an upsert, and a redelivery carries the same one twice, which is
-// what lets a client tell a change it has not seen from a copy of one it has.
-//
-// It returns the original bytes unchanged when nothing needs rewriting, which is
-// now only a message with no owner to name and no position to add.
+// ClientPayload shapes a message for a browser: routing metadata removed, the
+// owner named as a handle, the delivery's position added and every ref restored.
 func ClientPayload(messageData []byte, owner models.Owner, cipher *entityid.Cipher, position uint64) []byte {
 	var m map[string]any
 	if err := jsoncodec.Unmarshal(messageData, &m); err != nil {
@@ -134,29 +115,8 @@ func ClientPayload(messageData []byte, owner models.Owner, cipher *entityid.Ciph
 	return out
 }
 
-// idKeyFor maps a ref-bearing key to the id key that replaces it, reporting
-// whether the key names a ref at all.
-//
-// Both spellings exist because a ref is spelled to match the id field it stands
-// in for, and those differ by area: job bodies mirror ESI (corporation_id), while
-// _meta is ours (accountID). The key produced here is what the client reads, so
-// it has to match the model's json tag, not the storage convention.
-func idKeyFor(key string) (string, bool) {
-	if base, ok := strings.CutSuffix(key, "_ref"); ok && base != "" {
-		return base + "_id", true
-	}
-	if base, ok := strings.CutSuffix(key, "Ref"); ok && base != "" {
-		return base + "ID", true
-	}
-	return "", false
-}
-
-// restoreEntityIDs walks a decoded message and replaces every ref with its id,
-// reporting whether anything changed.
-//
-// A value that looks like a ref but does not decrypt is dropped rather than
-// passed through, so a ref cannot reach a browser because a key was missing or
-// the value was malformed.
+// restoreEntityIDs replaces every ref in a decoded message with its id, reporting
+// whether anything changed and dropping a ref it cannot decrypt.
 func restoreEntityIDs(node any, cipher *entityid.Cipher) bool {
 	changed := false
 
@@ -167,7 +127,7 @@ func restoreEntityIDs(node any, cipher *entityid.Cipher) bool {
 				changed = true
 			}
 
-			idKey, isRef := idKeyFor(key)
+			idKey, isRef := models.EntityRefIDKey(key)
 			if !isRef {
 				continue
 			}

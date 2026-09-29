@@ -1,13 +1,5 @@
 package server
 
-// Integration suite SoT for the websocket server package.
-// All Integration scenarios use newIntegFixture — do not call newServer bits directly
-// from scenario files. Grow via thin integration_*_test.go cases + helpers below.
-//
-// Run (from services/):
-//
-//	go test ./websocket/server/ -count=1 -run Integration
-
 import (
 	"context"
 	"encoding/json"
@@ -22,11 +14,11 @@ import (
 
 	eipnats "eve-industry-planner/shared/nats"
 	"eve-industry-planner/shared/orchestrationprobes"
-	"eve-industry-planner/shared/plannersession"
-	sessionreq "eve-industry-planner/shared/plannersession/request"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/shared/stackservices"
 	"eve-industry-planner/shared/wsplacement"
+	"eve-industry-planner/testing/plannersessions"
+	"eve-industry-planner/testing/wsclient"
 
 	"eve-industry-planner/testing/keys"
 	"eve-industry-planner/testing/natsfake"
@@ -36,13 +28,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// integDeps stands in for NATS/Mongo in the ReadyCheck mirror of websocket/app.go.
 type integDeps struct {
 	natsOK  bool
 	mongoOK bool
 }
 
-// integFixture is the single harness for Integration tests.
 type integFixture struct {
 	t      *testing.T
 	Server *Server
@@ -52,16 +42,6 @@ type integFixture struct {
 	deps   integDeps
 }
 
-// newIntegFixture builds Server + miniredis + httptest (/ws, /ready, /healthy).
-// This is the only entry point Integration scenarios should use.
-//
-// Env defaults (single SoT — do not re-Setenv in scenarios unless overriding):
-//
-//	HOSTNAME = websocket-integ:<t.Name()>
-//	WS_CLIENT_CUTOFF    = 0  (unlimited)
-//	WS_TARGET_CLIENTS   = 0  (soft off)
-//
-// Override limits with setPlacementLimits after the fixture is built.
 func newIntegFixture(t *testing.T) *integFixture {
 	t.Helper()
 	t.Setenv("HOSTNAME", "websocket-integ:"+t.Name())
@@ -109,8 +89,6 @@ func newIntegFixture(t *testing.T) *integFixture {
 	return f
 }
 
-// readyCheck mirrors websocket/app.go Ready (draining + redis + nats + mongo),
-// with NATS/Mongo as injectable flags so CI stays Docker-free.
 func (f *integFixture) readyCheck(ctx context.Context) error {
 	if f.Server != nil && f.Server.IsDraining() {
 		return fmt.Errorf("draining")
@@ -135,8 +113,6 @@ func (f *integFixture) setDeps(natsOK, mongoOK bool) {
 	f.deps.mongoOK = mongoOK
 }
 
-// setPlacementLimits overrides the fixture defaults for soft target / hard cutoff.
-// Config reads these env vars at call time, so this is safe after newIntegFixture.
 func (f *integFixture) setPlacementLimits(targetClients, clientCutoff int) {
 	f.t.Helper()
 	f.t.Setenv("WS_TARGET_CLIENTS", strconv.Itoa(targetClients))
@@ -145,68 +121,36 @@ func (f *integFixture) setPlacementLimits(targetClients, clientCutoff int) {
 
 func (f *integFixture) seedSession(accountID, sessionID string) {
 	f.t.Helper()
-	now := time.Now().UTC()
-	if err := plannersession.NewStore(f.Redis).PutSession(context.Background(), accountID, plannersession.Session{
-		SessionID:        sessionID,
-		CharacterHash:    "integ-hash",
-		StartedAt:        now,
-		LastSeenAt:       now,
-		ReauthRequiredAt: plannersession.ReauthDeadlineFromSessionStart(now),
-	}); err != nil {
-		f.t.Fatalf("seedSession: %v", err)
-	}
+	plannersessions.Open(f.t, f.Redis, accountID, sessionID, nil)
 }
 
-// seedRevokedSession seeds a session the reader must refuse as revoked. Nothing
-// in production sets RevokedAt yet — revocation removes the row — so this pins
-// the reader ahead of the writer that account-wide revocation will add.
 func (f *integFixture) seedRevokedSession(accountID, sessionID string) {
 	f.t.Helper()
-	now := time.Now().UTC()
-	revoked := now.Add(-time.Minute)
-	if err := plannersession.NewStore(f.Redis).PutSession(context.Background(), accountID, plannersession.Session{
-		SessionID:        sessionID,
-		CharacterHash:    "integ-hash",
-		StartedAt:        now,
-		LastSeenAt:       now,
-		ReauthRequiredAt: plannersession.ReauthDeadlineFromSessionStart(now),
-		RevokedAt:        &revoked,
-	}); err != nil {
-		f.t.Fatalf("seedRevokedSession: %v", err)
-	}
+	plannersessions.Revoked(f.t, f.Redis, accountID, sessionID)
 }
 
-// seedElapsedSession seeds a session whose reauth window closed while it was
-// connected, which is the state a full EVE login is the only way out of.
 func (f *integFixture) seedElapsedSession(accountID, sessionID string) {
 	f.t.Helper()
-	started := time.Now().UTC().Add(-plannersession.RefreshTokenTTL - time.Hour)
-	if err := plannersession.NewStore(f.Redis).PutSession(context.Background(), accountID, plannersession.Session{
-		SessionID:        sessionID,
-		CharacterHash:    "integ-hash",
-		StartedAt:        started,
-		LastSeenAt:       started,
-		ReauthRequiredAt: plannersession.ReauthDeadlineFromSessionStart(started),
-	}); err != nil {
-		f.t.Fatalf("seedElapsedSession: %v", err)
-	}
+	plannersessions.Elapsed(f.t, f.Redis, accountID, sessionID)
 }
 
 func (f *integFixture) seedSessionWithGrants(accountID, sessionID string, corps, alliances []int64) {
 	f.t.Helper()
-	f.seedSession(accountID, sessionID)
 	granted := models.NewOwnerKeys().Add(models.AccountOwner(accountID))
 	for _, ref := range wsTestOrgRefs(f.t, corps, alliances) {
 		granted = append(granted, ref)
 	}
-	if err := plannersession.NewStore(f.Redis).SetGrants(context.Background(), accountID, granted); err != nil {
-		f.t.Fatalf("seedSession grants: %v", err)
-	}
+	plannersessions.Open(f.t, f.Redis, accountID, sessionID, granted)
 }
 
 func (f *integFixture) wsURL(sessionID string) string {
-	base := "ws" + strings.TrimPrefix(f.HTTP.URL, "http")
-	return base + "/ws?" + sessionreq.SessionIDQueryParam + "=" + sessionID
+	f.t.Helper()
+	base := "ws" + strings.TrimPrefix(f.HTTP.URL, "http") + "/ws"
+	target, err := wsclient.URLForSession(base, sessionID)
+	if err != nil {
+		f.t.Fatalf("websocket url: %v", err)
+	}
+	return target
 }
 
 func (f *integFixture) dial(sessionID string) *websocket.Conn {
@@ -278,9 +222,6 @@ func (f *integFixture) readJSONMessage(conn *websocket.Conn, timeout time.Durati
 	return msg
 }
 
-// readJSONMessageIfAny reads one frame, reporting false when none arrives before
-// the timeout. For asserting that nothing is delivered, where readJSONMessage
-// would fail the test on the silence being tested for.
 func (f *integFixture) readJSONMessageIfAny(conn *websocket.Conn, timeout time.Duration) (map[string]any, bool) {
 	f.t.Helper()
 	_ = conn.SetReadDeadline(time.Now().Add(timeout))
@@ -295,7 +236,6 @@ func (f *integFixture) readJSONMessageIfAny(conn *websocket.Conn, timeout time.D
 	return msg, true
 }
 
-// connectAccount seeds a session, dials /ws, and drains the connected frame.
 func (f *integFixture) connectAccount(accountID, sessionID string) *websocket.Conn {
 	f.t.Helper()
 	f.seedSession(accountID, sessionID)
@@ -304,9 +244,6 @@ func (f *integFixture) connectAccount(accountID, sessionID string) *websocket.Co
 	return conn
 }
 
-// withDelivery attaches an in-process NATS server and starts one of the server's
-// real subscriptions, so a scenario publishes on the subject production
-// publishes on rather than calling the handler behind it.
 func (f *integFixture) withDelivery(subscribe func()) *eipnats.NATS {
 	f.t.Helper()
 	fake := natsfake.New(f.t)
@@ -315,15 +252,11 @@ func (f *integFixture) withDelivery(subscribe func()) *eipnats.NATS {
 	return fake.NATS
 }
 
-// withAudienceDelivery watches a frame addressed to an audience arrive at a
-// socket.
 func (f *integFixture) withAudienceDelivery() *eipnats.NATS {
 	f.t.Helper()
 	return f.withDelivery(f.Server.subscribeToAudienceMessages)
 }
 
-// withSessionGrantsDelivery watches an account's ceiling change reach the
-// connections it holds.
 func (f *integFixture) withSessionGrantsDelivery() *eipnats.NATS {
 	f.t.Helper()
 	return f.withDelivery(f.Server.subscribeToSessionGrantsChanges)
@@ -335,9 +268,6 @@ func (f *integFixture) withDocLockDelivery() *eipnats.NATS {
 	return f.withDelivery(f.Server.subscribeToDocLockNotifications)
 }
 
-// connectTab dials an already-seeded session and returns the connection with the
-// client id the server told it, which is the id delivery suppresses on. Use it
-// where a scenario needs to name one tab among several.
 func (f *integFixture) connectTab(sessionID string) (*websocket.Conn, string) {
 	f.t.Helper()
 	conn := f.dial(sessionID)
@@ -352,11 +282,6 @@ func (f *integFixture) connectTab(sessionID string) (*websocket.Conn, string) {
 	return conn, clientID
 }
 
-// scopesOf reads the owner keys a live connection holds.
-//
-// Through the same accessor production uses: a scenario that publishes a grants
-// change watches this from the test goroutine while the subscription narrows the
-// connection on its own, and the field is a slice header.
 func (f *integFixture) scopesOf(clientID string) models.OwnerKeys {
 	f.t.Helper()
 	f.Server.ClientsMu.RLock()
@@ -368,8 +293,6 @@ func (f *integFixture) scopesOf(clientID string) models.OwnerKeys {
 	return f.Server.clientScopesSnapshot(client)
 }
 
-// ownerPoolKeys is every owner key the routing index currently pools a client
-// under, for a test asserting on what delivery would walk.
 func (s *Server) ownerPoolKeys() []string {
 	s.ownerIndexMu.RLock()
 	defer s.ownerIndexMu.RUnlock()
@@ -447,8 +370,6 @@ func (f *integFixture) waitRedisAbsent(key string, timeout time.Duration) {
 	})
 }
 
-// --- in-process client / placement helpers (no second Server construction) ---
-
 func (f *integFixture) newClient(id, accountID string, corps, alliances []string) *Client {
 	return &Client{
 		id:        id,
@@ -494,8 +415,6 @@ func (f *integFixture) setOrgScopes(c *Client, corps, alliances []string) {
 	f.Server.setClientScopes(c, orgOwnerKeys(corps, alliances))
 }
 
-// orgOwnerKeys renders corporation and alliance refs as owner keys, which is the
-// shape scopes and the ceiling both take.
 func orgOwnerKeys(corps, alliances []string) models.OwnerKeys {
 	return models.OwnerKeys(nil).
 		AddRefs(models.OwnerCorporation, corps).
@@ -552,15 +471,11 @@ func wsTestAllianceRef(t *testing.T, id int64) string {
 	return r
 }
 
-// Fixed, well formed refs for tests that seed indexes directly rather than
-// deriving from ids. Tenant keys reject anything that is not a real ref.
 const (
 	wsTestCorpRefValue     = "corp_56_J_DzQdPpjXwi9Xtp3C8bri9Bfi0Z94qUulkbKCac"
 	wsTestAllianceRefValue = "alliance_DWc0i6y_cTAGa4QSZWC0S94Zm7vUclxiUNHlNPthzvc"
 )
 
-// wsTestOrgRefs renders corporation and alliance ids as the owner keys a session
-// would hold for them.
 func wsTestOrgRefs(t *testing.T, corps, alliances []int64) models.OwnerKeys {
 	t.Helper()
 	var out models.OwnerKeys

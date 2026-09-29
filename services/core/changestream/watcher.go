@@ -31,18 +31,22 @@ const changeStreamMaxAwaitTime = 30 * time.Second
 
 // ChangeStreamMessage represents the message payload sent to NATS
 type ChangeStreamMessage struct {
-	Subject                 string         `json:"subject"`
-	Collection              string         `json:"collection"`
-	DocID                   string         `json:"docID"`
-	OperationType           string         `json:"operationType"`
-	SourceClientID          string         `json:"sourceClientID,omitempty"`  // ClientID that originated the change (for filtering)
-	SourceSessionID         string         `json:"sourceSessionID,omitempty"` // SessionID that originated the change (stable across client reconnects)
-	OwnerKey                string         `json:"ownerKey,omitempty"`        // kind:id of the changed document's owner; the websocket routes on it
-	Document                map[string]any `json:"document,omitempty"`
-	PreviousDocument        map[string]any `json:"previousDocument,omitempty"`
-	RefreshTokensChanged    bool           `json:"refreshTokensChanged,omitzero"`
-	LinkedCharactersChanged bool           `json:"linkedCharactersChanged,omitzero"`
-	ChangeEvent             map[string]any `json:"changeEvent,omitempty"`
+	Subject                 string                 `json:"subject"`
+	Collection              string                 `json:"collection"`
+	DocID                   string                 `json:"docID"`
+	OperationType           string                 `json:"operationType"`
+	SourceClientID          string                 `json:"sourceClientID,omitempty"`
+	SourceSessionID         string                 `json:"sourceSessionID,omitempty"`
+	OwnerKey                string                 `json:"ownerKey,omitempty"`
+	Document                map[string]any         `json:"document,omitempty"`
+	Changed                 []models.JobJSONChange `json:"changed,omitempty"`
+	Removed                 [][]string             `json:"removed,omitempty"`
+	Revision                int64                  `json:"revision,omitzero"`
+	AppliesTo               int64                  `json:"appliesTo,omitzero"`
+	PreviousDocument        map[string]any         `json:"previousDocument,omitempty"`
+	RefreshTokensChanged    bool                   `json:"refreshTokensChanged,omitzero"`
+	LinkedCharactersChanged bool                   `json:"linkedCharactersChanged,omitzero"`
+	ChangeEvent             map[string]any         `json:"changeEvent,omitempty"`
 }
 
 // Watcher watches MongoDB change streams and publishes changes to NATS.
@@ -270,7 +274,9 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		return fmt.Errorf("missing collection name in namespace")
 	}
 
-	if isSchemaMaintenanceOnlyUpdate(changeEvent, operationType) {
+	updateDescription := subDocumentToMap(changeEvent["updateDescription"])
+
+	if isSchemaMaintenanceOnlyUpdate(updateDescription, operationType) {
 		logs.DebugCtx(ctx, "skipping schema-version-only maintenance change event",
 			"component", changestreamLogComponent,
 			"collection", collection,
@@ -327,7 +333,7 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		document = make(map[string]any)
 		maps.Copy(document, docToExtract)
 
-		meta := subDocumentToMap(docToExtract["_meta"])
+		meta := subDocumentToMap(docToExtract[models.MetaFieldName])
 		if meta != nil {
 			if clientID, ok := meta["clientID"].(string); ok && clientID != "" {
 				sourceClientID = clientID
@@ -429,6 +435,11 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		return nil
 	}
 
+	var delta jobDelta
+	if collection == eipmongo.CollectionJobDocuments && operationType == "update" {
+		delta, _ = jobDeltaFor(updateDescription)
+	}
+
 	// Create message payload
 	message := ChangeStreamMessage{
 		Subject:                 subject,
@@ -439,6 +450,10 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		SourceSessionID:         sourceSessionID,
 		OwnerKey:                tenantString,
 		Document:                document,
+		Changed:                 delta.Changed,
+		Removed:                 delta.Removed,
+		Revision:                delta.Revision,
+		AppliesTo:               delta.AppliesTo,
 		PreviousDocument:        previousDocument,
 		RefreshTokensChanged:    refreshTokensChanged,
 		LinkedCharactersChanged: linkedCharactersChanged,
@@ -474,17 +489,17 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		"owner_key", message.OwnerKey,
 		"has_document", document != nil,
 		"has_previous_document", previousDocument != nil,
+		"has_delta", delta.Revision > 0,
 		"full_document_status", changeStreamDocFieldStatus(changeEvent, "fullDocument"),
 		"full_document_before_change_status", changeStreamDocFieldStatus(changeEvent, "fullDocumentBeforeChange"))
 
 	return nil
 }
 
-func isSchemaMaintenanceOnlyUpdate(changeEvent bson.M, operationType string) bool {
+func isSchemaMaintenanceOnlyUpdate(updateDescription bson.M, operationType string) bool {
 	if operationType != "update" {
 		return false
 	}
-	updateDescription := subDocumentToMap(changeEvent["updateDescription"])
 	if updateDescription == nil {
 		return false
 	}
@@ -635,7 +650,7 @@ func ownerFromDocument(doc bson.M) models.Owner {
 	if doc == nil {
 		return models.Owner{}
 	}
-	meta := subDocumentToMap(doc["_meta"])
+	meta := subDocumentToMap(doc[models.MetaFieldName])
 	raw := subDocumentToMap(meta[models.MetaFieldOwner])
 	if raw == nil {
 		return models.Owner{}

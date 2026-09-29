@@ -27,10 +27,7 @@ func runFanout(ctx context.Context, rdb *redis.Client, watch *placementWatcher, 
 		clients = 500
 	}
 	// Soft floor only (0 = none). Duration owns stop; do not fail the run for under-min pubs.
-	messages := cfg.FanoutMessages
-	if messages < 0 {
-		messages = 0
-	}
+	messages := max(cfg.FanoutMessages, 0)
 	rate := cfg.FanoutRate
 	if rate <= 0 {
 		rate = 100
@@ -109,10 +106,7 @@ func runFanout(ctx context.Context, rdb *redis.Client, watch *placementWatcher, 
 	track.Start()
 	defer track.Close()
 
-	readySettle := fanoutFilterSettle(max(clients/20, 4))
-	if readySettle < DefaultReadySettle {
-		readySettle = DefaultReadySettle
-	}
+	readySettle := max(fanoutFilterSettle(max(clients/20, 4)), DefaultReadySettle)
 	reg := newLiveRegistry(readySettle)
 	st := newStats()
 	base := soakConfig{
@@ -130,24 +124,15 @@ func runFanout(ctx context.Context, rdb *redis.Client, watch *placementWatcher, 
 	// Wall = ramp (connect / FilterSubjects storm, no soak pubs) + duration (steady JetStream pubs).
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
-	wall := ramp + cfg.Duration
-	if wall < cfg.Duration {
-		wall = cfg.Duration
-	}
+	wall := max(ramp+cfg.Duration, cfg.Duration)
 	wallCtx, cancelWall := context.WithTimeout(runCtx, wall)
 	defer cancelWall()
 
-	wantLive := int64(float64(clients)*liveRatio + 0.5)
-	if wantLive < 1 {
-		wantLive = 1
-	}
+	wantLive := max(int64(float64(clients)*liveRatio+0.5), 1)
 	minReady := int(wantLive)
 	if minReady > defaultPublishGateReady {
 		// Gate on a stable subset so publishing can start once churn has a usable mix.
-		minReady = defaultPublishGateReady
-		if int(wantLive/2) > minReady {
-			minReady = int(wantLive / 2)
-		}
+		minReady = max(int(wantLive/2), defaultPublishGateReady)
 	}
 
 	fmt.Printf("fanout plan: bootstrap_clients=%d max_clients=%d messages_soft=%d rate=%.1f/s publish=%s max_loss=%.3f ramp=%s publish_duration=%s wall=%s bootstrap_emit=%s continuous_emit=%s ready_settle=%s live_ratio=%.2f affinity_mix=%.2f gate_ready>=%d require_coloc=%v seed=%d\n",
@@ -294,10 +279,7 @@ func runFanout(ctx context.Context, rdb *redis.Client, watch *placementWatcher, 
 			pubStatsPublished(pubStats), messages)
 	}
 
-	drainWait := flagWait
-	if drainWait > 60*time.Second {
-		drainWait = 60 * time.Second
-	}
+	drainWait := min(flagWait, 60*time.Second)
 	fmt.Printf("fanout draining delivery (timeout=%s, workers held)…\n", drainWait)
 	drainCtx, drainCancel := context.WithTimeout(context.Background(), drainWait)
 	drainErr := waitDeliveryDrain(drainCtx, track)

@@ -267,10 +267,7 @@ func seedTenantBatch(ctx context.Context, opts TenantGenOptions, ids []clientIde
 	}
 	chunk := opts.SeedChunk
 	for start := 0; start < len(ids); start += chunk {
-		end := start + chunk
-		if end > len(ids) {
-			end = len(ids)
-		}
+		end := min(start+chunk, len(ids))
 		batch := ids[start:end]
 		stats.SeedCalls.Add(1)
 		if opts.SeedFunc != nil {
@@ -530,7 +527,7 @@ func (w *tenantWorld) pickKind(rng *rand.Rand, remain int) TenantEventKind {
 
 func (w *tenantWorld) addMembers(n int, corpID, allID int64, rng *rand.Rand, opts TenantGenOptions) []clientIdentity {
 	out := make([]clientIdentity, 0, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		w.next++
 		acct := fmt.Sprintf("soak-fanout-acct-%d", w.next)
 		id := clientIdentity{

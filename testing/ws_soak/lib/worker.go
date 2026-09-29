@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
-	sessionreq "eve-industry-planner/shared/plannersession/request"
 	"eve-industry-planner/shared/wsplacement"
+	"eve-industry-planner/testing/wsclient"
 
 	"github.com/gorilla/websocket"
 )
@@ -28,17 +27,6 @@ type soakConfig struct {
 	// Live is optional membership registry (fanout ready-settle).
 	Live        *liveRegistry
 	ReadySettle time.Duration
-}
-
-func wsURLForSession(base, sessionID string) (string, error) {
-	u, err := url.Parse(strings.TrimSpace(base))
-	if err != nil {
-		return "", err
-	}
-	q := u.Query()
-	q.Set(sessionreq.SessionIDQueryParam, sessionID)
-	u.RawQuery = q.Encode()
-	return u.String(), nil
 }
 
 func dialHeaders(id clientIdentity, sticky string) http.Header {
@@ -78,7 +66,7 @@ type dialResult struct {
 }
 
 func dialOnce(cfg soakConfig, id clientIdentity, sticky string) dialResult {
-	target, err := wsURLForSession(cfg.WSURL, id.SessionID)
+	target, err := wsclient.URLForSession(cfg.WSURL, id.SessionID)
 	if err != nil {
 		return dialResult{Err: err}
 	}

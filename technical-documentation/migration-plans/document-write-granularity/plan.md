@@ -248,8 +248,8 @@ success.
 close are three different applications, and the answer decides what this stage builds.
 
 **Ordering constraint, from Stage A.** The client must learn to recognise a `revision_conflict` 409
-**before** anything starts sending a revision. Today the SPA's `Job` class drops the revision when it
-rebuilds `_meta`, so every write is unconditional and the conditional path is unreachable — but
+**before** anything starts sending a revision. When this was written the SPA's `Job` class dropped the
+revision when it rebuilt `_meta`, so every write was unconditional — but
 `throwNonOkPrivateResponse` recognises a 409 only as a lock conflict, and
 `persistJobDocumentsToApi` clears the pending queue only on success. So the first change that carries
 a revision into `toDocument` turns a refused write into a silent endless retry of a batch that can
@@ -502,19 +502,17 @@ both: **a write carries the revision of the copy it was built from, wherever tha
 the edited job that is the draft's base; for every other job a close writes it is whatever revision
 that job was last delivered at.
 
-`Job` rebuilds `_meta` from `lastModified`, `createdAt` and `lastUpdatedBy` at construction, so every
-job the client holds loses its revision, not only the one being edited. Keeping it is therefore work
-on the class and on whatever hands it a delivered document, not on the draft alone.
+Every job the client holds carries its revision: `jobFromDocument` keeps the delivered `_meta.revision`
+on the plain document `jobArray` holds, so a job a close writes without having been open still has
+one to send.
 
 **The reshape has to reach live first.** A path-scoped `$set` of `build.materials.<typeID>.quantity`
 into a stored document still holding a positional array writes a key that means nothing — the whole
 document write is what covers that up today. job-document-drafts Stage 2 is built and has been run
 against dev; this stage cannot deploy before its release window against live.
 
-**The revision is further away than this plan says.** § Carrying the revision belongs here says the
-`Job` class drops it when it rebuilds `_meta`. It is dropped at construction, so no part of the SPA has
-ever held one, and after a rebase the revision to send is the base's current one rather than the one
-read when the job opened. The draft's base is where it belongs.
+**The revision to send for an open job is its base's.** After a rebase that is the base's current one
+rather than the one read when the job opened.
 
 **Two things this stage said are now out of date.** The seam it says does not exist is `actions.run`:
 the reducer that rebuilt the whole job on every action is deleted. And "arrays are the sharp edge" is
@@ -617,11 +615,9 @@ Two model facts the walk has to respect, found by reading the tags rather than a
 model's own. And `character_id` is stored as `character_ref` after the entity cipher, so a path
 follows the bson name; deriving it from the JSON name would write a field no reader looks at.
 
-**Carrying the revision belongs here.** The SPA's `Job` class rebuilds `_meta` from `lastModified`,
-`createdAt` and `lastUpdatedBy`, so the revision the server delivered is dropped before `toDocument`
-runs and every write takes Stage A's unconditional path. A client that tracks what changed has to
-carry the revision it read for the conditional write to mean anything, so the two arrive together —
-which is also the point at which Stages A and B start doing real work for real users.
+**Carrying the revision belongs here.** A client that tracks what changed has to carry the revision it
+read for the conditional write to mean anything, so the two arrive together — which is also the point
+at which Stages A and B start doing real work for real users.
 
 This is also what makes two members editing different fields of one job stop conflicting at all, rather
 than merely conflicting visibly — which is what allows Stage D's lock to be advisory rather than
@@ -706,21 +702,35 @@ path at all. So the shape of the delta on the wire is a decision, not a given. T
 
 | Option | Cost |
 |--------|------|
-| **Dotted stored paths, the client translates** | A second copy of the model's field mapping, in JavaScript, and a dotted-path branch in `restoreEntityIDs`. Two copies of one fact — refused on § One source of truth |
-| **Dotted paths, the server translates each segment** | One reflection walk over the model's tags, the mirror of `models.JobSetPaths`. Keeps one source of truth, but hands the client a path vocabulary nothing else in the SPA speaks, and still needs the dotted branch in `restoreEntityIDs` |
+| **Dotted stored paths, the client translates** | A second copy of the model's field mapping, in JavaScript. Two copies of one fact — refused on § One source of truth |
+| **Each path the update set, translated by the server, with its value** | One reflection walk over the model's tags, the mirror of `models.JobSetPaths` |
 | **A nested partial document and the removed row paths** | The Stage C write envelope, travelling the other way |
 
-**The third is taken.** Stage C already defined `{document, removed: [][]string}` for a write going up
-— a partial document plus the paths of rows that went — pinned for both sides by
-[job-write/body.json](../../../testing/fixtures/job-write/body.json). Delivery carries the same shape
-coming down. `restoreEntityIDs` works unchanged because the payload is nested rather than dotted, the
-client's apply is a merge it can check before making, and the fixture that pins one direction pins
-both.
+**The second is taken — after the third was built and had to be reversed.** Mongo reports every changed
+path together with the **whole** value set at it, and a value set at a path *replaces* what was there.
+Folding those paths into one nested document throws away the one fact a client needs to apply them: the
+level each value was set at. A client can then only merge, and merging is wrong in three ordinary cases —
+a collection emptied to `{}` merges as a no-op and keeps every row, a row written whole keeps fields the
+new row dropped, and a whole-document write keeps every row it removed. In each, the client ends a
+revision ahead holding a document the server does not. A coverage review found it; nothing had tested
+a value set above a leaf.
 
-What it costs is the one genuinely new piece of server code: rebuilding a nested partial from Mongo's
-flat `updatedFields`, translating each stored segment to the json name the client reads, and **dropping
-what a browser must not learn** — `protected`, `corporation_ref` and every other field tagged
-`json:"-"`.
+So `changed` is a list of `{path, value}` in the client's names, one entry per path Mongo reported, and a
+client **sets each value whole at its path**. The two costs once held against this did not survive
+building it. The SPA already speaks paths — `removed` is paths, and the write log's patches name paths —
+so it is not a vocabulary nothing else uses. And `restoreEntityIDs` needs no dotted branch: a ref only
+ever reaches a client inside a value, as a map key the existing walk rewrites; **a ref set or cleared on
+its own** would reach the browser as ciphertext, so the delta refuses it and the whole document carries
+that change instead.
+
+It shares `removed` with the write envelope and no longer shares the rest, and that is correct rather
+than a loss: a write says which fields a reader touched, which a partial document says well; a delivery
+says the level Mongo set each value at, which a partial document cannot say at all.
+
+What the server has to do is the one genuinely new piece of code: translating each stored path to the
+json names the client reads, converting the stored names inside each value the same way, and **dropping
+what a browser must not learn** — `protected`, and every other field tagged `json:"-"` that is not a
+ref.
 
 **The translation is nearly the identity function, and the exceptions are the whole of the work.** The
 `json` and `bson` tags on `models.Job` are the same string for every ordinary field, so most of a stored
@@ -760,7 +770,7 @@ document it has, and the rule is three lines:
 
 | The delta applies onto | What the client does |
 |---|---|
-| the revision it holds | apply the merge |
+| the revision it holds | set each change at its path |
 | a **later** revision than it holds | a message was lost — reload that document |
 | an **earlier** one | already applied; drop, as a redelivery is dropped today |
 
@@ -774,12 +784,19 @@ reloads rather than replaying.
 proves nothing was missed for one document. § Open questions had this the other way round and is
 corrected there.
 
-#### The coalescer has to merge rather than replace
+**The revision is the one the update itself wrote**, read from `_meta.revision` in `updatedFields` —
+never from the document Mongo looks up after the event, which can already be a later write's. Taken from
+the lookup, a delta could name a revision whose fields it did not carry, and the next delivery would be
+dropped as already applied. An update that does not write the revision at all — a release step that
+`$set`s a field without incrementing, say — therefore carries no delta, and the whole document travels
+as it always has.
 
-`Functions/Debounce/inboundJobDocumentsCoalesce.js` holds 80ms of deliveries in a `Map` keyed by job id
-and keeps only the last upsert — correct for whole documents, lossy for deltas. It has to fold
-consecutive deltas together, and the revision chain is what makes that safe: merge while the revisions
-run consecutively, and reload where they do not.
+#### The coalescer has to fold rather than keep the last
+
+The inbound coalescer holds 80ms of deliveries in a `Map` keyed by job id and used to keep only the last
+upsert — correct for whole documents, lossy for deltas. It folds a window's deltas in order instead, and
+the revision chain is what makes that safe: apply while the revisions run consecutively, and read the job
+again where they do not.
 
 #### What it costs the change listener, which is less than it looks
 
@@ -836,14 +853,9 @@ stream, so nothing there is affected either way.
 Both shapes gain the same four fields — `changed`, `removed`, `revision`, `appliesTo` — and both
 additively.
 
-**The partial is not called `document`, and that is the one place the envelope diverges.** § Whose
-vocabulary travels on the wire takes the Stage C write envelope for delivery, and it is the same
-*shape* — a partial document in the client's field names, beside the paths of rows that went. It cannot
-take the same *key*, because this message already carries a `document` and that one is the whole job.
-So while both travel, the partial is `changed` and
-[job-write/body.json](../../../testing/fixtures/job-write/body.json) pins the shape rather than the
-spelling. When the breaking half removes the full document, `changed` can take the name `document` back
-and the two envelopes become identical in both directions.
+`changed` is a list rather than a document because of what it has to say — § Whose vocabulary travels on
+the wire has why — so it no longer mirrors the write envelope's partial `document`, and only `removed`
+is shared between the two directions.
 
 - **The NATS message** (`ChangeStreamMessage`) is cross-process and JetStream-persisted, so a rolling
   deploy pairs an old producer with a new consumer and the reverse. Safe in both directions: the
@@ -858,7 +870,7 @@ and the two envelopes become identical in both directions.
 `services/websocket/server/outgoinglogic/client_shape_parity_test.go` was written to assert that a name
 derived from a stored bson key lands on the model's json tag, because a client reads the same document
 over two transports and both must name an entity id identically. That is exactly what this
-reconstruction depends on. It is extended to drive the partial through the same assertion rather than
+reconstruction depends on. It is extended to drive the delta through the same assertion rather than
 only the full document — otherwise the one load-bearing assumption is proved for the old shape and not
 the new one. It runs without Mongo, so it is also the earliest signal that a model field has been added
 whose ref rewrite does not land on its tag.
@@ -867,22 +879,86 @@ whose ref rewrite does not land on its tag.
 
 Four slices, and the first three need no database.
 
-1. **`models.JobJSONPartial` and `models.JobJSONRemoved`**, beside `JobSetPaths` in
-   `services/shared/models/job_write.go`, with the bson-to-json index built once per type rather than
-   scanned per segment. Pure functions, wired to nothing, covered by a table of stored path to json
-   partial: an ordinary field, a keyed row, a row set whole, a ref, the `protected` drop, and the
-   slice refusal.
-2. **Extend the parity test** to the partial, per § The message shape.
-3. **Wire it into the watcher** — the lifted parse, the one collection branch, the four message
-   fields, the never-fail contract.
-4. **A live test**: a field-scoped write through the real handler, read back off the change stream,
-   asserting the partial is exactly the fields that moved in the names the SPA reads.
-   [overlay.md](./overlay.md) § What proves this works is explicit that the first three do not stand
-   in for this one.
+1. **`models.JobJSONChanges` and `models.JobJSONRemoved`. Landed**, beside `JobSetPaths` in
+   `services/shared/models/job_write.go`, wired to nothing. The field index is built once per type and
+   tag and read by both directions, which collapsed the embedded-struct recursion the two lookups each
+   had, and `bsonName` with it. `EntityRefIDKey` moved here from the websocket service so the
+   ref-suffix rule has one implementation — [overlay.md](./overlay.md) § Slice 1 says what it answers
+   for.
+2. **Extend the parity test** to the delta, per § The message shape. **Landed** — one job now goes
+   down both transports and the same two rows are compared, the whole document against the API
+   response and a delta against it, so the ref rewrite is proved for the new shape as well as the
+   old.
+3. **Wire it into the watcher. Landed** — the parse lifted above the suppression check and passed to
+   it, one branch for job documents on an update, the four message fields, and a delta that answers
+   false rather than failing the event. [overlay.md](./overlay.md) § Slice 3 says what decides whether
+   one is carried.
+4. **The proof across both sides. Written; the live half cannot run without the stack.** Three pieces,
+   in the structures this repo already has for each —
+   [overlay.md](./overlay.md) § Slice 4 says what each one is for and what is still not covered.
+   [overlay.md](./overlay.md) § What proves this works is explicit that a unit test does not stand in
+   for the live one.
 
-That is the whole server half, additive and consumed by nothing. The client's apply path — the
-coalescer merging, the gap check, the base update — is a separate slice after it, and can be written
-against a delta that is already flowing.
+That is the whole server half, additive and consumed by nothing.
+
+5. **The loop, as far as delivery reaches. Landed and passing against a stack** — tabs on one planner and a tab in another, one real save through the real endpoint, and
+   the delta reaching the tabs that did not make it while the one that did is told nothing. Every
+   planner kind travels the same path, so the loop runs over a list of owners; the run carries the
+   stack's `ENTITY_ID_KEY` and has passed for an account, a corporation and an alliance planner —
+   [overlay.md](./overlay.md) § Slice 5.
+6. **The client's apply path. Landed** — the delta read at the receiving edge, the verdict taken
+   against the revision the held document already carries, the coalescer folding a window's deltas in
+   order, and a gap answered by reading the job again.
+   [overlay.md](./overlay.md) § Slice 6 says what each part does.
+7. **The replay that closes the loop. Landed and passing on a capture from the path envelope** — the
+   live test records what each connected client was
+   actually sent, and a vitest test drives those frames through the SPA's own handlers and asserts the
+   applied document is the one the server stored, for all three planner kinds.
+   [overlay.md](./overlay.md) § Slice 7 says how the capture is made and what it is not.
+
+**`go fix` in this stage's scope:** `./shared/models/...` and `./websocket/server/outgoinglogic/...`
+report one suggestion, in `job_test.go`, which merges two statements into a composite literal. It is
+not a modernisation and the file is not in this stage's touch surface, so it is left. Named here so a
+later scan coming back non-empty is not mistaken for new debt.
+
+#### The loop a change has to survive, and the test that follows it
+
+Every leg of a save already has tests, and **each one builds the message it works on**. That is exactly
+how a shape drifts in the middle while every test stays green — the failure this project was started
+by. So the coverage that decides whether this stage is finished is one test following **one** change
+the whole way:
+
+| Leg | What it has to show |
+|-----|---------------------|
+| The save | The envelope the SPA builds, sent through the real endpoint, against a real database |
+| The write | Only the named fields and rows move, and the revision moves by one |
+| The notification | The change stream produces the delta, and the delta is what is published |
+| **Who receives it** | Another member of the planner receives it; another tab of the saver receives it; the tab that made the save does not |
+| **How it is applied** | Each client that received it ends holding the document a fresh read would give |
+
+The last two rows are the point: the live loop test covers who receives it, and the replay of what it
+records covers how it is applied. A fixture both sides read
+proves the shape they agree on; it does not prove a change survives the journey, and §§ Slice 4's own
+limits say so.
+
+**The seam, because no runner spans both languages.** The live Go test drives the real save and
+**records the frames each connected client actually received**; a vitest test replays those recorded
+frames through the real SPA handlers and asserts the store ends up holding what the server stored.
+Regenerating the capture is what keeps the halves honest — a hand-written frame would put the invented
+input back in the middle.
+
+**What it is built from**, all of which exists: [`testing/mongolive`](../../../testing/mongolive/) for a
+real database, the live handler tests under
+[`services/api/v1endpoints/jobdocuments/`](../../../services/api/v1endpoints/jobdocuments/) for a real
+save, and a real websocket client — [`testing/ws_soak/lib`](../../../testing/ws_soak/lib/) proves the
+connection works but keeps its dial helpers unexported, so a small client package under `testing/` is
+what the loop test opens its connections with.
+
+**It splits across two slices.** The legs up to *who receives it* are buildable now, because the delta
+already flows: two clients on one owner, one save, and an assertion about what each one got, including
+the suppression. *How it is applied* waits on the client slice and lands with it — that slice is not
+finished until the replay asserts the applied document matches the stored one, which is § Done when's
+own line about rebuilding from an ordered stream.
 
 #### What this owes before it is built
 
@@ -900,10 +976,6 @@ db.job_documents.aggregate([
 It decides nothing about whether the stage is built — the § Done when line stands on its own — but it
 decides whether removing the full document afterwards is worth the breaking change.
 
-**The comment rule.** Both SPA files this stage edits — `WebSocket/handlers/documentMessage.js` and
-`Functions/Debounce/inboundJobDocumentsCoalesce.js` — carry file-header blocks and in-body comments the
-repository no longer allows. They come out as part of touching them, per master
-[`../../technical-rules.md`](../../technical-rules.md) § One comment, and it is two lines.
 
 ## Wire compatibility
 
@@ -913,7 +985,7 @@ repository no longer allows. They come out as part of touching them, per master
 | Document revision field | **already landed**, ahead of this project. `_meta.revision` is on every stored document and every job write increments it. Nothing here adds it |
 | Job write request body | additive at Stage A — a body may carry the revision it read. Absent means unversioned, and an unversioned write is accepted as it is today, which is what lets the server be converted before the client |
 | Job write response | **breaking** at Stage A — a per-document result replaces a whole-batch 409. The 409 shape stays available for a client that has not moved, but a mixed outcome has no representation in it |
-| Realtime document payload | additive at Stage E — a message carries a partial document, the removed row paths, and the pair of revisions it moves between, beside the full document a client may still take. The partial is the Stage C write envelope travelling the other way. Removing the full document is the breaking half, is where the payload saving is, and is separable |
+| Realtime document payload | additive at Stage E — a message carries each path the update set with its value, the removed row paths, and the pair of revisions it moves between, beside the full document a client may still take. Removing the full document is the breaking half, is where the payload saving is, and is separable |
 | Document lock enforcement | **breaking** at Stage D — write paths stop consulting the lock. Not a wire shape, but every client that treated a 409 as the only refusal has to handle a version conflict instead, which is why Stage B precedes it |
 | `document_lock_group_cascade` | **removed** at Stage D along with the group lease over member jobs. No client behaviour depends on it once per-job locks are not force-released by a group |
 | Document lock HTTP and websocket surfaces | unchanged. The lock keeps its endpoints and events at Stage D; what changes is that no write path consults the answer |
@@ -1002,7 +1074,7 @@ repository no longer allows. They come out as part of touching them, per master
 | B — a refused write is an outcome the UI handles | **Landed.** All three defects closed: the client recognises a `revision_conflict` beside the lock conflict it already handled, drops the refused write from the pending queue rather than replaying it forever, and warns the user; `persistJobDocumentsToApi` answers an outcome that `saveJobsViaApi` passes through, so `closeActiveJob` stops reporting a refused write as saved; and the client's own gate warns instead of discarding edits silently — in `closeGroup` as well as `closeActiveJob`, which carried the same defect for the group lock. Stage A's ordering constraint is discharged. See [overlay.md](./overlay.md) § Stage B |
 | C — field-scoped writes | **Landed, and proved end to end. Not deployed.** A save sends one envelope per job — the id and group beside the document — and where the editor recorded what the reader changed, that document carries only those fields and names the rows that went. Where nothing recorded it, the whole document goes, checked against the revision its own `_meta` carries. The endpoint plans the stored update from the job model's own bson tags, refuses a body naming `_meta`, and writes the row whole where a ciphered id has no stored path. A write the server cannot read is dropped from the queue and said out loud rather than retried for as long as the tab stays open. The envelope is pinned for both sides by [job-write/body.json](../../../testing/fixtures/job-write/body.json), and driven through the real handler into real Mongo, where only the named field, the named row and the revision move. **It cuts over with [job-document-drafts](../job-document-drafts/plan.md) Stage 2**, whose `prepareRelease` step reshapes the documents in the same cutover: a path-scoped write into an un-reshaped document writes a key that means nothing, so the two go together rather than one waiting on the other. See [overlay.md](./overlay.md) § Stage C |
 | D — the lock stops being broad | **Part landed: the batch refusal is per document.** A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
-| E — delta delivery and client apply | **Designed, not started.** Behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped; its shared-planners dependency is discharged and `jobArray` is plain since [job-document-drafts](../job-document-drafts/plan.md) Stage 5. The design is settled in § Stage E: the delivery carries the Stage C write envelope in the other direction, and the pair of `_meta.revision` values it moves between, because the delivery position is a global sequence and cannot prove a document missed nothing. Owed before building: the payload figure, measured against a restored copy of live |
+| E — delta delivery and client apply | **Landed, end to end.** A job document's update publishes each path it set, with its value, in the client's names, the paths it cleared, and the pair of revisions it moves between, beside the whole document a client may still take. The envelope is pinned for both languages by [job-delta.json](../../../testing/fixtures/realtime-messages/job-delta.json), and a live test drives a real write through a real change stream. A client applies one onto the document it holds, folding a window's deltas in order and reading the job again where they do not join up. One save is followed the whole way: through the real endpoint, a real change stream, the stack's own websocket service, to the tabs that receive it and the tab that must not — and then through the SPA's handlers, where the applied document has to be the one the server stored. § The loop a change has to survive. § Where it starts has the slices, [overlay.md](./overlay.md) §§ Slice 1 to Slice 8 what runs. Behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped; its shared-planners dependency is discharged and `jobArray` is plain since [job-document-drafts](../job-document-drafts/plan.md) Stage 5. The design is settled in § Stage E: the delivery carries each path the update set with its value and the paths it cleared, and the pair of `_meta.revision` values it moves between, because the delivery position is a global sequence and cannot prove a document missed nothing. Owed before building: the payload figure, measured against a restored copy of live |
 
 ## Recommended pickup order
 
@@ -1024,16 +1096,18 @@ backwards compatible while the other half catches up.
 The same is true of anything else breaking this endpoint in the same cutover. Two projects each
 changing its wire shape is not a thing to sequence; they go together.
 
-**Stage E is designed** — § Stage E settles the envelope, the gap check and what the coalescer has to
-do — and what it is worth is narrower than it looks: the product problem is Stage C's, and the payload
+**Stage E has landed, both halves** — § Stage E settles the envelope, the gap check and what the
+coalescer has to do; `JobJSONChanges` / `JobJSONRemoved` turn a stored delta into the
+client's names, the parity test proves that derivation over both transports, and the watcher publishes
+the delta beside the whole document; the SPA applies it onto the job it holds and reads the job again
+on a gap. The live change-stream and loop tests pass against the stack on the path
+envelope, and the replay passes on the capture that run recorded. What the stage still owes is
+elsewhere: the account key that carries a personal planner's jobs
+into every other planner is [shared-planners](../shared-planners/plan.md) § Stage G's G6, and removing
+the whole document from the delivery — where the payload saving is — is the separable breaking half in
+§ Wire compatibility. What the stage is worth is narrower than it looks: the product problem is Stage C's, and the payload
 saving belongs to the separable breaking half that removes the full document. Schedule it for the
 § Done when line about rebuilding from an ordered stream.
-
-**Both of its halves are now unblocked.** The open editor half rests on
-[job-document-drafts](../job-document-drafts/plan.md) Stage 3: an open job is a base plus a log, which
-is already something a delta applies onto. The other half — a delta reaching a job nobody is editing —
-waited on that project's Stage 5, and Stage 5 has landed: `jobArray` holds plain job documents, so a
-delta has something plain to land on and `Classes/job.js` no longer stands between the two.
 
 **Stage C does not need that project's slice 5.** Slice 5 converts the panels to read from the draft,
 which narrows re-rendering; the log is complete without it, because every change already goes through
@@ -1053,9 +1127,8 @@ reaching that state for one that only reports it afterwards.
 **Stage E was always behind Stage C**, because a delta is meaningless until the write producing it is
 field-scoped.
 
-**What remains in [job-document-drafts](../job-document-drafts/plan.md)** is its Stage 2 reaching the
-live release window, and its own slice 5 and Stages 4 and 5. None of those gate building Stage C
-here; the window gates deploying it.
+**What remains in [job-document-drafts](../job-document-drafts/plan.md)** that touches this project is
+its Stage 2 reaching the live release window, which gates deploying Stage C here.
 
 **[job-groups](../job-groups/plan.md) waits on this project, and half its wait is over.** Its
 dependency table names Stage A — landed — and Stage D's removal of the group lease over member jobs,
@@ -1065,19 +1138,11 @@ both are outstanding; the dependency is stated there rather than here, which is 
 linking that let Stage C be designed twice.
 
 **What this project supplies to others, and the caveat on it.** Stage A gives a document version and
-a write that refuses a stale base. Both are built and proved against a real database, and **neither
-is operating**: the SPA's `Job` class rebuilds `_meta` from three named fields, so `toDocument`
-structurally cannot carry a revision and every production write takes the unconditional path.
+a write that refuses a stale base. Both are built and proved against a real database, and on this branch every write of a stored job carries
+the revision it was read at. **Neither is operating in production** until Stage C deploys: the SPA running there
+sends no revision, so every live write still takes the unconditional path. Saying Stage A has landed
+without that caveat reads as protection that does not exist.
 
-A project that wants a stale write to be *refused* rather than reported is waiting on the client half,
-which is Stage C here. Saying Stage A has landed without that caveat reads as protection that does not
-exist, which is the error to avoid in either direction: the mechanism is live, the behaviour is not.
-
-**The revision is further from the client than this said.** `Job` drops it at construction rather than
-when `toDocument` rebuilds `_meta`, so no part of the SPA has ever held one. The draft's base is where
-it belongs now, and after a document arrives mid-edit the revision to send is that base's current one.
-
-**One gap is owed rather than blocked.** The Redis lock gate has no live test: nothing proves a lock
-genuinely held by another session makes the handler drop that job and write the rest. `testing/redislive`
-exists and this project does not use it. It belongs with Stage D's remaining work — see
-[overlay.md](./overlay.md) § What proves this works.
+**The lock gate has a live test.** A lock another session really holds, taken through the lock
+service against the stack's Redis, makes the handler drop that job and write the rest — the proof
+Stage D's remaining work stands on. See [overlay.md](./overlay.md) § What proves this works.

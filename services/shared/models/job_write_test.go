@@ -7,6 +7,8 @@ import (
 	"encoding/json/jsontext"
 
 	"eve-industry-planner/shared/jsoncodec"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func writeJob() *Job {
@@ -272,5 +274,226 @@ func TestJobWriteBodyDecodesTheEnvelopeBesideTheDocument(t *testing.T) {
 	}
 	if len(body.Removed) != 1 || body.Removed[0][2] != "500001" {
 		t.Errorf("want the removed row carried, got %v", body.Removed)
+	}
+}
+
+func changesFor(t *testing.T, updated map[string]any) map[string]any {
+	t.Helper()
+	changes, err := JobJSONChanges(updated)
+	if err != nil {
+		t.Fatalf("JobJSONChanges: %v", err)
+	}
+	byPath := make(map[string]any, len(changes))
+	for _, change := range changes {
+		byPath[strings.Join(change.Path, ".")] = change.Value
+	}
+	return byPath
+}
+
+func valueAt(t *testing.T, value any, path ...string) any {
+	t.Helper()
+	held := value
+	for _, step := range path {
+		inner, ok := held.(map[string]any)
+		if !ok {
+			t.Fatalf("nothing to step into at %q in %v", step, value)
+		}
+		if held, ok = inner[step]; !ok {
+			t.Fatalf("no %q in %v", step, value)
+		}
+	}
+	return held
+}
+
+func TestJobJSONChangesCarriesAPlainField(t *testing.T) {
+	changes := changesFor(t, map[string]any{"name": "A job"})
+
+	if changes["name"] != "A job" {
+		t.Errorf("want the name at its path, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesKeepsThePathMongoReportedRatherThanNesting(t *testing.T) {
+	changes := changesFor(t, map[string]any{"build.materials.34.typeID": 34})
+
+	if len(changes) != 1 || changes["build.materials.34.typeID"] != 34 {
+		t.Errorf("want one change at the reported path, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesCarriesAnEmptiedCollectionAsTheValueThatReplacesIt(t *testing.T) {
+	changes := changesFor(t, map[string]any{"build.extrasCosts": bson.M{}})
+
+	held, ok := changes["build.extrasCosts"].(map[string]any)
+	if !ok || len(held) != 0 {
+		t.Errorf("want an empty collection at build.extrasCosts, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesRenamesInsideARowWrittenWhole(t *testing.T) {
+	changes := changesFor(t, map[string]any{
+		"build.materials.34": bson.M{
+			"typeID":     34,
+			"purchasing": bson.M{"p-1": bson.M{"id": "p-1", "itemCount": 60}},
+		},
+	})
+
+	if valueAt(t, changes["build.materials.34"], "purchasing", "p-1", "itemCount") != 60 {
+		t.Errorf("want the row's own keys converted, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesKeepsARefInsideARowWrittenWhole(t *testing.T) {
+	changes := changesFor(t, map[string]any{
+		"esi.marketOrders.700001": bson.D{
+			{Key: "duration", Value: 90},
+			{Key: "corporation_ref", Value: "ref-5"},
+		},
+	})
+
+	if valueAt(t, changes["esi.marketOrders.700001"], "corporation_ref") != "ref-5" {
+		t.Errorf("want the ref kept inside the row for the id restore, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesRefusesARefSetOnItsOwn(t *testing.T) {
+	if _, err := JobJSONChanges(map[string]any{"esi.marketOrders.700001.corporation_ref": "ref-5"}); err == nil {
+		t.Fatal("want a ref set on its own refused, because nothing would restore it")
+	}
+}
+
+func TestJobJSONRemovedRefusesARefClearedOnItsOwn(t *testing.T) {
+	if _, err := JobJSONRemoved([]string{"esi.marketOrders.700001.corporation_ref"}); err == nil {
+		t.Fatal("want a ref cleared on its own refused, because the client would keep its id")
+	}
+}
+
+func TestJobJSONChangesDropsAFieldAClientIsNeverSent(t *testing.T) {
+	changes := changesFor(t, map[string]any{
+		"protected":      bson.M{"fields": bson.A{"name"}},
+		"_meta.owner":    bson.M{"kind": "account"},
+		"_meta.revision": int64(8),
+	})
+
+	if _, held := changes["protected"]; held {
+		t.Errorf("want protected dropped, got %v", changes)
+	}
+	if _, held := changes["_meta.owner"]; held {
+		t.Errorf("want the owner dropped, got %v", changes)
+	}
+	if changes["_meta.revision"] != int64(8) {
+		t.Errorf("want the revision kept, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesDropsAnUnsentFieldInsideADocumentWrittenWhole(t *testing.T) {
+	changes := changesFor(t, map[string]any{
+		"_meta": bson.M{"owner": bson.M{"kind": "account"}, "revision": int64(8)},
+	})
+
+	meta, ok := changes["_meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("want _meta carried, got %v", changes)
+	}
+	if _, held := meta["owner"]; held {
+		t.Errorf("want the owner dropped inside _meta, got %v", meta)
+	}
+	if meta["revision"] != int64(8) {
+		t.Errorf("want the revision kept beside it, got %v", meta)
+	}
+}
+
+func TestJobJSONChangesCarriesAListHeldUnderARowKey(t *testing.T) {
+	changes := changesFor(t, map[string]any{"build.childJobs.34": bson.A{"job-7", "job-8"}})
+
+	held, ok := changes["build.childJobs.34"].([]any)
+	if !ok || len(held) != 2 || held[0] != "job-7" {
+		t.Errorf("want the list under its row key, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesCarriesANullWhereAMapOrListWasStoredEmpty(t *testing.T) {
+	changes := changesFor(t, map[string]any{
+		"build.materials":    nil,
+		"build.childJobs.34": nil,
+	})
+
+	if held, ok := changes["build.materials"]; !ok || held != nil {
+		t.Errorf("want a null map carried as null, got %v", changes)
+	}
+	if held, ok := changes["build.childJobs.34"]; !ok || held != nil {
+		t.Errorf("want a null list carried as null, got %v", changes)
+	}
+}
+
+func TestJobJSONChangesRefusesAPositionalPath(t *testing.T) {
+	if _, err := JobJSONChanges(map[string]any{"parentJobs.0": "job-7"}); err == nil {
+		t.Fatal("want a positional path refused")
+	}
+}
+
+func TestJobJSONChangesRefusesAPathTheModelDoesNotStore(t *testing.T) {
+	if _, err := JobJSONChanges(map[string]any{"build.nonsense": 1}); err == nil {
+		t.Fatal("want an unknown stored field refused")
+	}
+}
+
+func TestJobJSONChangesRefusesAPathThroughAFieldWithNothingInside(t *testing.T) {
+	if _, err := JobJSONChanges(map[string]any{"build.materials.34.typeID.deeper": 1}); err == nil {
+		t.Fatal("want a path through a plain field refused")
+	}
+}
+
+func TestJobJSONChangesRefusesAnUnknownFieldInsideARowWrittenWhole(t *testing.T) {
+	if _, err := JobJSONChanges(map[string]any{
+		"build.materials.34": bson.M{"typeID": 34, "nonsense": 1},
+	}); err == nil {
+		t.Fatal("want a row carrying a field the model does not store refused, never sent partial")
+	}
+}
+
+func TestJobJSONChangesRefusesAnUnknownFieldInsideAListOfRows(t *testing.T) {
+	if _, err := JobJSONChanges(map[string]any{
+		"rawData.materials": bson.A{bson.M{"typeID": 34, "nonsense": 1}},
+	}); err == nil {
+		t.Fatal("want a list whose row carries an unknown field refused")
+	}
+}
+
+func TestJobJSONChangesRefusesARowKeyInsideAValueThatCannotBeAPath(t *testing.T) {
+	if _, err := JobJSONChanges(map[string]any{
+		"build.materials": bson.M{"3.4": bson.M{"typeID": 34}},
+	}); err == nil {
+		t.Fatal("want a row key holding a dot refused")
+	}
+}
+
+func TestJobJSONRemovedNamesTheRowAClientDeletes(t *testing.T) {
+	paths, err := JobJSONRemoved([]string{"build.extrasCosts.e-1"})
+	if err != nil {
+		t.Fatalf("JobJSONRemoved: %v", err)
+	}
+	if len(paths) != 1 || strings.Join(paths[0], ".") != "build.extrasCosts.e-1" {
+		t.Errorf("want the row path, got %v", paths)
+	}
+}
+
+func TestJobJSONRemovedDropsWhatAClientIsNeverSent(t *testing.T) {
+	paths, err := JobJSONRemoved([]string{"protected"})
+	if err != nil {
+		t.Fatalf("JobJSONRemoved: %v", err)
+	}
+	if len(paths) != 0 {
+		t.Errorf("want nothing to delete, got %v", paths)
+	}
+}
+
+func TestJobJSONRemovedNamesAListHeldUnderARowKey(t *testing.T) {
+	paths, err := JobJSONRemoved([]string{"build.childJobs.34"})
+	if err != nil {
+		t.Fatalf("JobJSONRemoved: %v", err)
+	}
+	if len(paths) != 1 || strings.Join(paths[0], ".") != "build.childJobs.34" {
+		t.Errorf("want the row path, got %v", paths)
 	}
 }

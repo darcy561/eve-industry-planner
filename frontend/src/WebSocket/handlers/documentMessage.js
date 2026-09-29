@@ -1,11 +1,6 @@
-/**
- * The document family: a change to a document the account can see.
- *
- * Dispatches on `collection` and `operationType` to the per-collection handlers.
- */
-
 import useUsersStore from "../../Zustand/usersStore.js";
-import { enqueueInboundJobDocumentChange } from "../../Functions/Debounce/inboundJobDocumentsCoalesce.js";
+import { enqueueInboundJobDocumentChange } from "../../Functions/JobDocuments/inboundJobDocuments.js";
+import { deltaFromMessage } from "../../Functions/JobDocuments/jobDelta.js";
 import {
   handleApplicationSettingsDocumentDelete,
   handleApplicationSettingsDocumentUpsert,
@@ -67,18 +62,11 @@ export async function applyDocumentMessage(msg) {
   const docKey = `${collection}.${docID}`;
   const rs = useUsersStore.getState().websocketSync.actions;
 
-  // The delivery's place in the stream, not the document's own stamp: a delete
-  // carries one too, and a redelivery repeats it. An older server sends none,
-  // which reads as "unknown" and applies rather than discards.
   const position = Number.isFinite(msg?.position) ? msg.position : null;
   const ctxBase = { accountId, docKey, docID, owner, rs, position };
 
   if (isPlannerHeld(collection) && !isFromActivePlanner(owner)) return;
 
-  // At or below what has been applied is a copy of a change already made, which
-  // is what a redelivery looks like. Deliveries are ordered per document rather
-  // than per socket, so this guards a delete as much as an upsert: a late delete
-  // would otherwise remove what a change already applied after it put there.
   if (position != null && position <= rs.getPosition(docKey)) {
     return;
   }
@@ -142,7 +130,13 @@ export async function applyDocumentMessage(msg) {
   }
 
   if (collection === USER_JOB_DOCUMENTS_COLLECTION) {
-    enqueueInboundJobDocumentChange("upsert", docID, document, position);
+    enqueueInboundJobDocumentChange(
+      "upsert",
+      docID,
+      document,
+      position,
+      deltaFromMessage(msg),
+    );
     return;
   }
 
@@ -154,11 +148,6 @@ export async function applyDocumentMessage(msg) {
 /**
  * The collections whose documents the store holds for one planner at a time, so
  * a delivery from any other has nowhere to go and is dropped.
- *
- * Narrower than `PlannerHeldCollections` in services/shared/mongo/names.go,
- * which is every collection a planner owns: `planner_settings` is owned by a
- * planner and still absent here, because the store keys it by owner and can
- * hold every planner's at once.
  *
  * @type {ReadonlySet<string>}
  */
