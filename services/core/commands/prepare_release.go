@@ -78,6 +78,7 @@ var releases = []release{{
 		// this leaves behind — consolidating a market order's broker fees to the
 		// one the listing was charged moves those figures.
 		{name: "reshape every job document", required: true, run: reshapeJobDocumentsStep},
+		{name: "store every extras and invention row in the shape its model writes", run: normaliseExtrasAndInventionRows},
 		// After the release's copy, never before: the copy is what an operator
 		// falls back to, and one missing the fields the previous release read is
 		// not a fallback.

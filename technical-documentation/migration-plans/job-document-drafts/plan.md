@@ -319,7 +319,7 @@ and a negative one is both outside the space ESI issues from and the thing `IsMa
 The 217 rows carrying zero or nothing are rows the mint never reached, not rows minted wrongly. The
 conversion mints them in that same shape.
 
-This is deliberately **not** the uuid § Stage 2c gives `ExtraCost.ID` and `InventionEntry.ID`. Those are
+This is deliberately **not** the string § Stage 2c settles `ExtraCost.ID` and `InventionEntry.ID` on. Those are
 ids the app invents for rows the app invents, in a field only the app reads. `transaction_id` is ESI's
 own field carrying ESI's own value for every row but these, and the sign is what tells the two apart. A
 uuid would make the field a string, which costs the sign test, `models.Transaction.TransactionID`,
@@ -1083,17 +1083,14 @@ found the row the measurement could not see, instead of discarding it.
 
 **One ordering rule covers the lot: a row's id is settled before anything is keyed by it.** Key first and
 the map is addressed by a value about to change, which is the invariant § Settled states — a row
-collection is addressed by the row's own identifier — broken by the step that builds it. Three instances,
-and the third is the one that crosses a stage boundary:
+collection is addressed by the row's own identifier — broken by the step that builds it. Two instances:
 
 - A hand-entered sale is minted its id before the transactions array becomes a map, or the rows carrying
   nothing collapse onto a single key and the mint arrives too late to matter.
 - A fee moves onto its order before the orders are keyed.
-- **§ Stage 2c's uuids are minted before `extrasCosts` and `inventionEntries` are keyed** — 245 invention
-  entries still carry a numeric id, so keying first would file each under a number and then rewrite the
-  `id` beneath it to a uuid, leaving the key and the row disagreeing. Either 2c's mint runs ahead of this
-  conversion for those two collections, or this conversion re-keys them afterwards; running the mint
-  first is one pass rather than two.
+
+§ Stage 2c does not break the rule by running after the keying, because it changes an id's type and not
+its value: a numeric invention id is keyed by its digits, and 2c stores those same digits as a string.
 
 **This is the only stage with a deadline.** It ships with the shared-planners release or it waits for the
 next release that migrates documents.
@@ -1161,8 +1158,8 @@ through untouched. Decoding each row through `models.ExtraCost` and writing the 
 the whole row by construction, and cannot miss a field.
 
 It covers more than the id. The same two types tolerate `category`, `categoryLabel` and `extraText`
-arriving as numbers, `extraValue` arriving as a string, and `deletedAt` arriving as epoch
-milliseconds — all of which the same rewrite settles.
+arriving as numbers and `extraValue` arriving as a string — all of which the same rewrite settles.
+Neither type carries a `deletedAt`; the job's own lives on `_meta`, outside these rows.
 
 **A stored corpus being clean is not the whole test.** `UnmarshalBSON` reads what Mongo holds, which the
 step normalises; `UnmarshalJSON` reads what a client sends, which it does not. A browser holding an
@@ -1825,6 +1822,7 @@ legality rules in a declared list, and carries the `prepareRelease` recalculatio
 | Stage 1 — the removals | **Landed.** `Purchase.TypeID` and `ArchivedJobFeeLine.FeeID` are gone from the models, their writers and the parity fixtures. `complete` and `CharacterHash` on stored fee rows needed no code change — neither was on the broker fee in either language, so they are stored residue Stage 2's fold drops. `esiJobTab` / `setupToEdit` / `resourceDisplayType` are **deferred to Stage 3**, two of the three being read; § Stage 1 says why |
 | Stage 1b — the derived setup figures | **Closed, nothing to do.** Split out of Stage 1, which had costed it as a removal it is not. `estimatedTime` and `estimatedInstallCost` no longer exist to remove. `materialCount` and `rawTime` are deliberately stored: a setup is meant to be passable on its own, `rawTime` cannot go stale against a snapshot, and Go has no material formula to derive `materialCount` from. Stage 2's conversion must not prune either — § Stage 1b says what happened when it did |
 | Stage 2 — the reshape, in the release window | **Landed, awaiting the window.** `tasks reshapeJobDocuments` converts a document and is a required `prepareRelease` step, proved against a restored copy of live — 42,065 documents, none refused, 1m32s, see [overlay.md](./overlay.md) § Stage 2. All eight collections are keyed on both sides, the observations sit under `esi`, and the broker fee is folded onto its order. The SPA's `Job` constructor reads the pre-reshape paths as well, so a document written before the window still loads. Behind it the row-key gate has run against a live snapshot: five collections key cleanly, linked jobs repeat only as identical duplicates, and the rest have a rule each, per § The grouping follows the write rule |
+| Stage 2c — an extras id is a string | **Built, and a `prepareRelease` step, awaiting the window.** A step normalises every extras and invention row holding a wrongly typed value, leaving correctly typed rows untouched — against the live snapshot, the 245 numeric invention ids. It runs after the reshape. The read-side coercion comes out only after it has run against live. See [overlay.md](./overlay.md) § Stage 2c |
 | Stage 3 — base, log, scratch and draft | **Landed — slices 1, 2, 2a, 3, 4 and every step of 5.** The layers hold a job and derive a draft; every way of changing a job is a command; two derived figures are selectors; a step can be taken back and put again; and the editor now runs on the store rather than its reducer, which is deleted. Immer is settled and declared, pinned to the version already resolved. §§ How a job is held, Undo, A what-if is not a change and A change arriving mid-edit carry the shape, and § Settled that an open editor follows the document. Measured rather than assumed — [measurements/inventory.md](./measurements/inventory.md) § Re-measured 2026-09-20. Every panel that reads only stored fields reads them out of the
 store and is proved by its own render count — the document-lock hooks, the extras editor, the Complete
 stage's buttons, the parent-link badge and body, five of Selling's, five of Planning's, three of

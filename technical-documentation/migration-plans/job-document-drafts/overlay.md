@@ -176,6 +176,44 @@ Unit tests over the conversion as a pure function, a live Mongo test for the wri
 over the same document, and three guards in `prepare_release_test.go`: the step's position, the backup
 covering its collections, and its required flag.
 
+## Stage 2c — An extras id is a string, in the documents too
+
+**Built, and a `prepareRelease` step directly after the reshape.**
+[`release_extras_invention_rows.go`](../../../services/core/commands/release_extras_invention_rows.go)
+walks the three job collections the reshape walks, and runs after it, so every row it reads sits in a
+keyed `build.extrasCosts` or `build.inventionEntries` map.
+
+**A row is rewritten only where a value it holds is stored in a type its model does not write.** Each row
+is read through `models.ExtraCost` or `models.InventionEntry` and written back as that model writes it,
+which settles the whole row rather than patching the id — but only for a row where some field it holds
+reads differently once the model has written it. A correctly typed row is left exactly as stored. That
+matters for the 865 extras rows carrying no category: rewriting them all would file each under the
+unassigned category, which is what every reader already resolves them to, but is not this step's change
+to make. A row that *is* rewritten does come back filed there, because that is what the model writes.
+
+Against the live snapshot that is the 245 invention entries, whose ids are all numbers, and nothing
+else. Each is written back under the key the reshape already filed it under: the reshape keys a numeric
+id by its integer digits, and the model reads it to the same digits, so the key and the id agree. A row
+whose id reads differently from its key is refused rather than written as a row the map cannot find.
+Every collection is walked before the step answers, as the reshape does, so a refusal in one leaves the
+others normalised and the step then fails naming each refused row beside what each collection did.
+
+It is not a required step: nothing after it reads what it writes, so a refusal is reported without
+stopping the release. A dry run reports the count, which is the re-measurement the plan asks for before
+it writes.
+
+**What proves it.** Unit tests over one document cover a numeric id and one stored as a double, a
+correctly typed row left alone, a string `extraValue` rewritten, a disagreeing key refused, and a job in
+the shape live holds today put through the real reshape and then this step. Live tests run it against
+scratch collections in real Mongo: a second pass finds nothing, and a refusal in one collection leaves
+the next one's rows normalised. Disabling the
+type check, or the key check, fails the cases written for each.
+
+**Still to do after it runs against live:** retire the read-side coercion — `extraCostScalarString`,
+`extraCostScalarFloat64`, `stringFromDocumentValue`, both `UnmarshalBSON` methods — once live is clean,
+and the `UnmarshalJSON` methods once no stale client can still send a number, per [plan.md](./plan.md)
+§ Stage 2c.
+
 ## Stage 3 — Base, log, scratch and draft in the editor
 
 *Slices 1 to 4 landed; the panels are slice 5.* The editor runs on the store — [plan.md](./plan.md)
