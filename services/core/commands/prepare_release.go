@@ -130,6 +130,11 @@ var releases = []release{{
 		// After the job reshape, which rewrites the setups this reads: a fold run
 		// before it would convert setups that reshape then writes over.
 		{name: "fold rig slots onto every setup", run: foldRigSlots},
+		// After the reshape that rewrites setups, for the same reason the fold is.
+		// A setup is read as being at The Fulcrum whenever it names that system,
+		// so a leftover left behind by the old removal has to come out before the
+		// declared rules are what price a job.
+		{name: "clear the system left on a setup that moved off The Fulcrum", run: clearZarzakhLeftovers},
 		// Anywhere in the window: it reads no document and depends on no other
 		// step. The keys it removes are Redis-only and already unread by the
 		// deployed code.

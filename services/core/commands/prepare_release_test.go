@@ -593,3 +593,21 @@ func TestTheRetiredMarketKeysAreSweptByTheRelease(t *testing.T) {
 
 	stepIndex(t, currentRelease, "drop the market keys this release retires")
 }
+
+// The leftover a setup carries is a system id, and the rules that read it are the
+// ones this release introduces — but the sweep also has to see the setups the
+// reshape rewrites, and the fold has to have run so a converted setup is not
+// touched twice in one release.
+func TestTheZarzakhSweepRunsAfterTheStepsThatRewriteASetup(t *testing.T) {
+	t.Parallel()
+
+	sweep := stepIndex(t, currentRelease, "clear the system left on a setup that moved off The Fulcrum")
+	for _, before := range []string{
+		"reshape every job document",
+		"fold rig slots onto every setup",
+	} {
+		if at := stepIndex(t, currentRelease, before); at > sweep {
+			t.Errorf("%q runs at %d, after the Zarzakh sweep at %d", before, at, sweep)
+		}
+	}
+}
