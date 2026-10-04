@@ -839,6 +839,7 @@ own screen, it belongs to the account.
 | `DefaultMaterialEfficiencyValue` — an input to every job built here | `DefaultStationIDForAssets`, `ShareCitadelNames` |
 | `ExtrasCategories` — ids stored in `build.costs.extrasCosts` | `EnableAutomaticJobRecalculation`, `EnableSkipMissingBlueprints` |
 | `DefaultCitadelBrokersFee`, `ReprocessingSettings`, `ExemptTypeIDs` — they price the planner's work | `JobStatuses` names, which label a column rather than identify it |
+| | `ReprocessingSettings.DefaultReprocessingCharacter` — a character, resolved per reader like the default market character |
 
 **Denormalising the structure's name onto the setup was the cheaper option and is not enough.** It
 would fix the display — the archive already does exactly that for extras category labels — but a
@@ -893,6 +894,12 @@ moves, which § Settings split says they all eventually must.
 `backfillPlannerExtrasCategories`: merge what the planner is missing, leave what it holds. A fourth copy
 of that pattern is the point at which it should become one step covering every field rather than one per
 field.
+
+**`ReprocessingSettings` is the next to move**, in
+[reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage F. It reshapes the fields as it moves
+them — the compressed-ore choice, buying minerals outright, the never-choose list and shipping join the
+planner copy, and the three yield multipliers go — and keeps the default reprocessing character on the
+account. Its release step is the **second** copy of the backfill pattern.
 
 For `JobStatuses` only the **set of ids** must be the planner's. Labels could stay personal without
 harming anything, since they name a column rather than identify it; whether that is worth the

@@ -68,6 +68,10 @@ answer it.
 - **The two panels still on the old shell.** Build Setup with its untitled setup editor, and the
   Blueprint Library. A design exists for both — see [plan.md](./plan.md) § Design reference — and the
   section task map carries a row pointing at it. Neither is scoped here and nothing here waits on them.
+- **Minerals bought as ore.** The engine, the solver and the ore figures are
+  [reprocessing-rebuild](../reprocessing-rebuild/contents.md)'s, and putting them on this stage is
+  scoped nowhere yet. It is designed on these panels, and [plan.md](./plan.md) § Handed on: minerals
+  bought as ore records which seams it uses; nothing here waits on it.
 - **A save that does not close the job.** `saveOpenJob` calls `closeActiveJob`, which persists the draft
   and ends the edit session in one call, applying the parent and child link intents as it goes.
   Splitting it is named in [plan.md](./plan.md) § Stage Q and belongs to whoever takes the edit
@@ -89,6 +93,7 @@ answer it.
 | See how a rate resolves at each location kind | [plan.md](./plan.md) § Stage A, § The resolution order |
 | Know what is stored and what is an SPA constant | [plan.md](./plan.md) § Stage A, § What is stored, and where |
 | Find how consumers read a sale location before the stored list exists | [plan.md](./plan.md) § Stage A, § Building against a placeholder |
+| Know where buying minerals as ore will sit on this stage | [plan.md](./plan.md) § Handed on: minerals bought as ore |
 | Find what the custom-structure work inherited from here | [plan.md](./plan.md) § Handed to the custom-structure work |
 | Find why the account's single market default is being split | [market-pricing-defaults/plan.md](../market-pricing-defaults/plan.md) |
 | Find where the rate block renders on a job | [plan.md](./plan.md) § Stage F |

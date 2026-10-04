@@ -395,6 +395,56 @@ from, and what happens when the receiving job is later resized.
 It is described in the design reference and deliberately left out of the stage order. The excess chip
 and its figure are correct without it.
 
+## Handed from the reprocessing rebuild: ore as a source
+
+**Not a stage here, and nothing in the sequence waits on it.** Buying a job's minerals as ore is
+designed in [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Not in the sequence and drawn on
+this project's worklist, not on today's cards. It needs that project's engine and solver (its Stages
+C–E) and this project's Stages B, C, F1 and I, so it is built after both. What follows is what the
+stages here must leave open so it slots in without reworking them.
+
+**The ore is never a row in the materials list.** The minerals ore can produce stay ordinary rows,
+sorted by name with everything else, carrying their usual status chip; only their **source** changes,
+to *Ore · above*. The ore has a panel of its own **between Purchase Summary and Materials**:
+
+| State | What it shows |
+|-------|---------------|
+| Collapsed — the default | One line: how many minerals it covers, the planned ore and tax, what is recorded so far, the ore count and where it is reprocessed, and **Show the ore ▾**. "Buy the minerals instead" sits in its ⋮ menu. The stage otherwise reads as plain Purchasing |
+| Opened | Each ore with an editable quantity and price, the reprocessing tax, a chart of which ore supplies each mineral with each mineral's cost, and **Record on N minerals**, with **Hide ▴** in the header |
+| Recorded | Collapsed again, with a *Recorded* chip on the summary line |
+
+It is opened by the reader, never by the stage: a job that plans ore does not have the plan offered to
+it every time Purchasing is visited.
+
+What each stage here must allow:
+
+- **Stage B — the worklist.** The row model's source admits a kind beyond a hub and a child job, so a
+  mineral can point at the ore panel. The status chips are unchanged: a mineral planned as ore is *to
+  buy* until its ore is recorded.
+- **Stage C — the drawer.** A mineral row's drawer still opens and still records a purchase by hand; the
+  ore panel is a second way to record, not a replacement for the row's own form.
+- **Stage E — Purchase Summary.** Recorded ore lands as purchases, so it counts as *paid* in the
+  coverage bar with no new segment.
+- **Stage F1 — one place that records a purchase.** Recording the ore writes one purchase on each
+  mineral it covers, at the cost the panel shows, **through `Material.importPurchase`** like every other
+  path. The funnel F1 builds is what keeps this from becoming a fourth implementation.
+- **Stage F2 — the frozen plan price.** Unchanged. A mineral's plan price is still its resolved market
+  price at the first purchase, so a mineral bought as ore is compared against what buying the mineral
+  would have cost — which is the saving the ore was chosen for.
+- **Stage I — Job costs.** Hauling the ore is an **estimated** extra in the Hauling Service category:
+  worked out from the plan, never stored, shown in the Extras zone with an *estimate* mark until the
+  reader records what they paid. Recording writes an ordinary extra, and a category's recorded total
+  then replaces its estimate. Whether Extras moves here or is mirrored, the estimate follows the rows.
+
+The ore panel never holds Prismaticite, whose batches each give one random mineral and so cannot be
+planned against a need. An Unrefined mineral can appear, planned at the amount it is guaranteed to give;
+the opened panel's quantities are the reader's to correct once the ore is reprocessed and the real
+amount is known.
+
+The mineral costs on the opened panel start from the plan and are the reader's to change: each mineral
+takes the ore and tax shared by its market value, and editing one moves the rest so the total stays
+whole. That allocation is the reprocessing engine's (`valueOrePlan`), not this stage's.
+
 ## Inherited: the duplicated structure display
 
 **The structure display this stage redraws is duplicated with the Planning setup card.**
@@ -444,6 +494,11 @@ superseded by live docs on promote. Sections worth reading before building the s
 The companion proposal for the Planning stage, whose table shape and order type picker this one reuses, is
 linked from [planning-stage-panels/plan.md](../planning-stage-panels/plan.md) § Design reference.
 
+The ore panel and the hauling estimate in § Handed from the reprocessing rebuild are drawn on this
+worklist in the reprocessing canvas, <https://claude.ai/artifact/5HovmoD6arBetuQ18GFuiE>, under
+"Reprocessing elsewhere in the app": the panel collapsed, opened, and after recording, each in both
+themes.
+
 ## Stage status
 
 | Stage | Surface | Status |
@@ -473,3 +528,8 @@ Materials & Sourcing table shape and order type picker from
 [planning-stage-panels](../planning-stage-panels/contents.md), which are done and awaiting promotion.
 If either promotes before this project starts, read the promoted live docs rather than those project
 folders.
+
+One later consumer builds on this stage: buying minerals as ore, from
+[reprocessing-rebuild](../reprocessing-rebuild/plan.md). It is not in this project's sequence, but
+Stages B, C, E, F1, F2 and I each have a line in § Handed from the reprocessing rebuild saying what
+they must leave open for it — read it before starting any of them.

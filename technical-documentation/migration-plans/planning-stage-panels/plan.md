@@ -1281,6 +1281,9 @@ not, and the page frame both sit inside: <https://claude.ai/artifact/HtfuYNi9Te5
 | Build Setup and the untitled setup editor, merged into one **Setups** panel whose rows open in place | not scoped — both are still `ContentPanel` |
 | Blueprint Library — rows rather than tiles, the colour legend retired | not scoped — still `ContentPanel` |
 
+A third design draws on both: buying minerals as ore, in the reprocessing canvas — see § Handed on:
+minerals bought as ore.
+
 **Where the two disagree about a panel this project already built, this plan and the first proposal
 win**, because that panel shipped. The later proposal only represents those panels; it does not
 re-specify them. For Stages P and Q it is the reference, the same way the first proposal is for
@@ -1561,7 +1564,48 @@ them:
   picker but are their own work — see
   [market-pricing-defaults/plan.md](../market-pricing-defaults/plan.md).
 
+**Minerals bought as ore** is designed on this stage and belongs to no project yet; it is recorded
+here only so the seams it uses are known. It does not block promotion — § Handed on: minerals bought
+as ore.
+
 The open questions below are still open, and none of them blocks promotion.
+
+## Handed on: minerals bought as ore
+
+**Designed on this stage, scoped nowhere yet, and nothing here waits on it.** Buying a job's minerals as
+ore is worked out in [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Not in the sequence and
+drawn on this stage's built panels inside the frame Stages P and Q plan, in the reprocessing canvas
+(<https://claude.ai/artifact/5HovmoD6arBetuQ18GFuiE>, "Reprocessing elsewhere in the app"). It needs
+that project's engine and solver first, so it is built after this project promotes. The section task
+map [`../contents.md`](../contents.md) carries a row for it pointing at that plan, which survives this
+folder being deleted — the same arrangement as the Setups and Blueprint Library row.
+
+What it adds to the panels this project built, so whoever builds it knows which seams it uses:
+
+| Panel | What appears | The seam it uses |
+|-------|--------------|------------------|
+| Materials & Sourcing | One more line in the offer box, and only when ore would save something | The offer strip Stage G made reachable |
+| Materials & Sourcing | Minerals ore can produce stay ordinary rows, sorted with the rest, with an **Ore** plan chip (**Ice** for ice products), their cost as ore and the source *Ore · below*. Components, PI materials and buildable rows keep Buy / Build | The plan chip and the Source column from § Design fidelity |
+| Materials & Sourcing | The ore is **never a row**. A panel of its own beneath the list, **collapsed by default** to one line — "Ore · for N minerals", delivered cost against the minerals' own, **Show the plan ▾**, and "Buy the minerals" in its ⋮ menu. Opened, it holds the editable ore prices, where the ore is reprocessed, how mineral costs are shared, and a chart of which ore supplies each mineral | New, beneath the table |
+| Cost Breakdown | A *Minerals bought as ore* line among the materials, the reprocessing tax inside it | The proportion bar's parts |
+| Cost Breakdown | Hauling the ore as an **estimated** extra in the Hauling Service category — worked out from the plan, never stored, marked *estimate* until the reader records what they paid, with Record it / Not needed beside it | The Extras section Stage F absorbed, which today holds recorded costs only |
+| Skills | A fourth group, *Reprocessing the ore*, while ore is in use | Stage I's groups |
+
+**Two ores behave differently and never appear as a plan's ore.** Prismaticite gives one random
+mineral per batch, so nothing guarantees it covers a need and the solver never chooses it; an
+Unrefined mineral gives one known mineral in a varying amount and is planned at its guaranteed
+minimum, with the expected extra reported as leftovers. Unrefined minerals are also made by reaction
+jobs (the `Unrefined … Formula` blueprints), which this stage already plans like any reaction. See
+[reprocessing-rebuild](../reprocessing-rebuild/plan.md) § E2 and § Not in the sequence.
+
+The estimated extra is the one change to a figure this project owns: Cost Breakdown's extras line
+counts an estimate for a category with nothing recorded, and a category's recorded total replaces its
+estimate. **Returns counts it too**: hauling is an expense the build has to pay, so the net return,
+break-even and every figure derived from the cost include the estimate. It does not arrive there by
+itself — Returns reads the job's recorded extras, and the estimate is never stored — so the work that
+builds this adds it to the cost Returns is handed, from the same figure Cost Breakdown shows. Once the
+reader records the hauling, the recorded extra replaces the estimate in both. The archive reads recorded
+costs only, so an estimate never reaches it.
 
 ## Inherited: the Edit Setup panel's second rig slot
 

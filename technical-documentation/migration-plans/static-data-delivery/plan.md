@@ -135,6 +135,20 @@ Three tiers, matching the three ways these files are read. The owner layer is no
   this a file in the first place is removed by prefetching on selection, not by shipping all 4,234
   recipes.
 
+**The reprocessing file gains readers outside its page.** Buying minerals as ore on Planning,
+Purchasing and the Shopping List reads the same file, so "primed by the surface that needs it" means
+whichever of those opens first with ore in use, not the Reprocessing page alone. The file also grows by
+a volume per entry and one `materialVolumes` map, `randomizedMaterials` ranges for erratic ore
+(Prismaticite) and the eight Unrefined minerals that join it, and two new item kinds
+([reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage B). All of it is additive, and a few
+kilobytes on a file already read whole.
+
+**Module and scrap metal outputs follow the recipes' answer.** They are a large table read a few ids
+at a time — the same shape as recipes — and
+[reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage M is written to take whichever
+mechanism this stage settles on, per id or buckets, rather than adding a second one. Measuring them is
+that project's M1, and can feed the bucket count if buckets are chosen.
+
 `refreshStaticDataCache` currently reduces a build to one `changed` boolean and `staticDataSync` uses it
 to drop all three synchronous owners together. With the manifest, that becomes a set of changed file
 keys, so a build that moves one file drops one owner.
@@ -180,7 +194,8 @@ the call sites that cannot await.
   primed. Stage E's per-item recipes break that for an item never fetched before. Persisting fetched
   recipes in IndexedDB narrows it to "an item you have never built, while offline"; sharding the recipe
   table into buckets instead keeps offline whole at the cost of a bucketing scheme that must stay
-  stable across builds. This decision gates Stage E's shape and should be made before it starts.
+  stable across builds. This decision gates Stage E's shape and should be made before it starts. It
+  also decides how module reprocessing outputs reach the SPA, which waits on the same answer.
 - ~~**Should `cache_level` be restored to `aggressive` zone-wide?**~~ **Answered: it was**, on
   2026-09-24. The zone-wide effect is the one the question anticipated — query-string URLs on already
   eligible types are now cacheable, which reaches the hashed assets as well as these files. What it

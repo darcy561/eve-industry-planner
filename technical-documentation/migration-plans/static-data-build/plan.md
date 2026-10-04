@@ -70,6 +70,18 @@ week. The counter has to exist before the thing that needs it.
 - The dataset-key-to-filename map lives beside `requiredFiles` as one table, not derived by trimming
   an extension.
 
+**A change to the conversion is not a change in the feed.** The gate sees CCP's datasets, not this
+repository's code, so a release that changes what the conversion writes — volumes added to the
+reprocessing file by [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage B, for one — is
+skipped like any other build with nothing new. The release's forced rebuild of the current version is
+what publishes it, and must stay outside the gate.
+
+**The set grows by two.** [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § B1a derives the
+reprocessing file's skills and inclusion from the SDE instead of hand-typed maps, which adds
+`typeDogma` and `compressibleTypes` to what the conversion reads. The dataset table this stage builds
+must carry them, and `typeDogma` (27 MB uncompressed in build 3326071) adds to what Stage C's ranged
+fetch pulls. The figures above count the eight read today and stay as measured.
+
 Localisation-only builds are **not** decidable here — the feed gives ids, not locales — and are left
 to the content hash in the delivery project's Stage B.
 

@@ -116,6 +116,9 @@ wait behind a conversion.
   here, with `breakdownframe.jsx` (6.4) beside it since they share the read.
 - **D2**: the clipboard probe stops being destructive. Small on its own; the Tier 3 conversion of that
   file still happens later, in Phase 5.
+  The file itself is deleted by [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage G,
+  which rebuilds the page; D2 is fixed here regardless, because it is user-visible today and that
+  rebuild is not scheduled.
 - **D3**: the interval is cleared on both arms of the race, in place. The Tier 4 rewrite still happens
   later, in Phase 6, and is much larger.
 
@@ -151,6 +154,12 @@ or page at a time — the largest diffs after Tier 4's `newGroupPage`.
 after the smaller conversions have established the shape. Read `job-document-drafts/` before the
 first of those: that project is reshaping what an open job is held as, and converting this twice
 would be easy to arrange by accident.
+
+**Three sites sit in files the reprocessing rebuild deletes** — 2.10 (`useAutoRecalculation.js`), 3.2
+(`advancedMineralOutput.jsx`) and 3.4 (`reprocessingStructurePanel.jsx`). If
+[reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage G lands first, each counts as resolved
+by work outside this project and its inventory entry says so; converting them first would be work
+thrown away when the page is rebuilt.
 
 ### Phase 6 — Tier 4: routing (3 sites)
 

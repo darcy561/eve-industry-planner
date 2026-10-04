@@ -49,6 +49,10 @@ The Edit Job **Purchasing** stage: what it asks, what it answers, and the shape 
 - **The excess hand-off.** Offering over-bought units to a sibling job is a behavioural change that
   writes to a job the player is not editing. It is described and deliberately left out of the stage
   sequence — see [plan.md](./plan.md) § Not in the sequence.
+- **Buying minerals as ore.** The engine, the solver and the ore panel's figures are
+  [reprocessing-rebuild](../reprocessing-rebuild/contents.md)'s. This project leaves room for the panel
+  and the hauling estimate in the stages it builds — see [plan.md](./plan.md) § Handed from the
+  reprocessing rebuild.
 - Live SPA and backend behaviour, promoted only when this project closes.
 
 ## Task map
@@ -72,6 +76,7 @@ The Edit Job **Purchasing** stage: what it asks, what it answers, and the shape 
 | Find the setup-count census behind that rule | [measurements/setup-counts.md](./measurements/setup-counts.md) |
 | Find the real job the full-page design is drawn from | [measurements/ishtar-job.md](./measurements/ishtar-job.md) |
 | Know what changes on mobile | [plan.md](./plan.md) § Stage J |
+| Know what the worklist must leave open for minerals bought as ore | [plan.md](./plan.md) § Handed from the reprocessing rebuild |
 | Find what was described but deliberately not scheduled | [plan.md](./plan.md) § Not in the sequence |
 | See the visual design the stages build to | [plan.md](./plan.md) § Design reference |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
