@@ -17,8 +17,6 @@ func TestOwnerScopedDocumentIDCarriesTheOwner(t *testing.T) {
 	}
 }
 
-// The same bare id under two planners must produce two documents, which is the
-// whole reason the owner is in the id.
 func TestOwnerScopedDocumentIDSeparatesTwoOwners(t *testing.T) {
 	t.Parallel()
 
@@ -29,8 +27,6 @@ func TestOwnerScopedDocumentIDSeparatesTwoOwners(t *testing.T) {
 	}
 }
 
-// An id that cannot be scoped is empty rather than partial: a filter built from
-// half an id would match the wrong document.
 func TestOwnerScopedDocumentIDRefusesIncompleteInput(t *testing.T) {
 	t.Parallel()
 
@@ -74,8 +70,6 @@ func TestBareDocumentIDIsWhatAClientKnows(t *testing.T) {
 	}
 }
 
-// An account's own singleton documents are keyed by the account id alone, so an
-// id with no owner is already bare.
 func TestBareDocumentIDLeavesAnUnscopedIDAlone(t *testing.T) {
 	t.Parallel()
 
@@ -84,8 +78,6 @@ func TestBareDocumentIDLeavesAnUnscopedIDAlone(t *testing.T) {
 	}
 }
 
-// A job id containing the separator still round-trips: only the first one
-// divides the owner from the id.
 func TestDocumentIDRoundTripsAnIDContainingTheSeparator(t *testing.T) {
 	t.Parallel()
 	owner := models.AccountOwner("acct-1")
@@ -111,8 +103,6 @@ func TestOwnerFromDocumentIDRefusesAnIDWithNoOwner(t *testing.T) {
 	}
 }
 
-// An owner kind nothing can read is refused rather than carried, the way
-// ParseOwnerKey refuses it.
 func TestOwnerFromDocumentIDRefusesAnUnknownKind(t *testing.T) {
 	t.Parallel()
 
@@ -121,9 +111,6 @@ func TestOwnerFromDocumentIDRefusesAnUnknownKind(t *testing.T) {
 	}
 }
 
-// Mongo refuses $set of a subdocument alongside $inc of a path inside it, so
-// `_meta` must be set field by field. Setting it whole would also reset the
-// counter to whatever the caller's struct held.
 func TestSetDocumentWithRevisionSetsMetaByPath(t *testing.T) {
 	t.Parallel()
 
@@ -159,7 +146,6 @@ func TestSetDocumentWithRevisionSetsMetaByPath(t *testing.T) {
 	}
 }
 
-// A write that also clears retired fields keeps its $unset.
 func TestSetDocumentWithRevisionKeepsTheUnset(t *testing.T) {
 	t.Parallel()
 
@@ -176,7 +162,6 @@ func TestSetDocumentWithRevisionKeepsTheUnset(t *testing.T) {
 	}
 }
 
-// No retired fields means no $unset key at all, rather than an empty one.
 func TestSetDocumentWithRevisionOmitsAnEmptyUnset(t *testing.T) {
 	t.Parallel()
 
@@ -189,9 +174,6 @@ func TestSetDocumentWithRevisionOmitsAnEmptyUnset(t *testing.T) {
 	}
 }
 
-// The owner a read is scoped to is the loader's, never the caller's filter.
-// mergeFilters lets `extra` win, so applying the owner second is what stops a
-// filter naming another owner from widening the read.
 func TestMergeFiltersLetsTheScopeWin(t *testing.T) {
 	t.Parallel()
 

@@ -59,7 +59,9 @@ func Require(t *testing.T) *eipmongo.Mongo {
 	if Skip(t) {
 		return nil
 	}
-	return connect(t, "connect", eipmongo.ConnectPrimary)
+	return connect(t, "connect", func() (*eipmongo.Mongo, error) {
+		return eipmongo.ConnectPrimary(t.Context())
+	})
 }
 
 // RequireWatch connects a client built for change streams, or skips the test.
@@ -76,7 +78,7 @@ func RequireWatch(t *testing.T, streams int) *eipmongo.Mongo {
 		t.Fatalf("RequireWatch needs at least one stream, got %d", streams)
 	}
 	return connect(t, "connect watch", func() (*eipmongo.Mongo, error) {
-		return eipmongo.ConnectWatch(uint64(streams))
+		return eipmongo.ConnectWatch(t.Context(), uint64(streams))
 	})
 }
 

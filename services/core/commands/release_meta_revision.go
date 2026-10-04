@@ -42,17 +42,17 @@ func ensureMetaRevision(ctx context.Context, clients *stackservices.Clients, dry
 	)
 	toRename := bson.M{
 		"_meta.version":  bson.M{"$exists": true},
-		"_meta.revision": bson.M{"$exists": false},
+		eipmongo.FieldMetaRevision: bson.M{"$exists": false},
 	}
 	toClear := bson.M{
 		"_meta.version":  bson.M{"$exists": true},
-		"_meta.revision": bson.M{"$exists": true},
+		eipmongo.FieldMetaRevision: bson.M{"$exists": true},
 	}
 	// Read after the rename has run for the collection, so it names only the
 	// documents that never carried a counter under either key.
 	toSeed := bson.M{
 		"_meta":          bson.M{"$exists": true},
-		"_meta.revision": bson.M{"$exists": false},
+		eipmongo.FieldMetaRevision: bson.M{"$exists": false},
 	}
 
 	for _, name := range releaseTouchedCollections() {

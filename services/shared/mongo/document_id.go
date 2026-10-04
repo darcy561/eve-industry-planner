@@ -61,13 +61,13 @@ func SetDocumentWithRevision(doc any, unset bson.M) (bson.M, error) {
 
 	set := bson.M{}
 	for key, value := range fields {
-		if key != metaField {
+		if key != models.MetaFieldName {
 			set[key] = value
 			continue
 		}
 		meta, ok := value.(bson.D)
 		if !ok {
-			return nil, fmt.Errorf("document %s is not a subdocument", metaField)
+			return nil, fmt.Errorf("document %s is not a subdocument", models.MetaFieldName)
 		}
 		maps.Copy(set, MetaSetByPath(meta))
 	}
@@ -90,10 +90,10 @@ func OwnerFromDocumentID(storedID string) (models.Owner, error) {
 func MetaSetByPath(meta any) bson.M {
 	set := bson.M{}
 	for key, value := range AsDocumentM(meta) {
-		if key == MetaFieldRevisionKey {
+		if key == models.MetaFieldRevision {
 			continue
 		}
-		set[metaField+"."+key] = value
+		set[models.MetaFieldName+"."+key] = value
 	}
 	return set
 }

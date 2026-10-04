@@ -12,10 +12,9 @@ type Mongo struct {
 	Client *mongo.Client
 	DB     *mongo.Database
 
-	// Named collection handles (bound in NewMongo).
 	Users               *Docs
-	JobDocuments        *Docs // CollectionJobDocuments — planner job docs API (hot path)
-	Jobs                *Docs // CollectionJobs — distinct from JobDocuments; not the user job-docs API
+	JobDocuments        *Docs
+	Jobs                *Docs
 	Groups              *Docs
 	ArchivedJobs        *Docs
 	StatisticsTotals    *Docs
@@ -26,14 +25,14 @@ type Mongo struct {
 	CitadelNames        *Docs
 	WatchlistDeprecated *Docs
 
-	StatisticsRows          *Docs // per-archived-job figures the statistics pipelines read
-	StatisticsTimeline      *Docs // pre-aggregated calendar months per owner and item type
-	StatisticsRebuildQueue  *Docs // owners whose statistics need recalculating
-	StatisticsReconcileRota *Docs // when each owner was last reconciled against its rows
+	StatisticsRows          *Docs
+	StatisticsTimeline      *Docs
+	StatisticsRebuildQueue  *Docs
+	StatisticsReconcileRota *Docs
 
-	Planners           *Docs // one per owner; its _id is the owner key
-	PlannerMemberships *Docs // one row per account per planner
-	PlannerSettings    *Docs // one per planner; its _id is the owner key
+	Planners           *Docs
+	PlannerMemberships *Docs
+	PlannerSettings    *Docs
 }
 
 // NewMongo pins DatabaseName and binds named Docs fields. client must be non-nil.

@@ -87,9 +87,9 @@ func updateUserLastLoginMetadata(ctx context.Context, mongo *eipmongo.Mongo, acc
 	if usersCol == nil {
 		return fmt.Errorf("updateUserLastLoginMetadata: users collection unavailable")
 	}
-	setDoc := bson.M{"_meta.lastLoginAt": at, "_meta.lastModified": at}
+	setDoc := bson.M{"_meta.lastLoginAt": at, eipmongo.FieldMetaLastModified: at}
 	return eipmongo.Retry(ctx, fmt.Sprintf("touch last login %s", accountID), func() error {
-		_, err := usersCol.UpdateOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}, bson.M{"$set": setDoc})
+		_, err := usersCol.UpdateOne(ctx, eipmongo.AccountDocumentFilter(accountID), bson.M{"$set": setDoc})
 		return err
 	})
 }

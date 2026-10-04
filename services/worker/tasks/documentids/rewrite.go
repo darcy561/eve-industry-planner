@@ -48,10 +48,7 @@ func RewriteOwnerScopedIDs(ctx context.Context, payload eipnats.RewriteOwnerScop
 		return fmt.Errorf("collection %q is not available", payload.Collection)
 	}
 
-	cursor, err := coll.Find(ctx, bson.M{
-		eipmongo.FieldMetaOwnerKind: owner.Kind,
-		eipmongo.FieldMetaOwnerID:   owner.ID,
-	})
+	cursor, err := coll.Find(ctx, eipmongo.OwnerFilter(owner))
 	if err != nil {
 		return fmt.Errorf("read %s for %s: %w", payload.Collection, owner.Key(), err)
 	}

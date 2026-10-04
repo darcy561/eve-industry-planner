@@ -55,7 +55,7 @@ against their own data.
 `services/cmd/mongo_parity_sample` is a `main` package, run by a documented `docker run`
 incantation, that copies up to 50 documents per collection out of live Mongo onto disk — carrying
 whatever account data those documents hold. It feeds one test, which skips when the export is
-absent. The helpers it covers are already unit-tested in `shared/mongo/helpers_test.go`.
+absent. The helpers it covers are already unit-tested in `shared/mongo/struct_doc_test.go`.
 
 **The gate is named for a migration that finished.** `EIP_MONGO_PARITY_LIVE` was named when the one
 test under it checked driver-v2 document parity. It now gates the whole live suite, of which parity

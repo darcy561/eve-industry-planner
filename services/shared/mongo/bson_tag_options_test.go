@@ -8,10 +8,6 @@ import (
 	"eve-industry-planner/testing/gosource"
 )
 
-// The driver's tag parser knows omitempty, minsize, truncate and inline only, so
-// ",omitzero" on a bson tag is no option at all and the zero is written — a zero
-// time.Time reaching the document as a year-1 date. The json half of the same
-// pair legitimately wants omitzero, which is what makes it easy to write.
 var bsonOmitzero = regexp.MustCompile(`bson:"[^"]*,omitzero`)
 
 func TestNoBSONTagClaimsOmitzero(t *testing.T) {

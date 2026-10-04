@@ -13,7 +13,6 @@ import (
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 
-	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -84,7 +83,7 @@ func maintainAccountCloudRefreshTokens(ctx context.Context, users *eipmongo.Docs
 
 	usersCol := users.Collection()
 	var userDoc models.UserAccountDocument
-	if err := usersCol.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&userDoc); err != nil {
+	if err := usersCol.FindOne(ctx, eipmongo.AccountDocumentFilter(accountID)).Decode(&userDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			return stats, errCloudEsiMaintUserNotFound
 		}

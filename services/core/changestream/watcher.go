@@ -538,7 +538,7 @@ func isAllowedSchemaMaintenanceField(field string) bool {
 	switch field {
 	case "schemaVersion",
 		"schema_version",
-		"_meta.lastModified",
+		eipmongo.FieldMetaLastModified,
 		"_meta.last_modified",
 		"lastModified",
 		"last_modified":

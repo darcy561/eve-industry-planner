@@ -62,7 +62,7 @@ func run() error {
 	ctx, cancelTimeout := context.WithTimeout(ctx, *timeout)
 	defer cancelTimeout()
 
-	mongo, err := eipmongo.ConnectPrimary()
+	mongo, err := eipmongo.ConnectPrimary(ctx)
 	if err != nil {
 		return fmt.Errorf("connect mongo: %w", err)
 	}

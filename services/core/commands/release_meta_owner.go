@@ -37,12 +37,12 @@ var metaOwnerCollections = []string{
 // nothing is worse than one an operator is told about.
 var unstampedMetaOwner = bson.M{
 	"_meta.accountID": bson.M{"$type": "string", "$ne": ""},
-	"_meta.owner":     bson.M{"$exists": false},
+	eipmongo.FieldMetaOwner:     bson.M{"$exists": false},
 }
 
 // missingMetaOwner selects documents with no owner at all, whether or not one
 // could have been derived. It is what the release is verified against.
-var missingMetaOwner = bson.M{"_meta.owner": bson.M{"$exists": false}}
+var missingMetaOwner = bson.M{eipmongo.FieldMetaOwner: bson.M{"$exists": false}}
 
 // stampMetaOwner writes `_meta.owner` on documents that carry an account id and
 // no owner.
@@ -56,7 +56,7 @@ var missingMetaOwner = bson.M{"_meta.owner": bson.M{"$exists": false}}
 // pre-release statistics collections get.
 func stampMetaOwner(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	stamp := mongodriver.Pipeline{{{Key: "$set", Value: bson.M{
-		"_meta.owner": bson.M{
+		eipmongo.FieldMetaOwner: bson.M{
 			"kind": string(models.OwnerAccount),
 			"id":   "$_meta.accountID",
 		},
@@ -72,7 +72,7 @@ func stampMetaOwner(ctx context.Context, clients *stackservices.Clients, dryRun 
 			return "", fmt.Errorf("count %s: %w", name, err)
 		}
 		unusable, err := coll.CountDocuments(ctx, bson.M{
-			"_meta.owner": bson.M{"$exists": false},
+			eipmongo.FieldMetaOwner: bson.M{"$exists": false},
 			"$or": []bson.M{
 				{"_meta.accountID": bson.M{"$exists": false}},
 				{"_meta.accountID": ""},

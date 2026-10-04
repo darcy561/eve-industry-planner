@@ -6,6 +6,7 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 
 	"eve-industry-planner/shared/models"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -36,8 +37,7 @@ func StaleSpecFilter() bson.M {
 
 // AccountWorkFilter matches every document for accountID needing conversion.
 func AccountWorkFilter(accountID string) bson.M {
-	return bson.M{
-		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
+	return eipmongo.OwnerFilter(models.AccountOwner(accountID), bson.M{
 		"$or": []any{RawIDFilter(), StaleSpecFilter()},
-	}
+	})
 }

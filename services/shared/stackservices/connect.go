@@ -64,7 +64,7 @@ func Connect(ctx context.Context, services Services) (*Clients, func(context.Con
 	}
 
 	if services.Mongo {
-		mongoHandle, err := eipmongo.ConnectPrimary()
+		mongoHandle, err := eipmongo.ConnectPrimary(ctx)
 		if err != nil {
 			return fail(fmt.Errorf("failed to connect to mongo: %w", err))
 		}

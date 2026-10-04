@@ -104,7 +104,7 @@ planner reaches no member and would be a region walked for nobody.
 |------|-------|
 | `shared/models/marketLocations.go` | `MarketLocation`, `MarketLocations`, `DefaultMarketLocations`, `TakeMarketLocations` |
 | `shared/models/market_locations_validate.go` | `Validate` and its limits |
-| `shared/mongo/market_locations.go` | `MarketLocationsForAccount` |
+| `shared/mongo/account_market_locations.go` | `MarketLocationsForAccount` |
 | `api/v1endpoints/user/marketLocations.go` | `GET /api/v1/user/market-locations` |
 | `api/v1endpoints/planners/putSettings.go` | `PUT /api/v1/planners/{ownerHandle}/settings`, and where a planner's shared markets are registered |
 | `api/marketsources/pricedat.go` | `StampPricedAt` |

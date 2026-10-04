@@ -126,17 +126,8 @@ func (b *ClientBulk) DeleteMany(docs *Docs, filter any) *ClientBulk {
 	return b.appendDocs(docs, mongo.NewClientDeleteManyModel().SetFilter(filter))
 }
 
-// RunOrdered executes pending writes with ordered=true (stop on first error).
+// RunOrdered executes the pending writes in order, stopping at the first that fails.
 func (b *ClientBulk) RunOrdered(ctx context.Context) (*mongo.ClientBulkWriteResult, error) {
-	return b.run(ctx, true)
-}
-
-// RunUnordered executes pending writes with ordered=false.
-func (b *ClientBulk) RunUnordered(ctx context.Context) (*mongo.ClientBulkWriteResult, error) {
-	return b.run(ctx, false)
-}
-
-func (b *ClientBulk) run(ctx context.Context, ordered bool) (*mongo.ClientBulkWriteResult, error) {
 	if b == nil {
 		return nil, fmt.Errorf("client bulk is nil")
 	}
@@ -149,5 +140,5 @@ func (b *ClientBulk) run(ctx context.Context, ordered bool) (*mongo.ClientBulkWr
 	if len(b.writes) == 0 {
 		return &mongo.ClientBulkWriteResult{}, nil
 	}
-	return b.client.BulkWrite(ctx, b.writes, options.ClientBulkWrite().SetOrdered(ordered))
+	return b.client.BulkWrite(ctx, b.writes, options.ClientBulkWrite().SetOrdered(true))
 }

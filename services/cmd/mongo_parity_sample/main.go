@@ -48,7 +48,7 @@ func run() error {
 		limit = n
 	}
 
-	mongo, err := eipmongo.ConnectPrimary()
+	mongo, err := eipmongo.ConnectPrimary(ctx)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}

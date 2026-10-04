@@ -16,13 +16,13 @@ func StartUnderPrimary(ctx context.Context, clients *stackservices.Clients, stat
 	if clients == nil {
 		return nil, fmt.Errorf("changestream: clients required")
 	}
-	m := servicemanager.New("changestream", func(context.Context) (func(), error) {
+	m := servicemanager.New("changestream", func(startCtx context.Context) (func(), error) {
 		if clients.Mongo == nil || clients.NATS == nil {
 			return nil, fmt.Errorf("changestream: mongo, jetstream, and nats required")
 		}
 		// Change streams need a client with no operation timeout; it lives only while primary.
 		// One connection is held per group for as long as its stream awaits events.
-		watchMongo, err := eipmongo.ConnectWatch(uint64(len(CollectionGroups())))
+		watchMongo, err := eipmongo.ConnectWatch(startCtx, uint64(len(CollectionGroups())))
 		if err != nil {
 			return nil, fmt.Errorf("changestream: watch client: %w", err)
 		}

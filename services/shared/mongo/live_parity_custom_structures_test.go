@@ -14,11 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// The fold from four stored lists to one array is the part that can lose a row,
-// so it is proved against real Mongo rather than a marshalled fixture: the shape
-// that matters is the one on disk, written before a row's own jobType was what
-// said which kind it is.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_customStructures_foldsStoredLanes(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -40,8 +35,6 @@ func TestLive_customStructures_foldsStoredLanes(t *testing.T) {
 		t.Fatalf("build seed document: %v", err)
 	}
 	delete(seed, "schemaVersion")
-	// Written as the four keyed lists, which is the shape on disk this proves the
-	// read of; the rows deliberately carry no jobType of their own.
 	seed["customStructures"] = bson.M{
 		"manufacturing": []bson.M{{"id": "manStruct-fold", "name": "Sotiyo", "rigType": 3, "systemID": int64(30000142), "tax": 1.5, "default": true}},
 		"reaction":      []bson.M{{"id": "reacStruct-fold", "name": "Tatara"}},
@@ -88,8 +81,6 @@ func TestLive_customStructures_foldsStoredLanes(t *testing.T) {
 		t.Errorf("reprocessing row lost fields in the fold: %+v", row)
 	}
 
-	// Write the folded shape back and read it again: a stored document reaches the
-	// array branch from then on, and must land on the same rows.
 	if _, _, err := mongo.ApplicationSettings.UpsertApplicationSettings(ctx, settingsID, doc); err != nil {
 		t.Fatalf("UpsertApplicationSettings: %v", err)
 	}

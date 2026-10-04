@@ -7,12 +7,6 @@ import (
 	"eve-industry-planner/testing/gosource"
 )
 
-// retiredFieldPaths are storage fields no document carries any more.
-//
-// A filter naming one matches nothing and reports no error, and the compiler
-// cannot see it: these live in bson.M as string keys. That combination is why a
-// rename left ~25 query sites silently broken behind a green build, and why this
-// is checked mechanically rather than by review.
 var retiredFieldPaths = []string{
 	"_meta.accountID",
 	"_meta.corporationRef",
@@ -21,10 +15,6 @@ var retiredFieldPaths = []string{
 	"owner.id",
 }
 
-// retiredFieldExceptions are files that legitimately name a retired field.
-//
-// Only the migration steps qualify: they read the pre-release shape in order to
-// replace it, so the old name is their input rather than a stale query.
 var retiredFieldExceptions = map[string]string{
 	"core/commands/release_meta_owner.go":  "derives the owner from the account id it is replacing",
 	"cmd/mongo_driver_v2_smoke/main.go":    "writes and reads its own throwaway document shape",
@@ -45,7 +35,6 @@ func TestNoQueryNamesARetiredField(t *testing.T) {
 			return
 		}
 		for _, field := range retiredFieldPaths {
-			// Quoted only: a bare mention in prose is a comment, not a query.
 			if strings.Contains(string(body), `"`+field+`"`) {
 				found = append(found, rel+" names "+field)
 			}

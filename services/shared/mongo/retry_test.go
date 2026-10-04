@@ -35,8 +35,6 @@ func TestIsRetryableMongoError(t *testing.T) {
 	}
 }
 
-// errRetryable is classified by IsRetryableMongoError through its message
-// fallback, the same route a real SDAM failure takes.
 var errRetryable = errors.New("server selection error: no reachable servers")
 
 func TestRetry_succeedsWithoutRetrying(t *testing.T) {
@@ -72,8 +70,6 @@ func TestRetry_succeedsAfterRetryableFailure(t *testing.T) {
 	}
 }
 
-// An exhausted retry hands back the Mongo failure itself, so a caller can
-// classify it without unwrapping an attempt-count wrapper.
 func TestRetry_exhaustedReturnsCause(t *testing.T) {
 	calls := 0
 	err := Retry(context.Background(), "test", func() error {
@@ -119,8 +115,6 @@ func TestRetry_missingDocumentIsNotRetried(t *testing.T) {
 	}
 }
 
-// A non-retryable failure on the final attempt is still refused rather than
-// reported as exhaustion: the engine does not consult the predicate there.
 func TestRetry_nonRetryableOnLastAttempt(t *testing.T) {
 	calls := 0
 	nonRetryable := errors.New("duplicate key error")
@@ -158,7 +152,6 @@ func TestRetry_cancelledContextIsNotAttempted(t *testing.T) {
 	}
 }
 
-// Cancellation must end the backoff wait rather than sleeping it out.
 func TestRetry_cancelledContextStopsBackoff(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -177,7 +170,6 @@ func TestRetry_cancelledContextStopsBackoff(t *testing.T) {
 	}
 }
 
-// Retry holds no loop of its own; the backoff lives in shared/retry.
 func TestRetry_hasNoLoopOfItsOwn(t *testing.T) {
 	src, err := os.ReadFile("retry.go")
 	if err != nil {
@@ -185,5 +177,22 @@ func TestRetry_hasNoLoopOfItsOwn(t *testing.T) {
 	}
 	if bytes.Contains(src, []byte("time.After")) || bytes.Contains(src, []byte("time.NewTimer")) {
 		t.Error("retry.go waits on a timer directly, want the backoff in shared/retry")
+	}
+}
+
+func TestRetryValue_answersWhatTheAttemptThatSucceededReturned(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	got, err := RetryValue(context.Background(), "RetryValue", func() (string, error) {
+		attempts++
+		if attempts == 1 {
+			return "first", mongo.ErrClientDisconnected
+		}
+		return "second", nil
+	})
+
+	if err != nil || got != "second" || attempts != 2 {
+		t.Errorf("got %q, %v after %d attempts, want the second attempt's value", got, err, attempts)
 	}
 }

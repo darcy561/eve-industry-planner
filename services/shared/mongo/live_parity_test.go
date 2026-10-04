@@ -2,8 +2,8 @@ package mongo_test
 
 import (
 	"context"
-	"encoding/json"
 	"encoding/json/jsontext"
+	"eve-industry-planner/shared/jsoncodec"
 	"eve-industry-planner/testing/mongolive"
 	"os"
 	"path/filepath"
@@ -15,13 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
-
-// Live / fixture document helpers for shared/mongo.
-//
-//	EIP_MONGO_PARITY_LIVE=1  — connect with env (same as stack) and sample collections
-//	or place export under .tmp/mongo-parity (see cmd/mongo_parity_sample)
-//
-// Skips when neither live env nor fixture files are available.
 
 func TestLive_realDocs_AsDocumentM_andUnmarshal(t *testing.T) {
 	docs := loadParitySampleDocs(t)
@@ -111,7 +104,6 @@ func loadFixtureSampleDocs(t *testing.T) []bson.M {
 	t.Helper()
 	dir := os.Getenv("MONGO_PARITY_FIXTURE_DIR")
 	if dir == "" {
-		// shared/mongo → repo .tmp/mongo-parity
 		dir = filepath.Join("..", "..", "..", ".tmp", "mongo-parity")
 	}
 	entries, err := os.ReadDir(dir)
@@ -130,7 +122,7 @@ func loadFixtureSampleDocs(t *testing.T) []bson.M {
 		var file struct {
 			Docs []jsontext.Value `json:"docs"`
 		}
-		if err := json.Unmarshal(raw, &file); err != nil {
+		if err := jsoncodec.Unmarshal(raw, &file); err != nil {
 			t.Fatalf("parse %s: %v", e.Name(), err)
 		}
 		for _, d := range file.Docs {

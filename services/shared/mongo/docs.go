@@ -48,8 +48,9 @@ func (d *Docs) GetPublicByIDs(ctx context.Context, docIDs []string) ([]bson.M, e
 	return d.getByIDs(ctx, docIDs, nil)
 }
 
-// UpsertStructPreservingMeta upserts by _id preserving existing _meta (bumps lastModified).
-func (d *Docs) UpsertStructPreservingMeta(ctx context.Context, v any, docID string) (*mongo.UpdateResult, error) {
+// UpsertStructPreservingMeta upserts v under docID, setting its fields while keeping the _meta a
+// stored row already holds; it retries under [Retry], labelled by [WithOpName] when given.
+func (d *Docs) UpsertStructPreservingMeta(ctx context.Context, v any, docID string, opts ...RetryOption) (*mongo.UpdateResult, error) {
 	coll, err := d.requireColl()
 	if err != nil {
 		return nil, err
@@ -61,35 +62,20 @@ func (d *Docs) UpsertStructPreservingMeta(ctx context.Context, v any, docID stri
 	if err != nil {
 		return nil, fmt.Errorf("convert struct to BSON: %w", err)
 	}
-	setDoc := buildSetDoc(doc, "_id", "_meta")
+	setDoc := buildSetDoc(doc, "_id", models.MetaFieldName)
 	setOnInsert := insertDefaults(docID)
 	applyLastModified(setDoc, setOnInsert, doc, true)
-	result, err := coll.UpdateOne(
-		ctx,
-		bson.M{"_id": docID},
-		bson.M{"$set": setDoc, "$setOnInsert": setOnInsert},
-		options.UpdateOne().SetUpsert(true),
-	)
+
+	result, err := RetryValue(ctx, applyRetryOptions("UpsertStructPreservingMeta", opts), func() (*mongo.UpdateResult, error) {
+		return coll.UpdateOne(ctx,
+			bson.M{"_id": docID},
+			bson.M{"$set": setDoc, "$setOnInsert": setOnInsert},
+			options.UpdateOne().SetUpsert(true))
+	})
 	if err != nil {
 		return nil, fmt.Errorf("upsert document preserving meta: %w", err)
 	}
 	return result, nil
-}
-
-// UpsertStructPreservingMetaRetry wraps UpsertStructPreservingMeta with [Retry].
-// Log label defaults to "UpsertStructPreservingMeta"; override with [WithOpName].
-func (d *Docs) UpsertStructPreservingMetaRetry(ctx context.Context, v any, docID string, opts ...RetryOption) (*mongo.UpdateResult, error) {
-	opName := applyRetryOptions("UpsertStructPreservingMeta", opts)
-	var out *mongo.UpdateResult
-	err := Retry(ctx, opName, func() error {
-		var upsertErr error
-		out, upsertErr = d.UpsertStructPreservingMeta(ctx, v, docID)
-		return upsertErr
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 // StructUpsertItem is one row for [Docs.UpsertStructsPreservingMetaBulk].
@@ -106,20 +92,13 @@ type BulkUpsertSummary struct {
 	Failed  int
 }
 
-// UpsertStructsPreservingMetaBulk upserts many structs, leaving each document's
-// existing `_meta` in place.
-//
-// For documents a client and the server both write: `_meta` carries the writing
-// tab and session, which a server-side rewrite must not clobber.
+// UpsertStructsPreservingMetaBulk upserts many structs, leaving each document's existing `_meta` in
+// place.
 func (d *Docs) UpsertStructsPreservingMetaBulk(ctx context.Context, items []StructUpsertItem, batchSize int) (BulkUpsertSummary, error) {
 	return d.upsertStructsBulk(ctx, items, batchSize, buildPreservingMetaUpsertModel)
 }
 
 // UpsertStructsWithMetaBulk upserts many structs, writing `_meta` from the struct.
-//
-// For documents one writer wholly owns — the derived statistics rows, which are
-// reproduced from the archived jobs on every rebuild. Preserving `_meta` there
-// would mean a rebuild could never correct an owner it had already written.
 func (d *Docs) UpsertStructsWithMetaBulk(ctx context.Context, items []StructUpsertItem, batchSize int) (BulkUpsertSummary, error) {
 	return d.upsertStructsBulk(ctx, items, batchSize, buildWithMetaUpsertModel)
 }
@@ -189,21 +168,18 @@ func (d *Docs) deleteManyAfterStampingMeta(ctx context.Context, filter bson.M, n
 	if err != nil {
 		return 0, fmt.Errorf("DeleteManyAfterStampingMeta: nil collection")
 	}
-	set := bson.M{"_meta.lastModified": now}
+	set := bson.M{FieldMetaLastModified: now}
 	if sessionID != "" {
-		set["_meta.sessionID"] = sessionID
+		set[FieldMetaSessionID] = sessionID
 	}
 	if wsClientID != "" {
-		set["_meta.clientID"] = wsClientID
+		set[FieldMetaClientID] = wsClientID
 	}
-	var result *mongo.DeleteResult
-	err = Retry(ctx, operationName, func() error {
-		if _, uerr := coll.UpdateMany(ctx, filter, bson.M{"$set": set}); uerr != nil {
-			return uerr
+	result, err := RetryValue(ctx, operationName, func() (*mongo.DeleteResult, error) {
+		if _, err := coll.UpdateMany(ctx, filter, bson.M{"$set": set}); err != nil {
+			return nil, err
 		}
-		var derr error
-		result, derr = coll.DeleteMany(ctx, filter)
-		return derr
+		return coll.DeleteMany(ctx, filter)
 	})
 	if err != nil {
 		return 0, err
@@ -215,8 +191,6 @@ func (d *Docs) deleteManyAfterStampingMeta(ctx context.Context, filter bson.M, n
 }
 
 // DistinctStrings returns the distinct non-empty string values of field.
-// Non-string and empty values are skipped.
-// Log label defaults to "DistinctStrings"; override with [WithOpName].
 func (d *Docs) DistinctStrings(ctx context.Context, field string, filter bson.M, opts ...RetryOption) ([]string, error) {
 	coll, err := d.requireColl()
 	if err != nil {
@@ -249,96 +223,53 @@ func (d *Docs) DistinctStrings(ctx context.Context, field string, filter bson.M,
 	return out, nil
 }
 
-// ListIDs returns the _id of every matching document, for collections whose _id
-// is a string key. A nil filter lists the whole collection.
-// Log label defaults to "ListIDs"; override with [WithOpName].
+// ListIDs returns the _id of every matching document, for collections whose _id is a string key.
 func (d *Docs) ListIDs(ctx context.Context, filter bson.M, opts ...RetryOption) ([]string, error) {
-	coll, err := d.requireColl()
-	if err != nil {
-		return nil, err
-	}
 	if filter == nil {
 		filter = bson.M{}
 	}
-
-	var out []string
-	err = Retry(ctx, applyRetryOptions("ListIDs", opts), func() error {
-		out = nil
-		cursor, findErr := coll.Find(ctx, filter, options.Find().SetProjection(bson.M{"_id": 1}))
-		if findErr != nil {
-			return findErr
-		}
-		defer cursor.Close(ctx)
-
-		for cursor.Next(ctx) {
-			var row struct {
-				ID string `bson:"_id"`
-			}
-			if decErr := cursor.Decode(&row); decErr != nil {
-				return decErr
-			}
-			if row.ID == "" {
-				continue
-			}
-			out = append(out, row.ID)
-		}
-		return cursor.Err()
-	})
+	rows, err := findAll[struct {
+		ID string `bson:"_id"`
+	}](ctx, d, applyRetryOptions("ListIDs", opts), filter, options.Find().SetProjection(bson.M{"_id": 1}))
 	if err != nil {
 		return nil, err
+	}
+	var out []string
+	for _, row := range rows {
+		if row.ID != "" {
+			out = append(out, row.ID)
+		}
 	}
 	return out, nil
 }
 
 func (d *Docs) getByID(ctx context.Context, docID string, extraFilter bson.M) (bson.M, bool, error) {
-	coll, err := d.requireColl()
-	if err != nil {
-		return nil, false, err
-	}
 	if docID == "" {
 		return nil, false, fmt.Errorf("docID is required")
 	}
-	filter := mergeFilters(bson.M{"_id": docID}, extraFilter)
-	var result bson.M
-	err = coll.FindOne(ctx, filter).Decode(&result)
+	doc, err := findOne[bson.M](ctx, d, "getByID", mergeFilters(bson.M{"_id": docID}, extraFilter))
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, false, nil
-		}
 		return nil, false, err
 	}
-	return result, true, nil
+	return doc, true, nil
 }
 
 func (d *Docs) getByIDs(ctx context.Context, docIDs []string, extraFilter bson.M) ([]bson.M, error) {
-	coll, err := d.requireColl()
-	if err != nil {
-		return nil, err
-	}
 	if len(docIDs) == 0 {
 		return nil, fmt.Errorf("docIDs cannot be empty")
 	}
-	filter := mergeFilters(bson.M{"_id": bson.M{"$in": docIDs}}, extraFilter)
-	cursor, err := coll.Find(ctx, filter)
+	docs, err := findAll[bson.M](ctx, d, "getByIDs", mergeFilters(bson.M{"_id": bson.M{"$in": docIDs}}, extraFilter))
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(ctx)
-
-	byID := make(map[string]bson.M, len(docIDs))
-	for cursor.Next(ctx) {
-		var doc bson.M
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, err
+	byID := make(map[string]bson.M, len(docs))
+	for _, doc := range docs {
+		if docID, _ := doc["_id"].(string); docID != "" {
+			byID[docID] = doc
 		}
-		docID, _ := doc["_id"].(string)
-		if docID == "" {
-			continue
-		}
-		byID[docID] = doc
-	}
-	if err := cursor.Err(); err != nil {
-		return nil, err
 	}
 	results := make([]bson.M, 0, len(docIDs))
 	for _, docID := range docIDs {
@@ -382,37 +313,33 @@ func applyLastModified(setDoc bson.M, setOnInsert bson.M, doc bson.M, preserveMe
 	if _, ok := setDoc["lastModified"]; ok {
 		setDoc["lastModified"] = now
 	}
-	if metaRaw, ok := setDoc["_meta"]; ok {
+	if metaRaw, ok := setDoc[models.MetaFieldName]; ok {
 		if meta := AsDocumentM(metaRaw); meta != nil {
 			meta["lastModified"] = now
-			setDoc["_meta"] = meta
+			setDoc[models.MetaFieldName] = meta
 		}
 	}
 	if preserveMeta {
-		setDoc["_meta.lastModified"] = now
+		setDoc[FieldMetaLastModified] = now
 		if setOnInsert == nil || doc == nil {
 			return
 		}
-		if metaRaw, ok := doc["_meta"]; ok {
+		if metaRaw, ok := doc[models.MetaFieldName]; ok {
 			meta := ensureMetaMap(metaRaw)
 			if clientID, ok := meta["clientID"].(string); ok && clientID != "" {
-				setDoc["_meta.clientID"] = clientID
+				setDoc[FieldMetaClientID] = clientID
 			}
-			// Written on every upsert, not only on insert. The owner is how a scoped read
-			// addresses the document, so leaving it to `$setOnInsert` means an update writes a
-			// document that the read it pairs with can never find again — and a caller that
-			// cannot read what it just wrote merges its save over the top of the stored one.
 			if owner := ownerToWrite(meta); owner != nil {
-				setDoc["_meta."+models.MetaFieldOwner] = owner
+				setDoc[FieldMetaOwner] = owner
 			}
 			for k, v := range meta {
 				if k == "lastModified" {
 					continue
 				}
-				if _, exists := setDoc["_meta."+k]; exists {
+				if _, exists := setDoc[models.MetaFieldName+"."+k]; exists {
 					continue
 				}
-				setOnInsert["_meta."+k] = v
+				setOnInsert[models.MetaFieldName+"."+k] = v
 			}
 		}
 	}
@@ -420,11 +347,6 @@ func applyLastModified(setDoc bson.M, setOnInsert bson.M, doc bson.M, preserveMe
 
 // ownerToWrite returns the owner a preserving-meta upsert should stamp, or nil when the caller
 // named none.
-//
-// A half-filled owner is rejected rather than written: a scoped read matches on kind and id
-// together, so a document carrying one without the other is as unreachable as one carrying
-// neither, and stamping it would satisfy the release's own "carries an owner" check while leaving
-// the document lost.
 func ownerToWrite(meta bson.M) bson.M {
 	owner := AsDocumentM(meta[models.MetaFieldOwner])
 	if owner == nil {
@@ -449,12 +371,9 @@ func ensureMetaMap(metaRaw any) bson.M {
 
 // buildWithMetaUpsertModel writes the whole document, `_meta` included.
 func buildWithMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
-	setDoc := buildSetDoc(doc, "_id", metaField)
+	setDoc := buildSetDoc(doc, "_id", models.MetaFieldName)
 	applyLastModified(setDoc, nil, nil, false)
-	// `_meta` is this writer's to replace, but field by field rather than whole:
-	// the revision counts writes to the document and is no part of the struct
-	// being written, so a $set of the block would drop it on every rebuild.
-	if meta := AsDocumentM(doc[metaField]); meta != nil {
+	if meta := AsDocumentM(doc[models.MetaFieldName]); meta != nil {
 		meta["lastModified"] = time.Now().UTC()
 		maps.Copy(setDoc, MetaSetByPath(meta))
 	}
@@ -465,17 +384,12 @@ func buildWithMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
 }
 
 // insertDefaults is what a document is given the once, when it is created.
-//
-// The revision starts at [models.InitialDocumentRevision] rather than being left
-// absent: absent and zero are the same answer to a reader and different answers
-// to a Mongo filter, so a conditional write comparing what it read would never
-// match a document that had never been counted.
 func insertDefaults(docID string) bson.M {
 	return bson.M{"_id": docID, FieldMetaRevision: models.InitialDocumentRevision}
 }
 
 func buildPreservingMetaUpsertModel(docID string, doc bson.M) mongo.WriteModel {
-	setDoc := buildSetDoc(doc, "_id", "_meta")
+	setDoc := buildSetDoc(doc, "_id", models.MetaFieldName)
 	setOnInsert := insertDefaults(docID)
 	applyLastModified(setDoc, setOnInsert, doc, true)
 	return mongo.NewUpdateOneModel().
@@ -500,17 +414,7 @@ func executeBulkUpsertModels(ctx context.Context, collection *mongo.Collection, 
 	return 0, len(models), err
 }
 
-// Aggregate runs a pipeline and decodes every result into out, which must be a
-// pointer to a slice.
-//
-// Reads on this surface are otherwise Find-shaped, which cannot express a
-// grouped read: summing pre-aggregated rows across a dimension has to happen on
-// the server, because the alternative is shipping every row to the caller and
-// folding it there. Callers pass a pipeline rather than a filter, so the shape
-// of the grouping stays with the query that needs it.
-//
-// Under Retry like the other helpers, so a grouped read carries an operation
-// name in its logs. Log label defaults to "Aggregate"; override with [WithOpName].
+// Aggregate runs a pipeline and decodes every result into out, which must be a pointer to a slice.
 func (d *Docs) Aggregate(ctx context.Context, pipeline mongo.Pipeline, out any, opts ...RetryOption) error {
 	coll, err := d.requireColl()
 	if err != nil {

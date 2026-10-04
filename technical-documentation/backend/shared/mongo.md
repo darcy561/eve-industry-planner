@@ -76,8 +76,9 @@ on the `json` half is decided in [jsoncodec.md](./jsoncodec.md) § The `json` / 
 parser does not read `omitzero` and silently writes the zero value if it is asked to.
 
 `ApplyMetaSessionClient` stamps the session and client from request inputs. Upserts come in two
-shapes: `UpsertStructWithMeta` writes the metadata from the struct, and `UpsertStructPreservingMeta`
-keeps what is already stored and bumps `lastModified` — the second is what a partial update wants.
+shapes, each in bulk: `UpsertStructsWithMetaBulk` writes the metadata from the struct, and
+`UpsertStructsPreservingMetaBulk` keeps what is already stored and bumps `lastModified` — the second is what a
+partial update wants. `UpsertStructPreservingMeta` is the single-document form of the second, retried.
 
 Documents also carry a `schemaVersion`, upgraded in batches by a maintenance task rather than on read.
 
@@ -92,6 +93,12 @@ subjects and websocket pools use, so a document's owner and its routing key are 
 | `FieldMetaOwnerKind` | `_meta.owner.kind` | filtering |
 | `FieldMetaOwnerID` | `_meta.owner.id` | filtering |
 | `FieldMetaOwner` | `_meta.owner` | grouping on the pair, which only means something together |
+| `FieldMetaLastModified` | `_meta.lastModified` | stamping and sorting by the last write |
+| `FieldMetaSessionID`, `FieldMetaClientID` | `_meta.sessionID`, `_meta.clientID` | stamping who wrote it |
+
+Every path is built from the key constants `models` keeps beside `MetaData`'s bson tags, and a test
+pins each key to its tag. A filter on one owner is `OwnerFilter(owner, extra...)`, and on an account's
+own singleton document — its account record, settings and watchlist — `AccountDocumentFilter(accountID)`.
 
 **Spell the path from those constants, never inline.** These are string keys in a `bson.M`: a filter
 naming a path no document carries matches nothing, returns no error, and the compiler cannot see it. A
@@ -111,8 +118,8 @@ Three layers, and which one to use is decided by how many collections a change t
 
 | Scope | Use | Retry |
 |-------|-----|-------|
-| One collection | a `Docs` helper on the named field | many wrap `Retry` already; `…Retry` variants where the caller chooses |
-| Several collections, one unit | [`writers`](../../../services/shared/mongo/writers) | `RunOrdered` / `RunUnordered` own it |
+| One collection | a `Docs` helper on the named field | most wrap `Retry` themselves; those that do take `...RetryOption` to label it |
+| Several collections, one unit | [`writers`](../../../services/shared/mongo/writers) | `RunOrdered` owns it |
 | A one-off or dynamic query | `Coll(name)` / `Docs.Collection()` | the caller's |
 
 **Cross-collection writes do not belong in a handler.** A change spanning collections is assembled as
@@ -120,8 +127,8 @@ a `ClientBulk` — `UpdateOne`, `ReplaceOne`, `DeleteMany` and so on against a `
 `Upsert()` and `ArrayFilters()` as options — and run through `writers`, which owns the retry. Adding a
 new one means a file under `writers`, not a bulk assembled at the call site.
 
-`RunOrdered` stops at the first failure; `RunUnordered` attempts everything and reports what failed.
-Order matters when a later write depends on an earlier one having landed.
+`RunOrdered` stops at the first failure, because a later write in a unit depends on an earlier one
+having landed. The writes before the failure stay written: a bulk is one request, not one transaction.
 
 ## Collection naming
 
@@ -196,4 +203,5 @@ API / worker / websocket / core readiness Pings Mongo where those services decla
 
 - Import alias `eipmongo` for the package; use `mongodriver` when a local variable is already named `mongo`.
 - New multi-collection write units: add a file under `writers`, do not leave ordered pairs assembled in the caller.
+- The package is one folder because its readers and writers are methods on `Docs` and `Mongo`, which Go keeps in the package that defines them. Files are grouped by name instead: `jobs_`, `groups_`, `planner_`, `account_`, `watchlist_` and `statistics_`, each followed by what the file does (`jobs_put_fields.go`); the handle, `Docs`, bulk, retry, transaction, id and naming helpers keep plain names. A test takes its source file's name, and a live test leads with `live_` and then the same area.
 - Collection names are duplicated across a module boundary. This package holds the constants, and the Deployment Tool repeats them as strings because it cannot import `services`. A test on each side pins the two copies together, so renaming a collection in one module fails the other module's test.

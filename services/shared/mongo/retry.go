@@ -18,10 +18,13 @@ const (
 	retryMaxDelay     = 2 * time.Second
 )
 
-// Retry runs operation with exponential backoff (3 attempts, 100ms → 2s),
-// retrying what [IsRetryableMongoError] accepts. operationName labels the logs
-// (empty → "MongoDB operation"); the error returned is the Mongo failure itself.
+// Retry runs operation with exponential backoff, retrying what [IsRetryableMongoError] accepts;
+// inside a transaction it runs once and leaves retrying to the transaction.
 func Retry(ctx context.Context, operationName string, operation func() error) error {
+	if inTransaction(ctx) {
+		return operation()
+	}
+
 	opName := operationName
 	if opName == "" {
 		opName = "MongoDB operation"
@@ -30,15 +33,11 @@ func Retry(ctx context.Context, operationName string, operation func() error) er
 	attempts := 0
 	refused := false
 
-	// refuse reports whether err ends the operation rather than earning another
-	// attempt, and logs it once. The engine does not consult the predicate on the
-	// last attempt, so a failure there is classified after Do returns instead.
 	refuse := func(err error) bool {
 		if IsRetryableMongoError(err) {
 			return false
 		}
 		refused = true
-		// A missing document is an answer the caller asked for, not a failure.
 		if !errors.Is(err, mongo.ErrNoDocuments) {
 			logs.ErrorCtx(ctx, "MongoDB operation failed - non-retryable error",
 				"operation", opName,
@@ -76,8 +75,6 @@ func Retry(ctx context.Context, operationName string, operation func() error) er
 				"operation", opName,
 				"attempt", attempts)
 		}
-	// A cancelled context is the caller giving up, and Do reports it in place of
-	// any operation error.
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 	case !refused && !refuse(err):
 		logs.ErrorCtx(ctx, "MongoDB operation failed - all retries exhausted",
@@ -121,4 +118,15 @@ func IsRetryableMongoError(err error) bool {
 		}
 	}
 	return false
+}
+
+// RetryValue runs op under [Retry] and answers what its last attempt returned.
+func RetryValue[T any](ctx context.Context, operationName string, op func() (T, error)) (T, error) {
+	var out T
+	err := Retry(ctx, operationName, func() error {
+		var opErr error
+		out, opErr = op()
+		return opErr
+	})
+	return out, err
 }

@@ -14,7 +14,6 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
-	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
 )
 
@@ -63,7 +62,7 @@ func (h *Handlers) handleGetCloudStoredEsiRefreshTokens(w http.ResponseWriter, r
 	// clients obtain ESI access via POST /api/v1/esi/characters/access-token/server.
 	col := h.Mongo.Users.Collection()
 	var userDoc models.UserAccountDocument
-	if err := col.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&userDoc); err != nil {
+	if err := col.FindOne(ctx, eipmongo.AccountDocumentFilter(accountID)).Decode(&userDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]any{
@@ -144,7 +143,7 @@ func (h *Handlers) handlePutCloudStoredEsiRefreshTokens(w http.ResponseWriter, r
 
 	col := h.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
-	if err := col.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&existingDoc); err != nil {
+	if err := col.FindOne(ctx, eipmongo.AccountDocumentFilter(accountID)).Decode(&existingDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]any{
@@ -273,7 +272,7 @@ func (h *Handlers) handleDeleteCloudStoredEsiRefreshTokens(w http.ResponseWriter
 
 	col := h.Mongo.Users.Collection()
 	var existingDoc models.UserAccountDocument
-	if err := col.FindOne(ctx, bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID, "_id": accountID}).Decode(&existingDoc); err != nil {
+	if err := col.FindOne(ctx, eipmongo.AccountDocumentFilter(accountID)).Decode(&existingDoc); err != nil {
 		if errors.Is(err, mongodriver.ErrNoDocuments) {
 			metrics.Error("not_found")
 			helper.RespondEndpointError(w, r, http.StatusNotFound, "User document not found", "linked chars user doc not found", "linked_chars_user_not_found", "cloud_stored_esi_refresh_tokens", nil, map[string]any{

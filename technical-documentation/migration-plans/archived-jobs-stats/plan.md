@@ -3060,11 +3060,11 @@ knowing rather than manufacturing a date.
 
    | Test | Pins |
    |------|------|
-   | `live_rebuild_queue_test.go` | The claim protocol — `queuedAt` survives a re-queue while `claim` increments, a stale claim clears nothing, the current claim clears the account |
-   | `live_rebuild_queue_test.go` | The fold guard — `OwnerClaimIsCurrent` is true only on the dispatched claim, and false once a rebuild upgrades the entry or sweeps it |
-   | `live_account_rebuild_test.go` § revokeAndPrune | Keep-list rows survive, absent ones are revoked not deleted, produced months stay and empty ones are pruned |
-   | `live_account_rebuild_test.go` § emptyKeepListClearsTheAccount | An empty keep-list drops the `$nin` and empties the account, rather than leaving it untouched |
-   | `live_account_rebuild_test.go` § writesBeforeRemoving | Both outgoing and incoming rows are readable between the write and removal halves, so a mid-rebuild reader sees no gap |
+   | `live_statistics_rebuild_queue_test.go` | The claim protocol — `queuedAt` survives a re-queue while `claim` increments, a stale claim clears nothing, the current claim clears the account |
+   | `live_statistics_rebuild_queue_test.go` | The fold guard — `OwnerClaimIsCurrent` is true only on the dispatched claim, and false once a rebuild upgrades the entry or sweeps it |
+   | `live_statistics_account_rebuild_test.go` § revokeAndPrune | Keep-list rows survive, absent ones are revoked not deleted, produced months stay and empty ones are pruned |
+   | `live_statistics_account_rebuild_test.go` § emptyKeepListClearsTheAccount | An empty keep-list drops the `$nin` and empties the account, rather than leaving it untouched |
+   | `live_statistics_account_rebuild_test.go` § writesBeforeRemoving | Both outgoing and incoming rows are readable between the write and removal halves, so a mid-rebuild reader sees no gap |
 
    Stage J added three more, all passing against stack Mongo: `live_reconcile_test.go` drives
    `ReconcileAccountStatistics` over seeded jobs and breaks the aggregates four ways at once,

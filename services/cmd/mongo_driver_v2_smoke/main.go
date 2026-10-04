@@ -36,7 +36,7 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	mongo, err := eipmongo.ConnectPrimary()
+	mongo, err := eipmongo.ConnectPrimary(ctx)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}

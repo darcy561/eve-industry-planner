@@ -7,9 +7,6 @@ import (
 	"eve-industry-planner/shared/models"
 )
 
-// An account holds its own planner's membership by construction, so the answer
-// does not wait on the database — which is what keeps a statistics read of your
-// own figures working while Mongo is unreachable.
 func TestAccountMayReachAnswersItsOwnPlannerWithoutAHandle(t *testing.T) {
 	t.Parallel()
 
@@ -24,8 +21,6 @@ func TestAccountMayReachAnswersItsOwnPlannerWithoutAHandle(t *testing.T) {
 	}
 }
 
-// Every other owner needs the rows, so a missing handle is an error rather than a
-// refusal: the two mean different things to a caller.
 func TestAccountMayReachNeedsAHandleForEveryOtherOwner(t *testing.T) {
 	t.Parallel()
 
@@ -44,8 +39,6 @@ func TestAccountMayReachNeedsAHandleForEveryOtherOwner(t *testing.T) {
 	}
 }
 
-// A zero owner addresses nothing, so it is refused rather than errored: nothing
-// was asked about.
 func TestAccountMayReachRefusesTheZeroOwner(t *testing.T) {
 	t.Parallel()
 

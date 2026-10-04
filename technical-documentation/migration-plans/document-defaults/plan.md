@@ -67,7 +67,7 @@ rebuilds them; the dead fields have no owner today.
 ## Track A — The server decides a document's shape
 
 `Upgrader.UserAccountDocument`, `.ApplicationSettings` and `.PlannerSettings` run on every read.
-`.Job` and `.Group` do not: [`get_jobs.go`](../../../services/shared/mongo/get_jobs.go) has no
+`.Job` and `.Group` do not: [`jobs_get.go`](../../../services/shared/mongo/jobs_get.go) has no
 normalisation at all, and the only thing that ever calls `Upgrader.Job` is the offline `schemamaint`
 drain, which visits a document once and never again.
 
@@ -76,7 +76,7 @@ document types. The two the planner writes are the ones that skip it.
 
 ### Phase A1 — Call the upgrader on the job and group read paths
 
-Match [`get_account.go`](../../../services/shared/mongo/get_account.go), which calls it on every read.
+Match [`account_get.go`](../../../services/shared/mongo/account_get.go), which calls it on every read.
 Mechanical, and it makes every reader see one shape.
 
 Done when: a job and a group are normalised on read the way an account is, with a test that a legacy

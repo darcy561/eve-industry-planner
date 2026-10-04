@@ -17,9 +17,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// Live schema-upgrade get path: clone a real doc, downgrade schemaVersion, Load*
-// via shared/mongo, assert in-memory + persisted shape. Scratch ids cleaned up.
-
 func TestLive_schemaUpgrade_userAndSettings(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -44,13 +41,11 @@ func TestLive_schemaUpgrade_userAndSettings(t *testing.T) {
 	}
 	liveSettings, okSettings := findOneRaw(t, ctx, settingsColl)
 
-	// --- users: unversioned shape ---
-	// UpgradeUserAccountDocument (v0→v1) forces HasCompletedFirstLoginFlow=false, ShareCitadelNames=true.
 	userSeed := cloneAsScratchAccount(liveUser, userID)
 	delete(userSeed, "schemaVersion")
-	userSeed["hasCompletedFirstLoginFlow"] = true // must be forced false by upgrade
-	userSeed["shareCitadelNames"] = false         // must be forced true by upgrade
-	userSeed["userCloudAccounts"] = true          // body field must survive
+	userSeed["hasCompletedFirstLoginFlow"] = true
+	userSeed["shareCitadelNames"] = false
+	userSeed["userCloudAccounts"] = true
 
 	if _, err := usersColl.ReplaceOne(ctx, bson.M{"_id": userID}, userSeed, options.Replace().SetUpsert(true)); err != nil {
 		t.Fatalf("seed user: %v", err)
@@ -91,15 +86,12 @@ func TestLive_schemaUpgrade_userAndSettings(t *testing.T) {
 	if got, _ := raw["userCloudAccounts"].(bool); !got {
 		t.Fatalf("persisted userCloudAccounts lost")
 	}
-	// The owner survives the upgrade write: an upgrade that dropped it would
-	// leave a document no owner-scoped read can find.
 	meta, _ := raw["_meta"].(bson.M)
 	owner, _ := meta["owner"].(bson.M)
 	if got, _ := owner["id"].(string); got != userID {
 		t.Fatalf("persisted _meta.owner.id=%q, want %q", got, userID)
 	}
 
-	// Idempotent: second load must not change schema again
 	again, err := mongo.LoadUserAccount(ctx, userID)
 	if err != nil {
 		t.Fatalf("second LoadUserAccount: %v", err)
@@ -113,10 +105,9 @@ func TestLive_schemaUpgrade_userAndSettings(t *testing.T) {
 		return
 	}
 
-	// --- application_settings: unversioned → current ---
 	settingsSeed := cloneAsScratchAccount(liveSettings, settingsID)
 	delete(settingsSeed, "schemaVersion")
-	settingsSeed["displayHelpCards"] = true // must survive
+	settingsSeed["displayHelpCards"] = true
 
 	if _, err := settingsColl.ReplaceOne(ctx, bson.M{"_id": settingsID}, settingsSeed, options.Replace().SetUpsert(true)); err != nil {
 		t.Fatalf("seed settings: %v", err)
@@ -163,7 +154,6 @@ func findOneRaw(t *testing.T, ctx context.Context, coll *mongodriver.Collection)
 	return eipmongo.AsDocumentM(raw), true
 }
 
-// cloneAsScratchAccount rewrites _id and _meta.accountID for isolated upgrade tests.
 func cloneAsScratchAccount(src bson.M, scratchID string) bson.M {
 	out := bson.M{}
 	maps.Copy(out, src)
@@ -172,9 +162,6 @@ func cloneAsScratchAccount(src bson.M, scratchID string) bson.M {
 	if existing, ok := out["_meta"].(bson.M); ok {
 		maps.Copy(meta, existing)
 	}
-	// The clone takes the scratch account's owner, not the one it was cloned
-	// from: every scoped read filters on the owner, so a copied one would leave
-	// the document owned by a real account and unreadable as this test's.
 	meta[models.MetaFieldOwner] = mongolive.OwnerDoc(models.AccountOwner(scratchID))
 	out["_meta"] = meta
 	return out

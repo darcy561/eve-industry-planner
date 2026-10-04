@@ -166,7 +166,7 @@ Both take `RetryOption`, so every read carries an operation name in its logs the
 helpers already do. `DistinctUnprocessedArchivedAccountIDs` now goes through `DistinctStrings`
 instead of reaching for `Collection()` and hand-decoding `[]any`, and gains retry it did not have.
 
-**Document `_id` builders** live beside `ProductionTotalsDocumentID` in `production_totals.go` — the
+**Document `_id` builders** live beside `ProductionTotalsDocumentID` in `statistics_production_totals.go` — the
 contract between the workers that write and the API that reads. Each takes an owner and leads the id
 with its key: a statistics row is `{ownerKey}|{jobID}`, and `TimelineMonthDocumentID` zero-pads the
 month (`account:1234|1234|2026-08`) so `_id` ordering matches calendar ordering.
@@ -423,7 +423,7 @@ rebuild that produces nothing empties the account rather than leaving it untouch
 for a wholesale rebuild whose last archived job was removed, and it is the most destructive path in
 the pipeline, so it is pinned by a live test rather than left to inspection.
 
-Behaviour here is covered by `shared/mongo/live_account_rebuild_test.go` against stack Mongo.
+Behaviour here is covered by `shared/mongo/live_statistics_account_rebuild_test.go` against stack Mongo.
 
 #### The retired pipeline could double-count, and did on dev
 
@@ -822,8 +822,8 @@ them are not.** Three services already query `archived_jobs` directly — the AP
 migration import, and `core/commands` — each with its own query over the same shared filter.
 
 Two pre-existing cases sit the other way and are **not** fixed here, being outside this stage:
-`shared/mongo/timeline.go` has no consumer outside the API, and `production_totals.go` plus
-`rebuild_queue.go` are worker-only. Worth splitting by consumer once Stage G has settled what
+`shared/mongo/statistics_timeline.go` has no consumer outside the API, and `statistics_production_totals.go` plus
+`statistics_rebuild_queue.go` are worker-only. Worth splitting by consumer once Stage G has settled what
 restore needs from that code, so each query moves once rather than twice.
 
 The projection is the point of the endpoint: an archived job carries its whole build, every
@@ -1467,6 +1467,11 @@ owner whose wait is up, each clearing its own entry. Rebuilding inside the dispa
 behind one serial pass inside one task timeout, so a queue larger than that window could not finish —
 and because the clear ran after the loop on the same cancelled context, a pass that ran out of time
 cleared nothing and the next started from the same place.
+
+Reading the queue, an entry whose key names no owner is skipped rather than failing the read: nothing
+can rebuild or clear it by key, and one bad entry must not stop every other owner being dispatched. An
+entry naming a kind of work the code does not recognise is read as a rebuild, the one kind that is
+always safe because it re-derives every figure from the rows.
 
 An owner waits `rebuildDebounce` (five minutes) before its rebuild is dispatched. `queuedAt` is not
 moved by a re-queue, so that bounds the **longest** an owner waits rather than sliding: an owner

@@ -9,10 +9,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-// A derived document's writer owns its `_meta` outright. Preserving it would put
-// the owner in $setOnInsert, so a rebuild could write an owner once and never
-// correct it — and a row whose owner is wrong matches no query and reports no
-// error.
 func TestWithMetaUpsertWritesMetaOnEveryUpsert(t *testing.T) {
 	t.Parallel()
 	doc := bson.M{"_id": "row-1", "_meta": bson.M{"owner": bson.M{"kind": "account", "id": "acct-1"}}}
@@ -29,8 +25,6 @@ func TestWithMetaUpsertWritesMetaOnEveryUpsert(t *testing.T) {
 	if !ok {
 		t.Fatalf("no $set in %#v", update)
 	}
-	// Field by field, not as a block: a $set of the whole `_meta` would drop the
-	// revision, which is no part of the struct this writer marshals.
 	if _, whole := set["_meta"]; whole {
 		t.Fatalf("_meta was set as a block, got %#v", set)
 	}
@@ -49,8 +43,6 @@ func TestWithMetaUpsertWritesMetaOnEveryUpsert(t *testing.T) {
 	}
 }
 
-// A derived row is created with a counter like anything else, or the release
-// step's seeding is undone the first time the rebuild runs.
 func TestWithMetaUpsertStartsANewRowAtTheFirstRevision(t *testing.T) {
 	t.Parallel()
 	doc := bson.M{"_id": "row-1", "_meta": bson.M{"owner": bson.M{"kind": "account", "id": "acct-1"}}}
@@ -63,9 +55,6 @@ func TestWithMetaUpsertStartsANewRowAtTheFirstRevision(t *testing.T) {
 	}
 }
 
-// The preserving form is the opposite contract, and the two must not drift into
-// each other: a client and the server both write these, and `_meta` carries the
-// writing tab and session.
 func TestPreservingMetaUpsertKeepsMetaOutOfSet(t *testing.T) {
 	t.Parallel()
 	doc := bson.M{"_id": "job-1", "_meta": bson.M{"clientID": "tab-9"}}
@@ -77,14 +66,6 @@ func TestPreservingMetaUpsertKeepsMetaOutOfSet(t *testing.T) {
 	}
 }
 
-// The owner is how a scoped read addresses a document, so a preserving-meta upsert has to write it
-// on every write and not only on insert.
-//
-// Leaving it to `$setOnInsert` means an update produces a document the paired read cannot find:
-// `UpsertStructPreservingMeta` matches on `_id` alone and succeeds, while `LoadUserAccount` and its
-// siblings match on `_meta.owner.kind` and `_meta.owner.id` as well and miss forever. A caller that
-// cannot read back what it just wrote then merges its save over the top of the stored document,
-// which is how an account's stored state was replaced by whatever the client happened to hold.
 func TestPreservingMetaUpsertWritesOwnerOnEveryUpsert(t *testing.T) {
 	t.Parallel()
 	doc := bson.M{"_id": "acct-1", "_meta": bson.M{
@@ -104,12 +85,9 @@ func TestPreservingMetaUpsertWritesOwnerOnEveryUpsert(t *testing.T) {
 	if owner["kind"] != "account" || owner["id"] != "acct-1" {
 		t.Fatalf("unexpected owner %#v", owner)
 	}
-	// Mongo refuses the same path in both operators, and an owner in $setOnInsert would not be
-	// written by the update that needs it.
 	if _, clash := setOnInsert["_meta.owner"]; clash {
 		t.Fatalf("owner must not also be in $setOnInsert, got %#v", setOnInsert)
 	}
-	// Everything else about `_meta` still belongs to whoever wrote it first.
 	if _, moved := set["_meta.createdAt"]; moved {
 		t.Fatalf("createdAt must stay insert-only, got $set %#v", set)
 	}
@@ -118,8 +96,6 @@ func TestPreservingMetaUpsertWritesOwnerOnEveryUpsert(t *testing.T) {
 	}
 }
 
-// A half-filled owner is as unreachable as none: the scoped reads match on kind and id together.
-// Stamping one would satisfy the release's "carries an owner" check while leaving the document lost.
 func TestPreservingMetaUpsertRejectsAHalfOwner(t *testing.T) {
 	t.Parallel()
 	for name, owner := range map[string]bson.M{
@@ -141,8 +117,6 @@ func TestPreservingMetaUpsertRejectsAHalfOwner(t *testing.T) {
 	}
 }
 
-// A document whose caller names no owner at all still writes: the owner is stamped where one is
-// given, not required of every collection.
 func TestPreservingMetaUpsertWritesWithoutAnOwner(t *testing.T) {
 	t.Parallel()
 	doc := bson.M{"_id": "job-1", "_meta": bson.M{"clientID": "tab-9"}}
@@ -158,12 +132,6 @@ func TestPreservingMetaUpsertWritesWithoutAnOwner(t *testing.T) {
 	}
 }
 
-// A document is created at the first revision rather than without one.
-//
-// Absent and zero read the same to a caller and differently to Mongo: a filter
-// on zero does not match a missing field, so a conditional write comparing the
-// revision it read would never match a document that had never been counted —
-// failing every time rather than conflicting once.
 func TestPreservingMetaUpsertStartsANewDocumentAtTheFirstRevision(t *testing.T) {
 	t.Parallel()
 	doc := bson.M{"_id": "job-1", "_meta": bson.M{"clientID": "tab-9"}}
@@ -175,7 +143,6 @@ func TestPreservingMetaUpsertStartsANewDocumentAtTheFirstRevision(t *testing.T) 
 	if got := setOnInsert[FieldMetaRevision]; got != models.InitialDocumentRevision {
 		t.Fatalf("a created document starts at revision %v, want %d", got, models.InitialDocumentRevision)
 	}
-	// Only on insert: an update that set it would put the counter back.
 	if _, written := update["$set"].(bson.M)[FieldMetaRevision]; written {
 		t.Fatal("the revision was set on every write, which would undo the counting")
 	}

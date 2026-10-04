@@ -2,17 +2,6 @@ package mongo
 
 import "testing"
 
-// Collection names are duplicated across a module boundary: this package holds
-// the constants, and deployment-tool repeats them as bare strings in its index
-// specs and preimage list, because deployment-tool cannot import services.
-//
-// Nothing else makes that duplication fail. An index spec naming a collection
-// that no longer exists is not an error — Mongo creates the collection to hold
-// the index — so a half-finished rename leaves eip ensure-mongo maintaining a
-// collection nothing reads, silently, until someone notices the data is missing.
-//
-// This test pins the set so renaming a collection here fails until the
-// Deployment Tool is updated to match, and vice versa.
 func TestCollectionNames_canonical(t *testing.T) {
 	t.Parallel()
 

@@ -14,16 +14,6 @@ import (
 
 const metaOwnerScratchAccount = "eip-parity-meta-owner-account"
 
-// A saved job must keep the owner its `_meta` carries.
-//
-// This is the one property that would have caught a whole class of bug rather
-// than an instance of it. `_meta` holds server-owned facts, and the writers that
-// `$set` a marshalled struct replace the subdocument entire — so a field the Go
-// model does not know about is erased by an ordinary save rather than preserved.
-// Nothing asserted that, so a migration could stamp every document and normal
-// use would quietly undo it.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_savingAJob_keepsTheOwnerOnItsMeta(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -34,8 +24,6 @@ func TestLive_savingAJob_keepsTheOwnerOnItsMeta(t *testing.T) {
 	const jobID = "job-meta-owner-survives"
 	job := models.Job{JobID: jobID, Name: "owner survival", ItemID: 34, JobType: 0}
 
-	// The document exists before the owner is stamped, the way a migration meets
-	// it: written by the app, then given an owner it did not have.
 	if _, _, _, err := mongo.JobDocuments.BulkUpsertJobs(
 		ctx, models.AccountOwner(metaOwnerScratchAccount), metaOwnerScratchAccount,
 		[]models.Job{job}, time.Now().UTC(), "", "",
@@ -54,7 +42,6 @@ func TestLive_savingAJob_keepsTheOwnerOnItsMeta(t *testing.T) {
 		t.Fatalf("stamp did not take: got %+v", got)
 	}
 
-	// An ordinary save, exactly as the API performs one.
 	if _, _, _, err := mongo.JobDocuments.BulkUpsertJobs(
 		ctx, models.AccountOwner(metaOwnerScratchAccount), metaOwnerScratchAccount,
 		[]models.Job{job}, time.Now().UTC(), "", "",
@@ -81,15 +68,6 @@ func storedOwner(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, jobID
 	return doc.Meta.Owner
 }
 
-// A rebuilt statistics row must keep its owner when the rebuild writes it again.
-//
-// This is the mirror of the job case and the opposite contract: the rebuild owns
-// `_meta` outright, so the owner belongs in `$set`. Put it in `$setOnInsert` and
-// the first rebuild looks correct while every later one leaves the owner behind
-// on whatever it was — and `LoadProductionTotals` filters on exactly that, so a
-// wrong owner returns no rows and reports no error.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_rewritingAStatisticsRow_keepsItFindableByOwner(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -135,15 +113,6 @@ func TestLive_rewritingAStatisticsRow_keepsItFindableByOwner(t *testing.T) {
 	}
 }
 
-// A saved watchlist must be findable by its owner afterwards.
-//
-// Deprecated means the collection takes no new features, not that nothing reads
-// it: the API serves it, the changestream carries it, and the websocket resync
-// filters it on `_meta.owner` — so a document without one is fetched by nothing
-// and reports no error. Its writer replaces the whole document, so the owner has
-// to be written on every save rather than stamped once.
-//
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_savingAWatchlist_keepsItFindableByOwner(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -161,8 +130,6 @@ func TestLive_savingAWatchlist_keepsItFindableByOwner(t *testing.T) {
 		t.Fatalf("save the watchlist: %v", err)
 	}
 
-	// A second save replaces the document, which is where a stamped owner would
-	// be lost if the writer did not carry it.
 	if _, err := mongo.WatchlistDeprecated.UpsertWatchlistDeprecated(
 		ctx, metaOwnerScratchAccount, []any{}, []any{}, now, "", "",
 	); err != nil {
@@ -181,7 +148,6 @@ func TestLive_savingAWatchlist_keepsItFindableByOwner(t *testing.T) {
 		t.Fatalf("owner-scoped count = %d, want 1 — the save left the document unfindable", found)
 	}
 
-	// The read path filters on the owner too, so it has to return the document.
 	if _, err := mongo.WatchlistDeprecated.LoadWatchlistDeprecated(ctx, metaOwnerScratchAccount); err != nil {
 		t.Fatalf("load the watchlist back: %v", err)
 	}

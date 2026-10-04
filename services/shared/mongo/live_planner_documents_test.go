@@ -17,13 +17,8 @@ import (
 
 const plannerScratchAccount = "eip-parity-planner-account"
 
-// A corporation nobody in these tests is a member of.
 const sharedPlannerCorpRef = "corp_56_K_EzReRqQkYxj0Yuq4D9csj0Cgj1a05rVvmlcLDbd"
 
-// A planner and its membership row have to survive a write and a read: the owner
-// key is the planner's _id, and the membership's _id is composed from it, so a
-// separator or an encoding fault shows up here rather than at the backfill.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_plannerAndMembership_roundTrip(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -94,8 +89,6 @@ func TestLive_plannerAndMembership_roundTrip(t *testing.T) {
 		t.Fatalf("stored row id %q did not split back to (%q, %q)", storedMembership.ID, plannerID, plannerScratchAccount)
 	}
 
-	// The row is found by both request-path directions, which is what its two
-	// indexes exist to serve.
 	byAccount, err := mongo.PlannerMemberships.Collection().CountDocuments(ctx, bson.M{"accountID": plannerScratchAccount})
 	if err != nil || byAccount == 0 {
 		t.Fatalf("lookup by accountID found %d rows (err %v)", byAccount, err)
@@ -106,9 +99,6 @@ func TestLive_plannerAndMembership_roundTrip(t *testing.T) {
 	}
 }
 
-// Re-running the backfill, or logging in again, must not undo what the account
-// has since changed: both go through EnsureAccountPlanner, which writes on insert
-// only. Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_ensureAccountPlanner_isInsertOnly(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -137,7 +127,6 @@ func TestLive_ensureAccountPlanner_isInsertOnly(t *testing.T) {
 		t.Fatalf("planners holding %s after create = %d (err %v), want one", plannerID, held, err)
 	}
 
-	// The account renames its planner, as it is entitled to.
 	if _, err := mongo.Planners.Collection().UpdateOne(ctx,
 		bson.M{"_id": plannerID},
 		bson.M{"$set": bson.M{"name": "Renamed by its owner"}},
@@ -166,10 +155,6 @@ func TestLive_ensureAccountPlanner_isInsertOnly(t *testing.T) {
 	}
 }
 
-// Each half is repaired on its own. A planner whose membership row was deleted
-// regains the row, and a membership row whose planner was deleted regains the
-// planner — so a bad delete heals on the account's next login or refresh rather
-// than needing a command run against it. Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_ensureAccountPlanner_repairsEitherHalfAlone(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -191,8 +176,6 @@ func TestLive_ensureAccountPlanner_repairsEitherHalfAlone(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// The membership row goes; the planner stays and keeps a rename, so the repair
-	// is visibly restoring the missing half rather than rewriting the pair.
 	if _, err := mongo.Planners.Collection().UpdateOne(ctx,
 		bson.M{"_id": plannerID}, bson.M{"$set": bson.M{"name": "Kept through the repair"}}); err != nil {
 		t.Fatalf("rename planner: %v", err)
@@ -219,7 +202,6 @@ func TestLive_ensureAccountPlanner_repairsEitherHalfAlone(t *testing.T) {
 		t.Fatalf("planner name = %q, want the repair to leave the surviving half alone", plannerDoc.Name)
 	}
 
-	// Now the other way round: the planner goes, the membership row stays.
 	if _, err := mongo.Planners.Collection().DeleteOne(ctx, bson.M{"_id": plannerID}); err != nil {
 		t.Fatalf("delete planner: %v", err)
 	}
@@ -238,10 +220,6 @@ func TestLive_ensureAccountPlanner_repairsEitherHalfAlone(t *testing.T) {
 	}
 }
 
-// Grants come from membership rows, so what an account may reach is exactly the
-// planners it holds a row for — and an owner it holds no row for is refused even
-// while its session's cached grants might still name it.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_ownerKeysForAccount_areTheAccountsMemberships(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -274,7 +252,6 @@ func TestLive_ownerKeysForAccount_areTheAccountsMemberships(t *testing.T) {
 		t.Fatalf("granted = %v, want only the account's own planner", granted)
 	}
 
-	// A membership in someone else's planner is a grant; nothing else changes.
 	if _, err := mongo.PlannerMemberships.Collection().InsertOne(ctx, bson.M{
 		"_id":           sharedRow,
 		"schemaVersion": planner.MembershipSchemaCurrent,
@@ -294,8 +271,6 @@ func TestLive_ownerKeysForAccount_areTheAccountsMemberships(t *testing.T) {
 		t.Fatalf("granted = %v, want the account's own planner and the shared one", granted)
 	}
 
-	// The authorisation point reads the rows, not a cached grant list, so removing
-	// the row refuses the owner immediately.
 	mayReach, err := mongo.AccountMayReach(ctx, accountID, models.Owner{Kind: models.OwnerPlanner, ID: "01HZY6R3QK7T9V2M4N8P0XW5AB"})
 	if err != nil {
 		t.Fatalf("AccountMayReach: %v", err)
@@ -315,9 +290,6 @@ func TestLive_ownerKeysForAccount_areTheAccountsMemberships(t *testing.T) {
 	}
 }
 
-// A planner's settings are seeded from the account's own, so its planner starts
-// configured as that account already has it rather than on the shipped defaults.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_ensureAccountPlanner_seedsSettingsFromTheAccount(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -365,8 +337,6 @@ func TestLive_ensureAccountPlanner_seedsSettingsFromTheAccount(t *testing.T) {
 		t.Error("settings carry no realtime cursor")
 	}
 
-	// Insert-only: a settings change the planner has made since is not undone by
-	// a later login, which calls this on every one.
 	settings.DefaultMaterialEfficiencyValue = 3
 	if err := mongo.PlannerSettings.Collection().FindOneAndReplace(ctx,
 		bson.M{"_id": owner.Key()}, settings).Err(); err != nil {
@@ -385,9 +355,6 @@ func TestLive_ensureAccountPlanner_seedsSettingsFromTheAccount(t *testing.T) {
 	}
 }
 
-// A planner with no settings document reports absent rather than erroring, so a
-// caller falls back to the account's settings as it resolves today.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_loadPlannerSettings_reportsAbsentRatherThanFailing(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -402,10 +369,6 @@ func TestLive_loadPlannerSettings_reportsAbsentRatherThanFailing(t *testing.T) {
 	}
 }
 
-// One write serves both an account's own planner and a shared one, and the two
-// differ in exactly two ways: only an account planner puts its creator in it, and
-// only an account planner starts from that account's settings.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_ensurePlanner_differsOnlyInMembershipAndSeed(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -443,12 +406,9 @@ func TestLive_ensurePlanner_differsOnlyInMembershipAndSeed(t *testing.T) {
 		t.Fatalf("EnsurePlanner: %v", err)
 	}
 
-	// The account is in its own planner and not in the one it merely named.
 	assertReachable(ctx, t, mongo, account, models.AccountOwner(account), true)
 	assertReachable(ctx, t, mongo, account, shared, false)
 
-	// Its own planner starts from its settings; a shared one starts on defaults,
-	// because the first member to open it is not the one the rest should inherit.
 	own, _, err := mongo.LoadPlannerSettings(ctx, models.AccountOwner(account))
 	if err != nil {
 		t.Fatalf("LoadPlannerSettings: %v", err)
@@ -468,9 +428,6 @@ func TestLive_ensurePlanner_differsOnlyInMembershipAndSeed(t *testing.T) {
 	}
 }
 
-// An update sets the settings it names and leaves the rest of the document as it
-// was, so one member's edit does not carry back a stale copy of another's.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_updatePlannerSettings_setsOnlyWhatItNames(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -533,9 +490,6 @@ func TestLive_updatePlannerSettings_setsOnlyWhatItNames(t *testing.T) {
 	}
 }
 
-// A planner with no settings document is refused rather than given one: the
-// document is written when the planner is, so its absence means no planner.
-// Requires EIP_MONGO_PARITY_LIVE=1.
 func TestLive_updatePlannerSettings_refusesAPlannerThatDoesNotExist(t *testing.T) {
 	mongo := mongolive.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

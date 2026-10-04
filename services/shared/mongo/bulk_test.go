@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"reflect"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -98,5 +99,32 @@ func TestClientBulk_emptyRun(t *testing.T) {
 	}
 	if res == nil {
 		t.Fatal("nil result")
+	}
+}
+
+func TestClientBulk_updateManyCarriesItsFilterUpdateAndOptions(t *testing.T) {
+	t.Parallel()
+	mongo := testMongo(t)
+	filter := bson.M{"typeID": 34}
+	update := bson.M{"$set": bson.M{"items.$[i].qty": 1}}
+
+	bulk := mongo.Bulk().UpdateMany(mongo.StatisticsTotals, filter, update,
+		Upsert(), ArrayFilters(bson.M{"i.typeID": 34}))
+
+	if bulk.Len() != 1 || bulk.err != nil {
+		t.Fatalf("Len=%d err=%v", bulk.Len(), bulk.err)
+	}
+	if bulk.writes[0].Collection != CollectionStatisticsTotals {
+		t.Fatalf("collection = %s", bulk.writes[0].Collection)
+	}
+	many, ok := bulk.writes[0].Model.(*mongodriver.ClientUpdateManyModel)
+	if !ok {
+		t.Fatalf("model = %#v, want an update-many", bulk.writes[0].Model)
+	}
+	if many.Upsert == nil || !*many.Upsert || len(many.ArrayFilters) != 1 {
+		t.Errorf("options not carried: upsert=%v arrayFilters=%v", many.Upsert, many.ArrayFilters)
+	}
+	if !reflect.DeepEqual(many.Filter, filter) || !reflect.DeepEqual(many.Update, update) {
+		t.Errorf("filter %v update %v", many.Filter, many.Update)
 	}
 }

@@ -118,9 +118,9 @@ func TestLive_RewriteMovesADocumentOntoAnIDCarryingItsOwner(t *testing.T) {
 	if !ok {
 		t.Fatalf("_meta = %T, want a subdocument", moved["_meta"])
 	}
-	if meta[eipmongo.MetaFieldRevisionKey] != models.InitialDocumentRevision {
+	if meta[models.MetaFieldRevision] != models.InitialDocumentRevision {
 		t.Errorf("version = %v, want the document seeded at %d",
-			meta[eipmongo.MetaFieldRevisionKey], models.InitialDocumentRevision)
+			meta[models.MetaFieldRevision], models.InitialDocumentRevision)
 	}
 }
 

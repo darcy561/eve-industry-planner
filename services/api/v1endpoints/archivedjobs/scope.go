@@ -49,10 +49,7 @@ func (s archiveScope) filter() bson.M {
 	if s.Owner.IsZero() {
 		return bson.M{}
 	}
-	return bson.M{
-		eipmongo.FieldMetaOwnerKind: s.Owner.Kind,
-		eipmongo.FieldMetaOwnerID:   s.Owner.ID,
-	}
+	return eipmongo.OwnerFilter(s.Owner)
 }
 
 // queueRebuild asks for this archive's statistics to be recalculated.

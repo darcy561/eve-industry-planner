@@ -268,9 +268,9 @@ hand means now.
 |------|-------|
 | `shared/statistics/archived_job_row.go` | the reduction: one job → one row |
 | `shared/statistics/job_figures.go` | what a job cost, and how each figure is derived |
-| `shared/mongo/rebuild_queue.go` | the queue, the claim, the failure fields |
-| `shared/mongo/reconcile_rota.go` | `StatisticsOwners`, the rota, who is due |
-| `shared/mongo/apply_row_delta.go` | the fold's writes, and the prune |
+| `shared/mongo/statistics_rebuild_queue.go` | the queue, the claim, the failure fields |
+| `shared/mongo/statistics_reconcile_rota.go` | `StatisticsOwners`, the rota, who is due |
+| `shared/mongo/statistics_apply_delta.go` | the fold's writes, and the prune |
 | `worker/tasks/archivedjobs/apply_delta_task.go` | the delta task |
 | `worker/tasks/archivedjobs/rebuild_statistics.go` | the rebuild |
 | `worker/tasks/archivedjobs/reconcile_statistics.go` | the reconcile |

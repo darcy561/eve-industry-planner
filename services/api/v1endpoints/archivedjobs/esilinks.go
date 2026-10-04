@@ -134,10 +134,7 @@ func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kin
 		return nil, fmt.Errorf("job documents collection is required")
 	}
 
-	filter := bson.M{
-		eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID,
-		field: bson.M{"$in": ids},
-	}
+	filter := eipmongo.OwnerFilter(models.AccountOwner(accountID), bson.M{field: bson.M{"$in": ids}})
 	if len(excludeJobIDs) > 0 {
 		filter["jobID"] = bson.M{"$nin": excludeJobIDs}
 	}
@@ -220,17 +217,17 @@ func applyESILinks(ctx context.Context, m *eipmongo.Mongo, accountID string, fre
 		addToSet["linkedTrans"] = bson.M{"$each": free.Transactions}
 	}
 
-	set := bson.M{"_meta.lastModified": now}
+	set := bson.M{eipmongo.FieldMetaLastModified: now}
 	if sessionID != "" {
-		set["_meta.sessionID"] = sessionID
+		set[eipmongo.FieldMetaSessionID] = sessionID
 	}
 	if wsClientID != "" {
-		set["_meta.clientID"] = wsClientID
+		set[eipmongo.FieldMetaClientID] = wsClientID
 	}
 
 	return eipmongo.Retry(ctx, "relink esi ids", func() error {
 		_, err := coll.UpdateOne(ctx,
-			bson.M{eipmongo.FieldMetaOwnerKind: models.OwnerAccount, eipmongo.FieldMetaOwnerID: accountID},
+			eipmongo.OwnerFilter(models.AccountOwner(accountID)),
 			bson.M{
 				"$addToSet": addToSet,
 				// Clients drop realtime events older than their cursor, so the
