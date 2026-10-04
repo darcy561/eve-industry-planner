@@ -3,6 +3,7 @@ import useUsersStore from "../../../Zustand/usersStore.js";
 import {
   requestWithPrivateHeaders,
   privateBatchRetryConfig,
+  throwNonOkPrivateResponse,
 } from "./applyPrivateHeaders.js";
 import { requestJobDocumentsByIdsFromApi } from "./requestJobDocumentsByIds.js";
 import { activePlannerOwnerHandle } from "../../../Zustand/activePlanner/read.js";
@@ -192,6 +193,42 @@ export async function putJobDocumentsBatch(writes) {
       },
     },
   );
+}
+
+/**
+ * The body of a save whose writes land together or not at all.
+ *
+ * @param {Array<object>} writes - Envelopes from `jobWriteEnvelope`
+ * @returns {{jobs: Array<object>, oneChange: true}}
+ */
+export function jobChangeRequestBody(writes) {
+  return { jobs: writes, oneChange: true };
+}
+
+/**
+ * Sends writes as one change in a single request, which the server writes whole or refuses whole.
+ *
+ * @param {Array<object>} writes - Envelopes from `jobWriteEnvelope`
+ */
+export async function putJobDocumentsChange(writes) {
+  if (writes.length === 0) return;
+
+  const res = await requestWithPrivateHeaders(
+    "/api/v1/job-documents",
+    {
+      method: "PUT",
+      headers: jsonHeaders,
+      body: JSON.stringify(jobChangeRequestBody(writes)),
+    },
+    {
+      requestName: "putJobDocumentsChange",
+      retry: privateBatchRetryConfig,
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throwNonOkPrivateResponse(res, "PUT", "/api/v1/job-documents", text);
+  }
 }
 
 /**

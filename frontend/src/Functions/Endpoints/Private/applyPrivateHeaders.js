@@ -52,6 +52,9 @@ function throwIfAnySettledFailed(settled, label) {
 }
 
 /**
+ * Throws the error a refused private response carries: a lock or revision refusal by its code,
+ * anything else with its status.
+ *
  * @param {Response} res
  * @param {string} methodLabel
  * @param {string} url
@@ -59,7 +62,13 @@ function throwIfAnySettledFailed(settled, label) {
  * @param {string} [errorLabel]
  * @returns {never}
  */
-function throwNonOkPrivateResponse(res, methodLabel, url, text, errorLabel) {
+export function throwNonOkPrivateResponse(
+  res,
+  methodLabel,
+  url,
+  text,
+  errorLabel,
+) {
   if (res.status === 409 && applyLockHeldElsewhereFromApiBody(text)) {
     const label = errorLabel || `${methodLabel} ${url}`;
     const err = new Error(`${label}: document lock held elsewhere (409)`);

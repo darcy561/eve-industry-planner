@@ -651,6 +651,55 @@ of those degrades to a misleading label rather than a blocked or unprotected doc
 per-job locks when a group lease moves, which is only necessary while a group lease covers member jobs.
 The `document_lock_group_cascade` event and its client handling go the same way.
 
+**Decided: a close lands whole or not at all.** A close writes the job the reader edited and every job
+it linked, repaired or resized. If the revisions the client holds show any of them is stale, nothing is
+written — the close is refused whole rather than writing the jobs that pass and reporting the rest. This
+is what replaces the lock's protection of a close; the per-document refusal ordinary saves get is
+unchanged.
+
+What that needs, as it stands today:
+
+- **A close is not one unit on the wire.** Its jobs join the shared save queue and flush with whatever
+  else is pending, so a request can carry a close's jobs beside an unrelated edit, and the group change
+  and the ESI links it makes go as separate requests after it. A close has to travel as its own request,
+  marked as one change.
+- **The server writes a batch one document at a time.** `BulkUpsertJobs` and `BulkUpsertJobFields` each
+  apply conditional writes per document. A close marked as one change runs every one of its writes —
+  whole, field-scoped and creates — inside one Mongo transaction, aborting on the first revision
+  conflict, a create whose id already exists, or a lock refusal, and answering with every stale job and
+  nothing saved. The stack's Mongo is a replica set, so transactions are available; nothing in the
+  services uses one yet, so this is the first.
+
+  The alternative — read every revision, then write — leaves a window for another member's save to land
+  between the check and the write, which is the state this rule exists to prevent.
+- **Realtime delivery is unaffected.** A transaction's writes reach the change stream as one event per
+  document, each with its own revision pair, so Stage E applies them as it applies any update.
+
+**What the one change covers is the jobs, and it is shaped to [job-groups](../job-groups/plan.md).**
+That project makes membership the job's own fact — `job.groupID`, already on every job — and cuts the
+group document to authored fields, with `outputTypeIDs` refreshed at group close and stale only
+cosmetically. Under it, a close's membership change is already inside the job writes the transaction
+covers. So the group document is not put in the transaction: until job-groups lands, the group write a
+close makes today follows the jobs and is skipped when they are refused, and job-groups then deletes
+the membership half of it rather than finding it built into a transaction. The account's ESI links
+follow the same rule — written only once the close has landed, never after a refusal. The
+one-change write is the mechanism job-groups' § Creation is one request needs too, and should be built
+so that request can use it.
+
+**A refused close keeps the editor open and shows what changed.** Today a refused close still ends the
+edit session, writes the ESI links and the group, and drops the reader's edits with a warning. Instead
+the editor stays open with its log intact, and a review panel sets each of the reader's commands
+against the job as it now stands, in the four outcomes
+[job-document-drafts](../job-document-drafts/plan.md) § The merge, when the lock frees already
+defines: applies clean, already done, conflicts — the reader chooses between their value and the one
+now stored — and unapplicable, where the target is gone. The reader keeps or drops each, and closing
+again recalculates the linked, repaired and resized jobs from the current documents rather than
+reviewing them, because those are derived by the close and were never the reader's edits.
+
+That panel is the merge review the drafts project designed for a draft whose lock frees, so it is built
+once and serves both. The rebase it stands on is built — the editor's log already re-applies over a
+new base — but nothing yet detects a collision, so the per-command comparison is new work.
+
 **Risk, recorded because it decides whether this stage was right.** An advisory lock is only as good as
 members' willingness to respect it. If it is routinely ignored, the result is frequent conflict prompts
 and a product that feels worse than a hard lock even though strictly less work is lost. The fallback is
@@ -986,6 +1035,7 @@ decides whether removing the full document afterwards is worth the breaking chan
 | Job write request body | additive at Stage A — a body may carry the revision it read. Absent means unversioned, and an unversioned write is accepted as it is today, which is what lets the server be converted before the client |
 | Job write response | **breaking** at Stage A — a per-document result replaces a whole-batch 409. The 409 shape stays available for a client that has not moved, but a mixed outcome has no representation in it |
 | Realtime document payload | additive at Stage E — a message carries each path the update set with its value, the removed row paths, and the pair of revisions it moves between, beside the full document a client may still take. Removing the full document is the breaking half, is where the payload saving is, and is separable |
+| Close request | additive at Stage D — a batch may be marked as one change, which the server writes in one transaction or refuses whole. An unmarked batch is written per document as today |
 | Document lock enforcement | **breaking** at Stage D — write paths stop consulting the lock. Not a wire shape, but every client that treated a 409 as the only refusal has to handle a version conflict instead, which is why Stage B precedes it |
 | `document_lock_group_cascade` | **removed** at Stage D along with the group lease over member jobs. No client behaviour depends on it once per-job locks are not force-released by a group |
 | Document lock HTTP and websocket surfaces | unchanged. The lock keeps its endpoints and events at Stage D; what changes is that no write path consults the answer |
@@ -1000,7 +1050,7 @@ decides whether removing the full document afterwards is worth the breaking chan
   document a fresh read would give it.
 - No write path sets fields it was not asked to change.
 - Editing a job in a group somebody else is reorganising works, and a close whose sibling moved saves
-  the rest.
+  nothing and shows the reader what changed, so they choose which of their edits to take onto it.
 
 ## Open questions
 
@@ -1073,7 +1123,7 @@ decides whether removing the full document afterwards is worth the breaking chan
 | A — a write that checks the revision | **Landed, server side, and proved against a real database.** A job carrying a revision is written conditionally on it as its own `UpdateOne`, whose match is the answer; a job carrying none is batched and upserted as before, so the change is additive. The refusal is answered per document as a 409 `revision_conflict` carrying `saved` and `rejected[]`. The first build batched the conditional writes and inferred the outcome from a later read, which passed every unit test and reported every refused write as applied — see § Stage A. **Landed is not the same as operating: nothing sends a revision yet**, so every production write still takes the unconditional path and no write is refused for a stale base. A project depending on this needs the client half — Stage C here — not Stage A. See [overlay.md](./overlay.md) § Stage A |
 | B — a refused write is an outcome the UI handles | **Landed.** All three defects closed: the client recognises a `revision_conflict` beside the lock conflict it already handled, drops the refused write from the pending queue rather than replaying it forever, and warns the user; `persistJobDocumentsToApi` answers an outcome that `saveJobsViaApi` passes through, so `closeActiveJob` stops reporting a refused write as saved; and the client's own gate warns instead of discarding edits silently — in `closeGroup` as well as `closeActiveJob`, which carried the same defect for the group lock. Stage A's ordering constraint is discharged. See [overlay.md](./overlay.md) § Stage B |
 | C — field-scoped writes | **Landed, and proved end to end. Not deployed.** A save sends one envelope per job — the id and group beside the document — and where the editor recorded what the reader changed, that document carries only those fields and names the rows that went. Where nothing recorded it, the whole document goes, checked against the revision its own `_meta` carries. The endpoint plans the stored update from the job model's own bson tags, refuses a body naming `_meta`, and writes the row whole where a ciphered id has no stored path. A write the server cannot read is dropped from the queue and said out loud rather than retried for as long as the tab stays open. The envelope is pinned for both sides by [job-write/body.json](../../../testing/fixtures/job-write/body.json), and driven through the real handler into real Mongo, where only the named field, the named row and the revision move. **It cuts over with [job-document-drafts](../job-document-drafts/plan.md) Stage 2**, whose `prepareRelease` step reshapes the documents in the same cutover: a path-scoped write into an un-reshaped document writes a key that means nothing, so the two go together rather than one waiting on the other. See [overlay.md](./overlay.md) § Stage C |
-| D — the lock stops being broad | **Part landed: the batch refusal is per document.** A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
+| D — the lock stops being broad | **Part landed: the batch refusal is per document, and a close is sent as one change, which the server writes in one transaction or refuses whole, with the group and ESI links written only after it lands.** The review panel a refused close opens is not built. A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
 | E — delta delivery and client apply | **Landed, end to end.** A job document's update publishes each path it set, with its value, in the client's names, the paths it cleared, and the pair of revisions it moves between, beside the whole document a client may still take. The envelope is pinned for both languages by [job-delta.json](../../../testing/fixtures/realtime-messages/job-delta.json), and a live test drives a real write through a real change stream. A client applies one onto the document it holds, folding a window's deltas in order and reading the job again where they do not join up. One save is followed the whole way: through the real endpoint, a real change stream, the stack's own websocket service, to the tabs that receive it and the tab that must not — and then through the SPA's handlers, where the applied document has to be the one the server stored. § The loop a change has to survive. § Where it starts has the slices, [overlay.md](./overlay.md) §§ Slice 1 to Slice 8 what runs. Behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped; its shared-planners dependency is discharged and `jobArray` is plain since [job-document-drafts](../job-document-drafts/plan.md) Stage 5. The design is settled in § Stage E: the delivery carries each path the update set with its value and the paths it cleared, and the pair of `_meta.revision` values it moves between, because the delivery position is a global sequence and cannot prove a document missed nothing. Owed before building: the payload figure, measured against a restored copy of live |
 
 ## Recommended pickup order

@@ -15,7 +15,8 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 )
 
-// PutJobDocumentsHandler handles PUT /api/v1/job-documents — batch upsert into job_documents.
+// PutJobDocumentsHandler handles PUT /api/v1/job-documents, writing each job on its own or, for a
+// batch marked as one change, all of them or none.
 func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := helper.RequestStartOrNow(ctx)
@@ -30,9 +31,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 
 	accountID := helper.AuthenticatedAccountID(r)
 
-	var reqBody struct {
-		Jobs []models.JobWriteBody `json:"jobs"`
-	}
+	var reqBody models.JobWriteBatch
 
 	if !helper.DecodeJSONOrBadRequest(w, r, metrics, &reqBody) {
 		return
@@ -45,7 +44,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	const maxBatchSize = 100
-	if len(reqBody.Jobs) > maxBatchSize {
+	if len(reqBody.Jobs) > maxBatchSize && !reqBody.OneChange {
 		metrics.Error("batch_too_large")
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "job documents batch too large", "job_docs_put_batch_too_large", "job_documents", nil, map[string]any{
 			"count": len(reqBody.Jobs),
@@ -101,6 +100,11 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 		lockRejects = rejects
+		if len(rejects) > 0 && reqBody.OneChange {
+			metrics.Error("lock_conflict")
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
+			return
+		}
 		if len(rejects) > 0 {
 			reqBody.Jobs = dropHeldWrites(reqBody.Jobs, rejects)
 			metrics.Error("lock_conflict")
@@ -144,43 +148,73 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	wholeWrites, fieldWrites, unplannable := splitJobWrites(read)
 	failed := append(unreadable, unplannable...)
 
-	now := time.Now()
-	var savedCount int
-	var savedDocIDs []string
-	var conflicts []eipmongo.RevisionConflict
-
-	if len(wholeWrites) > 0 {
-		result, wholeFailed, wholeConflicts, cerr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, wholeWrites, now, sessionID, wsClientID)
-		if cerr != nil {
-			metrics.Error("database_error")
-			helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", cerr, nil)
-			return
-		}
-		if result != nil {
-			savedCount += int(result.UpsertedCount + result.ModifiedCount)
-		}
-		failed = append(failed, wholeFailed...)
-		conflicts = append(conflicts, wholeConflicts...)
-		savedDocIDs = append(savedDocIDs, writtenIDs(wholeWrites, func(job models.Job) string { return job.JobID }, wholeFailed, wholeConflicts)...)
+	refuseUnreadableChange := func(unwritable []string) {
+		metrics.Error("invalid_write")
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "A write could not be read", "job documents change carries a write that cannot be made", "job_docs_put_change_unwritable", "job_documents", nil, map[string]any{
+			"failed": unwritable,
+		})
 	}
-
-	if len(fieldWrites) > 0 {
-		applied, fieldFailed, fieldConflicts, ferr := h.Mongo.JobDocuments.BulkUpsertJobFields(ctx, owner, accountID, fieldWrites, now, sessionID, wsClientID)
-		if ferr != nil {
-			metrics.Error("database_error")
-			helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to write job document fields", "job_docs_field_write_failed", "job_documents", ferr, nil)
-			return
-		}
-		savedCount += int(applied)
-		failed = append(failed, fieldFailed...)
-		conflicts = append(conflicts, fieldConflicts...)
-		savedDocIDs = append(savedDocIDs, writtenIDs(fieldWrites, func(write eipmongo.JobFieldWrite) string { return write.JobID }, fieldFailed, fieldConflicts)...)
+	if reqBody.OneChange && len(failed) > 0 {
+		refuseUnreadableChange(failed)
+		return
 	}
 
 	if len(wholeWrites) == 0 && len(fieldWrites) == 0 {
 		metrics.Error("no_valid_jobs")
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid jobs to save", "no valid jobs in batch", "job_docs_put_no_valid_jobs", "job_documents", nil, nil)
 		return
+	}
+
+	now := time.Now()
+	var savedCount int
+	var savedDocIDs []string
+	var conflicts []eipmongo.RevisionConflict
+
+	if reqBody.OneChange {
+		applied, changeFailed, changeConflicts, cerr := h.Mongo.WriteJobChange(ctx, owner, accountID, wholeWrites, fieldWrites, now, sessionID, wsClientID)
+		if cerr != nil {
+			metrics.Error("database_error")
+			helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to write job documents as one change", "job_docs_change_failed", "job_documents", cerr, nil)
+			return
+		}
+		if len(changeFailed) > 0 {
+			refuseUnreadableChange(changeFailed)
+			return
+		}
+		conflicts = changeConflicts
+		if len(conflicts) == 0 {
+			savedCount = int(applied)
+			savedDocIDs = append(writtenIDs(wholeWrites, func(job models.Job) string { return job.JobID }, nil, nil),
+				writtenIDs(fieldWrites, func(write eipmongo.JobFieldWrite) string { return write.JobID }, nil, nil)...)
+		}
+	} else {
+		if len(wholeWrites) > 0 {
+			result, wholeFailed, wholeConflicts, cerr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, owner, accountID, wholeWrites, now, sessionID, wsClientID)
+			if cerr != nil {
+				metrics.Error("database_error")
+				helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to bulk upsert job documents", "job_docs_upsert_failed", "job_documents", cerr, nil)
+				return
+			}
+			if result != nil {
+				savedCount += int(result.UpsertedCount + result.ModifiedCount)
+			}
+			failed = append(failed, wholeFailed...)
+			conflicts = append(conflicts, wholeConflicts...)
+			savedDocIDs = append(savedDocIDs, writtenIDs(wholeWrites, func(job models.Job) string { return job.JobID }, wholeFailed, wholeConflicts)...)
+		}
+
+		if len(fieldWrites) > 0 {
+			applied, fieldFailed, fieldConflicts, ferr := h.Mongo.JobDocuments.BulkUpsertJobFields(ctx, owner, accountID, fieldWrites, now, sessionID, wsClientID)
+			if ferr != nil {
+				metrics.Error("database_error")
+				helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to write job document fields", "job_docs_field_write_failed", "job_documents", ferr, nil)
+				return
+			}
+			savedCount += int(applied)
+			failed = append(failed, fieldFailed...)
+			conflicts = append(conflicts, fieldConflicts...)
+			savedDocIDs = append(savedDocIDs, writtenIDs(fieldWrites, func(write eipmongo.JobFieldWrite) string { return write.JobID }, fieldFailed, fieldConflicts)...)
+		}
 	}
 
 	switch refusalFor(len(lockRejects), len(conflicts)) {

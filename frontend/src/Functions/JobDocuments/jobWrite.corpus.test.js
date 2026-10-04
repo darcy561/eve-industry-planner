@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { jobWriteEnvelope } from "./jobWriteEnvelope.js";
 import { toDocument } from "./jobDocument.js";
+import { jobChangeRequestBody } from "../Endpoints/Private/jobDocuments.js";
 
 const corpusPath = resolve(
   process.cwd(),
@@ -26,5 +27,11 @@ describe("the write envelope the corpus states", () => {
 
     expect(write).not.toHaveProperty("revision");
     expect(write.document).toEqual(toDocument(built));
+  });
+});
+
+describe("the change the corpus states", () => {
+  it("is the body a save sent as one change carries", () => {
+    expect(jobChangeRequestBody([corpus.write])).toEqual(corpus.change);
   });
 });

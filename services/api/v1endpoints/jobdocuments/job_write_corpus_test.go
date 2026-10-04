@@ -16,6 +16,7 @@ type jobWriteCorpus struct {
 	Revision    int64               `json:"revision"`
 	Job         jsontext.Value      `json:"job"`
 	Write       models.JobWriteBody `json:"write"`
+	Change      jsontext.Value      `json:"change"`
 	StoredPaths struct {
 		Set   []string `json:"set"`
 		Unset []string `json:"unset"`
@@ -84,5 +85,21 @@ func TestTheCorpusWriteReachesThePathsItStates(t *testing.T) {
 	if write.Expected != corpus.Revision {
 		t.Fatalf("the write is checked against %d, corpus says %d",
 			write.Expected, corpus.Revision)
+	}
+}
+
+func TestTheCorpusChangeIsReadAsOneChange(t *testing.T) {
+	t.Parallel()
+	corpus := loadJobWriteCorpus(t)
+
+	var batch models.JobWriteBatch
+	if err := jsoncodec.UnmarshalRequest(corpus.Change, &batch); err != nil {
+		t.Fatalf("the corpus change is one this endpoint cannot read: %v", err)
+	}
+	if !batch.OneChange {
+		t.Fatal("the corpus change is read as an ordinary batch")
+	}
+	if len(batch.Jobs) != 1 || batch.Jobs[0].JobID != corpus.Write.JobID || batch.Jobs[0].Revision != corpus.Write.Revision {
+		t.Fatalf("the change carries %+v, want the corpus write", batch.Jobs)
 	}
 }

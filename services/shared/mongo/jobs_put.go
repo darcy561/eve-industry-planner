@@ -137,11 +137,7 @@ func conditionalJobFilter(owner models.Owner, write conditionalJobWrite) bson.M 
 // describeConflict reads what the refused write must be reconciled against.
 func (d *Docs) describeConflict(ctx context.Context, owner models.Owner, jobID string, expected int64) RevisionConflict {
 	conflict := RevisionConflict{JobID: jobID, Expected: expected, Gone: true}
-	row, err := findOne[struct {
-		Meta struct {
-			Revision int64 `bson:"revision"`
-		} `bson:"_meta"`
-	}](ctx, d, "describeConflict", bson.M{"_id": OwnerScopedDocumentID(owner, jobID)},
+	row, err := findOne[storedRevisionRow](ctx, d, "describeConflict", bson.M{"_id": OwnerScopedDocumentID(owner, jobID)},
 		options.FindOne().SetProjection(bson.M{FieldMetaRevision: 1}))
 	if err != nil {
 		return conflict

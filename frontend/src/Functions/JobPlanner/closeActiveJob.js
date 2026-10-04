@@ -5,7 +5,7 @@ import normaliseParentChildRelationships from "../Shared/normaliseParentChildRel
 import materialTreeShaker from "../Helper/materialTreeShaker";
 import getAllRelatedJobs from "../Helper/getAllRelatedJobs";
 import { canPersistJobClose } from "../DocumentLock/canPersistDocumentEditClose.js";
-import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
+import { saveJobsAsOneChange } from "../JobDocuments/saveJobsViaApi.js";
 import {
   showSnackbarInfo,
   showSnackbarWarning,
@@ -124,13 +124,6 @@ export default async function closeActiveJob(
     batchUpdates.push(matchedJob);
   }
 
-  if (inputJob.includedInGroup) {
-    const matchedGroup = getGroupObject(inputJob.groupID);
-    if (matchedGroup) {
-      matchedGroup.addJobsToGroup(Object.values(tempJobsSource));
-    }
-  }
-
   const existingPlannerRow = findJobInJobArray(inputJob.jobID);
   if (
     inputJob.includedInGroup &&
@@ -152,7 +145,7 @@ export default async function closeActiveJob(
 
   let saveRefused = false;
   if (persistToServer) {
-    const outcome = await saveJobsViaApi(
+    const outcome = await saveJobsAsOneChange(
       jobsToPersist,
       changesToEditedJob?.length
         ? { [inputJob.jobID]: changesToEditedJob }
@@ -174,21 +167,24 @@ export default async function closeActiveJob(
     eslIj.remove?.length > 0 ||
     eslTr.remove?.length > 0;
 
-  useUsersStore.getState().account.actions.addLinkedEsiData({
-    ordersToAdd: eslMo.add,
-    jobsToAdd: eslIj.add,
-    transactionsToAdd: eslTr.add,
-    ordersToRemove: eslMo.remove,
-    jobsToRemove: eslIj.remove,
-    transactionsToRemove: eslTr.remove,
-  });
+  if (!saveRefused) {
+    useUsersStore.getState().account.actions.addLinkedEsiData({
+      ordersToAdd: eslMo.add,
+      jobsToAdd: eslIj.add,
+      transactionsToAdd: eslTr.add,
+      ordersToRemove: eslMo.remove,
+      jobsToRemove: eslIj.remove,
+      transactionsToRemove: eslTr.remove,
+    });
+  }
 
-  if (hasAnyChanges && persistToServer) {
+  if (!saveRefused && hasAnyChanges && persistToServer) {
     await saveUserAccountDocument();
   }
 
-  if (inputJob.includedInGroup) {
+  if (!saveRefused && inputJob.includedInGroup) {
     const updatedGroup = getGroupObject(inputJob.groupID);
+    updatedGroup?.addJobsToGroup(tempJobs);
     if (updatedGroup?.groupID) {
       updateModifiedGroups(updatedGroup, { queuePersist: persistToServer });
       if (!persistToServer) {

@@ -32,6 +32,13 @@ type JobWriteBody struct {
 	Removed         [][]string     `json:"removed,omitempty"`
 }
 
+// JobWriteBatch is a save request: the writes it carries, and whether they land as one change,
+// written together or not at all.
+type JobWriteBatch struct {
+	Jobs      []JobWriteBody `json:"jobs"`
+	OneChange bool           `json:"oneChange,omitzero"`
+}
+
 // IsWholeDocument reports whether this write carries the whole job rather than
 // the fields it changed.
 func (b JobWriteBody) IsWholeDocument() bool { return b.Revision <= 0 }

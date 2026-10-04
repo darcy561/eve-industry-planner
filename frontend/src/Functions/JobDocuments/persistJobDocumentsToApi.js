@@ -1,4 +1,7 @@
-import { putJobDocumentsBatch } from "../Endpoints/Private/jobDocuments.js";
+import {
+  putJobDocumentsBatch,
+  putJobDocumentsChange,
+} from "../Endpoints/Private/jobDocuments.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../DocumentLock/documentLockEvents.js";
 import {
   CLIENT_ERROR_REVISION_CONFLICT,
@@ -14,12 +17,10 @@ import useUsersStore from "../../Zustand/usersStore.js";
  * @typedef {"saved" | "locked" | "conflict" | "failed"} JobDocumentPersistOutcome
  */
 
-/**
- * Persists dirty job documents (`PUT /api/v1/job-documents`) for the ids in
- * `pendingJobDocumentWrites`, warning the reader where a write is refused.
- *
- * @returns {Promise<JobDocumentPersistOutcome>}
- */
+/** What the reader is told when the server could not read a save. */
+const UNREADABLE_SAVE_MESSAGE =
+  "Some changes could not be saved and have been discarded. Reload to continue from the saved version.";
+
 /**
  * The jobs a refused save had already written before the part that failed.
  *
@@ -32,6 +33,12 @@ function deliveredJobIDs(err) {
     .filter(Boolean);
 }
 
+/**
+ * Persists dirty job documents (`PUT /api/v1/job-documents`) for the ids in
+ * `pendingJobDocumentWrites`, warning the reader where a write is refused.
+ *
+ * @returns {Promise<JobDocumentPersistOutcome>}
+ */
 export async function persistJobDocumentsToApi() {
   if (!useUsersStore.getState().account.isLoggedIn) {
     return "saved";
@@ -95,13 +102,52 @@ export async function persistJobDocumentsToApi() {
       }
       actions.clearPendingJobDocumentWrites(queuedIds);
       console.error("Job documents were refused as unreadable", err);
-      showSnackbarWarning(
-        "Some changes could not be saved and have been discarded. Reload to continue from the saved version.",
-        8,
-      );
+      showSnackbarWarning(UNREADABLE_SAVE_MESSAGE, 8);
       return "failed";
     }
     console.error("Error saving job documents to API", err);
+    return "failed";
+  }
+}
+
+/**
+ * Sends writes as one change and answers what it did; a refused change wrote none of its jobs, and
+ * the reader is told why.
+ *
+ * @param {Array<object>} writes - Envelopes from `jobWriteEnvelope`
+ * @returns {Promise<JobDocumentPersistOutcome>}
+ */
+export async function persistJobChangeToApi(writes) {
+  if (writes.length === 0) return "saved";
+
+  try {
+    await putJobDocumentsChange(writes);
+    useUsersStore
+      .getState()
+      .jobData.actions.countWrittenJobRevisions(writes.map((w) => w.jobID));
+    return "saved";
+  } catch (err) {
+    if (err?.code === DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE) {
+      showSnackbarWarning(
+        "Another member is editing a job this change touches, so none of it was saved.",
+        8,
+      );
+      return "locked";
+    }
+    if (err?.code === CLIENT_ERROR_REVISION_CONFLICT) {
+      showSnackbarWarning(
+        revisionConflictMessage(err.revisionConflict?.rejected ?? []),
+        8,
+      );
+      return "conflict";
+    }
+    console.error("Job change was not saved", err);
+    showSnackbarWarning(
+      err?.status === 400
+        ? UNREADABLE_SAVE_MESSAGE
+        : "Your changes could not be saved. Reload to continue from the saved version.",
+      8,
+    );
     return "failed";
   }
 }

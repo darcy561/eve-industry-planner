@@ -8,11 +8,11 @@ import {
   USER_JOB_GROUPS_COLLECTION,
 } from "../DocumentLock/documentLockCollections.js";
 
-const saveJobsViaApi = vi.fn().mockResolvedValue(undefined);
+const saveJobsAsOneChange = vi.fn().mockResolvedValue(undefined);
 const saveUserAccountDocument = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
-  saveJobsViaApi: (...args) => saveJobsViaApi(...args),
+  saveJobsAsOneChange: (...args) => saveJobsAsOneChange(...args),
 }));
 
 vi.mock("../Endpoints/Private/userDocument.js", () => ({
@@ -177,7 +177,7 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(job, true, { 34: child }, {}, {}, null, changes);
 
-    const [written, sentChanges] = saveJobsViaApi.mock.calls.at(-1);
+    const [written, sentChanges] = saveJobsAsOneChange.mock.calls.at(-1);
     expect(written.map((held) => held.jobID)).toContain(child.jobID);
     expect(sentChanges).toEqual({ [job.jobID]: changes });
   });
@@ -187,7 +187,10 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(makeJob(), true, {}, {}, {}, null, []);
 
-    expect(saveJobsViaApi).toHaveBeenCalledWith(expect.any(Array), undefined);
+    expect(saveJobsAsOneChange).toHaveBeenCalledWith(
+      expect.any(Array),
+      undefined,
+    );
   });
 
   it("writes the whole document when the close recorded no changes", async () => {
@@ -195,7 +198,10 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(makeJob(), true, {}, {}, {}, null);
 
-    expect(saveJobsViaApi).toHaveBeenCalledWith(expect.any(Array), undefined);
+    expect(saveJobsAsOneChange).toHaveBeenCalledWith(
+      expect.any(Array),
+      undefined,
+    );
   });
 
   it("skips API persist without the job lock", async () => {
@@ -209,7 +215,7 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(makeJob(), true, {}, {}, {}, null);
 
-    expect(saveJobsViaApi).not.toHaveBeenCalled();
+    expect(saveJobsAsOneChange).not.toHaveBeenCalled();
     expect(
       storeHolder.current.getState().jobData.actions
         .clearPendingJobDocumentWrites,
@@ -242,11 +248,11 @@ describe("closeActiveJob", () => {
         "j1",
         { readOnly: false, lockHeld: true },
       );
-    saveJobsViaApi.mockResolvedValueOnce("conflict");
+    saveJobsAsOneChange.mockResolvedValueOnce("conflict");
 
     await closeActiveJob(makeJob(), true, {}, {}, {}, null);
 
-    expect(saveJobsViaApi).toHaveBeenCalled();
+    expect(saveJobsAsOneChange).toHaveBeenCalled();
     expect(showSnackbarInfo).not.toHaveBeenCalled();
   });
 
@@ -260,11 +266,11 @@ describe("closeActiveJob", () => {
           "j1",
           { readOnly: false, lockHeld: true },
         );
-      saveJobsViaApi.mockResolvedValueOnce(outcome);
+      saveJobsAsOneChange.mockResolvedValueOnce(outcome);
 
       await closeActiveJob(makeJob(), true, {}, {}, {}, null);
 
-      expect(saveJobsViaApi).toHaveBeenCalled();
+      expect(saveJobsAsOneChange).toHaveBeenCalled();
       expect(showSnackbarInfo).not.toHaveBeenCalled();
     },
   );
@@ -280,7 +286,7 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(makeJob(), true, {}, {}, {}, null);
 
-    expect(saveJobsViaApi).toHaveBeenCalled();
+    expect(saveJobsAsOneChange).toHaveBeenCalled();
   });
 
   it("skips job persist when grouped but group lock is not held", async () => {
@@ -309,7 +315,7 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(job, true, {}, {}, {}, null);
 
-    expect(saveJobsViaApi).not.toHaveBeenCalled();
+    expect(saveJobsAsOneChange).not.toHaveBeenCalled();
     expect(
       storeHolder.current.getState().jobData.actions.updateModifiedGroups,
     ).toHaveBeenCalledWith(expect.anything(), { queuePersist: false });
@@ -327,11 +333,86 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(job, true, {}, {}, {}, null);
 
-    expect(saveJobsViaApi).not.toHaveBeenCalled();
+    expect(saveJobsAsOneChange).not.toHaveBeenCalled();
     expect(showSnackbarWarning).toHaveBeenCalledWith(
       expect.stringContaining("removed while you had it open"),
       expect.any(Number),
     );
+  });
+});
+
+describe("a close the server refused", () => {
+  const group = { groupID: "g1", addJobsToGroup: vi.fn() };
+  const esiToLink = {
+    marketOrders: { add: [{ orderID: 1 }], remove: [] },
+  };
+
+  beforeEach(() => {
+    resizes.current = false;
+    seedStore();
+    group.addJobsToGroup.mockReset();
+    saveUserAccountDocument.mockClear();
+    storeHolder.current.getState().jobData.actions.getGroupObject = vi.fn(
+      () => group,
+    );
+    holdTheJobLock("j1");
+    storeHolder.current
+      .getState()
+      .documentLock.actions.patchDocumentLockForScope(
+        USER_JOB_GROUPS_COLLECTION,
+        "g1",
+        { readOnly: false, lockHeld: true },
+      );
+  });
+
+  const close = () =>
+    closeActiveJob(
+      makeJob("j1", "g1"),
+      true,
+      { 34: makeJob("j2", "g1") },
+      esiToLink,
+      {},
+      null,
+    );
+
+  it.each([["conflict"], ["locked"], ["failed"]])(
+    "writes neither the group nor the ESI links when %s",
+    async (outcome) => {
+      saveJobsAsOneChange.mockResolvedValueOnce(outcome);
+
+      await close();
+
+      const { jobData, account } = storeHolder.current.getState();
+      expect(group.addJobsToGroup).not.toHaveBeenCalled();
+      expect(jobData.actions.updateModifiedGroups).not.toHaveBeenCalled();
+      expect(account.actions.addLinkedEsiData).not.toHaveBeenCalled();
+      expect(saveUserAccountDocument).not.toHaveBeenCalled();
+    },
+  );
+
+  it("writes the group and the ESI links once the close landed", async () => {
+    saveJobsAsOneChange.mockResolvedValueOnce("saved");
+
+    await close();
+
+    const { jobData, account } = storeHolder.current.getState();
+    expect(group.addJobsToGroup).toHaveBeenCalledWith([
+      expect.objectContaining({ jobID: "j2" }),
+    ]);
+    expect(jobData.actions.updateModifiedGroups).toHaveBeenCalledWith(group, {
+      queuePersist: true,
+    });
+    expect(account.actions.addLinkedEsiData).toHaveBeenCalled();
+    expect(saveUserAccountDocument).toHaveBeenCalled();
+  });
+
+  it("sends the new job with the close rather than after it", async () => {
+    saveJobsAsOneChange.mockResolvedValueOnce("saved");
+
+    await close();
+
+    const [written] = saveJobsAsOneChange.mock.calls.at(-1);
+    expect(written.map((job) => job.jobID)).toEqual(["j1", "j2"]);
   });
 });
 

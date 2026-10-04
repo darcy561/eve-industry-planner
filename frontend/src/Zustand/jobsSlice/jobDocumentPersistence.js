@@ -123,6 +123,28 @@ export const jobDocumentPersistenceActions = (set, get) => ({
   },
 
   /**
+   * Takes the given jobs out of the queue and answers what a write for each must carry, with what
+   * the queue held for it folded into `changes`.
+   *
+   * @param {string[]} jobIDs
+   * @param {Record<string, Array<object>>} [changes] - Log entries per job id; a job absent from
+   *   it is owed its whole document
+   * @returns {Record<string, Array<object>|null>}
+   */
+  takeQueuedJobDocumentWrites: (jobIDs, changes = {}) => {
+    const ids = jobIDs.filter(Boolean);
+    const queued = get().jobData.pendingJobDocumentWrites ?? {};
+    const held = Object.fromEntries(
+      ids.filter((id) => id in queued).map((id) => [id, queued[id]]),
+    );
+    get().jobData.actions.clearPendingJobDocumentWrites(ids);
+    return mergePendingJobDocumentWrites(
+      held,
+      Object.fromEntries(ids.map((id) => [id, changes[id] ?? null])),
+    );
+  },
+
+  /**
    * Counts a landed write against the jobs it wrote, so the next write from the
    * same copy is checked against where the document now stands.
    *

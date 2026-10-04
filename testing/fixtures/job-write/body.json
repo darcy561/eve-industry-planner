@@ -80,5 +80,28 @@
     "document": "The partial job. A field that is present is being written; a field that is absent is unchanged. It may not name `_meta` — the server states a document's owner, revision and stamps, and a body that could name them would be naming where the write lands rather than what it holds.",
     "removed": "The rows that went, each as the path into the job it sat at. A partial document spends absence on `unchanged`, so it has no way left to say `delete this row`. Absent rather than empty when nothing went. Each path is resolved against the job model itself, so it can only reach what the model says is a keyed collection.",
     "storedPaths": "What the two halves become once the model has walked them: the `$set` paths built from the document, and the `$unset` paths built from the removals. Stated here because the body deliberately names no stored path — the model derives them from its own bson tags — and this is what proves that derivation has not moved."
-  }
+  },
+  "change": {
+    "jobs": [
+      {
+        "jobID": "job-fixture",
+        "revision": 7,
+        "includedInGroup": false,
+        "groupID": "",
+        "document": {
+          "name": "Rifter build",
+          "build": {
+            "materials": {
+              "34": {
+                "volume": 4200
+              }
+            }
+          }
+        },
+        "removed": [["build", "extrasCosts", "e-2"]]
+      }
+    ],
+    "oneChange": true
+  },
+  "why_change": "A save sent as one change: the same envelopes, with the marker that has the server write them in one transaction or refuse them all. A close travels this way. Renaming the marker on one side leaves the other sending or reading an ordinary batch, which saves part of a close without anyone being told."
 }

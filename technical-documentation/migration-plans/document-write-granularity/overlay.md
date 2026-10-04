@@ -325,9 +325,10 @@ pins what wraps them.
 
 ## Stage D — The lock stops being broad
 
-**Part landed: the batch refusal is per document.** The rest of the stage — the group lease and the
-lock becoming advisory — has not been taken, and deliberately so: see § Why the rest of Stage D is
-not safe yet.
+**Part landed: the batch refusal is per document, and the server writes a batch marked as one change
+whole or not at all, and a close is sent that way** — § A save marked as one change and § A close is
+one change. The rest of the stage — the review panel a refused close opens, the group lease and the
+lock becoming advisory — has not been taken: see § Why the rest of Stage D is not safe yet.
 
 ### A held job no longer costs the batch
 
@@ -361,6 +362,103 @@ wrote and keeps the held ones.
 **A conflict naming no document keeps the whole queue.** It cannot be told apart from one naming every
 document, and clearing on an empty list would discard edits nothing wrote.
 
+### The transaction a change is written in
+
+`(*Mongo).InTransaction(ctx, fn)` in `shared/mongo` runs `fn` as one Mongo transaction on its own
+session, with snapshot reads and majority writes, and commits what it wrote only when `fn` returns nil.
+Whatever `fn` returns is what the caller gets back, so a refusal is the caller's own typed error and
+nothing it wrote survives. It is the first use of transactions in the services; the stack's Mongo is a
+replica set, which is all they need.
+
+**`fn` can run more than once.** The driver re-runs the whole callback when the server labels an error
+transient — a write conflicting with another open transaction is the ordinary case — so `fn` builds
+everything it reports from scratch on each run rather than appending to something outside it.
+
+**`Retry` steps aside inside a transaction.** Retrying one operation inside a transaction is wrong: a
+transient error there means the transaction must restart, and the driver can only restart it if it
+sees the error. So `Retry` runs the operation once and returns its error untouched whenever the context
+carries a running transaction, and the writers built on it — the conditional job writes among them —
+need no transaction-aware variant.
+
+Live tests against the stack's Mongo show every write committed when `fn` succeeds, a write made before
+a refusal undone, writes unseen outside until the commit, `fn` re-run after another transaction held
+the document, and `Retry` running once inside a transaction. Removing the `Retry` step-aside, or
+swallowing `fn`'s error, fails the cases written for each.
+
+### A save marked as one change
+
+`PUT /api/v1/job-documents` takes `"oneChange": true` beside `jobs` (`models.JobWriteBatch`). An
+unmarked batch is written per document exactly as above; a marked one lands whole or not at all.
+
+A marked batch is not held to the 100-job limit an unmarked one is, because a change cannot be split
+across requests and stay one change. The 1 MB body limit still bounds it. Measured on dev only, where
+a stored job is 3–5 KB, that is room for about 200 whole jobs; a live figure is owed.
+
+| A marked batch meets | It answers |
+|----------------------|------------|
+| A job another session holds | 409 `lock_held_elsewhere`, `saved` zero, the held jobs named — none of the batch is dropped and written |
+| A write the server cannot read or plan | 400, logged as `job_docs_put_change_unwritable` with the ids, nothing written |
+| A job read at a revision it is no longer at, or deleted since | 409 `revision_conflict`, `saved` zero, every stale job named |
+| A job sent without a revision whose id already exists | the same 409, that job named at its stored revision with `expected` zero |
+| Nothing moved | 204, every job written |
+
+`(*Mongo).WriteJobChange` in `shared/mongo` plans every write first — whole documents, changed fields
+and creates — and refuses the change if any cannot be planned. It then makes them in order inside one
+`InTransaction`. A write carrying a revision is filtered on it as it is anywhere else. A write without
+one is a create, filtered on the document having no revision and upserted, so an existing job answers
+with a duplicate key rather than being overwritten.
+
+**The first write that does not apply aborts the transaction, and a read after it names the rest.**
+Inside the transaction an unmatched filter is not an error, but a duplicate key aborts it on the
+server, so the write loop stops at the first refusal rather than trying to collect them. Once the
+transaction is gone, one read of every job in the change sets each against the revision it was sent
+with and names every one that moved, always including the one that stopped it. That read sits outside
+the transaction, so it describes where the jobs stand when the client is told, which is what the
+client reconciles against.
+
+A marked batch's `saved` is zero and `savedDocIDs` empty on every refusal, so a client clearing its
+queue by `savedDocIDs` keeps every job in it.
+
+Live tests in `shared/mongo` show a whole write, a field write and a create landing together; a
+change with two stale jobs and a fresh one writing nothing and naming both; an existing id refusing a
+create and the job beside it; a deleted job reported gone; and an unplannable write stopping the
+change before it starts. Run without the transaction, the two "writes nothing" cases fail. Live tests
+through the handler show the 204, the stale 409 and the held 409 with nothing written, and the 400
+for an unreadable write.
+
+### A close is one change
+
+`closeActiveJob` saves through `saveJobsAsOneChange` rather than the shared queue. It sends the edited
+job, the jobs it creates and every job it linked, repaired or resized in one request built by
+`jobChangeRequestBody`, the body the fixture `testing/fixtures/job-write/body.json` pins as `change`
+for both sides.
+
+**Whatever the queue held for those jobs goes with the close.** `takeQueuedJobDocumentWrites` takes the
+close's jobs out of the queue and folds what was queued for each into the close's own write, so none of
+it can reach the server separately and land half a close. A queued whole-document write stays whole.
+Jobs the close does not touch stay queued.
+
+**The group and the ESI links follow the jobs.** Adding the close's new jobs to their group, the group's
+write and the account's linked ESI data are all made only once the close has landed. A refused close
+writes none of them and leaves the group as it was, where it used to add the new jobs to the group
+before the save and write the group and the links whatever the save answered.
+
+**A refused close is told, not retried.** `persistJobChangeToApi` answers `conflict`, `locked` or
+`failed`, warns the reader each time, counts no revision and queues nothing back: a close put back on
+the queue would later go per document, outside the change. A transport failure is no exception once
+the request's own retries are spent. The edits remain in the reader's copy, and the edit session ends
+as it did, until the review panel below replaces that.
+
+Vitest covers the close sending one request with the edited job by what changed and the rest whole,
+taking and folding what the queue held, counting every written job, every refusal leaving nothing
+counted or queued, and a refused close writing neither the group nor the links. The fixture is read
+by both sides, and a live handler test writes a 101-job change.
+
+**Not built yet:** the review panel a refused close opens instead of ending the edit session, and the
+lock becoming advisory. A change sent while a debounced save of one of its jobs is still in the air is
+refused as stale against this tab's own write — safe, since nothing is written, but the reader is
+warned about a conflict they caused.
+
 ### Why the rest of Stage D is not safe yet
 
 [plan.md](./plan.md) § Why the lock is as broad as it is argues the relaxation rests on a version
@@ -368,12 +466,12 @@ check: *"the version check is what makes the relaxation safe."* That check is no
 SPA carries the revision and a whole-document write is filtered on it, so two members writing one job
 already refuse each other.
 
-What it does not yet cover is why the lock still stands. A refusal protects a *document*, and the
-lock protects a *close*: a close writes the job the reader edited and every job it linked, repaired or
-resized, and those writes are made one batch at a time rather than atomically. A member whose
-neighbouring job moved under them learns so by refusal, and the reader is told — but the close has
-already half-landed. The lock is what stops two members reaching that state, and nothing in the
-revision check replaces it.
+A close no longer half-lands: it goes as one change, so a member whose neighbouring job moved under
+them has nothing written and is told — § A close is one change. What the lock still protects is the
+reader's *work*. A refused close today ends the edit session and leaves the edits only in the
+reader's copy, so the lock is what stops a member spending an edit on a close that will be refused.
+Relaxing it waits on the review panel that lets the reader carry those edits onto the jobs as they now
+stand.
 
 So the group lease still stands in for every job in it, and every write path still consults the lock.
 
@@ -724,13 +822,13 @@ So the behaviour this project exists for is proved against real Mongo, under
 
 | What it proves | Where |
 |---|---|
-| Two writers, one document: the stale write is refused and the first is kept | `services/shared/mongo/live_conditional_write_test.go` |
+| Two writers, one document: the stale write is refused and the first is kept | `services/shared/mongo/live_jobs_conditional_write_test.go` |
 | A batch in which one job moved writes the others | same |
 | A write against a deleted document is reported gone, and does not recreate it | same |
 | The same, over the handlers: a 409 carrying `error`, `saved` and the refused rows | `services/api/v1endpoints/jobdocuments/live_revision_conflict_test.go` |
 | A mixed batch answers `saved: 1` and names only the stale job | same |
 | An unversioned write is still accepted, so a client that sends no revision keeps working | same |
-| A field-scoped write changes only what it names, and leaves `createdAt` and the rows beside it alone | `services/shared/mongo/live_field_write_test.go` |
+| A field-scoped write changes only what it names, and leaves `createdAt` and the rows beside it alone | `services/shared/mongo/live_jobs_field_write_test.go` |
 | A stale field-scoped write is refused, and the landed one kept | same |
 | The envelope the SPA builds, driven through the real handler: only the named field, the named row and the revision move | `services/api/v1endpoints/jobdocuments/live_field_write_test.go` |
 | The same envelope sent twice is refused the second time | same |

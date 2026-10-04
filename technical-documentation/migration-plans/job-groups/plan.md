@@ -184,7 +184,7 @@ where a group's membership is read by the server, and two projects are about to 
 | [document-write-granularity](../document-write-granularity/plan.md) § Stage D — the lock stops being broad | Deletes the group lease over member jobs, `resolveDocumentLockApiTarget`'s retarget, `JobGroupBypass`, and `cascade.go` / `cascade_pipeline.go` outright |
 
 Stage D is the binding one. `cascade.go` reads `group.IncludedJobIDs` to force-release per-job locks
-when a group lease moves, and `put_groups.go` diffs added members out of a group upsert to extend the
+when a group lease moves, and `groups_put.go` diffs added members out of a group upsert to extend the
 lease to them. Both are consumers of the field this project removes — but Stage D **deletes both
 files**, along with the reason they exist. Moving them onto a job query first would be writing code
 that another project is already committed to removing, and would couple this project's rollback to
@@ -203,6 +203,10 @@ to locking.
 - [job-document-drafts](../job-document-drafts/contents.md) reshapes the job document. This project
   puts nothing new on a job, but it makes `groupID` load-bearing, which that project should know before
   it decides what a job's stored shape carries.
+- [document-write-granularity](../document-write-granularity/plan.md) § Stage D writes a close as one
+  change in a Mongo transaction, refused whole if any job in it is stale. Membership being the job's
+  `groupID` is what lets that transaction cover a close's group change without the group document in
+  it, and § Creation is one request should write the group and its jobs through the same mechanism.
 - [document-write-granularity](../document-write-granularity/plan.md) § Stage C gets easier here: a
   five-field document whose only free-text field is one a person types has little use for field-scoped
   writes, and the two-writers-different-fields conflict largely stops existing for groups.
@@ -219,7 +223,7 @@ to whichever of them touches `atomic.go` first.
 |---------|------|
 | `models.Group` | fields removed, `OutputTypeIDs` added, schema version bumped |
 | `services/api/v1endpoints/groups` | `POST` for creation; `PUT` accepting only authored fields and rejecting the rest |
-| `services/shared/mongo/put_groups.go` | the membership delta goes; upsert writes authored fields only |
+| `services/shared/mongo/groups_put.go` | the membership delta goes; upsert writes authored fields only |
 | `services/shared/models/group_shape.go` | `RebuildFrom` stays for the archive; nothing on the live path calls it |
 | SPA `Classes/group.js` | reduced to name, status, type, output types |
 | SPA `Zustand/jobsSlice/groupManagement.js` | the persist queue removed |
