@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { stubElementHeights } from "../../../../../tests/elementHeights.js";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { QueryClientProvider } from "@tanstack/react-query";
 
@@ -11,6 +13,17 @@ vi.mock("../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock, usersStoreState } =
     await import("../../../../../tests/usersStoreHarness.js");
   return usersStoreMock(() => usersStoreState(store.current));
+});
+
+vi.mock("../../../../../Functions/Helper/getCachedData", async () => {
+  const { cachedDataMock } =
+    await import("../../../../../tests/cachedDataMock.js");
+  return cachedDataMock({
+    getSolarSystems: async () => ({
+      30000142: { name: "Jita", security: "hiSec" },
+      30002053: { name: "Tama", security: "lowSec" },
+    }),
+  });
 });
 
 vi.mock("../../../../../Functions/JobPlanner/applySetupChange", () => ({
@@ -96,5 +109,33 @@ describe("fitting a watched item's rigs by hand", () => {
 
     expect(first).toHaveValue("None");
     expect(second).toHaveValue("None");
+  });
+});
+
+describe("choosing a system for a watched item", () => {
+  function systemSearch() {
+    return screen
+      .getAllByRole("combobox")
+      .find((box) => box.id === "System Search");
+  }
+
+  it("moves the setup onto the band the chosen system is in", async () => {
+    const restore = stubElementHeights();
+    try {
+      const { setMaterialJobs } = show();
+      const user = userEvent.setup();
+
+      await vi.waitFor(() => expect(systemSearch()).toBeDefined());
+      await user.type(systemSearch(), "Tama");
+      await user.click(await screen.findByText("Tama"));
+
+      const [changed] = setMaterialJobs.mock.calls.at(-1);
+      const setup = changed[ITEM].build.setup["setup-1"];
+
+      expect(setup.systemID).toBe(30002053);
+      expect(setup.systemTypeID).toBe(1);
+    } finally {
+      restore();
+    }
   });
 });

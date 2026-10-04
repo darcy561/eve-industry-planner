@@ -112,9 +112,10 @@ enforced by `store-partials/no-whole-state-spread`.
 | Shared app-shell component test depth — rows, menus, the labelled-field shells | [components.md](./components.md) |
 | Static data test depth — the file owners, and how to mock or seed one | [static-data.md](./static-data.md) |
 | Market Locations tab test depth — the registry, the panel, adding/editing/saving, read-outcome wording | [settings.md](./settings.md) |
-| Custom Structures tab test depth — the shape and field map, the form, the rig combining and conflict rules, what a setup takes from a structure | [settings.md](./settings.md) |
+| Custom Structures tab test depth — the shape and field map, the form, what a setup takes from a structure | [settings.md](./settings.md) |
 | Market data test depth — the registry, the price cache and loader, freshness, the two tiers, the citadel walk | [market-data.md](./market-data.md) |
 | Pricing defaults test depth — the ladder, the account's two sides, market group defaults | [pricing.md](./pricing.md) |
 | Returns and selling test depth — the two exit routes, broker fee and standings, the sale location choice | [selling.md](./selling.md) |
 | Reprocessing test depth — the settings panel, the structure panel's rig slots, the page's seed | [reprocessing.md](./reprocessing.md) |
+| Industry facilities test depth — what a rig or a structure gives, where a job may legally run, the militia a setup is costed against | [industry-facilities.md](./industry-facilities.md) |
 | _(add rows as topic files land — e.g. document-lock, planner)_ | |

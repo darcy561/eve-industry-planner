@@ -10,8 +10,10 @@ Live SoT for test depth under
 **Depth:** Strong across the Market Locations tab — the registry, the panel's rows, adding, editing,
 saving and validation, and what a failed read shows — each with its own file beside the module it
 tests, plus two end-to-end suites over the write and the read-outcome paths together. Also strong
-across the Custom Structures tab — the shape and its field map, the form driven by it, the rig
-combining and conflict rules, and what a job setup takes from a saved structure.
+across the Custom Structures tab — the shape and its field map, the form driven by it, and what a job
+setup takes from a saved structure. What a rig or a structure gives, and the declared rules a place
+puts a structure or a setup under, are covered from
+[industry-facilities.md](./industry-facilities.md), not from this file.
 
 ### Tested
 
@@ -31,15 +33,13 @@ combining and conflict rules, and what a job setup takes from a saved structure.
 | `readOutcomeReachesTheRow.endToEnd.test.js` | A failed read's outcome reaches the row's "Last read" cell as the wording and offer a reader can act on |
 | `market_limits/limits.json` parity | The broker-fee ceiling held between the Go constant and the field that enforces it in the form |
 | `Functions/Custom Structures/customStructure.js` | What each kind carries, ids, name and tax settling, the round trip, and that a row's own keys are exactly what it stores |
-| `Functions/Custom Structures/getStructureInfo.js` | The structure type, system security and implant lookups |
-| `Functions/Custom Structures/rigs.js` | `getRigInfoFromID`, the per-axis rig combining rule against every stored-conversion pairing, `rigSlotLabel`, `rigsCompete` |
 | `Functions/Custom Structures/customStructuresFromServer.js` | Reading either stored shape — the array, or the four keyed lists |
 | `Functions/Custom Structures/addCustomStructure.js` | The system index a new structure asks for, and that adding one announces itself once |
-| `Functions/Custom Structures/customStructureSetup.js` | Whether a setup's structure is gone, and what a setup takes from one |
+| `Functions/Custom Structures/customStructureSetup.js` | Whether a setup's structure is gone, and what a setup takes from one and gives back |
 | `Functions/Helper/coerceTaxPercentage.js` | The tax percentage rule: finite, never below zero |
 | `Hooks/useRigSlots.js` | Taking a rig, refusing the same rig, refusing a competing rig, clearing a slot, naming the slot asked about |
 | `Zustand/applicationSettings/structures.js` | Adding, defaulting and deleting a saved structure scoped to its own kind, and what the document carries |
-| `Custom Structures/CustomStructuresForm.jsx`, `structureKindSelection.jsx`, `structureForm.jsx`, `structureFields.jsx`, `currentStructures.jsx` | The kind picker offering every build kind, the field map deciding which controls appear, every field the form offers having a setter that works, and the saved list filtering to the selected kind |
+| `Custom Structures/CustomStructuresForm.jsx`, `structureKindSelection.jsx`, `structureForm.jsx`, `structureFields.jsx`, `currentStructures.jsx` | The kind picker offering every build kind, the field map deciding which controls appear, every field the form offers having a setter that works, the declared place rules narrowing and fixing a field, and the saved list filtering to the selected kind |
 
 ### Little / none
 
@@ -48,5 +48,7 @@ combining and conflict rules, and what a job setup takes from a saved structure.
 
 ## Topic-only detail
 
-Server-side composition, validation and release-step tests → [../services/core.md](../services/core.md),
-[../services/api.md](../services/api.md), [../services/shared.md](../services/shared.md).
+What a rig or a structure gives, the published bonus catalogue, and where a job may legally run →
+[industry-facilities.md](./industry-facilities.md). Server-side composition, validation and
+release-step tests → [../services/core.md](../services/core.md), [../services/api.md](../services/api.md),
+[../services/shared.md](../services/shared.md).

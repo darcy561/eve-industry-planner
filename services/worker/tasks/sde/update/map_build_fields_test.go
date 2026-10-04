@@ -139,3 +139,28 @@ func TestParseJSONLToKeyedMap_unfilteredFileKeepsEveryKey(t *testing.T) {
 		t.Error("maxProductionLimit was dropped from an unfiltered file")
 	}
 }
+
+// A system's band is read from securityStatus by the conversion, so dropping it
+// at the map-build stage would band every system as null without failing the
+// conversion's own test.
+func TestParseJSONLToKeyedMap_keepsWhatASystemsBandIsReadFrom(t *testing.T) {
+	row := []byte(`{"_key":30002053,"name":{"en":"Tama","de":"Tama"},` +
+		`"securityStatus":0.3,"regionID":10000033,"radius":1}` + "\n")
+
+	out, err := parseJSONLToKeyedMap(row, "mapSolarSystems.jsonl")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	parsed, ok := out["30002053"].(map[string]any)
+	if !ok {
+		t.Fatalf("row not keyed by _key: %v", out)
+	}
+	if _, held := parsed["securityStatus"]; !held {
+		t.Fatal("securityStatus was dropped; every system would band as null")
+	}
+
+	systems := conversion.GenerateSolarSystemsOutput(out)
+	if got := systems["30002053"]; got.Name != "Tama" || got.Security != conversion.SecurityBandLow {
+		t.Errorf("the conversion read %+v from the kept row", got)
+	}
+}

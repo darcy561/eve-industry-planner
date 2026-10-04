@@ -7,10 +7,12 @@ import {
   forcedFieldsFor,
   jobTypesAllowedIn,
   enlistedValuesFor,
+  settledSetup,
 } from "./placeConstraints";
 import {
   ZARZAKH_SYSTEM_ID,
   jobTypes,
+  nullSecurityBandID,
   pirateFactions,
   structureTypeMap,
   systemTypeMap,
@@ -64,7 +66,7 @@ describe("what a place fixes", () => {
     expect(forcedFieldsFor({ jobType: manufacturing, structureID: 4 })).toEqual(
       {
         structureID: 4,
-        systemTypeID: 0,
+        systemTypeID: nullSecurityBandID,
         systemID: ZARZAKH_SYSTEM_ID,
         rigSlot1: 0,
         rigSlot2: 0,
@@ -177,7 +179,7 @@ describe("what a field may offer", () => {
       Object.values(systemTypeMap[manufacturing]),
     );
 
-    expect(offered.map((entry) => entry.id)).toEqual([0]);
+    expect(offered.map((entry) => entry.id)).toEqual([nullSecurityBandID]);
   });
 
   it("offers no rig where the place takes none", () => {
@@ -230,6 +232,44 @@ describe("leaving a place that fixed a setup's other choices", () => {
     expect(fieldsReleasedBy(atTheFulcrum, "structureID", 4)).toEqual([]);
   });
 
+  it("lets go of what both places fix when two are in force at once", () => {
+    const atTheFulcrumAndAnNPCStation = {
+      jobType: manufacturing,
+      structureID: 0,
+      systemID: ZARZAKH_SYSTEM_ID,
+      systemTypeID: nullSecurityBandID,
+      rigSlot1: 0,
+      rigSlot2: 0,
+      taxValue: 0.25,
+    };
+
+    expect(constraintsFor(atTheFulcrumAndAnNPCStation)).toHaveLength(2);
+
+    const released = fieldsReleasedBy(
+      atTheFulcrumAndAnNPCStation,
+      "systemID",
+      30000142,
+    );
+
+    expect(released).toContain("structureID");
+    expect(released).toContain("rigSlot1");
+    expect(released).not.toContain("systemID");
+  });
+
+  it("lets go of nothing when a choice matches one place and leaves another", () => {
+    const atTheFulcrumAndAnNPCStation = {
+      jobType: manufacturing,
+      structureID: 0,
+      systemID: ZARZAKH_SYSTEM_ID,
+      systemTypeID: nullSecurityBandID,
+      taxValue: 0.25,
+    };
+
+    expect(
+      fieldsReleasedBy(atTheFulcrumAndAnNPCStation, "taxValue", 0.25),
+    ).toEqual([]);
+  });
+
   it("lets go of nothing where no place is in force", () => {
     expect(
       fieldsReleasedBy(
@@ -238,5 +278,32 @@ describe("leaving a place that fixed a setup's other choices", () => {
         3,
       ),
     ).toEqual([]);
+  });
+});
+
+describe("the band The Fulcrum sits in", () => {
+  it("settles a setup into the band Zarzakh really is", () => {
+    const settled = settledSetup({
+      jobType: manufacturing,
+      structureID: 4,
+      systemTypeID: 0,
+    });
+
+    expect(settled.systemTypeID).toBe(nullSecurityBandID);
+    expect(systemTypeMap[manufacturing][settled.systemTypeID].label).toBe(
+      "Null Sec / WH",
+    );
+  });
+
+  it("fits no rig there, so the band scales nothing", () => {
+    const settled = settledSetup({
+      jobType: manufacturing,
+      structureID: 4,
+      rigSlot1: 1,
+      rigSlot2: 2,
+    });
+
+    expect(settled.rigSlot1).toBe(0);
+    expect(settled.rigSlot2).toBe(0);
   });
 });

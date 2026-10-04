@@ -22,7 +22,10 @@ import {
   structureTypeMap,
   systemTypeMap,
 } from "../../../../Context/defaultValues";
-import { getStructureInfoFromID } from "../../../../Functions/Industry Facilities/getStructureInfo";
+import {
+  getStructureInfoFromID,
+  getSystemTypeFromBand,
+} from "../../../../Functions/Industry Facilities/getStructureInfo";
 import { useIndustryBonuses } from "../../../../Hooks/Static/useIndustryBonuses";
 import {
   allowedOptionsFor,
@@ -184,13 +187,14 @@ export default function StructureForm({ selectedJobType, setIsLoading }) {
     onSystemType: (entry) => change({ systemType: entry.id }),
     onImplant: (entry) => change({ implant: entry.id }),
     onTax: (value) => change({ tax: value }),
-    onSystem: (systemID) => {
+    onSystem: (systemID, band) => {
       const allowed = jobTypesAllowedIn(systemID);
       if (allowed !== null && !allowed.includes(selectedJobType)) {
         return new Error("This system does not allow this kind of job.");
       }
 
-      change({ systemID });
+      const inBand = getSystemTypeFromBand(selectedJobType, band);
+      change(inBand ? { systemID, systemType: inBand.id } : { systemID });
     },
   };
 

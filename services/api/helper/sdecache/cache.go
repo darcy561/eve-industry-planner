@@ -3,6 +3,7 @@ package sdecache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -200,15 +201,24 @@ func warmLiveCache(ctx context.Context, b objectstore.Backend) error {
 	cacheMu.RUnlock()
 
 	files := make(map[string][]byte, len(names))
+	missing := make([]string, 0)
 	for _, name := range names {
 		data, err := sdecore.GetLiveFile(ctx, b, name)
 		if err != nil {
-			return fmt.Errorf("warm %s: %w", name, err)
+			if !errors.Is(err, objectstore.ErrNotFound) {
+				return fmt.Errorf("warm %s: %w", name, err)
+			}
+			missing = append(missing, name)
+			continue
 		}
 		if len(data) == 0 {
-			return fmt.Errorf("warm %s: empty object", name)
+			missing = append(missing, name)
+			continue
 		}
 		files[name] = data
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("warm: the published build carries none of the %d static data files", len(names))
 	}
 
 	cacheMu.Lock()
@@ -216,10 +226,18 @@ func warmLiveCache(ctx context.Context, b objectstore.Backend) error {
 	cacheFiles = files
 	cacheMu.Unlock()
 	cacheReady.Store(true)
-	logs.InfoCtx(ctx, "static data cache warmed", "version", verKey, "files", len(files))
+
+	if len(missing) > 0 {
+		logs.WarnCtx(ctx, "static data cache warmed without every file the code knows about",
+			"version", verKey, "files", len(files), "missing", missing)
+	} else {
+		logs.InfoCtx(ctx, "static data cache warmed", "version", verKey, "files", len(files))
+	}
 	return nil
 }
 
+// cacheAlreadyWarm answers whether this build is held in full, so a build the
+// cache holds only part of is attempted again on the next refresh.
 func cacheAlreadyWarm(verKey string, names []string) bool {
 	if cacheFiles == nil || cacheVer != verKey {
 		return false

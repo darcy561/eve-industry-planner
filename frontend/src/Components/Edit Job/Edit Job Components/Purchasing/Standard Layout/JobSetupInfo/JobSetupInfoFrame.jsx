@@ -6,7 +6,7 @@ import {
   getStructureInfoFromID,
   getSystemTypeFromID,
 } from "../../../../../../Functions/Industry Facilities/getStructureInfo";
-import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames";
+import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystems";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";

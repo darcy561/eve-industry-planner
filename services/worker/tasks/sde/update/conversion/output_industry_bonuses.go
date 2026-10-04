@@ -67,9 +67,9 @@ const (
 
 // securityBandAttributes names each published security modifier.
 var securityBandAttributes = map[string]int{
-	"hiSec":   hiSecModifierAttribute,
-	"lowSec":  lowSecModifierAttribute,
-	"nullSec": nullSecModifierAttribute,
+	SecurityBandHigh: hiSecModifierAttribute,
+	SecurityBandLow:  lowSecModifierAttribute,
+	SecurityBandNull: nullSecModifierAttribute,
 }
 
 // industryActivities and industryAxes are read in a fixed order, so one SDE build

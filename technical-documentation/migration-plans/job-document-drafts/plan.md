@@ -1809,10 +1809,10 @@ quantity.
 figures for every affected job rather than only what is shown, which makes it a data question and not a
 tidy-up. It wants deciding on its own terms — whether the requirement was meant to apply, and what
 happens to setups already stored against the wrong multiplier — rather than riding a cutover that is
-meant to change no behaviour at all. The shape that would answer it is
-[rig-and-structure-attributes/plan.md](../rig-and-structure-attributes/plan.md) § A requirement belongs
-to the thing it describes, which puts a rig's security multipliers on the rig row and the structure's
-legality rules in a declared list, and carries the `prepareRelease` recalculation this needs.
+meant to change no behaviour at all. That shape has landed: a rig carries its own security multipliers
+and a place's legality rules are one declared list, in
+[../../frontend/industry-facilities/bonuses.md](../../frontend/industry-facilities/bonuses.md) and
+[../../frontend/industry-facilities/constraints.md](../../frontend/industry-facilities/constraints.md).
 
 ## Stage status
 

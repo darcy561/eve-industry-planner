@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import Group from "../../Classes/group";
 import {
   blueprintRawData,
@@ -41,6 +42,16 @@ vi.mock("../../Functions/System Indexes/findSystemIndex", () => ({
   default: async () => ({}),
 }));
 
+vi.mock("../../Functions/Helper/getCachedData", async () => {
+  const { cachedDataMock } = await import("../../tests/cachedDataMock.js");
+  return cachedDataMock({
+    getSolarSystems: async () => ({
+      30000142: { name: "Jita", security: "hiSec" },
+      30002053: { name: "Tama", security: "lowSec" },
+    }),
+  });
+});
+
 vi.mock("../../Hooks/EveEsi/useBlueprintIndex", () => ({
   BLUEPRINT_SCOPE: { ALL: "all" },
   getCachedBlueprintIndex: () => ({
@@ -59,6 +70,7 @@ const { MarkAsCompleteButton } =
 const { EditJobSetup } =
   await import("./Edit Job Components/Planning/Standard Layout/Edit Setup Panel/editJobSetup.jsx");
 const { committedFor } = await import("./Edit Job Hooks/jobDraftStore.js");
+const { stubElementHeights } = await import("../../tests/elementHeights.js");
 const { ZARZAKH_SYSTEM_ID } = await import("../../Context/defaultValues.jsx");
 const { fieldsReleasedBy } =
   await import("../../Functions/Industry Facilities/placeConstraints.js");
@@ -313,12 +325,20 @@ describe("choosing a place that settles a setup's other choices, end to end", ()
   }
 
   it("shows the security band the place settles on, not the one left behind", async () => {
-    openSetup(jobInNullSec());
+    const job = withSetups("setup-1");
+    Object.assign(job.build.setup["setup-1"], {
+      structureID: 2,
+      systemTypeID: 0,
+      systemID: 30000142,
+    });
+    openSetup(job);
 
     chooseTheFulcrum();
 
     await vi.waitFor(() =>
-      expect(selectWithID("system-type-select")).toHaveTextContent("High Sec"),
+      expect(selectWithID("system-type-select")).toHaveTextContent(
+        "Null Sec / WH",
+      ),
     );
   });
 
@@ -379,5 +399,53 @@ describe("choosing a place that settles a setup's other choices, end to end", ()
     await vi.waitFor(() =>
       expect(screen.getByLabelText("Rig 1")).toHaveValue("None"),
     );
+  });
+});
+
+describe("choosing a system from the picker, end to end", () => {
+  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
+
+  const storedSetup = () =>
+    committedFor(useUsersStore.getState().editSession.draft, "job-1").build
+      .setup["setup-1"];
+
+  let restoreHeights;
+  beforeEach(() => {
+    restoreHeights = stubElementHeights();
+  });
+  afterEach(() => restoreHeights?.());
+
+  async function chooseSystem(name) {
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("combobox")
+          .find((box) => box.id === "System Search"),
+      ).toBeDefined(),
+    );
+    const search = screen
+      .getAllByRole("combobox")
+      .find((box) => box.id === "System Search");
+
+    const user = userEvent.setup();
+    await user.type(search, name);
+    await user.click(await screen.findByText(name));
+  }
+
+  it("moves the setup onto the band the chosen system is in", async () => {
+    const job = withSetups("setup-1");
+    Object.assign(job.build.setup["setup-1"], {
+      structureID: 2,
+      systemTypeID: 0,
+      systemID: 30000142,
+    });
+    openSetup(job);
+
+    await chooseSystem("Tama");
+
+    await vi.waitFor(() => {
+      expect(storedSetup().systemID).toBe(30002053);
+      expect(storedSetup().systemTypeID).toBe(1);
+    });
   });
 });

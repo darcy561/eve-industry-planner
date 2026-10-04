@@ -308,10 +308,10 @@ function ManualStructureSelection({ selectedSetup }) {
           <VirtualisedSystemSearch
             selectedValue={settled.systemID}
             jobType={jobType}
-            updateSelectedValue={async (value) => {
+            updateSelectedValue={async (value, band) => {
               updateFetchSystemDataTrigger((prev) => !prev);
               await choose("systemID", "choose a system", (setup, chosen) =>
-                setup.updateSystemID(Number(chosen)),
+                setup.updateSystemID(Number(chosen), band),
               )(value, Number(value));
               updateFetchSystemDataTrigger((prev) => !prev);
             }}

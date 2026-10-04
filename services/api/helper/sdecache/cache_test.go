@@ -30,7 +30,7 @@ func TestTryWarmOnce_setsReadyAndServesFromCache(t *testing.T) {
 	}
 }
 
-func TestTryWarmOnce_incompleteLiveNotReady(t *testing.T) {
+func TestTryWarmOnce_servesWhatAPartialBuildCarries(t *testing.T) {
 	b := installTestBackend(t)
 	ctx := context.Background()
 	if err := sdecore.WriteRootVersionJSON(ctx, b, sdecore.VersionJSON{Version: "1_v1", BuildNumber: 1}); err != nil {
@@ -40,11 +40,14 @@ func TestTryWarmOnce_incompleteLiveNotReady(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := tryWarmOnce(ctx); err == nil {
-		t.Fatal("expected warm failure for incomplete live set")
+	if err := tryWarmOnce(ctx); err != nil {
+		t.Fatalf("tryWarmOnce: %v", err)
 	}
-	if IsReady() {
-		t.Fatal("IsReady should stay false")
+	if !IsReady() {
+		t.Fatal("a build carrying one file took the API out of rotation")
+	}
+	if _, err := ReadLiveFile(ctx, sdecore.SearchIndexFile); err == nil {
+		t.Error("a file the build does not carry was served anyway")
 	}
 }
 

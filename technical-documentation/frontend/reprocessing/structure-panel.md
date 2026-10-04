@@ -3,7 +3,9 @@
 Live SoT for the structure the Reprocessing page tries yields under, and the panel that edits it. The
 structure's own shape, the field map, and the rig-conflict rule this panel shares with every other
 editor offering two rig slots are
-[frontend/settings/custom-structures.md](../settings/custom-structures.md).
+[frontend/settings/custom-structures.md](../settings/custom-structures.md). What a rig or a structure
+gives, and the shared rig field, are
+[frontend/industry-facilities/bonuses.md](../industry-facilities/bonuses.md).
 
 ## The page opens on a copy of the saved default
 
@@ -22,7 +24,8 @@ nothing is what a blank structure already is.
 
 Five controls change `currentStructure` through `updateStructure`, which is what keeps a name settled
 and a tax clamped without every call site restating either rule: structure type, system security,
-implant, and the two rig slots through `useRigSlots` — the same hook the Settings form and the
+implant, and the two rig slots. Both rig fields are `VirtualisedRigSearch`, offering the rigs that fit
+the chosen structure type's size, through `useRigSlots` — the same hook the Settings form and the
 dashboard watchlist's structure options use, so a rig chosen here that competes with the other slot is
 refused and marked the same way it is everywhere else.
 
@@ -31,12 +34,15 @@ Choosing a different saved structure from `CustomStructureSelect` reads it fresh
 
 ## Feeding reprocessing's own calculations
 
-`Functions/Reprocessing/structureBonuses.js` is where a structure's rigs and structure type are read
+`Functions/Reprocessing/reprocessingBonuses.js` is where a structure's rigs and structure type are read
 against what is actually being reprocessed — ore, gas, ice or moon ore — which is reprocessing's own
 question rather than the structure's:
 
-- `rigBonusFor(structure, itemType)` takes the better of the two rig slots that `appliesTo` the item
-  type being worked, or `0` for a kind that carries no rig slots at all.
+- `rigBonusFor(structure, itemType)` takes the better of the two rig slots that help the item type
+  being worked — a legacy rig's own figure where it names the item type in `appliesTo`, or a published
+  rig's yield where its group names that ore — or `0` for a kind that carries no rig slots at all.
+- `rigSecurityFor(structure, itemType)` is the security-band multiplier the rig winning that item type
+  gives, or `1` where no fitted rig helps it.
 - `structureBonusFor(structure, itemType)` reads the structure type's own ore or gas bonus for the
   item type, or `0` when the structure type gives none.
 
@@ -46,9 +52,11 @@ question rather than the structure's:
 |------|-------|
 | `Components/Reprocessing/reprocessingStructurePanel.jsx` | The panel: structure type, security, implant, both rig slots, the saved-structure picker |
 | `Components/Reprocessing/Hooks/useReprocessingReducer.js` | Seeding `currentStructure` as a copy of the saved default, or a blank one |
-| `Functions/Reprocessing/structureBonuses.js` | `rigBonusFor`, `structureBonusFor` |
+| `Functions/Reprocessing/reprocessingBonuses.js` | `rigBonusFor`, `rigSecurityFor`, `structureBonusFor` |
 
 ## Topic-only detail
 
 The structure's stored shape, the field map, the rig-slot combining rule and the rig-conflict rule →
-[frontend/settings/custom-structures.md](../settings/custom-structures.md).
+[frontend/settings/custom-structures.md](../settings/custom-structures.md). What a rig gives, the
+published bonus catalogue, and the shared rig field →
+[frontend/industry-facilities/bonuses.md](../industry-facilities/bonuses.md).

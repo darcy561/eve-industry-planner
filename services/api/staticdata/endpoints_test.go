@@ -41,9 +41,20 @@ func TestFileMetricNames(t *testing.T) {
 		{"recipeList.json", "recipe_list"},
 		{"marketGroups.json", "market_groups"},
 		{"inventionModifiers.json", "invention_modifiers"},
+		{"industryBonuses.json", "industry_bonuses"},
 	} {
 		if got := staticDataMetricName(tc.fileName); got != tc.want {
 			t.Errorf("staticDataMetricName(%q) = %q, want %q", tc.fileName, got, tc.want)
+		}
+	}
+}
+
+// Every published file needs its metric name asserted, because the name is
+// derived from the spelling rather than declared beside the file.
+func TestEveryPublishedFileHasAMetricName(t *testing.T) {
+	for _, name := range sdecore.OutputFileNames() {
+		if got := staticDataMetricName(name); got == "" || got == name {
+			t.Errorf("%s has no snake_case metric name of its own, got %q", name, got)
 		}
 	}
 }

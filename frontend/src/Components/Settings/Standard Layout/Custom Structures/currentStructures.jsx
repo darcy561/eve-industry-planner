@@ -21,8 +21,8 @@ import {
 } from "../../../../Context/defaultValues";
 import {
   UNKNOWN_SYSTEM_LABEL,
-  useSolarSystemNames,
-} from "../../../../Hooks/useSolarSystemNames";
+  useSolarSystems,
+} from "../../../../Hooks/useSolarSystems";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { scheduleDebouncedApplicationSettingsSave } from "../../../../Functions/Debounce/userDocumentsPersistSchedule.js";
 
@@ -37,7 +37,7 @@ function CurrentStructuresFrame({ selectedJobType, isLoading }) {
       ),
     [allStructures, selectedJobType],
   );
-  const systemNames = useSolarSystemNames();
+  const systemNames = useSolarSystems();
   const { setDefaultCustomStructure, deleteCustomStructure } =
     useUsersStore.getState().applicationSettings.actions;
 
@@ -216,7 +216,7 @@ function structureFacts(
           placement="top"
         >
           <Box component="span">
-            {systemNames[structure.systemID] ?? UNKNOWN_SYSTEM_LABEL}
+            {systemNames[structure.systemID]?.name ?? UNKNOWN_SYSTEM_LABEL}
             <Typography
               component="span"
               variant="caption"

@@ -1,38 +1,31 @@
 import { useState } from "react";
 import { TextField } from "@mui/material";
 import findSystemIndexForJob from "../../Functions/Helper/findSystemIndexValue";
+import { useHasChanged } from "../../Hooks/useHasChanged";
 
 /**
- * A text field component for inputting system index values.
- * Supports three value sources in priority order:
- * 1. Alternative system index value (when useAlternativeSystemIndexValue is true)
- * 2. Predefined system index value (if available for the system and job type)
- * 3. Calculated system index value (from world data)
+ * The index as a percentage, without the noise a hundredth of a decimal leaves
+ * behind when a stored share is multiplied back up.
  *
- * The field is disabled when not using alternative values, showing read-only calculated/predefined values.
- * When enabled, allows manual input of custom system index values with validation for non-negative numbers.
+ * @param {number} share
+ * @returns {number}
+ */
+function asPercentage(share) {
+  return Math.round(share * 1e8) / 1e6;
+}
+
+/**
+ * The system index a setup is costed against: the reader's own figure where they
+ * state one, else the index the server holds for the system.
  *
  * @param {Object} props - Component props
- * @param {number} props.inputSystemID - EVE Online system ID to calculate index for
- * @param {number} props.jobType - Job type for index calculation (maps to jobTypeMapping)
- * @param {Function} props.onChange - Callback function called on blur. Receives the numeric value.
- * @param {number} [props.alternativeSystemIndexValue=0] - Alternative system index value to use when enabled
- * @param {boolean} [props.useAlternativeSystemIndexValue=false] - Whether to use alternative value instead of calculated/predefined
- * @param {Object} [props.alternativeSystemIndexData={}] - Alternative location for  system index data to pass to the world data lookup
- * @returns {JSX.Element} System index text field component
- *
- * @example
- * <SystemIndexTextField
- *   inputSystemID={30000142}
- *   jobType={1}
- *   onChange={(index) => setSystemIndex(index)}
- *   useAlternativeSystemIndexValue={true}
- *   alternativeSystemIndexValue={{
- *      30000142:{
- *        "manufacturing": 0.5,
- *      }
- *    }
- * />
+ * @param {number} props.inputSystemID - The system the index is read for
+ * @param {number} props.jobType - The kind of job the index is read for
+ * @param {Function} props.onChange - Given the share, on blur
+ * @param {number} [props.alternativeSystemIndexValue=0] - The reader's own figure
+ * @param {boolean} [props.useAlternativeSystemIndexValue=false] - Whether to use it
+ * @param {Object} [props.alternativeSystemIndexData={}] - Indexes to read before the store's
+ * @returns {JSX.Element}
  */
 export default function SystemIndexTextField({
   inputSystemID,
@@ -42,16 +35,22 @@ export default function SystemIndexTextField({
   useAlternativeSystemIndexValue = false,
   alternativeSystemIndexData = {},
 }) {
-  const [inputValue, updateInputValue] = useState(
+  const settled = asPercentage(
     findSystemIndexForJob(
       inputSystemID,
       jobType,
       useAlternativeSystemIndexValue,
       alternativeSystemIndexValue,
       alternativeSystemIndexData,
-    ) * 100,
+    ),
   );
+
+  const [inputValue, updateInputValue] = useState(settled);
   const [valueError, setValueError] = useState("");
+
+  if (useHasChanged(settled)) {
+    updateInputValue(settled);
+  }
 
   return (
     <TextField
@@ -76,17 +75,14 @@ export default function SystemIndexTextField({
       onChange={(e) => {
         const inputValue = e.target.value;
 
-        // Allow empty string for clearing the field
         if (inputValue === "") {
           updateInputValue("");
           setValueError("");
           return;
         }
 
-        // Convert to number and validate range
         const numericValue = parseFloat(inputValue);
 
-        // Check for validation errors
         if (isNaN(numericValue)) {
           setValueError("Please enter a valid number");
           return;
@@ -102,14 +98,12 @@ export default function SystemIndexTextField({
           return;
         }
 
-        // Valid input
         updateInputValue(inputValue);
         setValueError("");
       }}
       onBlur={() => {
         if (onChange && !valueError) {
           const numericValue = inputValue === "" ? 0 : Number(inputValue);
-          // Save the value divided by 100
           onChange(numericValue / 100);
         }
       }}

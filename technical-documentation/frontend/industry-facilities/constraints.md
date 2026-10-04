@@ -68,8 +68,8 @@ list while the rest stay narrowed. Changing a field to something other than what
 fixes it to says the reader does not want that place, and `fieldsReleasedBy(setup, field, value)`
 names every other field it was deciding so the caller can let them go, back to the values a fresh
 setup or structure carries. At The Fulcrum the structure picker offers all five structures and the
-security band offers only High Sec, which is the band Zarzakh is; picking another structure lets go of
-Zarzakh, and picking another system lets go of the structure.
+security band offers only Null Sec / WH, which is the band Zarzakh is; picking another structure lets
+go of Zarzakh, and picking another system lets go of the structure.
 
 **Filtering never hides a value already chosen.** It decides what a reader may pick next, never what a
 saved setup is allowed to say — a legacy rig, a structure built as a workaround, or a stray field left

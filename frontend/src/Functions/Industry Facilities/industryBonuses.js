@@ -86,7 +86,8 @@ export function sourceBonusFor(source, activity, axis, item, families) {
 }
 
 /**
- * The published sources a structure of one size may fit, for one kind of job.
+ * The rigs of one kind that fit a structure of this size, in name order, which
+ * puts every tier of one rig together because a tier is the end of its name.
  *
  * @param {Object} catalogue - The published bonus catalogue
  * @param {string} activity - The kind of job, as the game names it

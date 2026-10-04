@@ -4,7 +4,7 @@ import TextField from "@mui/material/TextField";
 import { FormControl, FormHelperText } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { jobTypesAllowedIn } from "../../Functions/Industry Facilities/placeConstraints";
-import { useSolarSystemNames } from "../../Hooks/useSolarSystemNames";
+import { useSolarSystems } from "../../Hooks/useSolarSystems";
 import GLOBAL_CONFIG from "../../global-config-app";
 import {
   appShellAutocompleteListboxSx,
@@ -65,19 +65,19 @@ function VirtualisedSystemSearch({
     });
   };
 
-  const systemNames = useSolarSystemNames();
+  const solarSystems = useSolarSystems();
 
   const autocompleteOptions = useMemo(() => {
     const options = [];
-    for (const [systemID, name] of Object.entries(systemNames)) {
+    for (const [systemID, system] of Object.entries(solarSystems)) {
       const id = Number(systemID);
       const allowed = jobTypesAllowedIn(id);
       if (jobType === null || allowed === null || allowed.includes(jobType)) {
-        options.push({ id, name });
+        options.push({ id, name: system.name, security: system.security });
       }
     }
     return options;
-  }, [jobType, systemNames]);
+  }, [jobType, solarSystems]);
 
   // MUI matches the value against the options by identity, so the selected system
   // has to be the option object itself rather than an equal copy.
@@ -89,7 +89,7 @@ function VirtualisedSystemSearch({
 
   const handleChange = (event, newValue) => {
     if (newValue) {
-      const result = updateSelectedValue(newValue.id);
+      const result = updateSelectedValue(newValue.id, newValue.security);
       if (result?.message) {
         setHasError(true);
         setErrorMessage(result.message);

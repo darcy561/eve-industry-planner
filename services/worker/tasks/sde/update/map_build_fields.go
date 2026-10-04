@@ -20,7 +20,7 @@ var mapBuildFields = map[string][]string{
 		"portionSize",
 	},
 	"typeDogma.jsonl":       {"_key", "dogmaAttributes", "dogmaEffects"},
-	"mapSolarSystems.jsonl": {"_key", "name"},
+	"mapSolarSystems.jsonl": {"_key", "name", "securityStatus"},
 	"marketGroups.jsonl":    {"_key", "name", "parentGroupID"},
 	"groups.jsonl":          {"_key", "categoryID"},
 	"dogmaAttributes.jsonl": {"_key", "name", "description"},

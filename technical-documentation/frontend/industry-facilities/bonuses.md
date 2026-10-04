@@ -40,10 +40,28 @@ What a rig gives on an axis depends on what it is:
 
 `getRigInfoFromID(jobType, id)` resolves either kind by id: the app's own table first, the published
 catalogue second, so a setup naming either resolves. `rigSlotLabel(jobType, rigSlot1, rigSlot2)` names
-both fitted rigs, the one that is fitted, or "None" when neither is. `rigsCompete(rig, otherSlotRigID,
-jobType)` refuses two rigs that would double up: the same rig, one it names in `relatedTo`, one of its
-own published group, or — for a legacy rig and a published one — one that bonuses the axis the other
-already claims to help with everything.
+both fitted rigs, the one that is fitted, or "None" when neither is.
+
+## A structure may not carry the same bonus twice
+
+`rigsCompete(rig, otherSlotRigID, jobType)` refuses a rig that would double up with the one in the
+other slot: the same rig, one it names in `relatedTo`, one of its own published group, or — for a
+legacy rig and a published one — one that bonuses an axis the other already claims to help with
+everything.
+
+The group test and a second, independent test agree everywhere today, and both are run because they
+answer different questions. **The group** is what the game itself publishes, and a rig group turns
+out to mean exactly "one family, one figure" — a rig and its tier II sit in the same group as any
+faction variant naming the same family and axis, while a rig raising a different figure for the same
+family sits in a different one. **What the bonuses say** — the activity, the axis and the family a
+rig's own published bonus names — decides nothing while the two agree, and exists so that a published
+group regrouping the game's rigs cannot silently reopen a double bonus: the rule then still reads
+what a double bonus means rather than a proxy for it. A rig naming no family in its bonuses is left
+out of this second test; a reprocessing rig is one, because it carries its ore, ice or moon-ore kind
+in its own group rather than in its bonus, and the group alone is its family.
+
+Two rigs that raise *different* figures for the same family are never refused — a material rig and a
+time rig for the same ship size fit together, which is how the game works.
 
 ## The published bonus catalogue
 
@@ -104,7 +122,7 @@ after being retired from new selections.
 
 Every editor offering a rig field takes it the same way: the Settings page's Custom Structures form,
 the Reprocessing page's structure panel, the dashboard watchlist's structure options, and the Edit Job
-setup editor. `Styled Components/Select/rigType.jsx` no longer exists.
+setup editor.
 
 ## The generic rigs stay, and keep their old meaning
 
@@ -116,6 +134,23 @@ carrying `legacy` (used for a security band) and, for a rig table, an entry no l
 choice, while `getRigInfoFromID` keeps resolving it for display and calculation. A stored rig id is
 never remapped to a family-specific one — a stored choice of `1` means "a T1 ME rig, family unrecorded",
 and nothing here invents which family it must have meant.
+
+## Choosing a system settles the band
+
+`getStructureInfoFromID(jobType, id)`, `getSystemTypeFromID(jobType, id)` and `getImplantFromID(jobType,
+id)` are the small lookups every other reader in this package goes through rather than reaching into
+the tables directly — a structure type, a system security band, or an implant, by id and kind.
+`getSystemTypeFromBand(jobType, band)` is the fourth: the system type a kind of job offers for the
+band a chosen system is in, or `null` where the kind has no entry for it — a reaction has no high
+security option — or where the band is one kept only so a stored value still reads, so naming Zarzakh
+never settles onto it.
+
+`Setup.updateSystemID` (`Classes/jobSetup.js`) takes a chosen system's band alongside its id and moves
+the setup's own `systemTypeID` onto whatever `getSystemTypeFromBand` answers, leaving the band as the
+setup already had it in either case `getSystemTypeFromBand` answers nothing for. Which band a given
+system is in is read from [../static-data/solar-systems.md](../static-data/solar-systems.md), not
+from this package — every surface that picks a system passes the band that file names alongside the
+id it chose.
 
 ## A setup's stored figures are kept in step
 
@@ -135,7 +170,7 @@ against the current one — a job keeps the blueprint snapshot it was built from
 | `Functions/Industry Facilities/rigs.js` | `getRigInfoFromID`, `rigSecurityMultiplier`, `rigSlotBonuses`, `rigSlotLabel`, `rigsCompete` |
 | `Functions/Industry Facilities/industryBonuses.js` | The published catalogue reader: `readIndustryBonuses`, `readItemFamilyFacts`, `itemInFamily`, `bonusReachesItem`, `sourceBonusFor`, `rigsFittingSize`, `familiesHelpedBy`, `rigOptionsFor` |
 | `Functions/Industry Facilities/structureBonusForItem.js` | `structureBonusForItem` |
-| `Functions/Industry Facilities/getStructureInfo.js` | `getStructureInfoFromID`, `getSystemTypeFromID`, `getImplantFromID` |
+| `Functions/Industry Facilities/getStructureInfo.js` | `getStructureInfoFromID`, `getSystemTypeFromID`, `getImplantFromID`, `getSystemTypeFromBand` |
 | `Functions/Static/industryBonuses.js` | Reading the `INDUSTRY_BONUSES` static file |
 | `Hooks/Static/useIndustryBonuses.js` | `useIndustryBonuses` |
 | `Functions/JobPlanner/correctSetupFigures.js` | Keeping a setup's derived figures in step when its job opens |
@@ -145,6 +180,7 @@ against the current one — a job keeps the blueprint snapshot it was built from
 
 Where a place may be used, what it fixes about a setup, and the militia a setup is costed against →
 [constraints.md](./constraints.md). The saved-structure shape, the field map, and the rig-conflict rule
-→ [../settings/custom-structures.md](../settings/custom-structures.md). What the game itself publishes
-about a rig or a structure, read from the SDE build, is not repeated here — this file reads the SPA's
-own copy of it.
+→ [../settings/custom-structures.md](../settings/custom-structures.md). A solar system's own name and
+which band it is in → [../static-data/solar-systems.md](../static-data/solar-systems.md). What the
+game itself publishes about a rig or a structure, read from the SDE build, is not repeated here — this
+file reads the SPA's own copy of it.

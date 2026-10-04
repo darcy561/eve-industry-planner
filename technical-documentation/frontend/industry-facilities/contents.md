@@ -20,6 +20,7 @@ against for a place's or a system's conditional bonus.
   purchasing-stage-panels (not yet promoted)
 - Which faction holds a system in factional warfare, and how that rides in beside a system's cost index
   → [../../backend/worker/system-indexes.md](../../backend/worker/system-indexes.md)
+- A solar system's own name and which security band it is in → [../static-data/solar-systems.md](../static-data/solar-systems.md)
 - Every other install-cost term besides the militia discount → not documented here
 
 ## Task map
@@ -36,3 +37,5 @@ against for a place's or a system's conditional bonus.
 | Change what a picker offers, or why a system is missing from the search | [constraints.md](./constraints.md) § Driving what a picker offers |
 | Change which militia a setup is costed against | [constraints.md](./constraints.md) § The militia a setup is costed against |
 | Change the factional warfare install-cost discount | [constraints.md](./constraints.md) § A factional warfare system lowers install cost in its own NPC stations |
+| Change which rigs are refused as a double bonus | [bonuses.md](./bonuses.md) § A structure may not carry the same bonus twice |
+| Change what choosing a system settles a setup's band to | [bonuses.md](./bonuses.md) § Choosing a system settles the band |

@@ -163,8 +163,10 @@ export function WatchListSetupOptions_WatchlistDialogue({
             <VirtualisedSystemSearch
               selectedValue={settled.systemID}
               jobType={jobSetup.jobType}
-              updateSelectedValue={(value) =>
-                changeSetup((setup) => setup.updateSystemID(Number(value)))
+              updateSelectedValue={(value, band) =>
+                changeSetup((setup) =>
+                  setup.updateSystemID(Number(value), band),
+                )
               }
             />
           </Grid>

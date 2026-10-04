@@ -30,4 +30,9 @@ three corpus tests proving the current calculations against a transcription of w
 
 Reprocessing's own rig and structure reading, and its corpus test, are covered from
 [reprocessing.md](./reprocessing.md), not here. The Custom Structures tab's own form and field-map
-tests are covered from [settings.md](./settings.md).
+tests are covered from [settings.md](./settings.md). A setup's own stored shape — including
+`enlistedFaction` and `militiaUpgradeLevel`, the two fields this project added to it — is not this
+file's to describe; a cross-language fixture keeps the SPA's and the server's field lists in
+agreement for it (`Classes/jobSetup.parity.test.js`,
+`services/shared/models/job_setup_fields_parity_test.go`), covered from the testing topic that owns
+the job setup's shape once it is written.

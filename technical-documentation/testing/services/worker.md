@@ -1,6 +1,6 @@
 # worker — tests
 
-Live SoT for test depth under [`services/worker`](../../../services/worker). Behaviour → [worker.md](../../backend/worker/worker.md), [market-orders.md](../../backend/worker/market-orders.md). Module entrypoints → [contents.md](./contents.md).
+Live SoT for test depth under [`services/worker`](../../../services/worker). Behaviour → [worker.md](../../backend/worker/worker.md), [market-orders.md](../../backend/worker/market-orders.md), [system-indexes.md](../../backend/worker/system-indexes.md). Module entrypoints → [contents.md](./contents.md).
 
 ## Entrypoints
 
@@ -36,7 +36,7 @@ are thin or missing.
 | `tasks/esi` — session grants | JSON/token validation; ESI errors; corp dedupe; Redis storage through `shared/plannersession` |
 | `tasks/esi` — helpers | Retry / ESI verb helpers |
 | `tasks/sde/update` | checkUpdates orchestration (nil task, version error, no-update skip, diff+prune); persist-stage labels; integration workflow (build latest SDE, version files, recipe-list types) |
-| `tasks/sde/update/conversion` | Full conversion vs published reference; reaction blueprint merge; invention modifier rows/exclusions; blueprint published-formula preference |
+| `tasks/sde/update/conversion` | Full conversion vs published reference; reaction blueprint merge; invention modifier rows/exclusions; blueprint published-formula preference; the solar system output — a name and a security band per system, the band rounded from the game's own security status, and only the two ranges a job can run in published; the SPA and the server naming the same three security bands, and every band the server can write being one the SPA's rig security maps are keyed by |
 | `tasks/sde/publish` | S3 publish order (live then archive) |
 | `tasks/archivedjobs` | Build-stat snapshot math, zero-qty error, document ID |
 | `asynq` | Timeout from the task's definition and its clamp; concurrency default and cap (50); the request decoded at the mux and refused terminally when absent, null or malformed; terminal errors translated to the queue's sentinel while ordinary errors still retry; handlers checked against the registry in both directions; what `Enqueue` puts on the queue, against a real Redis |
@@ -44,6 +44,7 @@ are thin or missing.
 | `taskrun` | A run is unreadable outside a task and readable through the mux's context wrapping; final-attempt arithmetic |
 | `tasks/archivedjobs` — terminal paths | Requests that cannot be served are terminal across all three owner tasks, and a servable owner is not |
 | `esi` | Past ESI compatibility-date integration check |
+| `tasks/esi` — militia systems | Which faction holds each system is stored from ESI's own shape; a not-modified pass keeps what is held and does not restamp the dataset; a war holding nothing stores nothing |
 | `tasks/maintenance` — cloud ESI (live Mongo, opt-in) | The maintenance pass itself: a row with no material is skipped and left standing, a row with no character hash does not break the pass, a refused grant removes its row, two consecutive failures remove a row on the second pass, and a recovered row stores new material with its failure count cleared |
 
 ### Thin

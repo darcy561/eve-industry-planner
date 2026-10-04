@@ -138,6 +138,7 @@ export function rigsCompete(rig, otherSlotRigID, jobType) {
   const other = getRigInfoFromID(jobType, otherSlotRigID);
   if (!other || other.id === 0) return false;
   if (rig.groupID && rig.groupID === other.groupID) return true;
+  if (bonusesTheSameThing(rig, other)) return true;
 
   return sharesABonusedAxis(rig, other);
 }
@@ -173,4 +174,38 @@ function sharesABonusedAxis(rig, other) {
 
   const mine = bonusedAxes(rig);
   return [...bonusedAxes(other)].some((axis) => mine.has(axis));
+}
+
+/**
+ * What a rig bonuses, as one key per activity, axis and item family, for the rigs
+ * that name a family. A rig naming none is left out: a reprocessing rig carries
+ * its ore kinds in its group rather than in the bonus.
+ *
+ * @param {Object} rig - The rig
+ * @returns {Set<string>}
+ * @private
+ */
+function bonusedThings(rig) {
+  return new Set(
+    (rig.bonuses ?? [])
+      .filter((bonus) => bonus.familyID != null)
+      .map((bonus) => `${bonus.activity}/${bonus.axis}/${bonus.familyID}`),
+  );
+}
+
+/**
+ * Whether two rigs raise the same figure for the same family, which is the double
+ * bonus a structure may not carry — a tier I and a tier II of one rig, however
+ * they are grouped.
+ *
+ * @param {Object} rig - The rig being fitted
+ * @param {Object} other - The rig in the other slot
+ * @returns {boolean}
+ * @private
+ */
+function bonusesTheSameThing(rig, other) {
+  const mine = bonusedThings(rig);
+  if (mine.size === 0) return false;
+
+  return [...bonusedThings(other)].some((thing) => mine.has(thing));
 }

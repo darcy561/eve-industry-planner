@@ -19,9 +19,10 @@ Where a module lives in the SPA and what it is called — placement and naming o
 
 - **Any behaviour.** A move that changes what the code does is not this project's; it is the project
   that owns that code. Nothing here may alter a rendered screen, a stored document or a wire shape.
-- **Emptying `Classes/`.** Four survivors carry real behaviour and `jobSetup.js` is being edited by
-  [rig-and-structure-attributes](../rig-and-structure-attributes/contents.md). Converting `group.js`
-  is a behaviour project of its own.
+- **Emptying `Classes/`.** Four survivors carry real behaviour, and what `jobSetup.js` holds for the
+  industry facility rules is
+  [../../frontend/industry-facilities/contents.md](../../frontend/industry-facilities/contents.md).
+  Converting `group.js` is a behaviour project of its own.
 - **The areas that were filed correctly** — `Functions/MarketData/`, `Functions/Custom Structures/`,
   `Functions/Endpoints/`, `Zustand/` slice layout, `WebSocket/`, `frontend/src/tests/` and the
   `Planning/Standard Layout/` panel tree. They are the model, not the work.

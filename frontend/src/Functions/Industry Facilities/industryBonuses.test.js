@@ -284,3 +284,65 @@ describe("naming the items a rig helps", () => {
     );
   });
 });
+
+describe("the order a rig field offers its rigs in", () => {
+  const manufacturing = (label, id) => ({
+    id,
+    label,
+    kind: "rig",
+    size: 2,
+    bonuses: [{ activity: "manufacturing", axis: "material", value: 1 }],
+  });
+
+  const catalogue = {
+    families: {},
+    sources: {
+      1: manufacturing("Basic Large Ship Material Efficiency II", 1),
+      2: manufacturing("Advanced Component Time Efficiency I", 2),
+      3: manufacturing("Basic Large Ship Material Efficiency I", 3),
+      4: manufacturing("Advanced Component Time Efficiency II", 4),
+      5: manufacturing("Thukker Component Material Efficiency", 5),
+    },
+  };
+
+  it("puts every tier of one rig together, lowest first", () => {
+    expect(
+      rigsFittingSize(catalogue, "manufacturing", 2).map((rig) => rig.label),
+    ).toEqual([
+      "Advanced Component Time Efficiency I",
+      "Advanced Component Time Efficiency II",
+      "Basic Large Ship Material Efficiency I",
+      "Basic Large Ship Material Efficiency II",
+      "Thukker Component Material Efficiency",
+    ]);
+  });
+
+  it("keeps the tiers of one rig in order", () => {
+    const tiers = {
+      families: {},
+      sources: {
+        1: manufacturing("Ammunition Efficiency V", 1),
+        2: manufacturing("Ammunition Efficiency II", 2),
+        3: manufacturing("Ammunition Efficiency IV", 3),
+        4: manufacturing("Ammunition Efficiency I", 4),
+        5: manufacturing("Ammunition Efficiency III", 5),
+      },
+    };
+
+    expect(
+      rigsFittingSize(tiers, "manufacturing", 2).map((rig) => rig.label),
+    ).toEqual([
+      "Ammunition Efficiency I",
+      "Ammunition Efficiency II",
+      "Ammunition Efficiency III",
+      "Ammunition Efficiency IV",
+      "Ammunition Efficiency V",
+    ]);
+  });
+
+  it("keeps a rig carrying no tier with its own name", () => {
+    const offered = rigsFittingSize(catalogue, "manufacturing", 2);
+
+    expect(offered.at(-1).label).toBe("Thukker Component Material Efficiency");
+  });
+});

@@ -100,7 +100,8 @@ layout, `WebSocket/`, `frontend/src/tests/` and the `Planning/Standard Layout/` 
 correctly. They are what the rest should look like.
 
 `Classes/` keeps existing. Four of its survivors carry real behaviour, `jobSetup.js` and `character.js`
-are being edited by [rig-and-structure-attributes](../rig-and-structure-attributes/contents.md), and
+carry what a setup and a character hold for the industry facility rules in
+[../../frontend/industry-facilities/contents.md](../../frontend/industry-facilities/contents.md), and
 converting `group.js` — 629 lines and 25 importers — is a behaviour project rather than a filing one.
 
 ## Wire compatibility

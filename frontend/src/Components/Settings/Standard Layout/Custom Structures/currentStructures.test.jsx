@@ -46,9 +46,11 @@ vi.mock("../../../../Hooks/EveEsi/useLocationNames", () => ({
   }),
 }));
 
-vi.mock("../../../../Hooks/useSolarSystemNames", () => ({
+vi.mock("../../../../Hooks/useSolarSystems", () => ({
   UNKNOWN_SYSTEM_LABEL: "Unknown system",
-  useSolarSystemNames: () => ({ 30000142: "Jita" }),
+  useSolarSystems: () => ({
+    30000142: { name: "Jita", security: "hiSec" },
+  }),
 }));
 
 vi.mock(

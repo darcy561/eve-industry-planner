@@ -12,8 +12,8 @@ vi.mock("../Functions/Helper/getCachedData", async () => {
   });
 });
 
-const { UNKNOWN_SYSTEM_LABEL, useSolarSystemName, useSolarSystemNames } =
-  await import("./useSolarSystemNames.js");
+const { UNKNOWN_SYSTEM_LABEL, useSolarSystemName, useSolarSystems } =
+  await import("./useSolarSystems.js");
 
 const JITA = 30000142;
 
@@ -28,16 +28,20 @@ function withClient() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getSolarSystems.mockResolvedValue({ [JITA]: "Jita" });
+  getSolarSystems.mockResolvedValue({
+    [JITA]: { name: "Jita", security: "hiSec" },
+  });
 });
 
-describe("useSolarSystemNames", () => {
+describe("useSolarSystems", () => {
   it("reads the whole table in one entry", async () => {
-    const { result } = renderHook(() => useSolarSystemNames(), {
+    const { result } = renderHook(() => useSolarSystems(), {
       wrapper: withClient(),
     });
 
-    await waitFor(() => expect(result.current[JITA]).toBe("Jita"));
+    await waitFor(() =>
+      expect(result.current[JITA]).toEqual({ name: "Jita", security: "hiSec" }),
+    );
     expect(getSolarSystems).toHaveBeenCalledTimes(1);
   });
 
@@ -46,7 +50,7 @@ describe("useSolarSystemNames", () => {
   it("is an empty map before the table arrives", () => {
     getSolarSystems.mockReturnValue(new Promise(() => {}));
 
-    const { result } = renderHook(() => useSolarSystemNames(), {
+    const { result } = renderHook(() => useSolarSystems(), {
       wrapper: withClient(),
     });
 

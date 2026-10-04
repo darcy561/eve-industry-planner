@@ -2,6 +2,7 @@ import GLOBAL_CONFIG from "../global-config-app";
 const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 import {
   getStructureInfoFromID,
+  getSystemTypeFromBand,
   getSystemTypeFromID,
 } from "../Functions/Industry Facilities/getStructureInfo";
 import materialQuantitiesForSetup from "../Functions/Blueprint Calculations/calculateMaterialsForSetup";
@@ -270,13 +271,18 @@ class Setup {
   }
 
   /**
-   * Updates the solar system a setup is built in.
+   * Updates the solar system a setup is built in, bringing its security band
+   * into line with the band that system is in.
    *
    * @param {number} inputValue - New system ID
+   * @param {string} [securityBand] - The band the chosen system is in
    */
-  updateSystemID(inputValue) {
+  updateSystemID(inputValue, securityBand) {
     if (inputValue == null) return;
     this.systemID = inputValue;
+
+    const band = getSystemTypeFromBand(this.jobType, securityBand);
+    if (band) this.systemTypeID = band.id;
   }
 
   /**

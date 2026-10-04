@@ -63,6 +63,7 @@ Type **`Redis`**: one connection, and two layers over it.
 |-----------|-------|----------|-------|
 | `esi:market_prices:` | adjusted prices, ETag, last-updated | 24h | `Cache(DatasetMarketPrices)` |
 | `esi:industry_systems:` | per-system cost indices, ETag, last-updated | 24h | `Cache(DatasetIndustrySystems)` |
+| `esi:militia_systems:` | which faction holds each factional warfare system, ETag, last-updated | 24h | `Cache(DatasetMilitiaSystems)` |
 | `esi:market_orders:<type>:<region>` | best and percentile prices per type | 2h | `MarketOrders()` |
 | `esi:market_orders:region:<id>:` | per-page ETags and cached pages | 24h | `MarketOrders()` |
 | `esi:market_orders:region_refresh_times` | when each region last swept | none | `MarketOrders()` |

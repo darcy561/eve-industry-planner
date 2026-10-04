@@ -17,7 +17,7 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
   });
 });
 
-vi.mock("../../../../../../Hooks/useSolarSystemNames", () => ({
+vi.mock("../../../../../../Hooks/useSolarSystems", () => ({
   useSolarSystemName: () => "Jita",
 }));
 

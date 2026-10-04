@@ -14,7 +14,8 @@ behaviour itself is [frontend/static-data/](../../frontend/static-data/contents.
 | Recipes by id, either form, and when the API is asked instead | [`Functions/Static/recipes.test.js`](../../../frontend/src/Functions/Static/recipes.test.js), [`Functions/Job Build/getItemRecipes.test.js`](../../../frontend/src/Functions/Job%20Build/getItemRecipes.test.js) |
 | When the files are read again: load, a websocket announcement with its spread, and waking | [`Functions/Static/staticDataSync.test.js`](../../../frontend/src/Functions/Static/staticDataSync.test.js) |
 | Acting on an announced build, and ignoring one already held | [`WebSocket/handlers/staticDataMessage.test.js`](../../../frontend/src/WebSocket/handlers/staticDataMessage.test.js) |
-| The parsers that read what a player pasted | [`Functions/Reprocessing/parseOreInput.test.js`](../../../frontend/src/Functions/Reprocessing/parseOreInput.test.js), [`Functions/Reprocessing/toMinerals.test.js`](../../../frontend/src/Functions/Reprocessing/toMinerals.test.js) |
+| The parsers that read what a player pasted | [`Functions/Reprocessing/reprocessingInput.test.js`](../../../frontend/src/Functions/Reprocessing/reprocessingInput.test.js), [`Functions/Reprocessing/reprocessingRuns.test.js`](../../../frontend/src/Functions/Reprocessing/reprocessingRuns.test.js) |
+| Reading the whole solar-systems table in one entry, an empty map before it arrives, and a name falling back for an id the table carries no entry for | [`Hooks/useSolarSystems.test.jsx`](../../../frontend/src/Hooks/useSolarSystems.test.jsx) |
 
 ## Mocking a static file
 

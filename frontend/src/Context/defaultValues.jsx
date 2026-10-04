@@ -481,8 +481,15 @@ export const structureOptions = {
     1: { id: 1, label: "Null Sec / WH", band: "nullSec" },
   },
   reactionStructure: {
-    0: { id: 0, label: "Medium", material: 1, time: 0, cost: 0 },
-    1: { id: 1, label: "Large", material: 1, time: 0.25, cost: 0 },
+    0: { id: 0, label: "Medium", material: 1, time: 0, cost: 0, rigSize: 2 },
+    1: {
+      id: 1,
+      label: "Large",
+      material: 1,
+      time: 0.25,
+      cost: 0,
+      rigSize: 3,
+    },
   },
   reactionRigs: {
     0: { id: 0, label: "None", material: 0, time: 0, relatedTo: [] },
@@ -648,12 +655,30 @@ export const structureOptions = {
   },
   inventionStructure: {
     0: { id: 0, label: "NPC Station", time: 0, cost: 0, npcStation: true },
-    1: { id: 1, label: "Medium - Engineering Complex", time: 0.15, cost: 0.03 },
-    2: { id: 2, label: "Medium - Other", time: 0, cost: 0 },
-    3: { id: 3, label: "Large - Engineering Complex", time: 0.2, cost: 0.04 },
-    4: { id: 4, label: "Large - Other", time: 0, cost: 0 },
-    5: { id: 5, label: "X-Large - Engineering Complex", time: 0.3, cost: 0.05 },
-    6: { id: 6, label: "X-Large - Other", time: 0, cost: 0 },
+    1: {
+      id: 1,
+      label: "Medium - Engineering Complex",
+      time: 0.15,
+      cost: 0.03,
+      rigSize: 2,
+    },
+    2: { id: 2, label: "Medium - Other", time: 0, cost: 0, rigSize: 2 },
+    3: {
+      id: 3,
+      label: "Large - Engineering Complex",
+      time: 0.2,
+      cost: 0.04,
+      rigSize: 3,
+    },
+    4: { id: 4, label: "Large - Other", time: 0, cost: 0, rigSize: 3 },
+    5: {
+      id: 5,
+      label: "X-Large - Engineering Complex",
+      time: 0.3,
+      cost: 0.05,
+      rigSize: 4,
+    },
+    6: { id: 6, label: "X-Large - Other", time: 0, cost: 0, rigSize: 4 },
   },
   inventionRigs: {
     0: { id: 0, label: "None", cost: 0, time: 0 },
@@ -809,6 +834,14 @@ export const ZARZAKH_SYSTEM_ID = 30100000;
 export const zarzakhSecurityBandID = 3;
 
 /**
+ * The null security band, which is the one Zarzakh is in: `mapSolarSystems`
+ * gives it a security status of -1.0.
+ *
+ * @type {number}
+ */
+export const nullSecurityBandID = 2;
+
+/**
  * Where a job may be run, and what that place fixes about the setup that runs
  * there.
  *
@@ -827,7 +860,7 @@ export const placeConstraints = [
     ],
     forces: {
       structureID: 4,
-      systemTypeID: 0,
+      systemTypeID: nullSecurityBandID,
       systemID: ZARZAKH_SYSTEM_ID,
       rigSlot1: 0,
       rigSlot2: 0,

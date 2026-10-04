@@ -16,7 +16,7 @@ import {
   getStructureInfoFromID,
   getSystemTypeFromID,
 } from "../../../../../../Functions/Industry Facilities/getStructureInfo";
-import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystemNames";
+import { useSolarSystemName } from "../../../../../../Hooks/useSolarSystems";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
 import findSystemIndexForJob from "../../../../../../Functions/Helper/findSystemIndexValue";
@@ -29,11 +29,12 @@ import {
 } from "../../../../../../Functions/Custom Structures/customStructureSetup";
 import MissingStructureNotice from "../../../../../../Styled Components/Item/missingStructureNotice";
 
-const UNREADABLE = "Unknown";
 import {
   useJobActions,
   useJobDraft,
 } from "../../../../Edit Job Hooks/useJobDraft";
+
+const UNREADABLE = "Unknown";
 
 export function JobSetupCard({ setupEntry }) {
   const setupToEdit = useJobDraft((job) => job.layout.setupToEdit);

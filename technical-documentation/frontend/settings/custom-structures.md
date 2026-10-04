@@ -32,7 +32,10 @@ class or a new form.
 `2.5` on a structure means 2.5%; a consumer divides by 100 where it costs something.
 [`Functions/Helper/coerceTaxPercentage.js`](../../../frontend/src/Functions/Helper/coerceTaxPercentage.js)
 is the one place that settles a tax figure — a finite number, never below zero — so every kind clamps
-the same way rather than restating the rule.
+the same way rather than restating the rule. At a place that fixes its own tax — an NPC station, The
+Fulcrum — the field is shown but disabled, and the figure it displays comes from the place rather than
+whatever the row last stored; see
+[../industry-facilities/constraints.md](../industry-facilities/constraints.md).
 
 ## One form, driven by the field map
 
@@ -42,14 +45,17 @@ four build kinds; `StructureForm`, which renders a control for each field the se
 
 `structureFields.jsx` is the table `StructureForm` reads: each entry names which fields show it
 (`shows`, tested against the same map `fieldsForKind` returns), its title, its description, and the
-control that renders it — `StructureTypeSelect`, `SystemTypeSelect`, `RigTypeSelect`, `ImplantSelect`,
-`VirtualisedSystemSearch` and `TaxPercentageTextField` are shared components the rest of the app also
-uses. The map that decides what a row stores is the map that decides what the form asks for, so the
-two cannot disagree.
+control that renders it — `StructureTypeSelect`, `SystemTypeSelect`, `VirtualisedRigSearch`,
+`ImplantSelect`, `VirtualisedSystemSearch` and `TaxPercentageTextField` are shared components the rest
+of the app also uses. The map that decides what a row stores is the map that decides what the form asks
+for, so the two cannot disagree.
 
-Choosing a structure type or a system can apply a **requirement** — a preset naming the rest of a
-real structure's fit, such as a system that only permits one structure type — which fills the fields
-the preset names and leaves the rest as they were.
+Every field the form offers is narrowed by the same declared rules a job setup runs through: a
+structure being described as sitting at The Fulcrum or an NPC station offers only what that place
+allows, and a field the place fixes cannot be moved off that value — see
+[../industry-facilities/constraints.md](../industry-facilities/constraints.md) § A place is declared
+once, and read where it matters. The system search refuses a system that does not allow the kind being
+described.
 
 A structure needs a name: the form refuses to save one with nothing typed, or only whitespace, because
 an unnamed row is indistinguishable from any other unnamed row in the pickers that offer it.
@@ -57,32 +63,27 @@ an unnamed row is indistinguishable from any other unnamed row in the pickers th
 ## Rig slots
 
 A structure carries **two independent rig slots** rather than one combined rig, on every kind that
-carries rigs. `Functions/Custom Structures/rigs.js` owns what a rig is:
+carries rigs. What one rig gives, how two fitted rigs combine per axis, and which families a rig helps
+are [../industry-facilities/bonuses.md](../industry-facilities/bonuses.md); this form reads that
+through the same shared pieces every other rig-slot editor does:
 
-- `getRigInfoFromID(jobType, id)` reads one rig out of its kind's table.
-- `rigSlotBonuses(jobType, rigSlot1, rigSlot2)` takes, **independently per axis** (material, time,
-  cost, value), the better of whatever the two slots give — a rig that cuts build time must not also
-  have to beat the material bonus of the rig beside it. Only a rig flagged `appliesToAll` is counted;
-  a rig naming a specific item family is skipped, because answering for one needs to know what is
-  being built and this helper does not.
-- `rigSlotLabel(jobType, rigSlot1, rigSlot2)` names both fitted rigs, the one that is fitted, or
-  "None" when neither is — an empty slot is left unsaid rather than printed beside a rig.
-- `rigsCompete(rig, otherSlotRigID)` says whether a rig conflicts with whatever the other slot holds:
-  the same rig, or one named in the other's `relatedTo`.
-
-[`Hooks/useRigSlots.js`](../../../frontend/src/Hooks/useRigSlots.js) is the one place the
-rig-conflict rule is applied: choosing a rig that competes with the other slot clears the slot being
-set and marks it with "Cannot have the same rig or related rigs in both slots", rather than silently
-keeping the old value. Every editor offering two rig slots — this form, the Reprocessing page's
-structure panel, and the dashboard watchlist's structure options — takes the hook's `slot1` / `slot2`
-props rather than carrying its own copy of the rule.
+- Every rig field here is `VirtualisedRigSearch`, offering the rigs that fit the chosen structure's
+  size, each option saying which families it helps.
+- [`Hooks/useRigSlots.js`](../../../frontend/src/Hooks/useRigSlots.js) is the one place the
+  rig-conflict rule is applied: choosing a rig that competes with the other slot clears the slot being
+  set and marks it with "Cannot have the same rig or related rigs in both slots", rather than silently
+  keeping the old value. Every editor offering two rig slots — this form, the Reprocessing page's
+  structure panel, the dashboard watchlist's structure options, and the Edit Job setup editor — takes
+  the hook's `slot1` / `slot2` props rather than carrying its own copy of the rule.
 
 ## What a job setup takes from a saved structure
 
 [`Functions/Custom Structures/customStructureSetup.js`](../../../frontend/src/Functions/Custom%20Structures/customStructureSetup.js)
 is the one mapping between a saved structure and what a job setup stores about it:
 `setupFieldsFromCustomStructure` reads a structure's rig slots, system, structure type and tax into
-the fields a setup carries, guarding a kind that carries no rig slots to `0` rather than `undefined`.
+the fields a setup carries, guarding a kind that carries no rig slots to `0` rather than `undefined`;
+`customStructureFieldsFromSetup` reads the other way, which is how this form applies what a place fixes
+back onto the structure being described.
 
 Whether a setup's saved structure is still there is one predicate,
 `setupHasOrphanedCustomStructure` — a setup naming no structure at all is never an orphan, only one
@@ -112,20 +113,22 @@ defaults of kinds the reader never asked about.
 |------|-------|
 | `Functions/Custom Structures/customStructure.js` | `fieldsForKind`, `structureFromDocument`, `updateStructure`, `structureToDocument` |
 | `Functions/Custom Structures/customStructuresFromServer.js` | Reading a settings document's structures, from either stored shape |
-| `Functions/Custom Structures/rigs.js` | `getRigInfoFromID`, `rigSlotBonuses`, `rigSlotLabel`, `rigsCompete` |
-| `Functions/Custom Structures/getStructureInfo.js` | Structure type, system security and implant lookups |
-| `Functions/Custom Structures/customStructureSetup.js` | `setupFieldsFromCustomStructure`, `setupHasOrphanedCustomStructure`, `setupShowsManualStructureFields`, `clearOrphanedCustomStructureOnSetups` |
+| `Functions/Custom Structures/customStructureSetup.js` | `setupFieldsFromCustomStructure`, `customStructureFieldsFromSetup`, `setupHasOrphanedCustomStructure`, `setupShowsManualStructureFields`, `clearOrphanedCustomStructureOnSetups` |
 | `Functions/Custom Structures/addCustomStructure.js` | Saving a new structure: the system index it needs, and the one save-succeeded announcement |
 | `Functions/Helper/coerceTaxPercentage.js` | The tax percentage rule |
 | `Hooks/useRigSlots.js` | The rig-conflict rule, shared by every editor offering two rig slots |
 | `Zustand/applicationSettings/structures.js` | `getCustomStructureWithID`, `getDefaultCustomStructureWithJobType`, `addCustomStructure`, `setDefaultCustomStructure`, `deleteCustomStructure` |
 | `Components/Settings/Standard Layout/Custom Structures/CustomStructuresForm.jsx` | The tab: kind picker, form, saved list |
 | `.../structureKindSelection.jsx` | The four build kinds a reader can save here |
-| `.../structureForm.jsx` | The form, driven by the field map |
+| `.../structureForm.jsx` | The form, driven by the field map and the declared place rules |
 | `.../structureFields.jsx` | The table naming each field, its control, and when it shows |
 | `.../currentStructures.jsx` | What is already saved, filtered to the selected kind |
 
 ## Topic-only detail
 
-The stored shape, the decode-time fold and the accessors that read it without knowing a row's kind →
+What a rig or a structure gives, and the rig field's shared autocomplete →
+[../industry-facilities/bonuses.md](../industry-facilities/bonuses.md). Where a place may be used and
+what it fixes about a structure or a setup built there →
+[../industry-facilities/constraints.md](../industry-facilities/constraints.md). The stored shape, the
+decode-time fold and the accessors that read it without knowing a row's kind →
 [backend/shared/custom-structures.md](../../backend/shared/custom-structures.md).

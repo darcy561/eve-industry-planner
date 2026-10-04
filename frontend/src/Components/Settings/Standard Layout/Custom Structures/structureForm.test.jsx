@@ -6,6 +6,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import StructureForm from "./structureForm";
 import { jobTypes } from "../../../../Context/defaultValues";
 import { testQueryClient } from "../../../../tests/queryClients.js";
+import { stubElementHeights } from "../../../../tests/elementHeights.js";
 
 const addCustomStructure = vi.fn();
 const addCustomStructureFunction = vi.fn();
@@ -15,6 +16,17 @@ vi.mock("../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =
     await import("../../../../tests/usersStoreHarness.js");
   return usersStoreMock({});
+});
+
+vi.mock("../../../../Functions/Helper/getCachedData", async () => {
+  const { cachedDataMock } =
+    await import("../../../../tests/cachedDataMock.js");
+  return cachedDataMock({
+    getSolarSystems: async () => ({
+      30000142: { name: "Jita", security: "hiSec" },
+      30002053: { name: "Tama", security: "lowSec" },
+    }),
+  });
 });
 
 vi.mock("../../../../Functions/Custom Structures/addCustomStructure", () => ({
@@ -314,5 +326,37 @@ describe("who tells the reader a structure was saved", () => {
 
     expect(addCustomStructureFunction).toHaveBeenCalledTimes(1);
     expect(showSnackbarSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("choosing a system for a structure", () => {
+  function systemSearch() {
+    return screen
+      .getAllByRole("combobox")
+      .find((box) => box.id === "System Search");
+  }
+
+  function securityPicker() {
+    return screen
+      .getAllByRole("combobox")
+      .find((box) => box.id?.startsWith("system-type-select"));
+  }
+
+  it("moves the structure onto the band the chosen system is in", async () => {
+    const restore = stubElementHeights();
+    try {
+      renderForm();
+      const user = userEvent.setup();
+
+      await vi.waitFor(() => expect(systemSearch()).toBeDefined());
+      await user.type(systemSearch(), "Tama");
+      await user.click(await screen.findByText("Tama"));
+
+      await vi.waitFor(() =>
+        expect(securityPicker()).toHaveTextContent("Low Sec"),
+      );
+    } finally {
+      restore();
+    }
   });
 });

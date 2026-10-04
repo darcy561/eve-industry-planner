@@ -29,9 +29,9 @@ beforeEach(() => {
   restoreHeights = stubElementHeights();
   vi.clearAllMocks();
   getSolarSystems.mockResolvedValue({
-    [JITA]: "Jita",
-    [AMARR]: "Amarr",
-    [RESTRICTED]: "Restricted System",
+    [JITA]: { name: "Jita", security: "hiSec" },
+    [AMARR]: { name: "Amarr", security: "hiSec" },
+    [RESTRICTED]: { name: "Restricted System", security: "nullSec" },
   });
 });
 afterEach(() => restoreHeights?.());
@@ -61,7 +61,7 @@ describe("picking a solar system", () => {
     expect(await screen.findByText("Jita")).toBeTruthy();
   });
 
-  it("hands back the system that was chosen", async () => {
+  it("hands back the system that was chosen, and the band it is in", async () => {
     const user = userEvent.setup();
     const updateSelectedValue = renderSearch();
     await screen.findByRole("combobox");
@@ -69,7 +69,18 @@ describe("picking a solar system", () => {
     await user.type(screen.getByRole("combobox"), "Amarr");
     await user.click(await screen.findByText("Amarr"));
 
-    expect(updateSelectedValue).toHaveBeenCalledWith(AMARR);
+    expect(updateSelectedValue).toHaveBeenCalledWith(AMARR, "hiSec");
+  });
+
+  it("hands back a null security system's own band", async () => {
+    const user = userEvent.setup();
+    const updateSelectedValue = renderSearch({ jobType: null });
+    await screen.findByRole("combobox");
+
+    await user.type(screen.getByRole("combobox"), "Restricted");
+    await user.click(await screen.findByText("Restricted System"));
+
+    expect(updateSelectedValue).toHaveBeenCalledWith(RESTRICTED, "nullSec");
   });
 
   // A system the app restricts to particular job types is offered only for those.

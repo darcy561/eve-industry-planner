@@ -7,15 +7,17 @@ const EMPTY_SYSTEMS = {};
 export const UNKNOWN_SYSTEM_LABEL = "Unknown System";
 
 /**
- * Every solar system name, keyed by system id.
+ * Every solar system the game has, keyed by id, each carrying its name and the
+ * security band it is in.
  *
- * One entry for the whole table rather than one per system: a system name never
- * changes and the set is complete, so a caller reads the map and indexes it. The
- * per-id name cache is for places whose names have to be asked for.
+ * One entry for the whole table rather than one per system: a system's name and
+ * band never change and the set is complete, so a caller reads the map and
+ * indexes it. The per-id name cache is for places whose names have to be asked
+ * for.
  *
- * @returns {Record<number, string>}
+ * @returns {Record<number, {name: string, security: string}>}
  */
-export function useSolarSystemNames() {
+export function useSolarSystems() {
   const { data } = useCachedData(CACHED_DATA_FILES.SOLAR_SYSTEMS);
   return data ?? EMPTY_SYSTEMS;
 }
@@ -30,7 +32,7 @@ export function useSolarSystemNames() {
  * @returns {string}
  */
 export function useSolarSystemName(systemID) {
-  const systems = useSolarSystemNames();
+  const systems = useSolarSystems();
   if (!systemID) return UNKNOWN_SYSTEM_LABEL;
-  return systems[systemID] ?? UNKNOWN_SYSTEM_LABEL;
+  return systems[systemID]?.name ?? UNKNOWN_SYSTEM_LABEL;
 }

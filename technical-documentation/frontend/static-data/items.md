@@ -33,7 +33,7 @@ Both live in one React Query entry each — `["static", "FULL_ITEM_LIST"]` and
 the app is open and the whole set arrives in a single download, so there is nothing for a per-id
 entry to fetch: it would slice an object already in memory. The per-id cache next door in
 [location-names.md](../esi-collections/location-names.md) exists because each name there is its own
-network lookup; this is the same shape [`useSolarSystemNames`](../../../frontend/src/Hooks/useSolarSystemNames.js)
+network lookup; this is the same shape [`useSolarSystems`](../../../frontend/src/Hooks/useSolarSystems.js)
 already uses for the solar system table.
 
 What a consumer takes is narrowed rather than the whole map: `useItemNames(ids)` gives the names for

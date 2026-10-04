@@ -14,6 +14,8 @@ reader tries yields under, and reprocessing's own rig and structure bonus calcul
 - Market/tax figures shown alongside reprocessing output → [../pricing/contents.md](../pricing/contents.md)
 - A custom structure's stored shape, its field map, and the rig-conflict rule →
   [../settings/custom-structures.md](../settings/custom-structures.md)
+- What a rig or a structure gives, the published bonus catalogue, and the shared rig field →
+  [../industry-facilities/bonuses.md](../industry-facilities/bonuses.md)
 
 ## Task map
 

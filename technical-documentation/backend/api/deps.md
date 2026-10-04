@@ -36,7 +36,7 @@ Handlers are methods: no Mongo/Redis/`deps` parameters on the HTTP function sign
 | Surface | Wiring |
 |---------|--------|
 | `/api/static-data/…` | Package `staticdata` (SDE cache / object store) |
-| `/healthy` `/health` `/ready` | Orchestration probes in `app.go` (ready: SDE warm + Mongo Ping) |
+| `/healthy` `/health` `/ready` | Orchestration probes in `app.go` (ready: the SDE cache holds what the published build carries, plus Mongo Ping) |
 
 ## Topic-only detail
 

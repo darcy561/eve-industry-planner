@@ -13,7 +13,8 @@ is read through.
 | `REPROCESSING_DATA` | [`Functions/Static/reprocessing.js`](../../../frontend/src/Functions/Static/reprocessing.js) | [reprocessing.md](./reprocessing.md) |
 | `RECIPE_LIST` | [`Functions/Static/recipes.js`](../../../frontend/src/Functions/Static/recipes.js) | [recipes.md](./recipes.md) |
 | `MARKET_GROUPS` | [`Functions/MarketData/defaults/marketGroupData.js`](../../../frontend/src/Functions/MarketData/defaults/marketGroupData.js) | not yet written |
-| `SOLAR_SYSTEMS` | [`Hooks/useSolarSystemNames.js`](../../../frontend/src/Hooks/useSolarSystemNames.js) | not yet written |
+| `SOLAR_SYSTEMS` | [`Hooks/useSolarSystems.js`](../../../frontend/src/Hooks/useSolarSystems.js) | [solar-systems.md](./solar-systems.md) |
+| `INDUSTRY_BONUSES` | [`Functions/Static/industryBonuses.js`](../../../frontend/src/Functions/Static/industryBonuses.js), [`Hooks/Static/useIndustryBonuses.js`](../../../frontend/src/Hooks/Static/useIndustryBonuses.js) | [../industry-facilities/bonuses.md](../industry-facilities/bonuses.md) § The published bonus catalogue |
 
 Nothing outside an owner reaches for a static file or builds its query key.
 
@@ -23,6 +24,7 @@ Nothing outside an owner reaches for a static file or builds its query key.
 - What the pricing ladder does with an item's market group → [../pricing/contents.md](../pricing/contents.md)
 - What the reprocessing page does with the yields → [../reprocessing/contents.md](../reprocessing/contents.md)
 - Turning a location or container id into a name → [../esi-collections/location-names.md](../esi-collections/location-names.md)
+- What a rig or a structure gives from the industry bonus catalogue → [../industry-facilities/bonuses.md](../industry-facilities/bonuses.md)
 
 ## Task map
 
@@ -42,3 +44,6 @@ Nothing outside an owner reaches for a static file or builds its query key.
 | Know which items ore selection may choose from | [reprocessing.md](./reprocessing.md) § What selection may choose |
 | Read how an item is made, or change when the API is asked instead | [recipes.md](./recipes.md) |
 | Seed item names in a test | [items.md](./items.md) § Seeding one in a test |
+| Read what the game publishes about a rig or a structure's industry bonus | [../industry-facilities/bonuses.md](../industry-facilities/bonuses.md) § The published bonus catalogue |
+| Read a solar system's name or the security band it is in | [solar-systems.md](./solar-systems.md) |
+| Know which system ranges the picker can offer at all | [solar-systems.md](./solar-systems.md) § What the file holds |

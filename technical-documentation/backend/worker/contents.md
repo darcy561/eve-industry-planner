@@ -2,7 +2,7 @@
 
 ## Owns (SoT)
 
-Application behaviour for [`services/worker`](../../../services/worker/): how a published task reaches a handler, what a handler is given, the start and stop sequence, the Asynq concurrency envelope and replica/capacity defaults. Also the archived-job statistics pipeline the worker owns end to end, and market order pricing — walking a region, deriving a station's prices from it, and tracking which markets are wanted.
+Application behaviour for [`services/worker`](../../../services/worker/): how a published task reaches a handler, what a handler is given, the start and stop sequence, the Asynq concurrency envelope and replica/capacity defaults. Also the archived-job statistics pipeline the worker owns end to end, market order pricing — walking a region, deriving a station's prices from it, and tracking which markets are wanted — and keeping a solar system's industry cost indices and factional warfare ownership current.
 
 ## Does not own
 
@@ -10,6 +10,7 @@ Application behaviour for [`services/worker`](../../../services/worker/): how a 
 - Secrets / sync apply → [stack/secrets.md](../../stack/secrets.md), [stack/config.md](../../stack/config.md)
 - The endpoint that reads a derived price → [api/market-prices.md](../api/market-prices.md)
 - The object-store bucket a region's pages are written to → [shared/objectstore.md](../shared/objectstore.md)
+- What the SPA does with a system's cost index or its factional warfare flag → [frontend/industry-facilities/constraints.md](../../frontend/industry-facilities/constraints.md)
 
 ## Task map
 
@@ -24,3 +25,5 @@ Application behaviour for [`services/worker`](../../../services/worker/): how a 
 | Know what a clean stop does | [worker.md](./worker.md) § Starting and stopping |
 | Change the region walk, the per-station derivation, or how a market is tracked | [market-orders.md](./market-orders.md) |
 | Know how long a market stays tracked, or a region's pages are kept | [market-orders.md](./market-orders.md) § A market is tracked because an account saved it |
+| Change how a system's industry cost indices or its factional warfare ownership are refreshed | [system-indexes.md](./system-indexes.md) |
+| Find where the two datasets are merged for a reader | [system-indexes.md](./system-indexes.md) § The two datasets are merged where they are read |

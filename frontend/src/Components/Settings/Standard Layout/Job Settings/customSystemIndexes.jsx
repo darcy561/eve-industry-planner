@@ -24,8 +24,8 @@ const { DEFAULT_SYSTEM } = GLOBAL_CONFIG;
 import useUsersStore from "../../../../Zustand/usersStore";
 import {
   UNKNOWN_SYSTEM_LABEL,
-  useSolarSystemNames,
-} from "../../../../Hooks/useSolarSystemNames";
+  useSolarSystems,
+} from "../../../../Hooks/useSolarSystems";
 import CloseIcon from "@mui/icons-material/Close";
 import ExplainerTooltip from "../../../../Styled Components/Tooltip/ExplainerTooltip";
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
@@ -41,7 +41,7 @@ export default function CustomSystemIndexes() {
   );
   const { updatePredefinedSystemIndexes, deletePredefinedSystemIndexType } =
     useUsersStore.getState().applicationSettings.actions;
-  const systemNames = useSolarSystemNames();
+  const systemNames = useSolarSystems();
 
   const handleSystemChange = (systemID) => {
     setSelectedSystem(systemID);
@@ -241,7 +241,7 @@ export default function CustomSystemIndexes() {
             {Object.entries(predefinedSystemIndexes).map(
               ([systemID, indexData]) => {
                 const systemName =
-                  systemNames[Number(systemID)] ?? UNKNOWN_SYSTEM_LABEL;
+                  systemNames[Number(systemID)]?.name ?? UNKNOWN_SYSTEM_LABEL;
                 return (
                   <Box
                     key={systemID}
