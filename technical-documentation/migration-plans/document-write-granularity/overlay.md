@@ -1031,6 +1031,15 @@ declined, the ESI links removed and saved on landing, a refused merge restoring 
 merge again re-reading, and a signed-out merge staying local; the panel in both modes; and the template
 saving before it merges.
 
+### A change that removes jobs, followed through delivery
+
+`live_full_loop_test.go` follows a change carrying a write and a removal through the real endpoint, a
+real change stream and the stack's websocket service, in an account's, a corporation's and an
+alliance's planner: the other tabs are sent the update and the delete, and the tab that made the
+change is sent neither. The removal's `_meta` stamp carries the session and client so the delete is
+not echoed back; with neither stamped, the case fails. `testing/wsclient` matches a delete frame with
+`DocumentDeleteFor` beside `DocumentUpdateFor`.
+
 ### Multi-delete is one change
 
 `deleteMultipleJobs` works as a merge does: it sends the reader's queue, reads the selection and every
@@ -1146,6 +1155,46 @@ a merge and a delete all use.
 Restore checked a grouped job only against its group's lock, on the reasoning that the group stood for
 its archived members. Under the per-job lock it does not: every restored job is now checked against its
 own lock as well, after the groups the restore writes.
+
+### What the recheck of Stage F changed
+
+**A change is written in bulk.** `WriteJobChange` makes its writes as one ordered bulk write and its
+removals through `deleteManyAfterStampingMeta` with a filter naming each job at its revision, inside
+the transaction; the archive's copies are one bulk upsert. A count short of what was asked aborts, and
+`staleInChange` names what moved after the abort. A refusal that finds nothing moved is an error rather
+than a landed change, and a batch naming one job twice is refused before it is planned.
+`WriteJobChange` answers its writes and removals as separate counts.
+
+**One lock gate.** `documentlock.FirstHeldElsewhere` checks sets of documents in order and answers
+the first collection holding one another session has open; `helper.GateDocumentLocks` and restore's
+gate both call it. Ids come from `models.JobIDsOf` and `models.GroupIDsOf`.
+
+**ESI rows by one table.** Restore's kinds of ESI row — where they sit, which account key holds them,
+how a job's ids are read and a row dropped — are one table, and the holder lookup resolves each kind's
+path once and queries ids in batches of 500.
+
+**On the SPA:**
+
+- `readJobsIntoPlanner` reads jobs by id onto the planner, dropping those the server no longer holds
+  when asked; the read before a change, putting jobs back after a refusal and releasing a removed
+  group's jobs all use it. The three job-document fetchers nothing called are gone.
+- `saveLinkedEsiChange` applies any change to the account's linked ESI records and warns when the
+  account could not be saved; releasing a removed job's links and a close's links both use it, so a
+  close no longer drops that failure silently. `lockNotHeldMessage` is the one wording for an edit made
+  without the lock, for a job and a group.
+- `saveJobsAsOneChange` no longer writes the planner before sending; it counts the revision on the
+  jobs it was handed once the change lands, and the caller puts them on the planner once.
+- A refused change answers its outcome beside what moved, so a refusal naming no job still says why; a
+  merge refused by another member always shows the merge panel. The read before a change stops when
+  the reader's own queued saves failed.
+- The merge panel's confirmation is settled in `mergeJobsEvents`, a replaced or abandoned question
+  answering no, so the dialogue holds no effect of its own. The archive button cannot be pressed again
+  while an archive is in flight. Archive refusals warn at the severity merge and delete use.
+- Working copies of groups go through `workingGroups` in merge and in recording archived jobs, and the
+  value-at-path setters live in `Helper/documentValues.js` beside the reader.
+
+**Left as found, for a decision elsewhere:** `setups.js` carries a multi-blueprint run split that no
+production path calls and that `frontend/esi-collections/blueprints.md` still describes.
 
 ## Where this work lives
 

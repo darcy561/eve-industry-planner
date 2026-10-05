@@ -286,6 +286,11 @@ restored snapshot rather than by reading the index spec list.
 
 The fields come off, `outputTypeIDs` arrives, `areComplete` moves to the job, the schema steps once,
 and `PUT` narrows to authored fields. The SPA's `Group` class and the persist queue shrink to match.
+Once membership is read from `job.groupID`, a close's group write no longer decides who is in the
+group, so the Edit Job page stops taking the group's lock and the group page takes it only while the
+group's own name or ordering is being edited — two members can then work in one group at once. Handed
+over from [document-write-granularity](../document-write-granularity/plan.md) § Stage F, by decision.
+
 
 ### Stage C — Creation is one request
 
