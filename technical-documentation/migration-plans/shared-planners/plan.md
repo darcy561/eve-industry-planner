@@ -2566,6 +2566,81 @@ whatever the prices and indexes were when it was written, and it never refreshed
 traded a stale number for a live one, and closing the fetch gap is what stops it trading it for a
 missing one.
 
+### Stage K — The lock between two people
+
+Stage H made two members contend for one lock. It deliberately carried the lock's behaviour over
+unchanged — waitlist, hand-off probe, viewer presence, solo versus contested lease — and that behaviour
+was built for one person's tabs. Between two people it takes work away without asking, strands a job
+when a tab dies, and talks as though the other party were the reader's own tab. The session id it used
+to broadcast is fixed already: [auth-hardening](../auth-hardening/plan.md) § Stage H.
+
+**What it does today that two people should not get:**
+
+- **A waiter takes the lock without the holder agreeing.** A request drops the holder to a five-minute
+  contested lease; after three extends the hand-off probe names the waiter, whose tab claims the lock
+  automatically (`atomic.go` claim-handoff, `useLockWsListener`). The holder is never asked, cannot
+  decline, sees no deadline, and the waiter is never told a probe happened.
+- **Alt-tabbing loses the job.** The SPA extends only while the tab is visible, on the same five
+  minutes the lease runs, so a holder who looks at the game client for five minutes while someone waits
+  is promoted out on expiry.
+- **A dead tab holds a job for up to a day.** Nothing releases on `pagehide` or websocket disconnect;
+  an uncontested lease is 24 hours, and `cycle_reset` returns to it ignoring viewers. It shortens only
+  when someone opens the job, which the UI never says. Viewer presence is posted once and silently
+  lapses after five minutes.
+- **Force-release clears everyone's place in line.** Taking a lock back from one's own stale tab also
+  deletes the whole waitlist (`atomic.go`), other members' requests included.
+- **Release does not promote.** `/release` deletes the key and every viewer races to acquire.
+- **Switching planner with a job open** sends the release and extend to the planner switched to — lock
+  scopes are not keyed by planner and calls read the planner from the current header — orphaning the
+  old lock on a 24-hour lease. A write refused by another member's lock then blocks the switch with no
+  way out. Read from the code; not tested.
+- **The words assume one person.** "Another tab requested edit access", "the other tab on this
+  account"; `heldByThisAccount` could tell the reader's own tab from another member without naming
+  anyone, but only the "Clear lock (same account)" control reads it — the control that takes a lock
+  back from the reader's own crashed tab.
+- **Fan-out grows with members.** Every lock event, viewer joins included, makes every member's planner
+  and group pages fetch lock state once, and nothing resyncs on a timer.
+
+**The rework:**
+
+- **Ask the holder.** A probe offers the hand-over to the holder, who can accept or decline, with a
+  visible deadline on both sides; it hands over unasked only when the holder is idle or gone.
+- **Liveness from editing and the connection, not the tab's focus.** An edit renews the 15-minute
+  lease whatever the tab's visibility; the websocket service releases a lease five minutes after its
+  holder's connection drops, and a `pagehide` beacon releases on the way out. Viewer presence is refreshed on the heartbeat and counted when a lease
+  resets.
+- **Force-release removes only the account's own dead session**: the caller takes the lock at once, as
+  today, but other members' requests stay in the queue in order, and the lease starts contested when
+  anyone is still waiting. **Release promotes the live waitlist head.**
+- **An expired lock keeps the editor's changes.** When a holder's lease runs out, the job opens for
+  anyone and the editor keeps their unsaved changes in the open editor as the held layer of the draft
+  store, marked as not saved; taking the lock back rebases them through the change-review panel against
+  whatever was saved meanwhile, as a refused save does.
+- **Leaving a planner releases its locks first**: every held scope is yielded against the planner being
+  left before the header changes, and scopes are keyed by planner.
+- **Words for two people**, naming no member: "another member is editing this job" against "your other
+  tab", chosen by `heldByThisAccount`, which the edit page and the planner both carry.
+- **Fewer fetches**: lock events filtered to loaded ids and to changes of holder, and a periodic batch
+  resync.
+
+**Decided:**
+
+1. **A hand-over request is answered within two minutes.** The holder sees the request with a two-minute
+   countdown and can accept or decline; unanswered, it goes through.
+2. **A lock outlives its holder's connection by five minutes**, then is released and passes to the
+   head of the waitlist.
+3. **A lease lasts at most one hour while someone is waiting**, and being connected does not extend it,
+   so no member can lock another out of a job by keeping a tab open. Declining a hand-over does not
+   count against the hour.
+4. **A job's lease is 15 minutes, renewed by editing**, replacing the 24-hour solo lease. When it runs
+   out the job opens for anyone and the editor's unsaved changes stay in the open editor only; they are
+   not written to browser storage, so a reload or a closed tab discards them.
+5. **Force-release keeps other members' place in the queue**, and still hands the lock straight to the
+   caller's new tab.
+
+**Tests owed**: no two-member test exists for request, hand-over, the probe's claim, expiry promotion,
+a holder's tab dying, or switching planner with a job open.
+
 ## Live data, and the cutover window
 
 `Public` is deployed with real data, and the next deployment takes the stack down. Every data change
@@ -2755,6 +2830,7 @@ do not touch.
 | H — the document lock stops being account-shaped | **Landed** (H1, H2, H3, H4). H1 put the waiting session's account on its waitlist entry, so a promotion can name the holder. H2 moved the key namespace onto the owner — lock key, waitlist, pulse and viewer set — with the acting account threaded separately to the four scripts that write or compare it, and the owner resolved from the request's planner rather than the JWT. H3 moved the fan-out to `doc.lock.{ownerKey}` and widened the consumer filters to every owner kind, which retired the corp/alliance selectivity note they carried. A personal planner's keys are byte-identical throughout, `account:{id}` being its owner key. H4 moved the socket paths off the connection's last-known planner: every lock frame names its own, refused against the session's ceiling, as the HTTP paths already did — see § Stage H |
 | I — where the grants ceiling is read from | **Not started, and no longer blocked.** A decision rather than a build: the ceiling is a stored snapshot read once at connect. Both things it waited on have resolved — Stage E built the revocation path, which applies a revocation *to* that snapshot, and Stage F's owed item turns out not to bear on it. Raised from [auth-hardening](../auth-hardening/plan.md) § Stage E — see § Stage I |
 | J — the SPA stops assuming it is the only writer | **Landed.** The client work in this project was a dropdown to prove the backend, which is what it was for; converting the planner into something two people can work in was never planned. An audit found four groups, and the four decisions that gated them are taken: no member is named on screen, a remote change is applied where it is only read and surfaced where it is being edited, roles come later as designed, and stale-snapshot writing goes to document-write-granularity. All four of its defects are fixed: the group delete that made every member write, the editor that was never told its job was deleted — where a save recreated what somebody else removed — the force-release control, which offered a blocked member a button the server would always refuse and reported a colleague's lock as no lock at all, and the skills fallback that mis-costed another member's job. The last of those took the stored estimates with it: a figure whose value depends on the reader is worked out where it is shown rather than written into the document, which is both estimates on a setup, and the two screens that open a chain now fetch the whole of it rather than one link. See § Stage J |
+| K — the lock between two people | **Not started.** Ask the holder before handing over; liveness from the connection; a dead tab releases; force-release keeps others' requests; leaving a planner releases its locks; words for two people. Hand-over answered in 2 min; released 5 min after the connection drops; 15-minute lease renewed by editing, one hour at most while someone waits; an expired lease keeps the editor's changes — § Stage K |
 
 ## Recommended pickup order
 
