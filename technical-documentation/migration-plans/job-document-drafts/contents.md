@@ -111,3 +111,4 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | See what has been decided | [plan.md](./plan.md) § Settled |
 | See what is still undecided | [plan.md](./plan.md) § Open questions |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

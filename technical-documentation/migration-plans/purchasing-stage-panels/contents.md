@@ -82,3 +82,4 @@ The Edit Job **Purchasing** stage: what it asks, what it answers, and the shape 
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
 | See the stages and their order | [plan.md](./plan.md) § Stages |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

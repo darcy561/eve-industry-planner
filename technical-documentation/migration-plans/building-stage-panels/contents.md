@@ -79,3 +79,4 @@ corrected and cites this one; the two must not be read as disagreeing.
 | See the visual design the stages build to | [plan.md](./plan.md) § Design reference |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

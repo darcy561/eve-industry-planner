@@ -46,3 +46,4 @@ Where the live Mongo test suite writes, and where it runs.
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
 | Read the live prose this project will promote | [promote/testing/harness-live-mongo.md](./promote/testing/harness-live-mongo.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

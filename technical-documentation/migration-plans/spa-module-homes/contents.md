@@ -37,3 +37,4 @@ Where a module lives in the SPA and what it is called — placement and naming o
 | Know which moves are cheap and which are a bet | [plan.md](./plan.md) § The moves, by what they cost |
 | Know what must not move | [plan.md](./plan.md) § What stays where it is |
 | Landed behaviour notes (fill as work lands) | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

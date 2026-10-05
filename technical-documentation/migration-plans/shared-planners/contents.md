@@ -58,6 +58,7 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | See what other projects must change before they close | [plan.md](./plan.md) § What the other projects owe |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | Understand why the websocket cursor and document load do not survive a second writer | [plan.md](./plan.md) § Stage G |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |
 | Find what the retired websocket-realtime project left behind | [plan.md](./plan.md) § Stage G — Absorbed from the retired websocket-realtime project |
 | Understand why two members take two different locks on one job | [plan.md](./plan.md) § Stage H |
 | Know what happens to same-account force-release once the lock is planner-wide | [plan.md](./plan.md) § Stage H |

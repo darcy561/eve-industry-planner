@@ -59,3 +59,4 @@ it — and the investigation that has to happen before each piece can be scoped.
 | Find the auth invariants that no live document states yet | [overlay.md](./overlay.md) § Session window invariants |
 | Find the corrected picture of what auth tests cover | [overlay.md](./overlay.md) § Auth test coverage |
 | Promote this project and fix what pointed at the retired roadmap | [plan.md](./plan.md) § Promote |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

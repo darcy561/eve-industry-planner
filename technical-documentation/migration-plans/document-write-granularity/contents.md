@@ -48,6 +48,7 @@ as the fields that changed.
 | Understand why a conditional write is not batched | [plan.md](./plan.md) § Stage A |
 | Know which stage to pick up and what blocks the others | [plan.md](./plan.md) § Recommended pickup order |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |
 | Understand why whole-document writes are a problem | [plan.md](./plan.md) § Goal, § Starting position |
 | See what this project waits on, and what it no longer waits on | [plan.md](./plan.md) § What this project inherits |
 | See the options a conflicting write could have been answered with | [plan.md](./plan.md) § What a conflicting write is answered with |

@@ -12,6 +12,7 @@ Decision/history/work logs for long-running migrations. **Not SoT.**
 
 | I need to… | Read |
 |------------|------|
+| See where every open project really is against the code, what the shared release still owes, and which decisions unblock the most work | [open-projects-review.md](./open-projects-review.md) |
 | Entity id encryption (entity refs, refresh-token encryption at rest) | [entity-id-encryption/contents.md](./entity-id-encryption/contents.md) |
 | Swarm stack migration (**promoted** — kept only because changestream-tenant-scale and realtime-message-routing cite its overlays, and because [stack/contents.md](../stack/contents.md) and [testing/contents.md](../testing/contents.md) link to it as closed history) | [swarm-stack/contents.md](./swarm-stack/contents.md) |
 | Changestream tenant scale (publisher queues / metrics / future auto-detect) | [changestream-tenant-scale/contents.md](./changestream-tenant-scale/contents.md) |

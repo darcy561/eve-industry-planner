@@ -45,3 +45,4 @@ Named for the **work**, not a git branch. **Project close** = plan stages done +
 | See how much of CCP's archive the conversion actually reads | [measurements/archive.md](./measurements/archive.md) |
 | Know whether ranged fetching of the archive is viable | [measurements/archive.md](./measurements/archive.md) § What the endpoint supports |
 | Read how the build path behaves after a landed slice | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

@@ -68,3 +68,4 @@ How a realtime message says **who receives it**, separately from what it means.
 | Find out who owns the document lock's delivery | § Does not own, above |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

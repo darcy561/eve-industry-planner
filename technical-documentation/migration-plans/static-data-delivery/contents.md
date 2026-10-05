@@ -52,3 +52,4 @@ Named for the **work**, not a git branch. **Project close** = plan stages done +
 | Know what has to land before edge caching is switched on | [measurements/cloudflare.md](./measurements/cloudflare.md) § What has to be true first |
 | See the Cache Rule that is applied, and why it guards on the version parameter | [measurements/cloudflare.md](./measurements/cloudflare.md) § The zone as it now stands |
 | Read how the delivery path behaves after a landed slice | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

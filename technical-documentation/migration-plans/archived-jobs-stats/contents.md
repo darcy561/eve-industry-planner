@@ -112,3 +112,4 @@ behaviour; it holds the decisions that produced it.
 | Write `_meta` from a writer that replaces the whole document | [overlay.md](./overlay.md) § How `_meta` is written |
 | Add a release step that filters on the owner | [overlay.md](./overlay.md) § The dry run tells an unstamped database from an idle one |
 | Know why two release steps stop the run when they fail | [plan.md](./plan.md) § Operational steps owed |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

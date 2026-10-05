@@ -26,3 +26,4 @@ Named for the **work**, not a git branch. **Project close** = plan phases done +
 | Phase overlay index | [overlay.md](./overlay.md) |
 | Landed behaviour notes (fill as work lands) | [overlays/](./overlays/) |
 | Related Swarm multi-tenant context | [swarm-stack roadmap § Multi-tenant fit](../swarm-stack/roadmap.md#multi-tenant-fit-account--corp--alliance) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

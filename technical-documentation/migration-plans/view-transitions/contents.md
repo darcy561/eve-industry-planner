@@ -45,3 +45,4 @@ Where the SPA animates a **whole surface arriving or leaving**, and which mechan
 | Know what a reader sees differently as phases land | [overlay.md](./overlay.md) |
 | Know why MUI and `ViewTransition` cannot be layered on one element | [plan.md](./plan.md) § What is true about the two mechanisms |
 | Know what the tests can and cannot prove here | [plan.md](./plan.md) § What tests can and cannot say |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

@@ -51,3 +51,4 @@ Named for the **work**, not a git branch. **Project close** = plan stages done +
 | Know why hashed assets were revalidating hourly | [measurements/compression.md](./measurements/compression.md) § Filenames |
 | Size the cost of compressing on every request | [measurements/compression.md](./measurements/compression.md) |
 | Read how the delivery path behaves after a landed slice | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

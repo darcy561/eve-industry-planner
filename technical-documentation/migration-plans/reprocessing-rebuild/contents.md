@@ -67,3 +67,4 @@ The Reprocessing page and the engine beneath it — both directions, from the fo
 | Know how Prismaticite and the unrefined minerals are worked out and shown — one mineral per batch, a likely range | [plan.md](./plan.md) § A4, § C2b, § G3; [measurements/worked-example.md](./measurements/worked-example.md) § Erratic ore |
 | Know why the static file's skills and kinds come from the SDE rather than hand-typed maps | [plan.md](./plan.md) § B1a |
 | See how module and scrap reprocessing fits either static data answer | [plan.md](./plan.md) § Stage M |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

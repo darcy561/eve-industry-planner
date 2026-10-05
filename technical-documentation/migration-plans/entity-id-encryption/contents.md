@@ -26,3 +26,4 @@ written before refs existed.
 | Convert documents written before refs, or judge whether a run is safe | [plan.md](./plan.md) § Converting stored documents |
 | See how the `entityid` primitive behaves | [overlay.md](./overlay.md) § Shared entity id helpers |
 | See how a surface behaves after a phase lands | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

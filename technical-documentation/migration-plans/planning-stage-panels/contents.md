@@ -122,3 +122,4 @@ answer it.
 | See the visual design the stages build to | [plan.md](./plan.md) § Design reference |
 | Find the design for the panels and frame this project never owned | [plan.md](./plan.md) § Design reference, *A second design covers the rest of the stage* |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

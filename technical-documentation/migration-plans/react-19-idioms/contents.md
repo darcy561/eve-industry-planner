@@ -50,3 +50,4 @@ project.
 | Find an effect call site and what it should become | [measurements/effect-inventory.md](./measurements/effect-inventory.md) |
 | Find a non-effect idiom finding, or see what was swept and found clean | [measurements/idiom-inventory.md](./measurements/idiom-inventory.md) |
 | See what has changed and what a reader sees differently | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

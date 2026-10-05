@@ -57,3 +57,4 @@ Named for the **work**, not a git branch. **Project close** = plan tracks done +
 | See the stages and their order | [plan.md](./plan.md) § Stages |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
+| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |
