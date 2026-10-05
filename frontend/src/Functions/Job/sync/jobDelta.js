@@ -1,3 +1,7 @@
+import {
+  withValueAtPath,
+  withoutValueAtPath,
+} from "../../Helper/documentValues.js";
 /** A delta names the revision it produces and the one it applies onto. */
 export const DELTA_APPLIES = "applies";
 
@@ -61,12 +65,12 @@ export function revisionOf(document) {
 export function applyJobDelta(document, delta) {
   let next = document;
   for (const { path, value } of delta.changed) {
-    next = setAt(next, path, value);
+    next = withValueAtPath(next, path, value);
   }
   for (const path of delta.removed) {
-    next = removeAt(next, path);
+    next = withoutValueAtPath(next, path);
   }
-  return setAt(next, ["_meta", "revision"], delta.revision);
+  return withValueAtPath(next, ["_meta", "revision"], delta.revision);
 }
 
 function isPath(path) {
@@ -75,29 +79,4 @@ function isPath(path) {
     path.length > 0 &&
     path.every((step) => typeof step === "string")
   );
-}
-
-function isDocument(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function setAt(held, path, value) {
-  const [step, ...rest] = path;
-  const next = isDocument(held) ? { ...held } : {};
-  next[step] = rest.length === 0 ? value : setAt(next[step], rest, value);
-  return next;
-}
-
-function removeAt(held, path) {
-  if (!isDocument(held)) return held;
-  const [step, ...rest] = path;
-  if (!(step in held)) return held;
-
-  const next = { ...held };
-  if (rest.length === 0) {
-    delete next[step];
-    return next;
-  }
-  next[step] = removeAt(held[step], rest);
-  return next;
 }

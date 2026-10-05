@@ -1,3 +1,4 @@
+import { useTransition } from "react";
 import { Button, Tooltip } from "@mui/material";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,6 +23,7 @@ export function ArchiveJobButton() {
   const { jobID } = useParams({ from: "/editjob/$jobID" });
   const queryClient = useQueryClient();
   const jobLockReadOnly = useActiveJobReadOnly();
+  const [archiving, startArchiving] = useTransition();
 
   const archiveJobProcess = async () => {
     if (jobLockReadOnly) return;
@@ -66,8 +68,8 @@ export function ArchiveJobButton() {
           color="primary"
           variant="contained"
           size="small"
-          onClick={archiveJobProcess}
-          disabled={jobLockReadOnly}
+          onClick={() => startArchiving(archiveJobProcess)}
+          disabled={jobLockReadOnly || archiving}
           sx={{ margin: 1 }}
         >
           Archive Job

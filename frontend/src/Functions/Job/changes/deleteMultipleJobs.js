@@ -6,6 +6,7 @@ import {
 import {
   nothingChangedMessage,
   readJobsForAChange,
+  refusedByAnother,
   releaseEsiLinksOf,
   sendChangeFromRead,
 } from "./jobChange.js";
@@ -108,11 +109,8 @@ export default async function deleteMultipleJobs(inputJobIDs) {
       removed: jobsToDelete,
     });
     if (!sent.landed) {
-      if (sent.moved) {
-        showSnackbarWarning(
-          nothingChangedMessage("deleted", { moved: sent.moved }),
-          8,
-        );
+      if (refusedByAnother(sent.outcome)) {
+        showSnackbarWarning(nothingChangedMessage("deleted", sent), 8);
       }
       return false;
     }

@@ -8,6 +8,7 @@ import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
 import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
 import { canPersistGroupClose } from "../DocumentLock/canPersistDocumentEditClose.js";
 import { showSnackbarWarning } from "../../Events/snackbarEvents";
+import { lockNotHeldMessage } from "../Job/changes/jobChange.js";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
@@ -77,10 +78,7 @@ export default async function closeActiveGroup(groupJobs) {
       useUsersStore
         .getState()
         .jobData.actions.clearPendingJobGroupWrites(groupID);
-      showSnackbarWarning(
-        "You do not hold the lock on this group, so your changes were not saved.",
-        8,
-      );
+      showSnackbarWarning(lockNotHeldMessage("group"), 8);
     }
   } catch (error) {
     console.error("Error saving group close changes:", error);

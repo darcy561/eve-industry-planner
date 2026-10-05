@@ -43,7 +43,8 @@ vi.mock("../../Events/snackbarEvents.js", async () => {
 });
 
 const { archiveGroupJobs } = await import("./archiveGroupJobs.js");
-const { showSnackbarError } = await import("../../Events/snackbarEvents.js");
+const { showSnackbarError, showSnackbarWarning } =
+  await import("../../Events/snackbarEvents.js");
 
 const jobWithLinkedRows = (jobID, revision = 3) => ({
   jobID,
@@ -125,9 +126,9 @@ describe("archiving a group's jobs", () => {
       expect(deleteJobGroupsFromApi).not.toHaveBeenCalled();
       expect(saveUserAccountDocument).not.toHaveBeenCalled();
       expect(released()).toBeNull();
-      expect(showSnackbarError).toHaveBeenCalledWith(
+      expect(showSnackbarWarning).toHaveBeenCalledWith(
         expect.stringContaining("Nothing was archived"),
-        5,
+        8,
       );
     },
   );

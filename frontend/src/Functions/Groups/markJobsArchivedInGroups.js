@@ -1,15 +1,14 @@
 import useUsersStore from "../../Zustand/usersStore.js";
-import Group from "../../Classes/group.js";
 import { putJobGroupsBatch } from "../Endpoints/Private/groups.js";
+import { workingGroups } from "../Job/changes/workingCopies.js";
+import { showSnackbarWarning } from "../../Events/snackbarEvents.js";
 
 /**
- * Records archived jobs against the groups they belong to.
+ * Records archived jobs against the groups they belong to, which keep them as members marked as held
+ * in the archive.
  *
- * An archived job stays a member: `includedJobIDs` keeps it and `archivedJobIDs`
- * marks it as held in the archive.
- *
- * @param {Array<Object>} archivedJobs — jobs that have just been archived
- * @returns {Promise<Group[]>} the groups that changed
+ * @param {Array<Object>} archivedJobs - Jobs that have just been archived
+ * @returns {Promise<Array<Object>>} The groups that changed
  */
 export async function markJobsArchivedInGroups(archivedJobs) {
   const jobs = (archivedJobs ?? []).filter((job) => job?.groupID);
@@ -17,29 +16,32 @@ export async function markJobsArchivedInGroups(archivedJobs) {
 
   const { jobData, account } = useUsersStore.getState();
   const { groupArray, jobArray } = jobData;
-  const { updateModifiedGroups } = jobData.actions;
+  const groups = workingGroups((groupID) =>
+    groupArray.find((group) => group.groupID === groupID),
+  );
 
-  const byGroupID = new Map();
-  for (const job of jobs) {
-    if (!byGroupID.has(job.groupID)) byGroupID.set(job.groupID, []);
-    byGroupID.get(job.groupID).push(job);
-  }
-
+  const byGroupID = Map.groupBy(jobs, (job) => job.groupID);
   const changed = [];
   for (const [groupID, groupJobs] of byGroupID) {
-    const source = groupArray.find((group) => group.groupID === groupID);
-    if (!source) continue;
-    const working = new Group(source.toDocument());
-    working.markJobsArchived(groupJobs, jobArray);
-    changed.push(working);
+    const group = groups.get(groupID);
+    if (!group) continue;
+    group.markJobsArchived(groupJobs, jobArray);
+    changed.push(group);
   }
   if (changed.length === 0) return [];
 
   if (account.isLoggedIn) {
-    await putJobGroupsBatch(changed.map((group) => group.toDocument()));
+    try {
+      await putJobGroupsBatch(changed.map((group) => group.toDocument()));
+    } catch (err) {
+      console.error("The archived jobs' groups could not be saved", err);
+      showSnackbarWarning(
+        "The job was archived, but its group could not be updated. Reload to see it.",
+        8,
+      );
+      return [];
+    }
   }
-  updateModifiedGroups(changed);
+  jobData.actions.updateModifiedGroups(changed);
   return changed;
 }
-
-export default markJobsArchivedInGroups;

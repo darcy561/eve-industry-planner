@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import {
   Box,
   Button,
@@ -13,6 +12,7 @@ import { useDialogueEventState } from "../../../Styled Components/Dialogue/useDi
 import {
   MERGE_DIALOGUE_MODE,
   MERGE_JOBS_EVENT,
+  answerMergeConfirmation,
 } from "../../../Events/mergeJobsEvents";
 import {
   JOB_MOVED,
@@ -57,26 +57,15 @@ export default function MergeJobsDialogue() {
 
 /**
  * @param {object} props
- * @param {{mode: string, discards: Array<object>, moved: Array<object>, answer?: (merge: boolean) => void, mergeAgain?: () => Promise<unknown>}} props.merge
+ * @param {{mode: string, discards: Array<object>, moved: Array<object>, mergeAgain?: () => Promise<unknown>}} props.merge
  * @param {() => void} props.onClose
  */
 function OpenMergeJobs({ merge, onClose }) {
-  const answered = useRef(false);
   const confirming = merge.mode === MERGE_DIALOGUE_MODE.CONFIRM;
   const held = merge.moved.some((row) => row.reason === JOB_MOVED.HELD);
 
-  useEffect(
-    () => () => {
-      if (!answered.current) merge.answer?.(false);
-    },
-    [merge],
-  );
-
   function close(chose) {
-    if (!answered.current) {
-      answered.current = true;
-      merge.answer?.(chose);
-    }
+    answerMergeConfirmation(chose);
     onClose();
   }
 

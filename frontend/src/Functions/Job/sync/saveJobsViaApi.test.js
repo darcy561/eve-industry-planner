@@ -154,15 +154,17 @@ describe("saving jobs as one change", () => {
     expect(sentWrites().map((write) => write.jobID)).toEqual(["created"]);
   });
 
-  it("counts every job it wrote", async () => {
+  it("counts every job it wrote on the jobs it was handed, not on the planner", async () => {
     putJobDocumentsChange.mockResolvedValueOnce(undefined);
 
-    await saveJobsAsOneChange([jobAt("edited", 4), jobAt("created")], {
-      edited: renamed,
-    });
+    const edited = jobAt("edited", 4);
+    const created = jobAt("created");
 
-    expect(revisionOf("edited")).toBe(5);
-    expect(revisionOf("created")).toBe(1);
+    await saveJobsAsOneChange([edited, created], { edited: renamed });
+
+    expect(edited._meta.revision).toBe(5);
+    expect(created._meta.revision).toBe(1);
+    expect(revisionOf("edited")).toBeUndefined();
   });
 
   it.each([
@@ -194,14 +196,15 @@ describe("saving jobs as one change", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       putJobDocumentsChange.mockRejectedValueOnce(err);
 
-      const answered = await saveJobsAsOneChange(
-        [jobAt("edited", 4), jobAt("linked", 2)],
-        { edited: renamed },
-      );
+      const edited = jobAt("edited", 4);
+      const linked = jobAt("linked", 2);
+      const answered = await saveJobsAsOneChange([edited, linked], {
+        edited: renamed,
+      });
 
       expect(answered).toBe(outcome);
-      expect(revisionOf("edited")).toBe(4);
-      expect(revisionOf("linked")).toBe(2);
+      expect(edited._meta.revision).toBe(4);
+      expect(linked._meta.revision).toBe(2);
       expect(queued()).toEqual({});
       expect(warned.mock.calls).toEqual(
         told.map((words) => [expect.stringContaining(words), 8]),

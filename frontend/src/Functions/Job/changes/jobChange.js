@@ -6,11 +6,13 @@ import {
 import { USER_JOBS_COLLECTION } from "../../DocumentLock/documentLockCollections.js";
 import { selectDocumentLockReadOnly } from "../../DocumentLock/documentLockSelectors.js";
 import { revisionOf } from "../sync/jobDelta.js";
-import { requestJobDocumentsByIdsFromApi } from "../../Endpoints/Private/requestJobDocumentsByIds.js";
 import saveArchivedJobs from "../../Endpoints/Private/archivedJobs.js";
 import { saveUserAccountDocument } from "../../Endpoints/Private/userDocument";
 import { saveJobsAsOneChange } from "../sync/saveJobsViaApi.js";
-import { restoreSavedJobs } from "../sync/persistJobDocumentsToApi.js";
+import {
+  readJobsIntoPlanner,
+  restoreSavedJobs,
+} from "../sync/persistJobDocumentsToApi.js";
 import { flushPendingJobDocumentsSave } from "../../Debounce/jobDocumentsPersistSchedule.js";
 import {
   showSnackbarError,
@@ -67,7 +69,13 @@ export function nothingChangedMessage(
  */
 export async function readJobsForAChange(selectedIDs, action) {
   try {
-    await flushPendingJobDocumentsSave();
+    if ((await flushPendingJobDocumentsSave()) === "failed") {
+      showSnackbarError(
+        `Your earlier changes could not be saved, so nothing was ${action}.`,
+        5,
+      );
+      return null;
+    }
     const read = await readJobsAndTheirLinks(selectedIDs);
     return { read, held: jobsOpenElsewhere(useUsersStore.getState(), read) };
   } catch (err) {
@@ -82,10 +90,10 @@ export async function readJobsForAChange(selectedIDs, action) {
 
 /**
  * Sends a change built from jobs read off the server; a refused one puts back what was read, takes
- * out what it created, and answers which jobs moved where that is why.
+ * out what it created, and answers why with the jobs that moved.
  *
  * @param {{read: Array<object>, jobs: Array<object>, removed: Array<object>, created?: Array<string>}} change
- * @returns {Promise<{landed: boolean, moved: Array<object> | null}>}
+ * @returns {Promise<{landed: boolean, outcome: string, moved: Array<object>}>}
  */
 export async function sendChangeFromRead({
   read,
@@ -94,16 +102,29 @@ export async function sendChangeFromRead({
   created = [],
 }) {
   const outcome = await saveJobsAsOneChange(jobs, undefined, removed);
-  if (outcome === "saved") return { landed: true, moved: null };
+  if (outcome === "saved") return { landed: true, outcome, moved: [] };
   await restoreSavedJobs(
     read.map((job) => job.jobID),
     created,
   );
-  const moved =
-    outcome === "conflict" || outcome === "locked"
+  return {
+    landed: false,
+    outcome,
+    moved: refusedByAnother(outcome)
       ? whatMovedSinceRead(useUsersStore.getState(), read)
-      : null;
-  return { landed: false, moved };
+      : [],
+  };
+}
+
+/**
+ * Whether a refused change was refused because of another member's work, which the caller says,
+ * rather than a failure the sender has already reported.
+ *
+ * @param {string} outcome
+ * @returns {boolean}
+ */
+export function refusedByAnother(outcome) {
+  return outcome === "conflict" || outcome === "locked";
 }
 
 /**
@@ -114,7 +135,9 @@ export async function sendChangeFromRead({
  * @returns {Promise<Array<object>>} Every job read
  */
 export async function readJobsAndTheirLinks(selectedIDs) {
-  const selected = await requestJobDocumentsByIdsFromApi(selectedIDs);
+  const selected = await readJobsIntoPlanner(selectedIDs, {
+    dropMissing: true,
+  });
   const linked = new Set();
   for (const job of selected) {
     for (const id of job.parentJobs ?? []) linked.add(id);
@@ -123,16 +146,8 @@ export async function readJobsAndTheirLinks(selectedIDs) {
     }
   }
   for (const id of selectedIDs) linked.delete(id);
-  const neighbours =
-    linked.size > 0 ? await requestJobDocumentsByIdsFromApi([...linked]) : [];
-
-  const { actions } = useUsersStore.getState().jobData;
-  const read = [...selected, ...neighbours];
-  actions.updateOrAddJobsToJobArray(read);
-  const found = new Set(selected.map((job) => job.jobID));
-  const gone = selectedIDs.filter((id) => !found.has(id));
-  if (gone.length > 0) actions.removeJobsFromJobArray(gone);
-  return read;
+  const neighbours = await readJobsIntoPlanner([...linked]);
+  return [...selected, ...neighbours];
 }
 
 /**
@@ -186,13 +201,33 @@ export function whatMovedSinceRead(state, read) {
 export async function archiveJobsOnServer(jobs) {
   const outcome = await saveArchivedJobs(jobs);
   if (outcome === "saved") return true;
-  showSnackbarError(nothingChangedMessage("archived", { outcome }), 5);
+  showSnackbarWarning(nothingChangedMessage("archived", { outcome }), 8);
   return false;
 }
 
 /**
- * Releases the ESI records jobs that left the planner had linked, saving the account when signed in
- * and warning when it could not be saved.
+ * Applies a change to the ESI records the account has linked, saving the account when asked and
+ * warning when it could not be saved.
+ *
+ * @param {{ordersToAdd?: Iterable<number>, jobsToAdd?: Iterable<number>, transactionsToAdd?: Iterable<number>, ordersToRemove?: Iterable<number>, jobsToRemove?: Iterable<number>, transactionsToRemove?: Iterable<number>}} change
+ * @param {string} done - What already happened, as "The jobs were deleted"
+ * @param {{save?: boolean}} [options] - Whether to save the account; a signed-out reader never does
+ */
+export async function saveLinkedEsiChange(change, done, { save = true } = {}) {
+  const sizes = Object.values(change).map((ids) => [...(ids ?? [])].length);
+  if (!sizes.some((size) => size > 0)) return;
+  const { account } = useUsersStore.getState();
+  account.actions.addLinkedEsiData(change);
+  if (save && account.isLoggedIn && !(await saveUserAccountDocument())) {
+    showSnackbarWarning(
+      `${done}, but the ESI records linked to them could not be saved to your account. Reload to try again.`,
+      8,
+    );
+  }
+}
+
+/**
+ * Releases the ESI records jobs that left the planner had linked.
  *
  * @param {Array<object>} jobs - The jobs that left the planner
  * @param {string} action - How they left, as "merged", "deleted" or "archived"
@@ -206,22 +241,18 @@ export async function releaseEsiLinksOf(jobs, action) {
     for (const id of esiJobIDs(job)) jobsToRemove.add(id);
     for (const id of esiTransactionIDs(job)) transactionsToRemove.add(id);
   }
-  if (
-    ordersToRemove.size + jobsToRemove.size + transactionsToRemove.size ===
-    0
-  ) {
-    return;
-  }
-  const { account } = useUsersStore.getState();
-  account.actions.addLinkedEsiData({
-    ordersToRemove,
-    jobsToRemove,
-    transactionsToRemove,
-  });
-  if (account.isLoggedIn && !(await saveUserAccountDocument())) {
-    showSnackbarWarning(
-      `The jobs were ${action}, but the ESI records they linked could not be released. Reload to try again.`,
-      8,
-    );
-  }
+  await saveLinkedEsiChange(
+    { ordersToRemove, jobsToRemove, transactionsToRemove },
+    `The jobs were ${action}`,
+  );
+}
+
+/**
+ * The warning for changes a reader made without holding the document's lock, which were not saved.
+ *
+ * @param {string} what - The document, as "job" or "group"
+ * @returns {string}
+ */
+export function lockNotHeldMessage(what) {
+  return `You do not hold the lock on this ${what}, so your changes were not saved.`;
 }

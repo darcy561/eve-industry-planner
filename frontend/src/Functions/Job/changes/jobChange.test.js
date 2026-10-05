@@ -19,7 +19,8 @@ vi.mock("../sync/saveJobsViaApi.js", () => ({
   saveJobsAsOneChange: (...args) => saveJobsAsOneChange(...args),
 }));
 
-vi.mock("../sync/persistJobDocumentsToApi.js", () => ({
+vi.mock("../sync/persistJobDocumentsToApi.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   restoreSavedJobs: (...args) => restoreSavedJobs(...args),
 }));
 
@@ -55,7 +56,8 @@ const {
   sendChangeFromRead,
   whatMovedSinceRead,
 } = await import("./jobChange.js");
-const { showSnackbarError } = await import("../../../Events/snackbarEvents");
+const { showSnackbarError, showSnackbarWarning } =
+  await import("../../../Events/snackbarEvents");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -183,7 +185,7 @@ describe("sending a change built from jobs read off the server", () => {
       removed: [at("a", 1)],
     });
 
-    expect(sent).toEqual({ landed: true, moved: null });
+    expect(sent).toEqual({ landed: true, outcome: "saved", moved: [] });
     expect(restoreSavedJobs).not.toHaveBeenCalled();
   });
 
@@ -200,6 +202,7 @@ describe("sending a change built from jobs read off the server", () => {
     expect(restoreSavedJobs).toHaveBeenCalledWith(["a"], ["new"]);
     expect(sent).toEqual({
       landed: false,
+      outcome: "conflict",
       moved: [{ jobID: "a", name: "a", reason: JOB_MOVED.GONE }],
     });
   });
@@ -209,7 +212,7 @@ describe("sending a change built from jobs read off the server", () => {
 
     const sent = await sendChangeFromRead({ read: [], jobs: [], removed: [] });
 
-    expect(sent).toEqual({ landed: false, moved: null });
+    expect(sent).toEqual({ landed: false, outcome: "failed", moved: [] });
   });
 });
 
@@ -225,9 +228,9 @@ describe("archiving jobs on the server", () => {
     saveArchivedJobs.mockResolvedValueOnce("conflict");
 
     expect(await archiveJobsOnServer([{ jobID: "a" }])).toBe(false);
-    expect(showSnackbarError).toHaveBeenCalledWith(
+    expect(showSnackbarWarning).toHaveBeenCalledWith(
       "Nothing was archived: a job was saved elsewhere since it was read. Try again.",
-      5,
+      8,
     );
   });
 });

@@ -24,8 +24,8 @@ export async function saveJobsViaApi(inputJobs, changes) {
 }
 
 /**
- * Saves jobs and removes others as one change, made together or not at all, taking anything already
- * queued for them into it so none of it goes separately.
+ * Saves jobs and removes others as one change, made together or not at all, counting the revision on
+ * each job saved once it lands; the caller puts the jobs on the planner.
  *
  * @param {Array<object>} jobs - Job instances with `jobID` and `toDocument`
  * @param {Record<string, Array<object>>} [changes] - Log entries per job id; a job absent from it
@@ -35,7 +35,6 @@ export async function saveJobsViaApi(inputJobs, changes) {
  */
 export async function saveJobsAsOneChange(jobs, changes, removed = []) {
   const { actions } = useUsersStore.getState().jobData;
-  actions.updateOrAddJobsToJobArray(jobs);
   const owed = actions.takeQueuedJobDocumentWrites(
     [...jobs, ...removed].map((job) => job?.jobID),
     changes,
@@ -48,7 +47,13 @@ export async function saveJobsAsOneChange(jobs, changes, removed = []) {
     jobID: job.jobID,
     revision: revisionOf(job),
   }));
-  return await persistJobChangeToApi(writes, deletes);
+  const outcome = await persistJobChangeToApi(writes, deletes);
+  if (outcome === "saved") {
+    for (const job of jobs) {
+      if (job?._meta) job._meta.revision = (job._meta.revision ?? 0) + 1;
+    }
+  }
+  return outcome;
 }
 
 /**

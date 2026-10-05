@@ -7,9 +7,10 @@ import {
 } from "../../../Components/Edit Job/Edit Job Hooks/jobCommands";
 import { totalQuantityProduced } from "../../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import useUsersStore from "../../../Zustand/usersStore";
-import { workingJobs } from "./workingCopies.js";
+import { workingGroups, workingJobs } from "./workingCopies.js";
 import {
   readJobsForAChange,
+  refusedByAnother,
   releaseEsiLinksOf,
   sendChangeFromRead,
 } from "./jobChange.js";
@@ -277,7 +278,8 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
       created: replacementJobs.map((job) => job.jobID),
     });
     if (!sent.landed) {
-      if (sent.moved) showMergeRefused(sent.moved, mergeAgain);
+      if (refusedByAnother(sent.outcome))
+        showMergeRefused(sent.moved, mergeAgain);
       return nothingMerged;
     }
   }
@@ -287,13 +289,13 @@ export default async function mergeJobs(inputJobIDs, options = {}) {
 
   if (touchedGroupIDs.size > 0) {
     const allJobs = useUsersStore.getState().jobData.jobArray;
+    const groups = workingGroups(getGroupObject);
     for (const gid of touchedGroupIDs) {
-      const group = getGroupObject(gid);
-      if (!group) continue;
-      const groupJobs = allJobs.filter((j) => j.groupID === gid);
-      group.updateGroupData(groupJobs);
-      updateModifiedGroups(group);
+      groups
+        .get(gid)
+        ?.updateGroupData(allJobs.filter((j) => j.groupID === gid));
     }
+    updateModifiedGroups(groups.all());
   }
 
   await releaseEsiLinksOf(replaced, "merged");

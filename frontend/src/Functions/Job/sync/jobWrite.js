@@ -1,5 +1,10 @@
 import { toDocument } from "../jobDocument.js";
-import { NOTHING_AT_PATH, valueAtPath } from "../../Helper/documentValues.js";
+import {
+  NOTHING_AT_PATH,
+  valueAtPath,
+  withValueAtPath,
+} from "../../Helper/documentValues.js";
+import { revisionOf } from "./jobDelta.js";
 
 /**
  * The write for a job, field-scoped where both the log of what moved and the revision it was
@@ -14,7 +19,7 @@ export function jobWriteEnvelope(job, entries) {
   const document = toDocument(job);
   const envelope = { jobID: job.jobID };
 
-  const revision = job?._meta?.revision;
+  const revision = revisionOf(job);
   if (!entries?.length || !(revision > 0)) {
     return { ...envelope, document };
   }
@@ -50,12 +55,12 @@ export function writeBody(document, entries) {
     cleared.push(path);
   }
 
-  const partial = {};
+  let partial = {};
   const written = [];
   for (const path of shortest(changed)) {
     const value = valueAtPath(document, path);
     if (value === NOTHING_AT_PATH) continue;
-    place(partial, path, value);
+    partial = withValueAtPath(partial, path, value);
     written.push(path);
   }
 
@@ -136,18 +141,4 @@ function shortest(paths) {
 function covers(outer, inner) {
   if (outer.length > inner.length) return false;
   return outer.every((step, index) => String(step) === String(inner[index]));
-}
-
-/**
- * @param {object} partial
- * @param {Array<string|number>} path
- * @param {*} value
- */
-function place(partial, path, value) {
-  let held = partial;
-  for (const step of path.slice(0, -1)) {
-    if (held[step] === undefined) held[step] = {};
-    held = held[step];
-  }
-  held[path.at(-1)] = value;
 }

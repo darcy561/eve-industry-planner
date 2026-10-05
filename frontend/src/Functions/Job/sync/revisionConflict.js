@@ -3,33 +3,25 @@ import {
   refusalRowDocID,
 } from "../../Endpoints/refusalBody.js";
 
-/**
- * A write refused because the document moved under it.
- *
- * Distinct from a lock conflict: a lock says somebody is holding the document,
- * a revision conflict says somebody has already written it. The client holding
- * one has a stale document rather than a blocked one.
- */
+/** A write refused because the document moved under it. */
 
 /**
- * Private HTTP 409 body `{ error, collection, saved, rejected }` when a write's
- * base revision is no longer current. Matches Go `helper.ErrCodeRevisionConflict`.
+ * Private HTTP 409 body `{ error, collection, saved, rejected }` when a write's base revision is no
+ * longer current. Matches Go `helper.ErrCodeRevisionConflict`.
  *
  * @type {string}
  */
 export const API_ERROR_REVISION_CONFLICT = "revision_conflict";
 
 /**
- * `Error.code` after a revision-conflict 409 is recognised. Compare with
- * `err?.code === …`.
+ * `Error.code` after a revision-conflict 409 is recognised. Compare with `err?.code === …`.
  *
  * @type {string}
  */
 export const CLIENT_ERROR_REVISION_CONFLICT = "REVISION_CONFLICT";
 
 /**
- * Reads a 409 body and answers the refused rows, or null when the body is not a
- * revision conflict.
+ * Reads a 409 body and answers the refused rows, or null when the body is not a revision conflict.
  *
  * @param {string} text - Raw response body, already read from the `Response`.
  * @returns {{collection: string, saved: number, rejected: Array<{docID: string, expected: number, current: number, gone: boolean}>}|null}
@@ -49,10 +41,6 @@ export function parseRevisionConflictBody(text) {
 
 /**
  * The message a refused write shows the user.
- *
- * A deleted document and one that was rewritten are different situations: there
- * is nothing to reconcile against when the job is gone, so saying "changed"
- * would send the reader looking for a job that is not there.
  *
  * @param {Array<{gone: boolean}>} rejected
  * @returns {string}

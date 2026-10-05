@@ -9,7 +9,7 @@ import {
 } from "../../DocumentLock/documentLockCollections.js";
 
 const saveJobsAsOneChange = vi.fn().mockResolvedValue("saved");
-const saveUserAccountDocument = vi.fn().mockResolvedValue(undefined);
+const saveUserAccountDocument = vi.fn().mockResolvedValue(true);
 
 const restoreSavedJobs = vi.fn().mockResolvedValue(undefined);
 const openChangeReview = vi.fn();
@@ -18,7 +18,8 @@ vi.mock("../sync/saveJobsViaApi.js", () => ({
   saveJobsAsOneChange: (...args) => saveJobsAsOneChange(...args),
 }));
 
-vi.mock("../sync/persistJobDocumentsToApi.js", () => ({
+vi.mock("../sync/persistJobDocumentsToApi.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   restoreSavedJobs: (...args) => restoreSavedJobs(...args),
 }));
 
@@ -446,6 +447,19 @@ describe("a close the server refused", () => {
     });
     expect(account.actions.addLinkedEsiData).toHaveBeenCalled();
     expect(saveUserAccountDocument).toHaveBeenCalled();
+  });
+
+  it("says so when the ESI links could not be saved to the account", async () => {
+    saveJobsAsOneChange.mockResolvedValueOnce("saved");
+    saveUserAccountDocument.mockResolvedValueOnce(false);
+    showSnackbarWarning.mockClear();
+
+    await close();
+
+    expect(showSnackbarWarning).toHaveBeenCalledWith(
+      expect.stringContaining("could not be saved to your account"),
+      8,
+    );
   });
 
   it("sends the new job with the close rather than after it", async () => {

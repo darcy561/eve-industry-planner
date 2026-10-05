@@ -20,7 +20,8 @@ vi.mock("../sync/saveJobsViaApi.js", () => ({
   saveJobsAsOneChange: (...args) => saveJobsAsOneChange(...args),
 }));
 
-vi.mock("../sync/persistJobDocumentsToApi.js", () => ({
+vi.mock("../sync/persistJobDocumentsToApi.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   restoreSavedJobs: (...args) => restoreSavedJobs(...args),
 }));
 
@@ -285,7 +286,7 @@ describe("releasing the replaced jobs' ESI links", () => {
     await mergeJobs(["old-1", "old-2"], { buildJob: buildsOne() });
 
     expect(showSnackbarWarning).toHaveBeenCalledWith(
-      expect.stringContaining("could not be released"),
+      expect.stringContaining("could not be saved to your account"),
       8,
     );
   });

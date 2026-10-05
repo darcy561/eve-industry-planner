@@ -5,7 +5,6 @@ import {
   privateBatchRetryConfig,
   throwNonOkPrivateResponse,
 } from "./applyPrivateHeaders.js";
-import { requestJobDocumentsByIdsFromApi } from "./requestJobDocumentsByIds.js";
 import { activePlannerOwnerHandle } from "../../../Zustand/activePlanner/read.js";
 
 /** The job documents collection, named as the change stream's `collection` field names it. */
@@ -93,74 +92,6 @@ export function applyPlannerJobDocuments(plannerJobs, owner) {
 export async function fetchPlannerJobDocumentsFromApi() {
   const owner = activePlannerOwnerHandle();
   applyPlannerJobDocuments(await fetchPlannerJobDocuments(), owner);
-}
-
-/**
- * @param {string} groupID
- */
-export async function fetchJobDocumentsByGroupFromApi(groupID) {
-  const path = `/api/v1/job-documents/by-group/${encodeURIComponent(groupID)}`;
-  const url = new URL(path, window.location.origin);
-  const res = await requestWithPrivateHeaders(
-    url.toString(),
-    { method: "GET" },
-    {
-      requestName: "getJobDocumentsByGroup",
-    },
-  );
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `GET job-documents by-group failed: ${res.status} ${text || res.statusText}`,
-    );
-  }
-  const data = await parseJsonBodyOrExplainHtml(
-    res,
-    "GET job-documents by-group",
-  );
-  const rows = Array.isArray(data) ? data : [];
-  const jobs = rows.map((row) => jobFromDocument(row));
-  useUsersStore.getState().jobData.actions.updateOrAddJobsToJobArray(jobs);
-}
-
-/**
- * @param {string} jobID
- * @returns {Promise<Job|null>}
- */
-export async function fetchJobDocumentByIdFromApi(jobID) {
-  const path = `/api/v1/job-documents/${encodeURIComponent(jobID)}`;
-  const url = new URL(path, window.location.origin);
-  const res = await requestWithPrivateHeaders(
-    url.toString(),
-    { method: "GET" },
-    {
-      requestName: "getJobDocumentById",
-    },
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `GET job-document failed: ${res.status} ${text || res.statusText}`,
-    );
-  }
-  const row = await parseJsonBodyOrExplainHtml(res, "GET job-document");
-  const job = jobFromDocument(row);
-  useUsersStore.getState().jobData.actions.updateOrAddJobsToJobArray(job);
-  return job;
-}
-
-/**
- * Batch fetch jobs by IDs (`POST /api/v1/job-documents`) and merge into `jobArray`.
- * For HTTP-only (no store), import from `./requestJobDocumentsByIds.js`.
- *
- * @param {string[]} jobIDs
- * @returns {Promise<Job[]>}
- */
-export async function fetchJobDocumentsByIdsFromApi(jobIDs) {
-  const jobs = await requestJobDocumentsByIdsFromApi(jobIDs);
-  useUsersStore.getState().jobData.actions.updateOrAddJobsToJobArray(jobs);
-  return jobs;
 }
 
 /**

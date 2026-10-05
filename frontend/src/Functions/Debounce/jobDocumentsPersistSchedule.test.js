@@ -21,10 +21,6 @@ vi.mock("../../Zustand/usersStore.js", async () => {
 const { flushPendingJobDocumentsSave } =
   await import("./jobDocumentsPersistSchedule.js");
 
-// A caller flushes so that the write has landed before it does something the
-// write's meaning depends on — switching planner sends the next request under
-// another owner. A flush that resolved while the write was still in the air
-// would read as ordered and not be.
 describe("flushing queued job documents", () => {
   it("resolves only once the write has finished", async () => {
     let finished = false;

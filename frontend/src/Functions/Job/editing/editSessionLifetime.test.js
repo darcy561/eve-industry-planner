@@ -29,9 +29,6 @@ describe("restoring the copy taken when editing began", () => {
     expect(updateOrAddJobsToJobArray).toHaveBeenCalledWith(HELD);
   });
 
-  // The case every discard path shares: the job went while the reader had it
-  // open, and putting the backup back would show them what they were just told
-  // is gone.
   it("leaves a job the store no longer holds alone", () => {
     expect(restoreJobIfStillHeld({ jobID: "job-deleted" })).toBe(false);
     expect(updateOrAddJobsToJobArray).not.toHaveBeenCalled();

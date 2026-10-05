@@ -3,6 +3,7 @@ import { flushPendingJobDocumentsSave } from "../Debounce/jobDocumentsPersistSch
 import {
   showSnackbarError,
   showSnackbarSuccess,
+  showSnackbarWarning,
 } from "../../Events/snackbarEvents.js";
 import { deleteJobGroupsFromApi } from "../Endpoints/Private/groups.js";
 import {
@@ -46,11 +47,11 @@ export async function archiveGroupJobs(selectedJobs) {
       groupID,
     )
   ) {
-    showSnackbarError(
+    showSnackbarWarning(
       nothingChangedMessage("archived", {
         because: "another member is editing this group",
       }),
-      5,
+      8,
     );
     return false;
   }

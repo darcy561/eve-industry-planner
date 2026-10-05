@@ -1,10 +1,6 @@
 import { isReadyToBuild } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
- * Shared list shaping for job planner & group planner accordion bodies (before optional stage sort).
- */
-
-/**
  * Jobs eligible for a workflow stage on the global job planner grid.
  *
  * @param {object[]} jobArray
@@ -42,12 +38,6 @@ export function filterJobsVisibleInActiveGroup(plannerJobs, activeGroupObject) {
 }
 
 /**
- * Shared per-stage sorting for planner UIs (job planner accordion + group planner accordion).
- *
- * Both surfaces sort the same jobs the same way.
- */
-
-/**
  * Purchasing stage: all materials purchased first, then alphabetical by name.
  *
  * @param {Object} a
@@ -68,21 +58,15 @@ const SORTING_METHODS = {
 };
 
 /**
- * @param {number} statusId
- * @returns {((a: object, b: object) => number) | undefined}
- */
-export const getSortingMethodForPlannerStage = (statusId) =>
-  SORTING_METHODS[statusId];
-
-/**
- * Applies stage-specific sorting when a comparator exists; otherwise returns the same array reference.
+ * Applies stage-specific sorting when a comparator exists; otherwise returns the same array
+ * reference.
  *
  * @param {object[]} jobs
  * @param {number} statusId
  * @returns {object[]}
  */
 export function sortJobsForPlannerStage(jobs, statusId) {
-  const sortingMethod = getSortingMethodForPlannerStage(statusId);
+  const sortingMethod = SORTING_METHODS[statusId];
   if (!sortingMethod) {
     return jobs;
   }

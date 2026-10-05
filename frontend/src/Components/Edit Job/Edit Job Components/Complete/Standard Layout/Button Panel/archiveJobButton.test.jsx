@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 const { archived, navigated, removed, cleared, released, requeued, outcome } =
   vi.hoisted(() => ({
-    archived: { jobs: null },
+    archived: { jobs: null, calls: 0, waitFor: null },
     navigated: [],
     removed: [],
     cleared: [],
@@ -61,6 +61,8 @@ vi.mock(
   () => ({
     default: async (jobs) => {
       archived.jobs = jobs;
+      archived.calls += 1;
+      if (archived.waitFor) await archived.waitFor;
       return outcome.current;
     },
   }),
@@ -110,6 +112,8 @@ const archive = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   archived.jobs = null;
+  archived.calls = 0;
+  archived.waitFor = null;
   navigated.length = 0;
   removed.length = 0;
   cleared.length = 0;
@@ -136,6 +140,22 @@ describe("archiving a finished job", () => {
     expect(navigated).toEqual([{ to: "/jobplanner" }]);
   });
 
+  it("cannot be pressed again while the archive is in flight", async () => {
+    let finish;
+    archived.waitFor = new Promise((resolve) => {
+      finish = resolve;
+    });
+    render(<ArchiveJobButton />);
+
+    const button = screen.getByRole("button", { name: "Archive Job" });
+    await userEvent.click(button);
+    expect(button).toBeDisabled();
+    finish();
+
+    await vi.waitFor(() => expect(navigated).toEqual([{ to: "/jobplanner" }]));
+    expect(archived.calls).toBe(1);
+  });
+
   it.each(["locked", "conflict", "failed"])(
     "keeps the job and its ESI links when the archive is refused (%s)",
     async (refused) => {
@@ -144,9 +164,9 @@ describe("archiving a finished job", () => {
 
       await archive();
 
-      expect(snackbarSpies.showSnackbarError).toHaveBeenCalledWith(
+      expect(snackbarSpies.showSnackbarWarning).toHaveBeenCalledWith(
         expect.stringContaining("Nothing was archived"),
-        5,
+        8,
       );
       expect(removed).toEqual([]);
       expect(released).toEqual([]);

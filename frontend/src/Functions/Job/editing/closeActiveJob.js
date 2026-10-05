@@ -12,7 +12,11 @@ import { canPersistJobClose } from "../../DocumentLock/canPersistDocumentEditClo
 import { saveJobsAsOneChange } from "../sync/saveJobsViaApi.js";
 import { restoreSavedJobs } from "../sync/persistJobDocumentsToApi.js";
 import { openChangeReview } from "../../../Events/changeReviewEvents";
-import { nothingChangedMessage } from "../changes/jobChange.js";
+import {
+  lockNotHeldMessage,
+  nothingChangedMessage,
+  saveLinkedEsiChange,
+} from "../changes/jobChange.js";
 import {
   showSnackbarInfo,
   showSnackbarWarning,
@@ -20,7 +24,6 @@ import {
 import useUsersStore from "../../../Zustand/usersStore";
 import { copyOfJob } from "../jobDocument";
 import { endEditSession } from "./editSessionLifetime.js";
-import { saveUserAccountDocument } from "../../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "../setups/recalculateJobForNewTotal";
 import { formatNumberForLocale } from "../../Helper/numberParser";
 
@@ -78,9 +81,7 @@ export async function closeActiveJob(
   const adjustments = [];
   const tempJobsSource = tempJobsToAdd ?? {};
   const tempJobs = Object.values(tempJobsSource);
-  const IDsOfNewJobs = new Set(
-    Object.values(tempJobsSource).map(({ jobID }) => jobID),
-  );
+  const IDsOfNewJobs = new Set(tempJobs.map(({ jobID }) => jobID));
   const modifiedLinkedJobIDs = applyParentChildChanges(
     parentChildToEdit,
     inputJob,
@@ -148,11 +149,7 @@ export async function closeActiveJob(
 
   const persistToServer = isLoggedIn && canPersistJobClose(inputJob.jobID);
 
-  const jobsToPersist = [
-    inputJob,
-    ...Object.values(tempJobsSource),
-    ...batchUpdates,
-  ];
+  const jobsToPersist = [inputJob, ...tempJobs, ...batchUpdates];
 
   if (persistToServer) {
     const outcome = await saveJobsAsOneChange(
@@ -182,29 +179,18 @@ export async function closeActiveJob(
   }
 
   const esl = esiDataToLink ?? {};
-  const eslMo = esl.marketOrders ?? { add: [], remove: [] };
-  const eslIj = esl.industryJobs ?? { add: [], remove: [] };
-  const eslTr = esl.transactions ?? { add: [], remove: [] };
-  const hasAnyChanges =
-    eslMo.add?.length > 0 ||
-    eslIj.add?.length > 0 ||
-    eslTr.add?.length > 0 ||
-    eslMo.remove?.length > 0 ||
-    eslIj.remove?.length > 0 ||
-    eslTr.remove?.length > 0;
-
-  useUsersStore.getState().account.actions.addLinkedEsiData({
-    ordersToAdd: eslMo.add,
-    jobsToAdd: eslIj.add,
-    transactionsToAdd: eslTr.add,
-    ordersToRemove: eslMo.remove,
-    jobsToRemove: eslIj.remove,
-    transactionsToRemove: eslTr.remove,
-  });
-
-  if (hasAnyChanges && persistToServer) {
-    await saveUserAccountDocument();
-  }
+  await saveLinkedEsiChange(
+    {
+      ordersToAdd: esl.marketOrders?.add,
+      jobsToAdd: esl.industryJobs?.add,
+      transactionsToAdd: esl.transactions?.add,
+      ordersToRemove: esl.marketOrders?.remove,
+      jobsToRemove: esl.industryJobs?.remove,
+      transactionsToRemove: esl.transactions?.remove,
+    },
+    "The job was saved",
+    { save: persistToServer },
+  );
 
   if (inputJob.includedInGroup) {
     const updatedGroup = getGroupObject(inputJob.groupID);
@@ -231,10 +217,7 @@ export async function closeActiveJob(
     return "closed";
   }
   if (isLoggedIn) {
-    showSnackbarWarning(
-      "You do not hold the lock on this job, so your changes were not saved.",
-      8,
-    );
+    showSnackbarWarning(lockNotHeldMessage("job"), 8);
   }
   return "closed";
 }

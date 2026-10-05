@@ -42,8 +42,8 @@ export function defaultCalculateSetupQuantities({
 }
 
 /**
- * Uses cached personal + corporation blueprints to count matching originals and split
- * minimum total runs across them (see `calculateSetupQuantitiesAcrossOwnedBlueprintOriginals` in setupHelpers).
+ * Splits the minimum total runs across the matching originals in the reader's personal and
+ * corporation blueprints.
  *
  * @type {CalculateSetupQuantities}
  */
@@ -60,8 +60,8 @@ export function calculateSetupQuantitiesAcrossOwnedBlueprintOriginalsFromContext
 }
 
 /**
- * Where a job is made and with what, derived from the current user's settings and
- * the blueprints they hold. The floor a setup is built on when nothing above it
+ * Where a job is made and with what, derived from the current user's settings and the blueprints
+ * they hold.
  */
 export function buildSetupContextForJob(job, queryClient) {
   const { ME, TE } = findHighestMaterialEfficiencyBlueprint(
@@ -105,8 +105,8 @@ export function setupQuantitiesForTotal(
 }
 
 /**
- * Setup accepts the character under two names and stores it under one, so a
- * source naming the other would not override one spread in beneath it.
+ * Setup accepts the character under two names and stores it under one, so a source naming the other
+ * would not override one spread in beneath it.
  *
  * @param {Object} source
  */
@@ -117,8 +117,8 @@ function asStoredFieldNames({ characterToUse, ...rest }) {
 }
 
 /**
- * Drops keys with no value, so spreading one source does not blank a field the
- * source beneath it answered.
+ * Drops keys with no value, so spreading one source does not blank a field the source beneath it
+ * answered.
  */
 function withoutUndefined(source) {
   return Object.fromEntries(
@@ -127,8 +127,8 @@ function withoutUndefined(source) {
 }
 
 /**
- * Builds one setup. Precedence, highest first: the quantity, `overrides` (a build
- * request or a stored template row), `basedOn` (the setup this one continues
+ * Builds one setup from its quantity, `overrides`, `basedOn` and the job's context, each taking
+ * precedence over the ones after it.
  *
  * @param {Object} [sources]
  * @param {Object} [sources.basedOn] - The setup this one continues from, as a row
@@ -209,8 +209,6 @@ export function findHighestMaterialEfficiencyBlueprint(
     scope: BLUEPRINT_SCOPE.ALL,
   });
 
-  // Ordered when the collection was built — originals first, then the most researched — so the
-  // best one is simply the first.
   const [best] = byTypeId.get(blueprintTypeID) ?? [];
 
   if (!best) {
@@ -291,7 +289,8 @@ function splitIntegerEvenlyAcrossParts(total, parts) {
 }
 
 /**
- * Groups per-slot run counts that are equal into planner segments (`jobCount` = BPOs with that run count).
+ * Groups per-slot run counts that are equal into planner segments (`jobCount` = BPOs with that run
+ * count).
  *
  * @param {number[]} runsPerSlot — one run count per original blueprint; zeros are ignored
  * @returns {Array<{ runCount: number, jobCount: number }>}
@@ -314,13 +313,7 @@ function groupIdenticalRunCountsIntoSegments(runsPerSlot) {
 
 /**
  * Distributes **manufacturing runs** across owned **original** blueprints for `blueprintTypeID`
- * (personal + corporation caches). Uses the minimum total runs `ceil(requiredQuantity / baseQuantity)`
- * and splits those runs across originals (largest remainder), so total output is
- * `baseQuantity × ceil(requiredQuantity / baseQuantity)` — no extra runs from per-blueprint
- * `ceil(share / baseQuantity)` when shares are split by item count.
- * Blueprint rows are deduped by `item_id`. Not capped by `maxProductionLimit`.
- *
- * For a single original or bad cache, falls back to {@link calculateSetupQuantitiesFromRequiredQuantity}.
+ * (personal + corporation caches).
  *
  * @param {number} blueprintTypeID
  * @param {number} maxProductionLimit — unused for the multi-blueprint path; kept for call-site compatibility.
@@ -336,8 +329,6 @@ export function calculateSetupQuantitiesAcrossOwnedBlueprintOriginals(
   baseQuantity,
   queryClient,
 ) {
-  // No readiness guard of its own: the reader reports nothing for a collection still arriving or
-  // one whose refetch failed, and no originals takes the same fallback below.
   const { byTypeId } = getCachedBlueprintIndex(queryClient, {
     scope: BLUEPRINT_SCOPE.ALL,
   });
@@ -350,9 +341,6 @@ export function calculateSetupQuantitiesAcrossOwnedBlueprintOriginals(
     );
   }
 
-  // Summed rather than counted. A stack of originals is one row carrying several, and each of them
-  // can hold its own job — a count of rows gives one slot where the stack offers as many as it
-  // holds. Reaction formulas restack after every use, so a stack is their ordinary condition.
   const originalCount = (byTypeId.get(blueprintTypeID) ?? []).reduce(
     (total, row) => total + row.originalCount,
     0,
@@ -404,8 +392,8 @@ function sameMaterialCount(stored, rebuilt) {
 }
 
 /**
- * The figures a setup works out from its own choices, each with how to work it out
- * again and how to tell whether the stored one still agrees.
+ * The figures a setup works out from its own choices, each with how to work it out again and how to
+ * tell whether the stored one still agrees.
  *
  * @type {Array<{field: string, rebuild: (setup: Object, job: Object) => *,
  * matches: (stored: *, rebuilt: *) => boolean}>}
@@ -424,11 +412,8 @@ const derivedFigures = [
 ];
 
 /**
- * Brings a job's setups back into step with the choices they were built from, in
- * place, and says which figures on which setups it corrected.
- *
- * Corrects nothing until the bonuses a figure is worked out from have arrived,
- * because a figure rebuilt without them would be wrong in a new way.
+ * Brings a job's setups back into step with the choices they were built from, in place, and says
+ * which figures on which setups it corrected.
  *
  * @param {Object} job - The job, as plain data
  * @returns {Array<{setupID: string, fields: Array<string>}>}

@@ -9,22 +9,38 @@ export const MERGE_DIALOGUE_MODE = {
   REFUSED: "refused",
 };
 
+/** @type {((merge: boolean) => void) | null} */
+let pendingAnswer = null;
+
 /**
- * Asks the reader to confirm a merge that discards what the replaced jobs recorded.
+ * Asks the reader to confirm a merge that discards what the replaced jobs recorded; a question it
+ * replaces is answered no.
  *
  * @param {Array<import("../Functions/Job/changes/mergeJobs.js").MergeDiscard>} discards
  * @returns {Promise<boolean>} Whether the reader chose to merge
  */
 export function confirmMergeDiscards(discards) {
+  answerMergeConfirmation(false);
   return new Promise((answer) => {
+    pendingAnswer = answer;
     eventEmitter.emit(MERGE_JOBS_EVENT, {
       isOpen: true,
       mode: MERGE_DIALOGUE_MODE.CONFIRM,
       discards,
       moved: [],
-      answer,
     });
   });
+}
+
+/**
+ * Answers the confirmation the merge dialogue is asking, if one is waiting.
+ *
+ * @param {boolean} merge - Whether the reader chose to merge
+ */
+export function answerMergeConfirmation(merge) {
+  const answer = pendingAnswer;
+  pendingAnswer = null;
+  answer?.(merge);
 }
 
 /**
@@ -34,6 +50,7 @@ export function confirmMergeDiscards(discards) {
  * @param {() => Promise<unknown>} mergeAgain
  */
 export function showMergeRefused(moved, mergeAgain) {
+  answerMergeConfirmation(false);
   eventEmitter.emit(MERGE_JOBS_EVENT, {
     isOpen: true,
     mode: MERGE_DIALOGUE_MODE.REFUSED,

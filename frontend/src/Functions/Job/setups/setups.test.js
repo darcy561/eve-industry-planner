@@ -53,7 +53,6 @@ describe("the blueprint a job is set up from", () => {
       null,
     );
 
-    // 7002 is the ME 10 / TE 20 original; TE is halved into the job's own scale.
     expect(ME).toBe(10);
     expect(TE).toBe(10);
   });
@@ -93,9 +92,6 @@ describe("the blueprint a job is set up from", () => {
 });
 
 describe("spreading runs across the originals a job can use", () => {
-  // A stack of originals is one row carrying several, and each can hold its own job. Counting rows
-  // gave one slot where the stack offers as many as it holds — and a reaction formula restacks
-  // after every use, so a stack is its ordinary condition rather than an edge case.
   it("uses every original in a stack, not just the row", () => {
     withBlueprints([reactionFormulaStackRow]);
 
@@ -166,9 +162,6 @@ describe("the setup fields a default structure supplies", () => {
     };
   }
 
-  // These fields are spread straight into a new Setup, which reads the two rig
-  // slots. A key under any other name is dropped without complaint, so a job
-  // built from a rigged structure would come out unrigged.
   it("carries both rig slots through", () => {
     withDefaultStructure({
       id: "manStruct-1",

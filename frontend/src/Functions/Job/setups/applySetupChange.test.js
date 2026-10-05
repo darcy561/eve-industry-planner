@@ -42,8 +42,6 @@ beforeEach(() => {
   };
 });
 
-// The change is made on a copy of the setup rather than on the one the page is
-// showing, which is a view of what the session holds and is rebuilt from it.
 describe("changing the setup being edited", () => {
   it("records the change rather than making it on the setup it was given", async () => {
     const actions = commandActions();
@@ -78,9 +76,6 @@ describe("changing the setup being edited", () => {
     expect(actions.run.mock.calls[0][0].name).toBe("set the runs");
   });
 
-  // Install costs are read against the system the setup names. A change that
-  // moves the system has to ask about the system it moved to, not the one it
-  // came from, or the job is costed against the wrong index.
   it("asks about the system the change moved it to", async () => {
     const actions = commandActions();
 

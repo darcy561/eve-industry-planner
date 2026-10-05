@@ -141,9 +141,6 @@ export async function persistJobChangeToApi(writes, deletes = []) {
 
   try {
     await putJobDocumentsChange(writes, deletes);
-    useUsersStore
-      .getState()
-      .jobData.actions.countWrittenJobRevisions(writes.map((w) => w.jobID));
     return "saved";
   } catch (err) {
     if (err?.code === CLIENT_ERROR_REVISION_CONFLICT) {
@@ -164,6 +161,30 @@ export async function persistJobChangeToApi(writes, deletes = []) {
 }
 
 /**
+ * Reads jobs as the server holds them and puts them on the planner, dropping those it no longer holds
+ * when asked; answers what it read.
+ *
+ * @param {Array<string>} jobIDs
+ * @param {{dropMissing?: boolean}} [options]
+ * @returns {Promise<Array<object>>}
+ */
+export async function readJobsIntoPlanner(
+  jobIDs,
+  { dropMissing = false } = {},
+) {
+  if (jobIDs.length === 0) return [];
+  const read = await requestJobDocumentsByIdsFromApi(jobIDs);
+  const { actions } = useUsersStore.getState().jobData;
+  actions.updateOrAddJobsToJobArray(read);
+  if (dropMissing) {
+    const found = new Set(read.map((job) => job.jobID));
+    const gone = jobIDs.filter((jobID) => !found.has(jobID));
+    if (gone.length > 0) actions.removeJobsFromJobArray(gone);
+  }
+  return read;
+}
+
+/**
  * Puts the jobs a refused change touched back to their saved copies, in the planner and under the
  * editor, and takes out the new jobs it would have created.
  *
@@ -177,7 +198,7 @@ export async function restoreSavedJobs(jobIDs, newJobIDs = []) {
   }
   let saved;
   try {
-    saved = await requestJobDocumentsByIdsFromApi(jobIDs);
+    saved = await readJobsIntoPlanner(jobIDs, { dropMissing: true });
   } catch (err) {
     console.error(
       "Saved jobs could not be read back after a refused save",
@@ -188,12 +209,6 @@ export async function restoreSavedJobs(jobIDs, newJobIDs = []) {
       8,
     );
     return;
-  }
-  const found = new Set(saved.map((job) => job.jobID));
-  jobData.actions.updateOrAddJobsToJobArray(saved);
-  const gone = jobIDs.filter((jobID) => !found.has(jobID));
-  if (gone.length > 0) {
-    jobData.actions.removeJobsFromJobArray(gone);
   }
   for (const job of saved) {
     editSession.actions.documentArrived(job.jobID, toDocument(job));

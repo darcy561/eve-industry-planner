@@ -3,7 +3,7 @@ import {
   releaseFromGroupToPlanner,
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
 import { saveJobsViaApi } from "../Job/sync/saveJobsViaApi.js";
-import { requestJobDocumentsByIdsFromApi } from "../Endpoints/Private/requestJobDocumentsByIds.js";
+import { readJobsIntoPlanner } from "../Job/sync/persistJobDocumentsToApi.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
@@ -67,8 +67,7 @@ export async function releaseJobsAfterGroupRemoved(groupLike) {
   const isLoggedIn = useUsersStore.getState().account.isLoggedIn;
   if (missing.length > 0 && isLoggedIn) {
     try {
-      const fetched = await requestJobDocumentsByIdsFromApi(missing);
-      actions.updateOrAddJobsToJobArray(fetched);
+      await readJobsIntoPlanner(missing);
     } catch (err) {
       console.error(
         "releaseJobsAfterGroupRemoved: could not load job documents",
