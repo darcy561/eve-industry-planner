@@ -11,7 +11,8 @@ Live SoT will not be edited until this project is complete and promotion is appr
 **Status:** Phase 1 only. Nothing has moved under this project's name.
 [document-write-granularity](../document-write-granularity/contents.md) moved its own inbound job-document
 machinery into `Functions/JobDocuments/` as `inboundJobDocuments.js` while its work was in hand, which is
-the pattern this project generalises rather than a stage of it.
+the pattern this project generalises rather than a stage of it. The same project has since inlined `workingCopyOfJob` at its two callers and deleted it, so that
+item of § The moves, by what they cost is done.
 
 ## Goal
 
@@ -120,10 +121,9 @@ out of scope by § Does not own.
 
 ## Open questions
 
-- **Whether `Functions/JobDocuments/` is the job model's final name**, or whether it becomes
-  `Functions/Job/` absorbing the two-file `Functions/Job Build/`. The second reads better and costs a
-  wider rename; the first is where half the machinery already lives and where
-  document-write-granularity has just put the other half.
+- ~~Whether `Functions/JobDocuments/` is the job model's final name~~ — settled: the job's code is one
+  `Functions/Job/` grouped by subject, moved by document-write-granularity; see its overlay § Where
+  this work lives.
 - **Whether `Functions/Helper/` and `Functions/Shared/` should merge.** They have no stated boundary and
   a family of three parent/child link modules is split across them.
 - **Whether a path alias would be worth adding** before the wide moves, so a future move rewrites one

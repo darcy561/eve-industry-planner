@@ -423,7 +423,7 @@ deploy together for this stage, and `BulkUpsertJobs` keeps taking a whole job fo
 restore.
 
 **Built on both sides, and shippable on neither alone.**
-[`writeBody.js`](../../../frontend/src/Functions/JobDocuments/writeBody.js) turns a job and its log
+[`writeBody.js`](../../../frontend/src/Functions/Job/sync/jobWrite.js) turns a job and its log
 entries into the two parts. The server walks them through `models.Job` itself — `JobSetPaths` and
 `JobUnsetPaths` — and `PutJobDocumentsHandler` reads the envelope batch, splits the whole-document
 writes from the field-scoped ones and sends each to its own writer.
@@ -1038,7 +1038,7 @@ then deletes the old jobs in a second. It takes no lock, the delete has no revis
 refused save throws "No jobs were removed" after part of it landed — leaving the replacement beside the
 old jobs with one-sided links. Neighbours not loaded locally keep links to deleted ids; the group's
 membership is recomputed from loaded jobs only, dropping members this tab never fetched; purchases,
-linked runs and notes on the old jobs are discarded without a word; and the account's ESI links are
+extra costs, invention entries and linked ESI records on the old jobs are discarded without a word; and the account's ESI links are
 removed locally and never saved. **Multi-delete** (`deleteMultipleJobs.js`) and **archive**
 (`archiveJobButton.jsx`, `archiveGroupJobs.js`) have the same save-then-delete shape.
 
@@ -1046,7 +1046,7 @@ removed locally and never saved. **Multi-delete** (`deleteMultipleJobs.js`) and 
 
 - **Deletes join one change.** `JobWriteBatch` gains `deletes`, each naming a job and the revision it
   was read at. Inside `WriteJobChange`'s transaction a delete is conditional on that revision, stamped
-  with the session and client first as `DeleteManyAfterStampingMeta` does; a delete that matches
+  with the session and client first through `MetaStamp`, as `DeleteManyAfterStampingMeta` does; a delete that matches
   nothing refuses the change, and `staleInChange` names it moved or gone. The lock gate covers written
   and deleted ids together. Wire: additive in shape, but an old server would ignore `deletes` and write
   the replacement while dropping nothing, so it ships with the server half — a hard cutover.
@@ -1068,16 +1068,15 @@ lock, so only one member works a group page at a time — the group lock should 
 the group's own document; and archived-job restore still gates a grouped job on its group rather than
 on itself (`archivedjobs/restoreHandlers.go`).
 
-**Decisions owed before building:**
+**Decided:**
 
-1. What a refused merge shows. A close's review panel compares the reader's commands; a merge has
-   none, because the merge is the edit. Proposed: the selection stays, a panel lists what moved — jobs
-   edited, gone or held, naming no member — and offers to merge again from the current jobs.
-2. Whether merge warns before discarding purchases, linked runs and notes on the jobs it replaces,
-   especially ones another member recorded.
-3. Whether merge takes the locks of every job it touches first, or relies on the server refusing the
-   whole change. Recommended: the latter, with the selection re-checked against lock state when Merge
-   is pressed.
+1. **A refused merge writes nothing and keeps the selection.** A panel lists what moved — jobs edited,
+   gone or held, naming no member — and offers to merge again from the current jobs.
+2. **Merge warns before discarding records.** When any selected job carries purchases, extra costs,
+   invention entries or linked ESI records, the merge confirmation lists what will be discarded before the reader confirms.
+3. **Merge takes no locks.** The server refuses the whole change when any job it touches is held by
+   another session, and pressing Merge first checks the selection against lock state so held jobs are
+   flagged before anything is sent. Multi-delete and archive follow the same rule.
 
 ## Wire compatibility
 
@@ -1091,6 +1090,8 @@ on itself (`archivedjobs/restoreHandlers.go`).
 | Realtime document payload | additive at Stage E — a message carries each path the update set with its value, the removed row paths, and the pair of revisions it moves between, beside the full document a client may still take. Removing the full document is the breaking half, is where the payload saving is, and is separable |
 | Close request | additive at Stage D — a batch may be marked as one change, which the server writes in one transaction or refuses whole. An unmarked batch is written per document as today |
 | Deletes inside one change | **breaking in effect** at Stage F — `deletes` on `JobWriteBatch` is additive in shape, but a server that ignored it would write a merge's replacement and drop nothing, so it ships with the server half |
+| Archive request | **breaking in effect** at Stage F — `PUT /api/v1/archived-jobs` now removes each job from the planner in the same transaction, checked against the revision its `_meta` carries, and has no 100-job cap. Same shape; an old SPA's follow-up delete finds nothing, a new SPA on an old server would leave the jobs on the planner, so both ship together |
+| `DELETE /api/v1/job-documents` | **removed** at Stage F — every removal rides a change or an archive; nothing in the SPA calls it |
 | Document lock enforcement | **narrowed** at Stage D — a job's lock is consulted for that job alone; a group's holder is no longer exempt from a member job's lock. Not a wire shape |
 | `document_lock_group_cascade` | **removed** at Stage D along with the group lease over member jobs. No client behaviour depends on it once per-job locks are not force-released by a group |
 | Document lock HTTP and websocket surfaces | unchanged. The lock keeps its endpoints and events at Stage D; what changes is that no write path consults the answer |
@@ -1178,7 +1179,7 @@ on itself (`archivedjobs/restoreHandlers.go`).
 | C — field-scoped writes | **Landed, and proved end to end. Not deployed.** A save sends one envelope per job — the id and group beside the document — and where the editor recorded what the reader changed, that document carries only those fields and names the rows that went. Where nothing recorded it, the whole document goes, checked against the revision its own `_meta` carries. The endpoint plans the stored update from the job model's own bson tags, refuses a body naming `_meta`, and writes the row whole where a ciphered id has no stored path. A write the server cannot read is dropped from the queue and said out loud rather than retried for as long as the tab stays open. The envelope is pinned for both sides by [job-write/body.json](../../../testing/fixtures/job-write/body.json), and driven through the real handler into real Mongo, where only the named field, the named row and the revision move. **It cuts over with [job-document-drafts](../job-document-drafts/plan.md) Stage 2**, whose `prepareRelease` step reshapes the documents in the same cutover: a path-scoped write into an un-reshaped document writes a key that means nothing, so the two go together rather than one waiting on the other. See [overlay.md](./overlay.md) § Stage C |
 | D — the lock stops being broad | **Landed.** A held job no longer costs the batch; a close is sent as one change and written in one transaction or refused whole, with the group and ESI links written only after it lands; a refused close keeps the editor open on the saved jobs and opens a review of the reader's changes, and an incoming save mid-edit keeps the reader's value wherever the two clash and says so. **The lock covers one job**: a group's lock covers its own document only, the cascade and the group holder's exemption are gone, and a job's own lock still refuses other sessions' saves — advisory was weighed and not taken. See [overlay.md](./overlay.md) § Stage D |
 | E — delta delivery and client apply | **Landed, end to end.** A job document's update publishes each path it set, with its value, in the client's names, the paths it cleared, and the pair of revisions it moves between, beside the whole document a client may still take. The envelope is pinned for both languages by [job-delta.json](../../../testing/fixtures/realtime-messages/job-delta.json), and a live test drives a real write through a real change stream. A client applies one onto the document it holds, folding a window's deltas in order and reading the job again where they do not join up. One save is followed the whole way: through the real endpoint, a real change stream, the stack's own websocket service, to the tabs that receive it and the tab that must not — and then through the SPA's handlers, where the applied document has to be the one the server stored. § The loop a change has to survive. § Where it starts has the slices, [overlay.md](./overlay.md) §§ Slice 1 to Slice 8 what runs. Behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped; its shared-planners dependency is discharged and `jobArray` is plain since [job-document-drafts](../job-document-drafts/plan.md) Stage 5. The design is settled in § Stage E: the delivery carries each path the update set with its value and the paths it cleared, and the pair of `_meta.revision` values it moves between, because the delivery position is a global sequence and cannot prove a document missed nothing. Owed before building: the payload figure, measured against a restored copy of live |
-| F — every multi-job write is one change | **Not started.** Merge, multi-delete and archive become one change with deletes inside the transaction; no write refused by a lock goes unsaid; the group lock only for the group's own document; restore checked per job. Three decisions owed — § Stage F |
+| F — every multi-job write is one change | **In progress.** Removals ride a change; merge, multi-delete and archive each land whole or not at all; the job-documents delete endpoint is gone; a save another member's lock refused is said and put back; restore is checked per job — see [overlay.md](./overlay.md) § Stage F. Still to come: the group lock only for the group's own document, which needs a decision on how a group write is protected. Decisions settled — § Stage F |
 
 ## Recommended pickup order
 
@@ -1234,7 +1235,7 @@ diff in `BulkUpsertGroups` it planned to delete is already gone. Its own plan st
 dependency as outstanding until its owner updates it.
 
 **Stage F is next**: merge, multi-delete and archive become one change, and no write a lock refuses
-goes unsaid — three decisions are owed first (§ Stage F).
+goes unsaid; its decisions are settled (§ Stage F).
 
 **What else stands between this project and promotion** is the cutover, not code: Stage C deploys with
 [job-document-drafts](../job-document-drafts/plan.md) Stage 2 in the release window; the payload figure

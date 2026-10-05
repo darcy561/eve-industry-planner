@@ -1052,7 +1052,7 @@ not drive the rotation.
 
 **The owner does not go on the wire by the API.** Nothing in the SPA reads `_meta.accountID` — the only
 account id it writes into `_meta` is `lastUpdatedBy`, seeded from the store by `jobFromDocument` in
-`Functions/JobDocuments/jobDocument.js` — and the server overwrites whatever a client uploads. So the
+`Functions/Job/jobDocument.js` — and the server overwrites whatever a client uploads. So the
 field is decorative and the client change is a deletion rather than a repoint.
 
 A change delivery is the exception, and an unintended one: the watcher copies `_meta` as a raw map,

@@ -205,7 +205,7 @@ narrowed by one that can, or the fields it does not name would stop being writte
 
 ### What a write body says
 
-[`writeBody.js`](../../../frontend/src/Functions/JobDocuments/writeBody.js) turns a job and the
+[`writeBody.js`](../../../frontend/src/Functions/Job/sync/jobWrite.js) turns a job and the
 entries of its edit-draft change log into the two parts a field-scoped write carries.
 
 `document` is a partial job — a field that is present is being written, a field that is absent is
@@ -308,7 +308,7 @@ both write paths would have to route through the upgrader rather than stamp the 
 document either of them touched becomes invisible to that selection.
 
 The SPA sends these envelopes: `getPendingJobDocumentWritesPayload` builds one per queued job through
-[jobWriteEnvelope.js](../../../frontend/src/Functions/JobDocuments/jobWriteEnvelope.js), and the write
+[jobWriteEnvelope.js](../../../frontend/src/Functions/Job/sync/jobWrite.js), and the write
 paths that record no log — a merge relinking parents, a delete cutting children loose — go through
 `wholeJobWrites` beside it. A write the server cannot read is dropped from the queue and said out
 loud, rather than retried for as long as the tab stays open.
@@ -446,8 +446,9 @@ before the save and write the group and the links whatever the save answered.
 **A refused close is not retried.** `persistJobChangeToApi` answers `conflict`, `locked` or
 `failed`, counts no revision and queues nothing back: a close put back on the queue would later go per
 document, outside the change. A transport failure is no exception once the request's own retries are
-spent. A lock held elsewhere or a failed request warns the reader; a stale job does not, because the
-review that follows does the telling. The editor stays open with the reader's changes —
+spent. A failed request warns the reader from `persistJobChangeToApi`; a lock held elsewhere is
+warned by `closeActiveJob`, because what a refused change means depends on what sent it; a stale job
+is not warned, because the review that follows does the telling. The editor stays open with the reader's changes —
 § The review panel.
 
 Vitest covers the close sending one request with the edited job by what changed and the rest whole,
@@ -846,7 +847,7 @@ connection URL through the same package.
 
 ### Slice 6 — the client applies a delta onto what it holds
 
-`Functions/JobDocuments/jobDelta.js` is the whole rule, as pure functions over plain data:
+`Functions/Job/sync/jobDelta.js` is the whole rule, as pure functions over plain data:
 `deltaFromMessage` reads a delivery's delta or answers none, `deltaVerdict` says whether it applies,
 repeats one already applied, or proves a delivery was missed, and `applyJobDelta` sets each change's value whole at its
 path, clears each removed path, and answers a new document rather than changing the one it was given —
@@ -963,6 +964,233 @@ Everything else in this stage is settled in [plan.md](./plan.md) § Stage E — 
 update set with its value and the removed row paths, the client sets each value whole onto the base it
 already holds, and a gap is proved by the pair of `_meta.revision` values a delta moves between and
 answered by reading the job again. All of it is built; §§ Slice 1 to Slice 8 say what each part does.
+
+## Stage F — Every multi-job write is one change
+
+### Removals inside a change
+
+A batch marked `oneChange` may carry `deletes` beside `jobs`: each names a job and the revision it was
+read at (`models.JobDeleteBody`). `JobWriteBatch.Validate` refuses removals on an unmarked batch, a
+removal without a revision, and a job both written and removed; a change that only removes is allowed.
+The fixture `testing/fixtures/job-write/body.json` pins the shape for both sides as
+`changeWithDeletes`.
+
+| A removal meets | The change answers |
+|-----------------|--------------------|
+| A job another session holds | 409 `lock_held_elsewhere`, nothing written — the lock gate checks written and removed ids together (`JobWriteBatch.JobIDs`) |
+| A job edited since it was read | 409 `revision_conflict`, nothing written or removed, the job named at its current revision |
+| A job already gone | the same 409, the job named `gone` |
+| Nothing moved | 204, every write made and every removal gone |
+
+`WriteJobChange` takes a `JobChange` — whole writes, field writes and `models.JobDeleteBody` removals — and makes the
+removals after the writes inside the same transaction. Each removal stamps `_meta` with the session and
+client, filtered on the revision it was read at, then deletes the document, as
+`DeleteManyAfterStampingMeta` does outside a change; an unmatched stamp refuses the change, and
+`staleInChange` names it with the writes.
+
+Live tests in `shared/mongo` show a write and a removal landing together, a removal of an edited job
+refusing the write beside it, and a removal of a gone job reported gone. Through the handler: a change
+removing a job lands, a removal of an edited job or a held job refuses the whole change, and removals
+outside `oneChange` are a 400. Dropping removed ids from the lock gate fails the held case.
+
+### A merge is one change
+
+`mergeJobs` no longer works from the planner's copies or sends two requests:
+
+1. **The reader's queue is flushed**, so their own pending edits are on the server first.
+2. **The selection and every job it links to are read back** (`requestJobDocumentsByIdsFromApi`), so
+   links and revisions are current rather than what this tab happened to load. A selected job that no
+   longer exists is dropped; a link to a job that no longer exists is left off the replacement.
+3. **A job another session holds stops the merge before anything is sent**, and the merge panel names
+   it (`jobsOpenElsewhere`).
+4. **What the replaced jobs recorded is confirmed.** Purchases, extra costs, invention entries and
+   linked industry jobs, market orders and transactions are discarded with the jobs; where any exist,
+   the merge panel lists them per job and the merge waits for the reader (`confirmMergeDiscards`).
+5. **The replacement, every relinked parent and child, and the removal of the replaced jobs at the
+   revisions read go as one change** through `saveJobsAsOneChange(jobs, changes, removed)`.
+6. **Only once it lands** are the replaced jobs taken off the planner, the groups recomputed, the
+   replaced jobs' ESI links removed from the account and the account saved, and the selection cleared
+   (`onMerged`).
+
+**A refused merge writes nothing and keeps the selection.** `restoreSavedJobs` puts back every job the
+merge read and takes the replacement out, then the merge panel lists what moved —
+`whatMovedSinceRead` judges each job read against the planner's restored copy and the lock state:
+edited, removed, or open for editing elsewhere, naming no member — and offers **Merge again**, which
+runs the merge afresh from the current jobs. It is disabled while any job is open elsewhere.
+
+The panel is `MergeJobsDialogue`, mounted beside the app's other app-wide dialogues and opened by
+`mergeJobsEvents` in two modes, confirm and refused.
+
+Applying a group template to the active group saves the jobs it built before merging them, as it
+already did for a new group: a merge reads its jobs back from the server, and unsaved jobs would read
+as gone.
+
+Vitest covers the change sent with removals at the revisions read, the read-back used over the
+planner's copies, a dead link dropped, a held job stopping the merge, the confirmation asked and
+declined, the ESI links removed and saved on landing, a refused merge restoring and naming what moved,
+merge again re-reading, and a signed-out merge staying local; the panel in both modes; and the template
+saving before it merges.
+
+### Multi-delete is one change
+
+`deleteMultipleJobs` works as a merge does: it sends the reader's queue, reads the selection and every
+job it links to back from the server, stops before sending anything when one is open elsewhere, and
+sends the unlinked parents and children with the removals at the revisions read as one change
+(`saveJobsAsOneChange(jobs, undefined, removed)`). Only once it lands are the jobs taken off the
+planner, the groups put into the planner and queued, and the deleted jobs' ESI links released and the
+account saved. A refused delete puts back every job it read and warns, naming each job that moved —
+`nothingChangedMessage` over what moved, in the same words as the merge panel. It answers
+whether the jobs are gone, and the Edit Job delete button and the two side-menu deletes act only on
+`true`.
+
+Merge and delete share their whole frame from `Functions/Job/changes/jobChange.js`:
+`readJobsForAChange` sends the queue, reads the jobs back and reports which are open elsewhere, saying
+so when they cannot be read; `sendChangeFromRead` sends the change and, when it is refused, puts back
+what was read, takes out what it created and answers what moved. `nothingChangedMessage` is the one
+wording for a change that touched nothing — merge's refusals, delete's, both archives', a close
+refused by a lock — naming the jobs that moved where they are known and the server's reason where
+not. The working copies a change is built on are `workingJobs` and `workingGroups` in
+`workingCopies.js`, which moving jobs on the planner and mass build use too. Releasing the ESI links
+of jobs that left the planner, and warning when the account could not be saved, is
+`releaseEsiLinksOf`, beside them in `jobChange.js`, shared by merge, delete and both archives.
+
+### An archive is a move
+
+`PUT /api/v1/archived-jobs` writes the archived copies and removes the live jobs in one transaction
+(`(*Mongo).ArchiveJobs`), each removal stamped and checked against the revision the archived job's
+`_meta` carries, exactly as a removal inside a change is. A job edited since it was read refuses the
+whole batch with a 409 `revision_conflict` naming it, and nothing is archived or removed; a job sent
+without a revision is a 400. Statistics rows and the rebuild queue follow once the move has landed,
+best-effort as before. The 100-job cap is gone, as for a change: a batch split across requests would
+not be one move, and the 1 MB body limit still bounds it. `ArchiveJobs` takes the jobs themselves and
+derives each archived copy and each removal from them; it shares `inJobChange` and `applyInChange`
+with `WriteJobChange`, so the transaction, the abort at the first stale step and the read of what
+moved are written once. Every removal and `DeleteManyAfterStampingMeta` stamp `_meta` through
+`MetaStamp`.
+
+`saveArchivedJobs` sends one request and answers the same outcomes a save does — `saved`, `locked`,
+`conflict` or `failed` — and `archiveJobsOnServer` in `jobChange.js` says why when nothing moved. The
+Edit Job archive button takes the job's queued write out before it asks, so a debounced save cannot
+race the move, and puts it back if the archive is refused; it releases the job's ESI links and leaves
+the page only once the archive landed, where it used to release them before asking. A group archive sends the reader's queue, archives
+the planner's current copies of the jobs not shown on the planner, refuses up front while another
+member has the group open, and removes the group only after the jobs moved — a group that could not be
+removed then is said, and the jobs stay archived. A refused archive changes nothing locally.
+
+`DELETE /api/v1/job-documents` is removed: every removal now rides a change or an archive.
+
+### One lock gate for every write handler
+
+The job-documents, archive, group write and group delete handlers each carried the same lock check:
+session required, `CollectLockHeldElsewhereRejects`, the two error answers and the debug step. It is
+now `helper.GateDocumentLocks`, which answers the request itself when the check cannot be made, and
+`helper.RefuseHeldDocuments`, which answers 409 naming what is held; each handler keeps its own choice
+of dropping held writes or refusing the request. Their log codes are derived from the endpoint name.
+
+**A change that only removes jobs was refused.** The job-documents handler answered "held elsewhere"
+whenever no write was left after the lock check, so a change carrying only removals — deleting a job
+with no parents or children — was refused on every stack with Redis, holding nothing. It now answers
+that only when the lock dropped every write. `live_one_change_test.go` covers a removal-only change
+with the lock gate on; with the old condition, it fails.
+
+`api.jobs.deleted_total` was never incremented; a landed change now counts its removals there, and
+`api.jobs.saved_total` counts only its writes.
+
+### Test helpers for this work are shared
+
+The live Go tests seed, read and check the absence of jobs through `testing/mongolive` —
+`SeedJobs`, `ReadJob` and `RequireJobAbsent`, each taking the store's own `Docs` so the same helper
+reads the live and the archived collection — in place of the copies each package's tests carried.
+The SPA's merge, delete, read-for-a-change and group-archive tests share
+`frontend/src/tests/jobPlannerHarness.js`: a planner store over a real job array, a stand-in for the
+server's jobs answering reads by id, and a document held open elsewhere.
+
+### What the sweep found beside it
+
+**Restore was losing jobs.** It wrote the archived copy back with `BulkUpsertJobs`, whose whole-document
+write is conditional on the revision `_meta` carries — and an archived copy carries one, so the write
+was refused as gone, the refusal was ignored, and the archive copy was then deleted. A restored job now
+goes back through `WriteJobChange` as a create — its revision cleared, refused when a job with that id
+is already on the planner — and a refused write stops the restore before the archive copy is touched.
+`live_restore_test.go` caught it, and now also proves a restore over a live job leaves both copies.
+
+**Restore could not see who holds an ESI id.** `esiHoldersFor` searched the stored paths ESI rows had
+before they moved to `esi.industryJobs`, `esi.marketOrders` and `esi.transactions`, so it found no
+holder and a restored job could reclaim an id another job held. It now looks each id up by its row key.
+
+Live tests in `shared/mongo` show an archive moving the job, a job edited since it was read archiving
+nothing (run without the transaction, it fails), and a job without a revision named. Through the
+handler, an archive leaves the planner and a stale batch archives nothing. The cross-client suite
+deletes through `deleteMultipleJobs` itself, and its fixture keeps the jobs written so the read-back
+answers them and a removal inside a change is delivered as a delete. Vitest covers multi-delete
+(one change, the read-back over the planner's copies, a held job, a refusal putting back what was
+read, groups and ESI links only once landed, signed out), the group archive and the archive button.
+
+### A save a lock refused is said and put back
+
+The shared save queue (`persistJobDocumentsToApi`, behind `saveJobsViaApi` and the debounced save)
+answered `locked` with the held writes left queued and nothing said, so the screen showed a save that
+had not happened, and the writes went out later only when something else flushed — after the holder
+had moved the job, so they failed as stale. Now a lock refusal counts what wrote, drops the held writes
+from the queue, puts those jobs back as the server holds them (`restoreSavedJobs`, which rebases an
+open editor's changes the way an incoming save does) and warns, naming them. The server always names the
+held jobs; a refusal naming none leaves the queue as it was rather than guess, since a just-created job
+in it would read back as gone. While the page is hidden, as on the way out, the held writes are dropped
+without fetching the saved copies. This covers every caller of the queue at once —
+the price entry dialogue, mass build, drag and drop, templates, `closeGroup` and the rest — rather
+than each answering for itself. `restoreSavedJobs` lives in its own module, which the queue, a close,
+a merge and a delete all use.
+
+### Restore is gated on each job
+
+Restore checked a grouped job only against its group's lock, on the reasoning that the group stood for
+its archived members. Under the per-job lock it does not: every restored job is now checked against its
+own lock as well, after the groups the restore writes.
+
+## Where this work lives
+
+| What | Home |
+|------|------|
+| Building, sending and refusing a multi-job change; its wording; the ESI release and the archive step | `frontend/src/Functions/Job/changes/jobChange.js` |
+| Merge, with the records it discards | `Functions/Job/changes/mergeJobs.js` |
+| Multi-delete | `Functions/Job/changes/deleteMultipleJobs.js` |
+| Working copies of planner jobs and groups, also used by moving jobs and mass build | `Functions/Job/changes/workingCopies.js` |
+| The queue's sender, and putting refused jobs back as saved | `Functions/Job/sync/persistJobDocumentsToApi.js` |
+| Reading a value at a path and comparing plain values | `Functions/Helper/documentValues.js` |
+| The change review panel, the incoming-save notice and their replay test | `Components/Edit Job/Change Review/` |
+| Saving the open job, and the hook that saves and leaves | `Components/Edit Job/Edit Job Hooks/saveOpenJob.js` |
+| The merge panel | `Components/Dialogues/Merge Jobs/` |
+| The archive move | `services/shared/mongo/jobs_archive_change.go`, sharing the change loop in `jobs_put_change.go` and the retired root keys in `jobs_put.go` |
+
+The job's own code lives under one `frontend/src/Functions/Job/`, grouped by subject; the subject
+folders are lowercase like `MarketData/prices` and `Reprocessing/engine`:
+
+| Folder | Holds |
+|--------|-------|
+| `Job/` | `jobDocument.js`, the job model |
+| `Job/sync/` | Saving and receiving: the save queue and its sender, the write envelope and body (`jobWrite.js`), revision conflicts, inbound documents and deltas |
+| `Job/setups/` | `setups.js` — splitting a total across setups, the setup context, correcting a setup's figures — and applying a setup change and recalculating for a new total |
+| `Job/building/` | Building jobs (`buildJob.js`, with the recipe lookup), adding them to the planner, the next materials tree, mass build and importing a fit |
+| `Job/editing/` | Closing the open job, with the summary of what a close changed; the edit session's end, with putting a job back; step navigation |
+| `Job/changes/` | Multi-job changes and the working copies they are built on |
+| `Job/figures/` | What a build costs and returns, its comparison against the archive, and the material sourcing row |
+
+`Functions/JobPlanner/` keeps only the planner view: moving jobs between stages, and `plannerLists.js`
+for the accordion's filters and stage sort. `Functions/JobDocuments/` and `Functions/Job Build/` are
+gone. Single-function files were folded into the module that owns their subject — the recipe lookup
+into `buildJob.js`, the close summary into `closeActiveJob.js`, putting a job back into
+`editSessionLifetime.js`, the write body into `jobWrite.js`, the setup helpers and setup correction into
+`setups.js`, the two planner list helpers into `plannerLists.js` — and `workingCopyOfJob`, the
+forwarding wrapper [spa-module-homes](../spa-module-homes/plan.md) named, is inlined at its two
+callers. Each test sits beside its module and takes its name, with a suffix where its mocks differ from
+the module's other test (`setups.figures.test.js`, `closeActiveJob.summary.test.js`); two tests filed
+elsewhere — `Classes/closeAdjustmentSummary.test.js` and `tests/recalculateJobSetupContext.test.js` —
+moved beside what they cover.
+
+**Owed at promotion:** five live docs still name the old paths —
+`frontend/esi-collections/blueprints.md`, `frontend/static-data/recipes.md`,
+`frontend/industry-facilities/bonuses.md`, `frontend/pricing/defaults.md` and
+`testing/frontend/esi-collections.md`.
 
 ## What proves this works
 

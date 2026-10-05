@@ -238,7 +238,7 @@ within its group writes the group and leaves the job alone.
 the job built over it is frozen too, so both a row written to and a field set straight on the job throw
 where it happens rather than appearing to work. A control says what the reader did —
 `actions.run(command)` — and anything that genuinely needs a job it can change takes one through
-`workingCopyOfJob`: the save, which rewrites links and recalculates the tree, and the two leave paths,
+`copyOfJob`: the save, which rewrites links and recalculates the tree, and the two leave paths,
 which hand a job back to the planner.
 
 **How an arriving document reaches an open editor.** The inbound coalescer hands every job it applies
@@ -302,7 +302,7 @@ Three call-site files had no tests at all; those were written first, against the
 that they pass unchanged across the conversion rather than recording whatever it produced.
 
 `Classes/job.js` went 1,405 lines to 929 to 533 to nothing. Its four remaining jobs are functions in
-[`Functions/JobDocuments/jobDocument.js`](../../../frontend/src/Functions/JobDocuments/jobDocument.js):
+[`Functions/Job/jobDocument.js`](../../../frontend/src/Functions/Job/jobDocument.js):
 `jobFromDocument(json, buildRequest)` reads a job from a stored document or from what the SDE gives a new
 one, `applyRecipeToJob` fills a new job in from its recipe, `toDocument(job)` says what a job stores, and
 `copyOfJob(job)` is a job something may change without disturbing the one it came from.
