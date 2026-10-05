@@ -11,18 +11,10 @@ import (
 )
 
 // GateDocumentLocks names the documents among ids another session holds, answering the request itself
-// and reporting false when the check could not be made; with no Redis, nothing is held.
+// and reporting false when the check could not be made.
 func GateDocumentLocks(w http.ResponseWriter, r *http.Request, metrics *RequestMetricsTracker, rdb *eipredis.Redis, owner models.Owner, collection, endpoint string, ids []string) ([]documentlock.LockHeldElsewhereItem, bool) {
-	if rdb == nil {
-		return nil, true
-	}
-	sessionID := AuthenticatedSessionID(r)
-	if sessionID == "" {
-		metrics.Error("auth_error")
-		RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", endpoint+" lock gate: missing session", endpoint+"_missing_session", endpoint, nil, nil)
-		return nil, false
-	}
-	rejects, err := documentlock.CollectLockHeldElsewhereRejects(r.Context(), rdb, owner, sessionID, collection, ids)
+	_, rejects, err := documentlock.FirstHeldElsewhere(r.Context(), rdb, owner, AuthenticatedSessionID(r),
+		documentlock.LockedDocs{Collection: collection, IDs: ids})
 	if errors.Is(err, documentlock.ErrSessionRequiredForLockGate) {
 		metrics.Error("auth_error")
 		RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", endpoint+" lock gate: session required", endpoint+"_session_required", endpoint, err, nil)

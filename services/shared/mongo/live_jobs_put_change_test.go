@@ -47,7 +47,7 @@ func writeJobChangeWithDeletes(t *testing.T, ctx context.Context, mongo *eipmong
 	if err != nil {
 		t.Fatalf("write the change: %v", err)
 	}
-	return jobChange{applied, failed, conflicts}
+	return jobChange{applied.Written + applied.Removed, failed, conflicts}
 }
 
 func moveJob(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, jobID string) int64 {

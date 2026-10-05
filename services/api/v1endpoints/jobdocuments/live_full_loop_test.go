@@ -165,12 +165,45 @@ func oneSaveReachesTheOtherTabs(t *testing.T, s *plannerScope, elsewhere loopPla
 	saver.Quiet(t, loopWaitForNone, arrived)
 	recordLoopCapture(t, s, jobID, stored, second)
 
+	aChangeThatRemovesReachesTheOtherTabs(t, s, jobID, saver, second, third)
+
 	if s.owner.Kind == models.OwnerAccount {
 		t.Log("a tab working in another planner is still sent this one's jobs, because an " +
 			"account's own key survives the switch and a personal planner's jobs are held under it")
 		return
 	}
 	away.Quiet(t, loopWaitForNone, arrived)
+}
+
+func aChangeThatRemovesReachesTheOtherTabs(t *testing.T, s *plannerScope, keptID string, saver, second, third *wsclient.Client) {
+	t.Helper()
+
+	removedID := keptID + "-removed"
+	if rec := s.putJobs([]models.Job{{JobID: removedID, Name: "Replaced", ItemID: 587}}, s.account, s.handle); rec.Code >= http.StatusBadRequest {
+		t.Fatalf("seed the job to remove = %d: %s", rec.Code, rec.Body.String())
+	}
+	kept := storedJob(t, s, keptID)
+	removed := storedJob(t, s, removedID)
+
+	rec := httptest.NewRecorder()
+	s.h.PutJobDocumentsHandler(rec, s.requestAsSession(http.MethodPut, "/api/v1/job-documents",
+		models.JobWriteBatch{
+			Jobs:      []models.JobWriteBody{{JobID: keptID, Revision: kept.MetaData.Revision, Document: loopDocumentNaming(t, "Merged")}},
+			Deletes:   []models.JobDeleteBody{{JobID: removedID, Revision: removed.MetaData.Revision}},
+			OneChange: true,
+		}, s.account, s.handle, loopSaverTab, saver.ClientID))
+	if rec.Code >= http.StatusBadRequest {
+		t.Fatalf("the change was refused: %d — %s", rec.Code, rec.Body.String())
+	}
+
+	gone := wsclient.DocumentDeleteFor(eipmongo.CollectionJobDocuments, removedID)
+	renamed := wsclient.DocumentUpdateFor(eipmongo.CollectionJobDocuments, keptID)
+	for _, client := range []*wsclient.Client{second, third} {
+		client.Await(t, loopWaitForSeen, gone)
+		client.Await(t, loopWaitForSeen, renamed)
+	}
+	saver.Quiet(t, loopWaitForNone, gone)
+	saver.Quiet(t, loopWaitForNone, renamed)
 }
 
 func nats(t *testing.T) *eipnats.NATS {

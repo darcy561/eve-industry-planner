@@ -58,6 +58,27 @@ func dedupeDocIDs(ids []string) []string {
 	return out
 }
 
+// LockedDocs names the documents of one collection a write would touch.
+type LockedDocs struct {
+	Collection string
+	IDs        []string
+}
+
+// FirstHeldElsewhere checks each set in order and answers the first collection holding a document
+// another session has open, with those documents; no Redis means nothing is held.
+func FirstHeldElsewhere(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, sessionID string, sets ...LockedDocs) (string, []LockHeldElsewhereItem, error) {
+	for _, set := range sets {
+		rejects, err := CollectLockHeldElsewhereRejects(ctx, rdb, owner, sessionID, set.Collection, set.IDs)
+		if err != nil {
+			return "", nil, err
+		}
+		if len(rejects) > 0 {
+			return set.Collection, rejects, nil
+		}
+	}
+	return "", nil, nil
+}
+
 // CollectLockHeldElsewhereRejects names each document in docIDs whose lock another session holds;
 // none means the batch may proceed, and no Redis means no enforcement.
 func CollectLockHeldElsewhereRejects(

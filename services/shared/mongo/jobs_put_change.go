@@ -32,74 +32,61 @@ type JobChange struct {
 	Deletes []models.JobDeleteBody
 }
 
-// changeStep makes one write of a change inside its transaction, reporting whether it applied.
-type changeStep func(ctx context.Context, owner models.Owner, write conditionalJobWrite) (bool, error)
+// JobChangeResult counts what a landed change wrote and removed.
+type JobChangeResult struct {
+	Written int64
+	Removed int64
+}
 
 // WriteJobChange writes and removes jobs in one planner as one transaction; when any job has moved
 // it touches none and names every job in the change that has.
-func (m *Mongo) WriteJobChange(ctx context.Context, owner models.Owner, accountID string, change JobChange, now time.Time, sessionID, wsClientID string) (int64, []string, []RevisionConflict, error) {
+func (m *Mongo) WriteJobChange(ctx context.Context, owner models.Owner, accountID string, change JobChange, now time.Time, sessionID, wsClientID string) (JobChangeResult, []string, []RevisionConflict, error) {
 	if m == nil {
-		return 0, nil, nil, fmt.Errorf("WriteJobChange: invalid arguments")
+		return JobChangeResult{}, nil, nil, fmt.Errorf("WriteJobChange: invalid arguments")
 	}
 	d := m.JobDocuments
 	if _, err := d.requireColl(); err != nil || accountID == "" || owner.IsZero() {
-		return 0, nil, nil, fmt.Errorf("WriteJobChange: invalid arguments")
+		return JobChangeResult{}, nil, nil, fmt.Errorf("WriteJobChange: invalid arguments")
 	}
 
 	writes, failed := planJobDocumentWrites(owner, accountID, change.Whole, now, sessionID, wsClientID)
 	fieldWrites, fieldFailed := planJobFieldWrites(owner, accountID, change.Fields, now, sessionID, wsClientID)
-	deletes, deleteFailed := planJobDeletes(now, sessionID, wsClientID, change.Deletes)
+	deletes, deleteFailed := planJobDeletes(change.Deletes)
 	failed = slices.Concat(failed, fieldFailed, deleteFailed)
 	if len(failed) > 0 {
-		return 0, failed, nil, nil
+		return JobChangeResult{}, failed, nil, nil
 	}
 	writes = slices.Concat(writes, fieldWrites)
 
-	conflicts, err := m.inJobChange(ctx, owner, func(txCtx context.Context, tripped *conditionalJobWrite) error {
-		if err := applyInChange(txCtx, owner, writes, d.writeInChange, tripped); err != nil {
+	conflicts, err := m.inJobChange(ctx, owner, func(txCtx context.Context) error {
+		if err := d.writeAllInChange(txCtx, owner, writes); err != nil {
 			return err
 		}
-		return applyInChange(txCtx, owner, deletes, d.deleteInChange, tripped)
+		return d.removeAllInChange(txCtx, owner, deletes, now, sessionID, wsClientID)
 	}, slices.Concat(writes, deletes))
 	if err != nil || len(conflicts) > 0 {
-		return 0, nil, conflicts, err
+		return JobChangeResult{}, nil, conflicts, err
 	}
-	return int64(len(writes) + len(deletes)), nil, nil, nil
+	return JobChangeResult{Written: int64(len(writes)), Removed: int64(len(deletes))}, nil, nil, nil
 }
 
-// inJobChange runs a change's steps in one transaction and, when a step no longer applied, names
-// every planned job that has moved, read after the abort.
-func (m *Mongo) inJobChange(ctx context.Context, owner models.Owner, steps func(context.Context, *conditionalJobWrite) error, planned []conditionalJobWrite) ([]RevisionConflict, error) {
-	var tripped conditionalJobWrite
-	err := m.InTransaction(ctx, func(txCtx context.Context) error {
-		return steps(txCtx, &tripped)
-	})
-	if errors.Is(err, errChangeStale) {
-		return m.JobDocuments.staleInChange(ctx, owner, planned, tripped)
+// inJobChange runs a change in one transaction and, when part of it no longer applied, names every
+// planned job that has moved; a refusal that finds none moved is an error, never a landed change.
+func (m *Mongo) inJobChange(ctx context.Context, owner models.Owner, steps func(context.Context) error, planned []conditionalJobWrite) ([]RevisionConflict, error) {
+	err := m.InTransaction(ctx, steps)
+	if !errors.Is(err, errChangeStale) {
+		return nil, err
 	}
-	return nil, err
+	conflicts, err := m.JobDocuments.staleInChange(ctx, owner, planned)
+	if err == nil && len(conflicts) == 0 {
+		return nil, fmt.Errorf("a change was refused but no job in it has moved")
+	}
+	return conflicts, err
 }
 
-// applyInChange makes each write in order, aborting the change at the first that no longer applies
-// and recording it as the one that tripped.
-func applyInChange(ctx context.Context, owner models.Owner, writes []conditionalJobWrite, step changeStep, tripped *conditionalJobWrite) error {
-	for _, write := range writes {
-		landed, err := step(ctx, owner, write)
-		if err != nil {
-			return err
-		}
-		if !landed {
-			*tripped = write
-			return errChangeStale
-		}
-	}
-	return nil
-}
-
-// planJobDeletes turns each removal into the stamp it makes before the job goes, and names the
-// removals that carry no job or no revision.
-func planJobDeletes(now time.Time, sessionID, wsClientID string, removals []models.JobDeleteBody) ([]conditionalJobWrite, []string) {
-	stamp := bson.M{"$set": MetaStamp(now, sessionID, wsClientID)}
+// planJobDeletes turns each removal into the revision it must still be at, and names the removals
+// that carry no job or no revision.
+func planJobDeletes(removals []models.JobDeleteBody) ([]conditionalJobWrite, []string) {
 	planned := make([]conditionalJobWrite, 0, len(removals))
 	var failed []string
 	for _, remove := range removals {
@@ -107,61 +94,66 @@ func planJobDeletes(now time.Time, sessionID, wsClientID string, removals []mode
 			failed = append(failed, remove.JobID)
 			continue
 		}
-		planned = append(planned, conditionalJobWrite{jobID: remove.JobID, expected: remove.Revision, update: stamp})
+		planned = append(planned, conditionalJobWrite{jobID: remove.JobID, expected: remove.Revision})
 	}
 	return planned, failed
 }
 
-// writeInChange makes one write of a change, reporting whether it applied: a job read at a
-// revision must still be at it, and a new job must not already exist.
-func (d *Docs) writeInChange(ctx context.Context, owner models.Owner, write conditionalJobWrite) (bool, error) {
-	if write.expected > 0 {
-		res, err := RetryValue(ctx, "ConditionalUpsertJobInChange", func() (*mongo.UpdateResult, error) {
-			return d.coll.UpdateOne(ctx, conditionalJobFilter(owner, write), write.update)
-		})
-		if err != nil {
-			return false, fmt.Errorf("conditional write %s: %w", write.jobID, err)
-		}
-		return res.MatchedCount > 0, nil
+// writeAllInChange makes every write of a change in one ordered bulk write, refusing the change unless
+// each applied: a job read at a revision must still be at it, and a new job must not already exist.
+func (d *Docs) writeAllInChange(ctx context.Context, owner models.Owner, writes []conditionalJobWrite) error {
+	if len(writes) == 0 {
+		return nil
 	}
-	_, err := RetryValue(ctx, "CreateJobInChange", func() (*mongo.UpdateResult, error) {
-		return d.coll.UpdateOne(ctx, bson.M{
+	ops := make([]mongo.WriteModel, 0, len(writes))
+	for _, write := range writes {
+		if write.expected > 0 {
+			ops = append(ops, mongo.NewUpdateOneModel().SetFilter(conditionalJobFilter(owner, write)).SetUpdate(write.update))
+			continue
+		}
+		ops = append(ops, mongo.NewUpdateOneModel().SetFilter(bson.M{
 			"_id":             OwnerScopedDocumentID(owner, write.jobID),
 			FieldMetaRevision: bson.M{"$exists": false},
-		}, write.update, options.UpdateOne().SetUpsert(true))
+		}).SetUpdate(write.update).SetUpsert(true))
+	}
+	res, err := RetryValue(ctx, "WriteJobsInChange", func() (*mongo.BulkWriteResult, error) {
+		return d.coll.BulkWrite(ctx, ops, options.BulkWrite().SetOrdered(true))
 	})
 	if mongo.IsDuplicateKeyError(err) {
-		return false, nil
+		return errChangeStale
 	}
 	if err != nil {
-		return false, fmt.Errorf("create %s: %w", write.jobID, err)
+		return fmt.Errorf("write the change: %w", err)
 	}
-	return true, nil
+	if res.MatchedCount+res.UpsertedCount != int64(len(writes)) {
+		return errChangeStale
+	}
+	return nil
 }
 
-// deleteInChange stamps then removes one job of a change, reporting whether it was still at the
-// revision the change read it at.
-func (d *Docs) deleteInChange(ctx context.Context, owner models.Owner, remove conditionalJobWrite) (bool, error) {
-	res, err := RetryValue(ctx, "StampJobForDeleteInChange", func() (*mongo.UpdateResult, error) {
-		return d.coll.UpdateOne(ctx, conditionalJobFilter(owner, remove), remove.update)
-	})
+// removeAllInChange stamps and removes every job a change removes, refusing the change unless each was
+// still at the revision the change read it at.
+func (d *Docs) removeAllInChange(ctx context.Context, owner models.Owner, removals []conditionalJobWrite, now time.Time, sessionID, wsClientID string) error {
+	if len(removals) == 0 {
+		return nil
+	}
+	match := make(bson.A, 0, len(removals))
+	for _, remove := range removals {
+		match = append(match, conditionalJobFilter(owner, remove))
+	}
+	removed, err := d.deleteManyAfterStampingMeta(ctx, bson.M{"$or": match}, now, sessionID, wsClientID, "RemoveJobsInChange")
 	if err != nil {
-		return false, fmt.Errorf("stamp %s for delete: %w", remove.jobID, err)
+		return fmt.Errorf("remove the change's jobs: %w", err)
 	}
-	if res.MatchedCount == 0 {
-		return false, nil
+	if removed != int64(len(removals)) {
+		return errChangeStale
 	}
-	if _, err := RetryValue(ctx, "DeleteJobInChange", func() (*mongo.DeleteResult, error) {
-		return d.coll.DeleteOne(ctx, bson.M{"_id": OwnerScopedDocumentID(owner, remove.jobID)})
-	}); err != nil {
-		return false, fmt.Errorf("delete %s: %w", remove.jobID, err)
-	}
-	return true, nil
+	return nil
 }
 
 // staleInChange reads where every job in a refused change now stands and names those it no longer
-// applies to, always including the write that refused it.
-func (d *Docs) staleInChange(ctx context.Context, owner models.Owner, writes []conditionalJobWrite, tripped conditionalJobWrite) ([]RevisionConflict, error) {
+// applies to.
+func (d *Docs) staleInChange(ctx context.Context, owner models.Owner, writes []conditionalJobWrite) ([]RevisionConflict, error) {
 	ids := make([]string, 0, len(writes))
 	for _, write := range writes {
 		ids = append(ids, OwnerScopedDocumentID(owner, write.jobID))
@@ -181,7 +173,7 @@ func (d *Docs) staleInChange(ctx context.Context, owner models.Owner, writes []c
 	for _, write := range writes {
 		current, found := stored[OwnerScopedDocumentID(owner, write.jobID)]
 		moved := found != (write.expected > 0) || (found && current != write.expected)
-		if !moved && write.jobID != tripped.jobID {
+		if !moved {
 			continue
 		}
 		conflicts = append(conflicts, RevisionConflict{

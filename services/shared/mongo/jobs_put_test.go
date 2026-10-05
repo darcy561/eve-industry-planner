@@ -12,7 +12,7 @@ func conflictOwner() models.Owner { return models.AccountOwner("acct-1") }
 
 func updateFor(t *testing.T, jobID string) bson.M {
 	t.Helper()
-	update, err := SetDocumentWithRevision(models.Job{JobID: jobID}, retiredJobRootKeys)
+	update, err := SetDocumentWithRevision(models.Job{JobID: jobID}, jobRootKeysToClear)
 	if err != nil {
 		t.Fatalf("SetDocumentWithRevision: %v", err)
 	}

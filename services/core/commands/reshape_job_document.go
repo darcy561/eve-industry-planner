@@ -11,8 +11,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// reshapeReport is what one document's conversion did, so a dry run can say what
-// a real run would change without writing anything.
+// reshapeReport is what one document's conversion did, so a dry run can say what a real run would
+// change without writing anything.
 type reshapeReport struct {
 	RowsKeyed                int
 	FeesFolded               int
@@ -58,23 +58,10 @@ func (r *reshapeReport) add(other reshapeReport) {
 }
 
 // mintTransactionID supplies an id for a hand-entered sale that carries none.
-// The SPA mints a negative 48-bit value and `models.IsMarketTransactionID`
-// reads the sign, so the conversion mints into that same shape rather than
-// inventing a second one.
 type mintTransactionID func() int64
 
-// reshapeJobDocument converts one stored job into the shape
-// technical-documentation/migration-plans/job-document-drafts describes: row
-// collections keyed by the id they carry, observations under `esi`, and a
-// broker fee folded onto the order it was charged against.
-//
-// It returns a refusal rather than a document whenever a conversion would lose
-// a row it cannot account for. A key count lower than the rows that produced it
-// means two rows collapsed, and the release finding that is worth more than the
-// release silently discarding it.
-//
-// The document is not modified; the conversion works on a copy, so a dry run
-// leaves behind exactly what it read.
+// reshapeJobDocument converts one stored job into its reshaped document on a copy, refusing one whose
+// conversion would lose a row it cannot account for.
 func reshapeJobDocument(doc bson.M, mint mintTransactionID) (bson.M, reshapeReport) {
 	var report reshapeReport
 	out := deepCopy(doc)
@@ -89,9 +76,6 @@ func reshapeJobDocument(doc bson.M, mint mintTransactionID) (bson.M, reshapeRepo
 	build := asDocument(out["build"])
 	esi := bson.M{}
 
-	// After the orders are keyed, not before: two rows for one order collapse into
-	// whichever observed more of its history, and a fee folded onto the row that
-	// loses that comparison would go with it.
 	orders := keyOrders(asArray(pathValue(build, "sale", "marketOrders")), &report)
 	report.FeesFolded = foldBrokerFees(orders, asArray(pathValue(build, "sale", "brokersFee")), &report)
 	esi["marketOrders"] = orders
@@ -122,11 +106,6 @@ func reshapeJobDocument(doc bson.M, mint mintTransactionID) (bson.M, reshapeRepo
 }
 
 // The fields a reshaped job holds, and nothing else.
-//
-// Stated rather than derived from `models.Job`, because the model still
-// describes the shape being replaced: `esi` and the moved `build` fields are not
-// on it until the release deploys. Until then this list is what "the shape the
-// release expects" means.
 var (
 	reshapedJobFields = []string{
 		"_id", "_meta", "schemaVersion", "jobID", "name", "jobType", "jobStatus",
@@ -141,15 +120,6 @@ var (
 	}
 	reshapedESIFields = []string{"industryJobs", "marketOrders", "transactions"}
 
-	// Figures recalculated from what sits beside them in the setup, so a stored
-	// copy is free to disagree with its inputs.
-	//
-	// Only the two nothing writes any more. materialCount and rawTime are still
-	// written and still read — the cost calculation reaches materialCount through
-	// JobSetup.MaterialQuantity, and a setup loaded without one reads as needing
-	// no materials rather than as needing recalculation — so dropping them here
-	// would zero every converted job's material cost until something edited each
-	// setup. They come out when their readers derive them instead.
 	derivedSetupFields = []string{"estimatedTime", "estimatedInstallCost"}
 )
 
@@ -189,11 +159,6 @@ func countDropped(report *reshapeReport, field string) {
 }
 
 // emptyLayout reads `layout` out to where each of its fields belongs.
-//
-// Two of them are a pricing decision and move under `build`. The single-market
-// pair beneath them is the superseded form of that decision and folds into it.
-// The rest is editor state the draft store holds, so it is dropped with the bag
-// that carried it.
 func emptyLayout(out bson.M, build bson.M) {
 	layout := asDocument(out["layout"])
 	delete(out, "layout")
@@ -211,14 +176,8 @@ func emptyLayout(out bson.M, build bson.M) {
 	}
 }
 
-// jobPricingOverride folds a job's superseded single market and order type into
-// the per-side choice that replaced them, once, as the document is converted.
-//
-// The SPA applied this rule on every read until the conversion existed; it no
-// longer does, so this is the only place a document predating the split is
-// given a side. A side the player has not chosen seeds from the single market,
-// because naming one market said nothing about which side of the job it meant —
-// so neither side may claim it over the other.
+// jobPricingOverride folds a job's superseded single market and order type into the per-side choice
+// that replaced them, once, as the document is converted.
 func jobPricingOverride(stored bson.M, market string, orderType string) bson.M {
 	side := func(name string) bson.M {
 		chosen := asDocument(stored[name])
@@ -234,9 +193,8 @@ func jobPricingOverride(stored bson.M, market string, orderType string) bson.M {
 	return nil
 }
 
-// pricingSide writes only what was chosen. `models.PricingChoice` tags both
-// fields `omitempty` and an empty side is `{}`, so writing `""` would put a
-// value where the model states there is none.
+// pricingSide writes only what was chosen. `models.PricingChoice` tags both fields `omitempty` and
+// an empty side is `{}`, so writing `""` would put a value where the model states there is none.
 func pricingSide(market string, orderType string) bson.M {
 	side := bson.M{}
 	if market != "" {
@@ -257,12 +215,7 @@ func firstString(values ...any) string {
 	return ""
 }
 
-// stampInventionVersions names the shape each stored invention entry was
-// written in.
-//
-// Every row in the corpus predates the field, and they are all the one shape it
-// was added to name, so they are stamped v1 rather than left to be guessed at
-// later. A row already carrying a version keeps it.
+// stampInventionVersions names the shape each stored invention entry was written in.
 func stampInventionVersions(entries bson.M, report *reshapeReport) bson.M {
 	for _, row := range entries {
 		entry := asDocument(row)
@@ -276,23 +229,13 @@ func stampInventionVersions(entries bson.M, report *reshapeReport) bson.M {
 }
 
 // alreadyReshaped reports whether this document has been through the conversion.
-//
-// Every collection is read from where the old shape held it, so a second pass
-// over a converted document finds arrays nowhere and would write the empty maps
-// it built instead — which is why the conversion asks before it starts rather
-// than relying on being run once. Being able to run it again is the whole reason
-// a refused document is left alone.
 func alreadyReshaped(doc bson.M) bool {
 	build := asDocument(doc["build"])
 	return asDocument(doc["esi"]) != nil && build != nil &&
 		build["costs"] == nil && build["sale"] == nil
 }
 
-// keyRows turns one row collection into a map addressed by the id its rows
-// already carry.
-//
-// `where` names the collection in a refusal, which is the only thing a reader
-// has to work out which conversion lost what.
+// keyRows turns one row collection into a map addressed by the id its rows already carry.
 func keyRows(rows bson.A, key string, where string, report *reshapeReport) bson.M {
 	out := bson.M{}
 	for _, row := range rows {
@@ -314,11 +257,6 @@ func keyRows(rows bson.A, key string, where string, report *reshapeReport) bson.
 }
 
 // collapse decides what two rows under one key mean.
-//
-// Identical rows are one row the array was letting stand twice, and the map
-// keeping one is a repair. Rows that differ are two things the key cannot tell
-// apart, and the document is refused rather than converted over whichever the
-// conversion happened to visit last.
 func collapse(held bson.M, incoming bson.M, where string, id string, report *reshapeReport) {
 	if sameRow(held, incoming) {
 		report.DuplicateRows++
@@ -328,9 +266,7 @@ func collapse(held bson.M, incoming bson.M, where string, id string, report *res
 		fmt.Sprintf("%s: two rows under %s differ", where, id))
 }
 
-// sameRow reports whether two rows hold the same values. Field order is not
-// part of a row's meaning — the same row written by two code paths can carry
-// its fields in either order — so the comparison walks keys rather than bytes.
+// sameRow reports whether two rows hold the same values.
 func sameRow(a any, b any) bool {
 	switch left := a.(type) {
 	case bson.M:
@@ -378,9 +314,6 @@ func isNumber(value any) bool {
 }
 
 // keyMaterials keys the materials and, inside each, its purchases.
-//
-// A purchase's own `typeID` repeats the material it sits on and nothing reads
-// it, so the key the material is filed under replaces it.
 func keyMaterials(rows bson.A, report *reshapeReport) bson.M {
 	out := bson.M{}
 	for _, row := range rows {
@@ -410,11 +343,8 @@ func keyMaterials(rows bson.A, report *reshapeReport) bson.M {
 	return out
 }
 
-// keyOrders keys the market orders, keeping the longest `timeStamps` where two
-// copies of one order collapse.
-//
-// Two rows for one order differ only in how much of its history each observed,
-// so the longer history is the one that loses nothing.
+// keyOrders keys the market orders, keeping the longest `timeStamps` where two copies of one order
+// collapse.
 func keyOrders(rows bson.A, report *reshapeReport) bson.M {
 	out := bson.M{}
 	for _, row := range rows {
@@ -443,9 +373,8 @@ func keyOrders(rows bson.A, report *reshapeReport) bson.M {
 	return out
 }
 
-// sameOrderBesidesHistory reports whether two rows for one order agree on
-// everything except how much of its history each observed. Only that difference
-// is safe to merge; anything else is two orders the id cannot tell apart.
+// sameOrderBesidesHistory reports whether two rows for one order agree on everything except how much
+// of its history each observed.
 func sameOrderBesidesHistory(held bson.M, incoming bson.M) bool {
 	a, b := deepCopy(held), deepCopy(incoming)
 	delete(a, "timeStamps")
@@ -455,12 +384,7 @@ func sameOrderBesidesHistory(held bson.M, incoming bson.M) bool {
 	return sameRow(a, b)
 }
 
-// keyTransactions keys the sales, minting an id for a hand-entered one that
-// carries none.
-//
-// The mint runs before the keying, not after: a row with no id would otherwise
-// collapse onto whatever key a zero produces, and an id minted afterwards
-// arrives too late to have stopped it.
+// keyTransactions keys the sales, minting an id for a hand-entered one that carries none.
 func keyTransactions(rows bson.A, mint mintTransactionID, report *reshapeReport) bson.M {
 	out := bson.M{}
 	for _, row := range rows {
@@ -485,18 +409,6 @@ func keyTransactions(rows bson.A, mint mintTransactionID, report *reshapeReport)
 }
 
 // foldBrokerFees moves each fee onto the order it was charged against.
-//
-// An order holds one fee. Where several were recorded the oldest survives: it is
-// the one the listing was charged, and the later entries are a fee this app
-// worked out again when the order was linked a second time. A fee whose order is
-// not on the job is dropped — it is charged against something the job cannot
-// show, and nothing can put it back.
-//
-// The fee lands as three fields on the order rather than a row nested under it.
-// It is three scalars once its identity is gone — the journal id it arrived with
-// names a multi-sell rather than this charge — so nesting them would leave the
-// order holding an object to reach a number through, and every total summing
-// `fee.amount` instead of `fee`.
 func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 	oldest := map[string]bson.M{}
 	for _, row := range fees {
@@ -506,9 +418,6 @@ func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 			report.Refusals = append(report.Refusals, "brokersFee: a row carries no usable order_id")
 			continue
 		}
-		// Dropped before the rows are compared, not to shape the output: two
-		// records of one charge differ on these, and counting them as distinct
-		// fees would report a later charge where there was only a second read.
 		delete(fee, "complete")
 		delete(fee, "CharacterHash")
 		delete(fee, "order_id")
@@ -524,9 +433,6 @@ func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 		}
 		oldest[id] = older
 
-		// A duplicate is counted apart from a later charge, because only one of
-		// them is a figure the player was ever charged. Both move the job's
-		// total, since every stored row is summed today.
 		if sameRow(held, fee) {
 			report.FeesDroppedCopy++
 			report.FeeISKDroppedCopy += asFloat64(newer["amount"])
@@ -555,14 +461,7 @@ func foldBrokerFees(orders bson.M, fees bson.A, report *reshapeReport) int {
 	return folded
 }
 
-// isOlderFee reports whether an incoming fee was charged before the one already
-// held for its order.
-//
-// A row with no date cannot be shown to be older, so it never displaces one that
-// carries a date — comparing the two strings alone would make it win every time,
-// because an empty date sorts before every real one. `MarketOrder.recordBrokerFee`
-// in the SPA reads them the same way, and the two have to agree: a job converted
-// here and then re-saved by the SPA would otherwise hold a different fee.
+// isOlderFee reports whether an incoming fee was charged before the one already held for its order.
 func isOlderFee(incoming bson.M, held bson.M) bool {
 	date := asString(incoming["date"])
 	if date == "" {
@@ -572,8 +471,8 @@ func isOlderFee(incoming bson.M, held bson.M) bool {
 	return current == "" || date < current
 }
 
-// sortedByKey walks a map in a fixed order, so a report of what was dropped
-// reads the same way twice.
+// sortedByKey walks a map in a fixed order, so a report of what was dropped reads the same way
+// twice.
 func sortedByKey(rows map[string]bson.M) []bson.M {
 	keys := make([]string, 0, len(rows))
 	for key := range rows {
@@ -587,10 +486,7 @@ func sortedByKey(rows map[string]bson.M) []bson.M {
 	return out
 }
 
-// mapKey renders a row's id as the map key it becomes. A key that is empty, or
-// a value of a type an id is never stored as, is unusable rather than coerced:
-// the caller refuses the document instead of filing the row under something
-// invented for it.
+// mapKey renders a row's id as the map key it becomes.
 func mapKey(value any) (string, bool) {
 	switch typed := value.(type) {
 	case string:
@@ -611,9 +507,8 @@ func mapKey(value any) (string, bool) {
 	}
 }
 
-// deepCopy copies the maps and arrays a conversion reaches into, so rewriting
-// one cannot reach back into the caller's document. Leaf values are shared,
-// which is safe because nothing here mutates one in place.
+// deepCopy copies the maps and arrays a conversion reaches into, so rewriting one cannot reach back
+// into the caller's document.
 func deepCopy(value any) bson.M {
 	copied, _ := deepCopyValue(value).(bson.M)
 	return copied

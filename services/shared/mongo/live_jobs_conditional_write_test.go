@@ -141,7 +141,5 @@ func TestLive_aWriteAgainstADeletedDocumentIsReportedGone(t *testing.T) {
 	if !conflicts[0].Gone {
 		t.Fatalf("conflict = %+v, want it marked gone", conflicts[0])
 	}
-	if _, err := mongo.JobDocuments.LoadJobByID(ctx, owner, jobID); err == nil {
-		t.Fatal("the refused write recreated the document")
-	}
+	mongolive.RequireJobAbsent(t, ctx, mongo.JobDocuments, owner, jobID)
 }

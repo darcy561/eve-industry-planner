@@ -51,6 +51,11 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 
+	if h.EntityCipher == nil {
+		metrics.Error("entity_refs_unavailable")
+		helper.RespondEndpointServerError(w, r, "Failed to archive jobs", "entity ref helper is not configured", "archived_jobs_put_entity_refs_missing", "archived_jobs_put", nil, nil)
+		return
+	}
 	seenJobID := make(map[string]struct{}, len(reqBody.Jobs))
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
@@ -71,11 +76,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 				"job_id":         job.JobID,
 				"job_meta_owner": job.MetaData.Owner.Key(),
 			})
-			return
-		}
-		if h.EntityCipher == nil {
-			metrics.Error("entity_refs_unavailable")
-			helper.RespondEndpointServerError(w, r, "Failed to archive jobs", "entity ref helper is not configured", "archived_jobs_put_entity_refs_missing", "archived_jobs_put", nil, nil)
 			return
 		}
 		if err := jobidentity.Encrypt(job, h.EntityCipher); err != nil {
@@ -104,8 +104,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	now := time.Now().UTC()
-	statsRows := make([]models.ArchivedJobStats, 0, len(reqBody.Jobs))
-	var unbuildable int
 	for i := range reqBody.Jobs {
 		job := &reqBody.Jobs[i]
 		helper.PopulateRequestMeta(r, &job.MetaData.MetaData, owner)
@@ -116,13 +114,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		}
 		job.MetaData.ArchivedAt = now
 		job.MetaData.ArchivedBy = accountID
-
-		row, rowErr := statistics.NewRow(*job, now)
-		if rowErr != nil {
-			unbuildable++
-			continue
-		}
-		statsRows = append(statsRows, row)
 	}
 
 	unarchivable, conflicts, err := h.Mongo.ArchiveJobs(ctx, owner, reqBody.Jobs, now, sessionID, helper.ExtractWSClientID(r))
@@ -142,6 +133,17 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		metrics.Error("revision_conflict")
 		helper.RespondRevisionConflictJSON(w, r, eipmongo.CollectionJobDocuments, 0, nil, conflicts)
 		return
+	}
+
+	statsRows := make([]models.ArchivedJobStats, 0, len(reqBody.Jobs))
+	var unbuildable int
+	for i := range reqBody.Jobs {
+		row, rowErr := statistics.NewRow(reqBody.Jobs[i], now)
+		if rowErr != nil {
+			unbuildable++
+			continue
+		}
+		statsRows = append(statsRows, row)
 	}
 
 	if len(statsRows) > 0 {

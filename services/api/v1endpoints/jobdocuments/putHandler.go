@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"eve-industry-planner/api/helper"
@@ -106,7 +107,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	wholeWrites, fieldWrites, unplannable := splitJobWrites(read)
-	failed := append(unreadable, unplannable...)
+	failed := slices.Concat(unreadable, unplannable)
 
 	refuseUnreadableChange := func(unwritable []string) {
 		metrics.Error("invalid_write")
@@ -126,7 +127,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	now := time.Now()
-	var savedCount int
+	var savedCount, removedCount int
 	var savedDocIDs []string
 	var conflicts []eipmongo.RevisionConflict
 
@@ -144,7 +145,8 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		}
 		conflicts = changeConflicts
 		if len(conflicts) == 0 {
-			savedCount = int(applied) - len(reqBody.Deletes)
+			savedCount = int(applied.Written)
+			removedCount = int(applied.Removed)
 			savedDocIDs = append(writtenIDs(wholeWrites, func(job models.Job) string { return job.JobID }, nil, nil),
 				writtenIDs(fieldWrites, func(write eipmongo.JobFieldWrite) string { return write.JobID }, nil, nil)...)
 		}
@@ -213,7 +215,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 
 	metrics.Success()
 	m.JobsSaved.Add(ctx, float64(savedCount))
-	m.JobsDeleted.Add(ctx, float64(len(reqBody.Deletes)))
+	m.JobsDeleted.Add(ctx, float64(removedCount))
 	m.JobsRequested.Observe(ctx, float64(len(reqBody.Jobs)))
 
 	logs.AttachHandlerSuccessDetail(r, "batch job documents upserted", map[string]any{

@@ -47,7 +47,7 @@ func TestLive_aFieldWriteChangesOnlyWhatItNames(t *testing.T) {
 		ctx, owner, fieldWriteScratchAccount, []models.Job{stored}, time.Now().UTC(), "", ""); err != nil || len(failed) != 0 {
 		t.Fatalf("seed: failed=%v err=%v", failed, err)
 	}
-	seeded := readFieldWriteJob(t, ctx, mongo, owner, jobID)
+	seeded := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID)
 	if !seeded.MetaData.CreatedAt.Equal(made) {
 		t.Fatalf("the seed did not store a creation time to protect, got %v", seeded.MetaData.CreatedAt)
 	}
@@ -62,7 +62,7 @@ func TestLive_aFieldWriteChangesOnlyWhatItNames(t *testing.T) {
 		t.Fatalf("applied=%d failed=%v conflicts=%v", applied, failed, conflicts)
 	}
 
-	after := readFieldWriteJob(t, ctx, mongo, owner, jobID)
+	after := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID)
 	if after.Name != "after" {
 		t.Errorf("want the named field changed, got %q", after.Name)
 	}
@@ -93,7 +93,7 @@ func TestLive_aStaleFieldWriteIsRefused(t *testing.T) {
 		ctx, owner, fieldWriteScratchAccount, []models.Job{{JobID: jobID, Name: "first"}}, time.Now().UTC(), "", ""); err != nil || len(failed) != 0 {
 		t.Fatalf("seed: failed=%v err=%v", failed, err)
 	}
-	read := readFieldWriteJob(t, ctx, mongo, owner, jobID)
+	read := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID)
 
 	if applied, _, _ := writeFields(t, ctx, mongo, owner, []eipmongo.JobFieldWrite{{
 		JobID: jobID, Expected: read.MetaData.Revision, Fields: map[string]any{"name": "landed"},
@@ -107,16 +107,8 @@ func TestLive_aStaleFieldWriteIsRefused(t *testing.T) {
 	if applied != 0 || len(conflicts) != 1 || conflicts[0].JobID != jobID {
 		t.Fatalf("want the stale write refused, applied=%d conflicts=%v", applied, conflicts)
 	}
-	if after := readFieldWriteJob(t, ctx, mongo, owner, jobID); after.Name != "landed" {
+	if after := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID); after.Name != "landed" {
 		t.Errorf("want the landed write kept, got %q", after.Name)
 	}
 }
 
-func readFieldWriteJob(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, jobID string) models.Job {
-	t.Helper()
-	job, err := mongo.JobDocuments.LoadJobByID(ctx, owner, jobID)
-	if err != nil {
-		t.Fatalf("read %s: %v", jobID, err)
-	}
-	return job
-}

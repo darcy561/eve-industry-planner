@@ -178,12 +178,21 @@ func asString(value any) string {
 	return held
 }
 
-// DocumentUpdateFor accepts a frame reporting a change to one document, and not
-// the insert that created it, which a client waiting on a save is not after.
+// DocumentUpdateFor matches the frame announcing one document's update, not the insert that
+// created it.
 func DocumentUpdateFor(collection, docID string) func(map[string]any) bool {
+	return documentFrameFor(collection, docID, "update")
+}
+
+// DocumentDeleteFor matches the frame announcing one document's removal.
+func DocumentDeleteFor(collection, docID string) func(map[string]any) bool {
+	return documentFrameFor(collection, docID, "delete")
+}
+
+func documentFrameFor(collection, docID, operation string) func(map[string]any) bool {
 	return func(frame map[string]any) bool {
 		return asString(frame["collection"]) == collection &&
 			asString(frame["docID"]) == docID &&
-			asString(frame["operationType"]) == "update"
+			asString(frame["operationType"]) == operation
 	}
 }

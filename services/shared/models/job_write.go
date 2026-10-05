@@ -57,7 +57,7 @@ func (b JobDeleteBody) Validate() error {
 }
 
 // Validate reports what stops this batch being written at all: deletes ride only a batch marked
-// as one change, and no job is both written and removed.
+// as one change, and each job is written or removed at most once.
 func (b JobWriteBatch) Validate() error {
 	if len(b.Jobs) == 0 && len(b.Deletes) == 0 {
 		return fmt.Errorf("job write: a batch carried no jobs")
@@ -70,6 +70,9 @@ func (b JobWriteBatch) Validate() error {
 		if err := write.Validate(); err != nil {
 			return err
 		}
+		if written[write.JobID] {
+			return fmt.Errorf("job write: %s is written twice", write.JobID)
+		}
 		written[write.JobID] = true
 	}
 	for _, remove := range b.Deletes {
@@ -77,8 +80,9 @@ func (b JobWriteBatch) Validate() error {
 			return err
 		}
 		if written[remove.JobID] {
-			return fmt.Errorf("job write: %s is both written and removed", remove.JobID)
+			return fmt.Errorf("job write: %s is written or removed twice", remove.JobID)
 		}
+		written[remove.JobID] = true
 	}
 	return nil
 }
@@ -89,6 +93,17 @@ func JobIDsOf(jobs []Job) []string {
 	for i := range jobs {
 		if jobs[i].JobID != "" {
 			ids = append(ids, jobs[i].JobID)
+		}
+	}
+	return ids
+}
+
+// GroupIDsOf names the groups given, leaving out any that carry no id.
+func GroupIDsOf(groups []Group) []string {
+	ids := make([]string, 0, len(groups))
+	for i := range groups {
+		if groups[i].GroupID != "" {
+			ids = append(ids, groups[i].GroupID)
 		}
 	}
 	return ids

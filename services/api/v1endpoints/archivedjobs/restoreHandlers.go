@@ -144,39 +144,14 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 // restoreLockRejects reports documents the restore would write that another session is holding: the
 // groups it writes, then every job.
 func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, sessionID string, jobs []models.Job) (string, []documentlock.LockHeldElsewhereItem, error) {
-	if h.locks.Redis == nil {
-		return "", nil, nil
-	}
-	if sessionID == "" {
-		return "", nil, documentlock.ErrSessionRequiredForLockGate
-	}
-
 	groupIDs, _ := groupJobsByGroupID(jobs)
-	if len(groupIDs) > 0 {
-		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, groupIDs)
-		if err != nil {
-			return "", nil, err
-		}
-		if len(rejects) > 0 {
-			return eipmongo.CollectionJobGroups, rejects, nil
-		}
-	}
-
-	jobIDs := models.JobIDsOf(jobs)
-	if len(jobIDs) == 0 {
-		return "", nil, nil
-	}
-	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs)
-	if err != nil {
-		return "", nil, err
-	}
-	if len(rejects) > 0 {
-		return eipmongo.CollectionJobDocuments, rejects, nil
-	}
-	return "", nil, nil
+	return documentlock.FirstHeldElsewhere(ctx, h.locks.Redis, owner, sessionID,
+		documentlock.LockedDocs{Collection: eipmongo.CollectionJobGroups, IDs: groupIDs},
+		documentlock.LockedDocs{Collection: eipmongo.CollectionJobDocuments, IDs: models.JobIDsOf(jobs)},
+	)
 }
 
-// selectJobsToRestore reads the addressed documents, returning the jobs and the ids the walk could
+// selectArchivedJobs reads the addressed documents, returning the jobs and the ids the walk could
 // not resolve.
 func selectArchivedJobs(ctx context.Context, archive archiveScope, scope archiveSelection, id string) ([]models.Job, []string, error) {
 	switch scope {

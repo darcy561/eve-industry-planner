@@ -27,31 +27,33 @@ func (m *Mongo) ArchiveJobs(ctx context.Context, owner models.Owner, jobs []mode
 		return nil, nil, fmt.Errorf("ArchiveJobs: %w", err)
 	}
 
-	copies := make([]bson.M, 0, len(jobs))
+	copies := make([]mongo.WriteModel, 0, len(jobs))
 	removals := make([]models.JobDeleteBody, 0, len(jobs))
 	for i := range jobs {
-		update, err := SetDocumentWithRevision(&jobs[i], retiredJobRootKeys)
+		update, err := SetDocumentWithRevision(&jobs[i], jobRootKeysToClear)
 		if err != nil {
 			return nil, nil, fmt.Errorf("archive %s: %w", jobs[i].JobID, err)
 		}
-		copies = append(copies, update)
+		copies = append(copies, mongo.NewUpdateOneModel().
+			SetFilter(bson.M{"_id": OwnerScopedDocumentID(owner, jobs[i].JobID)}).
+			SetUpdate(update).
+			SetUpsert(true))
 		removals = append(removals, models.JobDeleteBody{JobID: jobs[i].JobID, Revision: jobs[i].MetaData.Revision})
 	}
-	deletes, failed := planJobDeletes(now, sessionID, wsClientID, removals)
+	deletes, failed := planJobDeletes(removals)
 	if len(failed) > 0 {
 		return failed, nil, nil
 	}
 
-	conflicts, err := m.inJobChange(ctx, owner, func(txCtx context.Context, tripped *conditionalJobWrite) error {
-		for i, update := range copies {
-			if _, err := RetryValue(txCtx, "ArchiveJobInChange", func() (*mongo.UpdateResult, error) {
-				return archive.UpdateOne(txCtx, bson.M{"_id": OwnerScopedDocumentID(owner, jobs[i].JobID)},
-					update, options.UpdateOne().SetUpsert(true))
+	conflicts, err := m.inJobChange(ctx, owner, func(txCtx context.Context) error {
+		if len(copies) > 0 {
+			if _, err := RetryValue(txCtx, "ArchiveJobsInChange", func() (*mongo.BulkWriteResult, error) {
+				return archive.BulkWrite(txCtx, copies, options.BulkWrite().SetOrdered(true))
 			}); err != nil {
-				return fmt.Errorf("archive %s: %w", jobs[i].JobID, err)
+				return fmt.Errorf("archive the jobs: %w", err)
 			}
 		}
-		return applyInChange(txCtx, owner, deletes, live.deleteInChange, tripped)
+		return live.removeAllInChange(txCtx, owner, deletes, now, sessionID, wsClientID)
 	}, deletes)
 	return nil, conflicts, err
 }

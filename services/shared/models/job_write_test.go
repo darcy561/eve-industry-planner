@@ -548,3 +548,20 @@ func TestJobWriteBatchNamesEveryJobItTouches(t *testing.T) {
 		t.Fatalf("JobIDs = %s, want written,removed", got)
 	}
 }
+
+func TestJobWriteBatchRefusesAJobNamedTwice(t *testing.T) {
+	for name, batch := range map[string]JobWriteBatch{
+		"written twice": {Jobs: []JobWriteBody{aWrite("twice"), aWrite("twice")}, OneChange: true},
+		"removed twice": {Deletes: []JobDeleteBody{{JobID: "twice", Revision: 3}, {JobID: "twice", Revision: 3}}, OneChange: true},
+	} {
+		if err := batch.Validate(); err == nil {
+			t.Errorf("%s was allowed", name)
+		}
+	}
+}
+
+func TestGroupIDsOfLeavesOutGroupsWithoutAnID(t *testing.T) {
+	if got := strings.Join(GroupIDsOf([]Group{{GroupID: "a"}, {}, {GroupID: "b"}}), ","); got != "a,b" {
+		t.Fatalf("GroupIDsOf = %s, want a,b", got)
+	}
+}

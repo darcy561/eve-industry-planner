@@ -80,19 +80,19 @@ func TestNoConflictsLeavesLinksUntouched(t *testing.T) {
 
 // A restored set is merged before resolution, so it checks in one pass.
 func TestLinkSetsMerge(t *testing.T) {
-	a := esiLinkSet{Orders: []int64{1}, Jobs: []int64{10}}
-	b := esiLinkSet{Orders: []int64{2}, Transactions: []int64{20}}
+	a := esiLinkSet{esiLinkOrder: {1}, esiLinkJob: {10}}
+	b := esiLinkSet{esiLinkOrder: {2}, esiLinkTransaction: {20}}
 
 	merged := a.merge(b)
 
-	if !slices.Equal(merged.Orders, []int64{1, 2}) {
-		t.Fatalf("orders = %v", merged.Orders)
+	if !slices.Equal(merged[esiLinkOrder], []int64{1, 2}) {
+		t.Fatalf("orders = %v", merged[esiLinkOrder])
 	}
-	if !slices.Equal(merged.Jobs, []int64{10}) {
-		t.Fatalf("jobs = %v", merged.Jobs)
+	if !slices.Equal(merged[esiLinkJob], []int64{10}) {
+		t.Fatalf("jobs = %v", merged[esiLinkJob])
 	}
-	if !slices.Equal(merged.Transactions, []int64{20}) {
-		t.Fatalf("transactions = %v", merged.Transactions)
+	if !slices.Equal(merged[esiLinkTransaction], []int64{20}) {
+		t.Fatalf("transactions = %v", merged[esiLinkTransaction])
 	}
 }
 
@@ -101,7 +101,7 @@ func TestEmptyLinkSetIsEmpty(t *testing.T) {
 	if !(esiLinkSet{}).empty() {
 		t.Fatal("a zero link set should be empty")
 	}
-	if (esiLinkSet{Transactions: []int64{1}}).empty() {
+	if (esiLinkSet{esiLinkTransaction: {1}}).empty() {
 		t.Fatal("a set with a transaction is not empty")
 	}
 }
@@ -113,7 +113,7 @@ func TestLinksOfJob(t *testing.T) {
 	}
 	job := jobHolding([]int64{1}, []int64{2}, []int64{3})
 	links := esiLinksOf(&job)
-	if !slices.Equal(links.Orders, []int64{1}) || !slices.Equal(links.Jobs, []int64{2}) || !slices.Equal(links.Transactions, []int64{3}) {
+	if !slices.Equal(links[esiLinkOrder], []int64{1}) || !slices.Equal(links[esiLinkJob], []int64{2}) || !slices.Equal(links[esiLinkTransaction], []int64{3}) {
 		t.Fatalf("links = %+v", links)
 	}
 }

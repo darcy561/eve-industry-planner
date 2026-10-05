@@ -66,13 +66,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var groupIDs []string
-	for _, g := range reqBody.Groups {
-		if g.GroupID != "" {
-			groupIDs = append(groupIDs, g.GroupID)
-		}
-	}
-	rejects, ok := helper.GateDocumentLocks(w, r, metrics, h.locks.Redis, owner, eipmongo.CollectionJobGroups, "groups_put", groupIDs)
+	rejects, ok := helper.GateDocumentLocks(w, r, metrics, h.locks.Redis, owner, eipmongo.CollectionJobGroups, "groups_put", models.GroupIDsOf(reqBody.Groups))
 	if !ok || helper.RefuseHeldDocuments(w, r, metrics, eipmongo.CollectionJobGroups, rejects) {
 		return
 	}

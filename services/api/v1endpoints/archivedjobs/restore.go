@@ -49,10 +49,7 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 
 	now := time.Now().UTC()
 	var err error
-	jobIDs := make([]string, 0, len(req.Jobs))
-	for i := range req.Jobs {
-		jobIDs = append(jobIDs, req.Jobs[i].JobID)
-	}
+	jobIDs := models.JobIDsOf(req.Jobs)
 
 	links := esiLinkSet{}
 	for i := range req.Jobs {
@@ -131,11 +128,6 @@ func stripConflictedLinks(job *models.Job, conflicted map[esiLinkKind]map[int64]
 			esiLinkRows[kind].drop(job, strconv.FormatInt(id, 10))
 		}
 	}
-}
-
-func taken(ids map[int64]struct{}, id int64) bool {
-	_, held := ids[id]
-	return held
 }
 
 func deleteArchivedJobs(ctx context.Context, scope archiveScope, jobIDs []string, now time.Time, sessionID, wsClientID string) error {
