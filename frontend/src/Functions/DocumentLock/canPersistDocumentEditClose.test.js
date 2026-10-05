@@ -37,7 +37,7 @@ describe("canPersistDocumentEditClose", () => {
         "j1",
         { lockHeld: true, readOnly: false },
       );
-    expect(canPersistJobClose("j1", null)).toBe(true);
+    expect(canPersistJobClose("j1")).toBe(true);
 
     storeHolder.current
       .getState()
@@ -46,10 +46,10 @@ describe("canPersistDocumentEditClose", () => {
         "j1",
         { lockHeld: false, readOnly: true },
       );
-    expect(canPersistJobClose("j1", null)).toBe(false);
+    expect(canPersistJobClose("j1")).toBe(false);
   });
 
-  it("canPersistJobClose requires group lock when grouped", () => {
+  it("canPersistJobClose needs the job's own lock and not the group's", () => {
     storeHolder.current
       .getState()
       .documentLock.actions.patchDocumentLockForScope(
@@ -62,43 +62,9 @@ describe("canPersistDocumentEditClose", () => {
       .documentLock.actions.patchDocumentLockForScope(
         USER_JOB_GROUPS_COLLECTION,
         "g1",
-        { lockHeld: true, readOnly: false },
-      );
-    storeHolder.current.setState(() => ({
-      jobData: {
-        actions: {
-          getGroupObject: (id) => (id === "g1" ? { groupID: "g1" } : null),
-        },
-      },
-    }));
-    expect(canPersistJobClose("j1", "g1")).toBe(true);
-
-    storeHolder.current
-      .getState()
-      .documentLock.actions.patchDocumentLockForScope(
-        USER_JOB_GROUPS_COLLECTION,
-        "g1",
         { lockHeld: false, readOnly: true },
       );
-    expect(canPersistJobClose("j1", "g1")).toBe(false);
-  });
-
-  it("canPersistJobClose ignores stale groupID when the group is gone", () => {
-    storeHolder.current
-      .getState()
-      .documentLock.actions.patchDocumentLockForScope(
-        USER_JOBS_COLLECTION,
-        "j1",
-        { lockHeld: true, readOnly: false },
-      );
-    storeHolder.current.setState({
-      jobData: {
-        actions: {
-          getGroupObject: () => null,
-        },
-      },
-    });
-    expect(canPersistJobClose("j1", "g-deleted")).toBe(true);
+    expect(canPersistJobClose("j1")).toBe(true);
   });
 
   it("canPersistGroupClose matches holder and not read-only", () => {
@@ -115,8 +81,8 @@ describe("canPersistDocumentEditClose", () => {
   describe("canEditActiveJob / canEditActiveGroup (aligned UI gates)", () => {
     it("allows logged-out local edits without a lease", () => {
       storeHolder.current.setState({ account: { isLoggedIn: false } });
-      expect(canEditActiveJob("j1", null)).toBe(true);
-      expect(canEditActiveJob(null, null)).toBe(false);
+      expect(canEditActiveJob("j1")).toBe(true);
+      expect(canEditActiveJob(null)).toBe(false);
       expect(canEditActiveGroup("g1")).toBe(true);
       expect(canEditActiveGroup(null)).toBe(false);
     });
@@ -136,9 +102,9 @@ describe("canPersistDocumentEditClose", () => {
           "g1",
           { lockHeld: false, readOnly: false },
         );
-      expect(canEditActiveJob("j1", null)).toBe(false);
+      expect(canEditActiveJob("j1")).toBe(false);
       expect(canEditActiveGroup("g1")).toBe(false);
-      expect(canEditActiveJob("j1", null)).toBe(canPersistJobClose("j1", null));
+      expect(canEditActiveJob("j1")).toBe(canPersistJobClose("j1"));
       expect(canEditActiveGroup("g1")).toBe(canPersistGroupClose("g1"));
 
       storeHolder.current
@@ -155,9 +121,9 @@ describe("canPersistDocumentEditClose", () => {
           "g1",
           { lockHeld: true, readOnly: false },
         );
-      expect(canEditActiveJob("j1", null)).toBe(true);
+      expect(canEditActiveJob("j1")).toBe(true);
       expect(canEditActiveGroup("g1")).toBe(true);
-      expect(canEditActiveJob("j1", null)).toBe(canPersistJobClose("j1", null));
+      expect(canEditActiveJob("j1")).toBe(canPersistJobClose("j1"));
       expect(canEditActiveGroup("g1")).toBe(canPersistGroupClose("g1"));
     });
 
@@ -176,7 +142,7 @@ describe("canPersistDocumentEditClose", () => {
           "g1",
           { lockHeld: false, readOnly: true },
         );
-      expect(canEditActiveJob("j1", null)).toBe(false);
+      expect(canEditActiveJob("j1")).toBe(false);
       expect(canEditActiveGroup("g1")).toBe(false);
     });
   });

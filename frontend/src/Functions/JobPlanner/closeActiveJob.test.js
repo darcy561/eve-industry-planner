@@ -8,11 +8,19 @@ import {
   USER_JOB_GROUPS_COLLECTION,
 } from "../DocumentLock/documentLockCollections.js";
 
-const saveJobsAsOneChange = vi.fn().mockResolvedValue(undefined);
+const saveJobsAsOneChange = vi.fn().mockResolvedValue("saved");
 const saveUserAccountDocument = vi.fn().mockResolvedValue(undefined);
+
+const restoreSavedJobs = vi.fn().mockResolvedValue(undefined);
+const openChangeReview = vi.fn();
 
 vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
   saveJobsAsOneChange: (...args) => saveJobsAsOneChange(...args),
+  restoreSavedJobs: (...args) => restoreSavedJobs(...args),
+}));
+
+vi.mock("../../Events/changeReviewEvents", () => ({
+  openChangeReview: (...args) => openChangeReview(...args),
 }));
 
 vi.mock("../Endpoints/Private/userDocument.js", () => ({
@@ -289,22 +297,12 @@ describe("closeActiveJob", () => {
     expect(saveJobsAsOneChange).toHaveBeenCalled();
   });
 
-  it("skips job persist when grouped but group lock is not held", async () => {
+  it("saves a grouped job on its own lock while another session holds the group", async () => {
     const job = makeJob("j1", "g1");
-    const group = {
-      groupID: "g1",
-      addJobsToGroup: vi.fn(),
-    };
     storeHolder.current.getState().jobData.actions.getGroupObject = vi.fn(
-      () => group,
+      () => ({ groupID: "g1", addJobsToGroup: vi.fn() }),
     );
-    storeHolder.current
-      .getState()
-      .documentLock.actions.patchDocumentLockForScope(
-        USER_JOBS_COLLECTION,
-        "j1",
-        { readOnly: false, lockHeld: true },
-      );
+    holdTheJobLock("j1");
     storeHolder.current
       .getState()
       .documentLock.actions.patchDocumentLockForScope(
@@ -315,10 +313,7 @@ describe("closeActiveJob", () => {
 
     await closeActiveJob(job, true, {}, {}, {}, null);
 
-    expect(saveJobsAsOneChange).not.toHaveBeenCalled();
-    expect(
-      storeHolder.current.getState().jobData.actions.updateModifiedGroups,
-    ).toHaveBeenCalledWith(expect.anything(), { queuePersist: false });
+    expect(saveJobsAsOneChange).toHaveBeenCalled();
   });
 
   it("does not write back a job that was deleted while it was open", async () => {
@@ -390,6 +385,33 @@ describe("a close the server refused", () => {
     },
   );
 
+  it.each([["conflict"], ["locked"], ["failed"]])(
+    "keeps the editor open on the saved jobs when %s",
+    async (outcome) => {
+      const { actions } = storeHolder.current.getState().editSession;
+      actions.openJob("j1", makeJob("j1", "g1"));
+      saveJobsAsOneChange.mockResolvedValueOnce(outcome);
+      restoreSavedJobs.mockClear();
+
+      await expect(close()).resolves.toBe("kept-open");
+
+      expect(storeHolder.current.getState().editSession.activeJobID).toBe("j1");
+      expect(restoreSavedJobs).toHaveBeenCalledWith(["j1"], ["j2"]);
+    },
+  );
+
+  it("opens the review only for a close refused as stale", async () => {
+    openChangeReview.mockClear();
+    saveJobsAsOneChange.mockResolvedValueOnce("conflict");
+    await close();
+    expect(openChangeReview).toHaveBeenCalledWith({ refused: true });
+
+    openChangeReview.mockClear();
+    saveJobsAsOneChange.mockResolvedValueOnce("locked");
+    await close();
+    expect(openChangeReview).not.toHaveBeenCalled();
+  });
+
   it("writes the group and the ESI links once the close landed", async () => {
     saveJobsAsOneChange.mockResolvedValueOnce("saved");
 
@@ -443,9 +465,9 @@ describe("closing a job the editor froze", () => {
   it("saves without writing into what the editor holds", async () => {
     const { document, job } = frozenJob();
 
-    await expect(
-      closeActiveJob(job, true, {}, {}, {}, null),
-    ).resolves.toBeUndefined();
+    await expect(closeActiveJob(job, true, {}, {}, {}, null)).resolves.toBe(
+      "closed",
+    );
 
     expect(document.displayOnPlanner).toBe(false);
     expect(Object.isFrozen(document)).toBe(true);

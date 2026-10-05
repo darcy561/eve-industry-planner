@@ -54,8 +54,6 @@
   "write": {
     "jobID": "job-fixture",
     "revision": 7,
-    "includedInGroup": false,
-    "groupID": "",
     "document": {
       "name": "Rifter build",
       "build": {
@@ -75,8 +73,6 @@
   "fields": {
     "jobID": "Which job is being written. It sits beside the document rather than in it: a partial document carries `jobID` only if the reader happened to change it, and the lock gate has to know which document a write is for before anything is decoded.",
     "revision": "The revision of the document the write was built from. Its presence is what makes a write field-scoped — a write carrying no revision here carries its whole document instead, and is checked against whatever its `_meta` holds. Omitted rather than sent as zero.",
-    "includedInGroup": "Whether the job belongs to a group. Stated on the envelope for the same reason as `jobID`: nothing changes a job's group through this path, so a partial document would show every job as belonging to none, and the lock gate would stop bypassing the group lease.",
-    "groupID": "Which group, empty when none.",
     "document": "The partial job. A field that is present is being written; a field that is absent is unchanged. It may not name `_meta` — the server states a document's owner, revision and stamps, and a body that could name them would be naming where the write lands rather than what it holds.",
     "removed": "The rows that went, each as the path into the job it sat at. A partial document spends absence on `unchanged`, so it has no way left to say `delete this row`. Absent rather than empty when nothing went. Each path is resolved against the job model itself, so it can only reach what the model says is a keyed collection.",
     "storedPaths": "What the two halves become once the model has walked them: the `$set` paths built from the document, and the `$unset` paths built from the removals. Stated here because the body deliberately names no stored path — the model derives them from its own bson tags — and this is what proves that derivation has not moved."
@@ -86,8 +82,6 @@
       {
         "jobID": "job-fixture",
         "revision": 7,
-        "includedInGroup": false,
-        "groupID": "",
         "document": {
           "name": "Rifter build",
           "build": {

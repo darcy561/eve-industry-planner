@@ -8,26 +8,7 @@ import { canEditActiveGroup } from "../../Functions/DocumentLock/canPersistDocum
 import { lockReasonText } from "../../Components/DocumentLock/LockGatedTooltip";
 
 /**
- * ID-shaped read-only lock hooks for the planner / group surfaces.
- *
- * The Edit-Job page already has analogous hooks in
- * `Components/Edit Job/Edit Job Hooks/useActiveJobDocumentLock.js`, but those
- * read the open job out of the edit session for themselves. The planner job
- * cards, group cards, group page wrapper,
- * search bar, group-name frame and DnD machinery all work from raw IDs
- * (`job.jobID`, `group.groupID`, `state.jobData.activeGroupID`), so these
- * hooks take the ID directly and route through the same
- * `selectDocumentLockReadOnly` selector the rest of the unified system uses.
- *
- * Centralising the subscription shape here removes the
- * `useUsersStore((s) => …selectDocumentLockReadOnly…)` boilerplate that was
- * duplicated across ~9 components.
- */
-
-/**
  * Whether the per-job document lock for `jobID` is held by another session.
- * Returns `false` (no subscription change) when `jobID` is falsy so callers
- * can use it unconditionally on cards that may not have a job yet.
  *
  * @param {string | undefined | null} jobID
  * @returns {boolean}
@@ -40,8 +21,6 @@ export function useJobLockReadOnly(jobID) {
 
 /**
  * Whether the group document lock for `groupID` is held by another session.
- * Returns `false` when `groupID` is falsy so callers can use it
- * unconditionally for solo jobs / planner-only contexts.
  *
  * @param {string | undefined | null} groupID
  * @returns {boolean}
@@ -55,10 +34,7 @@ export function useGroupLockReadOnly(groupID) {
 }
 
 /**
- * Whether the currently active group's document lock is held by another
- * session. Convenience for surfaces that read from
- * `state.jobData.activeGroupID` rather than carrying the id around as a prop
- * (search bar's "create new job into the active group", group-name editor).
+ * Whether the currently active group's document lock is held by another session.
  *
  * @returns {boolean}
  */
@@ -71,8 +47,8 @@ export function useActiveGroupLockReadOnly() {
 }
 
 /**
- * Group-page mutate eligibility — {@link canEditActiveGroup} (guest local edits
- * or logged-in holder). Pair of edit-job's `useActiveJobPersistGate.canPersist`.
+ * Group-page mutate eligibility — {@link canEditActiveGroup} (guest local edits or logged-in
+ * holder).
  *
  * @param {string | undefined | null} groupID
  * @returns {boolean}
@@ -91,51 +67,22 @@ export function useActiveGroupCanEdit() {
 }
 
 /**
- * Combined gate for a job card. `cardLocked` is the canonical "card opens in
- * read-only view" flag every job/group-job card frame uses.
+ * Whether a job card is locked, because another session holds the job or the group it sits in, and
+ * the reason to show.
  *
- * `groupReadOnly` is taken as a prop rather than re-derived from `job.groupID`
- * because:
- *  - Planner-page job cards intentionally do NOT honour the group lock
- *    cascade (a locked group doesn't gate planner-page browsing of its
- *    member jobs from outside the group page).
- *  - Group-page card frames already receive `groupReadOnly` as a prop from
- *    the page-level subscription (`groupFrame.jsx`) so the cascade decision
- *    stays in one place.
- *
- * Group-lock cause takes precedence in the returned `reason` because the
- * group lock is the more-restrictive cascade — naming it leads the user to
- * the place where they can reclaim editing rights.
- *
- * Cards stay on `readOnly` (another session holds), not `canEdit` / `lockHeld`:
- * vacancy (#21) should not flip cards to "View" while acquire is in flight.
- *
- * @param {Object} params
+ * @param {object} params
  * @param {string | undefined | null} params.jobID
  * @param {boolean} [params.groupReadOnly=false]
- * @param {boolean} [params.jobLockSubordinateToGroup=false] — group page: group lock owns member jobs
- * @returns {{
- *   cardLocked: boolean,
- *   jobReadOnly: boolean,
- *   groupReadOnly: boolean,
- *   reason: string,
- * }}
+ * @returns {{cardLocked: boolean, jobReadOnly: boolean, groupReadOnly: boolean, reason: string}}
  */
-export function useJobCardLockState({
-  jobID,
-  groupReadOnly = false,
-  jobLockSubordinateToGroup = false,
-} = {}) {
+export function useJobCardLockState({ jobID, groupReadOnly = false } = {}) {
   const jobReadOnly = useJobLockReadOnly(jobID);
-  const cardLocked = jobLockSubordinateToGroup
-    ? groupReadOnly
-    : jobReadOnly || groupReadOnly;
-  let reason = "";
-  if (cardLocked) {
-    reason = lockReasonText({
-      scope: groupReadOnly || jobLockSubordinateToGroup ? "group" : "job",
-      action: "opens in read-only view",
-    });
-  }
+  const cardLocked = jobReadOnly || groupReadOnly;
+  const reason = cardLocked
+    ? lockReasonText({
+        scope: groupReadOnly ? "group" : "job",
+        action: "opens in read-only view",
+      })
+    : "";
   return { cardLocked, jobReadOnly, groupReadOnly, reason };
 }

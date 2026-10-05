@@ -25,7 +25,7 @@ export function initialScopedDocumentLockState() {
     extendSegmentCount: null,
     waitlistLen: null,
     handoffPendingHolder: false,
-    pendingHandoffOfferClientID: null,
+    pendingHandoffOfferParticipantID: null,
     pendingHandoffExpiresAtUnix: null,
     handoffOfferForMe: false,
     waitingInHandoffQueue: false,

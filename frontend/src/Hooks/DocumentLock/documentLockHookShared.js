@@ -1,40 +1,34 @@
-import useUsersStore from "../../Zustand/usersStore.js";
+import { myLockParticipantID } from "../../Functions/DocumentLock/lockParticipant.js";
 
 export function mergeHandoffFieldsFromExtendPayload(data) {
   const partial = {};
-  const mySessionID = useUsersStore.getState()?.account?.sessionID;
+  const me = myLockParticipantID();
   if (typeof data.extendCount === "number")
     partial.extendSegmentCount = data.extendCount;
   if (typeof data.waitlistLen === "number")
     partial.waitlistLen = data.waitlistLen;
   const offered =
-    typeof data.probeTargetSessionID === "string"
-      ? data.probeTargetSessionID
-      : typeof data.offeredSessionID === "string"
-        ? data.offeredSessionID
-        : typeof data.pendingHandoffTargetSessionID === "string"
-          ? data.pendingHandoffTargetSessionID
-          : null;
-  if (offered != null) partial.pendingHandoffOfferClientID = offered;
+    typeof data.probeTargetParticipantID === "string"
+      ? data.probeTargetParticipantID
+      : null;
+  if (offered != null) partial.pendingHandoffOfferParticipantID = offered;
   if (typeof data.probeExpiresAtUnix === "number")
     partial.pendingHandoffExpiresAtUnix = data.probeExpiresAtUnix;
-  else if (typeof data.pendingHandoffExpiresAtUnix === "number")
-    partial.pendingHandoffExpiresAtUnix = data.pendingHandoffExpiresAtUnix;
   if (data.handoffPending === true) partial.handoffPendingHolder = true;
   if (data.handoffPending === false) {
     partial.handoffPendingHolder = false;
-    partial.pendingHandoffOfferClientID = null;
+    partial.pendingHandoffOfferParticipantID = null;
     partial.pendingHandoffExpiresAtUnix = null;
     partial.handoffOfferForMe = false;
   }
   if (data.cycleReset === true) {
     partial.handoffPendingHolder = false;
-    partial.pendingHandoffOfferClientID = null;
+    partial.pendingHandoffOfferParticipantID = null;
     partial.pendingHandoffExpiresAtUnix = null;
     partial.handoffOfferForMe = false;
   }
-  if (mySessionID && typeof offered === "string" && offered.length > 0) {
-    partial.handoffOfferForMe = offered === mySessionID;
+  if (me && typeof offered === "string" && offered.length > 0) {
+    partial.handoffOfferForMe = offered === me;
   }
   return partial;
 }
@@ -44,7 +38,7 @@ export function clearedHandoffState() {
     extendSegmentCount: null,
     waitlistLen: null,
     handoffPendingHolder: false,
-    pendingHandoffOfferClientID: null,
+    pendingHandoffOfferParticipantID: null,
     pendingHandoffExpiresAtUnix: null,
     handoffOfferForMe: false,
     waitingInHandoffQueue: false,

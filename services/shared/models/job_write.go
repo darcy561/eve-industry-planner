@@ -24,12 +24,10 @@ var fieldIndexes sync.Map
 
 // JobWriteBody is one job's write as it arrives.
 type JobWriteBody struct {
-	JobID           string         `json:"jobID"`
-	Revision        int64          `json:"revision,omitzero"`
-	IncludedInGroup bool           `json:"includedInGroup,omitzero"`
-	GroupID         string         `json:"groupID,omitzero"`
-	Document        jsontext.Value `json:"document"`
-	Removed         [][]string     `json:"removed,omitempty"`
+	JobID    string         `json:"jobID"`
+	Revision int64          `json:"revision,omitzero"`
+	Document jsontext.Value `json:"document"`
+	Removed  [][]string     `json:"removed,omitempty"`
 }
 
 // JobWriteBatch is a save request: the writes it carries, and whether they land as one change,

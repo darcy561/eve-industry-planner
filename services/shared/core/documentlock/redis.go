@@ -46,7 +46,7 @@ type LockRecord struct {
 	HolderSessionID      string `json:"holderSessionID"`
 	AccountID            string `json:"accountID"`
 	ExpiresAtUnix        int64  `json:"expiresAtUnix"`
-	LeaseMode            string `json:"leaseMode,omitempty"` // solo | contested
+	LeaseMode            string `json:"leaseMode,omitempty"`
 	ExtendCount          int    `json:"extendCount,omitzero"`
 	ProbeTargetSessionID string `json:"probeTargetSessionID,omitempty"`
 	ProbeExpiresAtUnix   int64  `json:"probeExpiresAtUnix,omitzero"`
@@ -62,18 +62,8 @@ func ContestedLockTTLSeconds() int64 {
 	return int64(DefaultLockTTL / time.Second)
 }
 
-// lockScope is a key's first segment: the planner the document belongs to, and
-// what decides whether the lock exists at all between two members.
-//
-// An account planner renders as the bare account id rather than `account:{id}`,
-// which is what these keys have always held. Rendering the owner key would move
-// every personal planner's live locks, waitlist entries and viewer rows onto a
-// key the readers then miss — and a solo lease lives 24 hours, so an editor's
-// protection would lapse silently for that long after a deploy. The kinds that
-// never had a key before carry theirs in full.
-//
-// Safe to tell apart because an account id carries no colon and every other
-// owner key does.
+// lockScope is a key's first segment: the planner the document belongs to, and what decides whether
+// the lock exists at all between two members.
 func lockScope(owner models.Owner) string {
 	if owner.Kind == models.OwnerAccount {
 		return owner.ID
@@ -105,13 +95,8 @@ func WaitlistPulseKey(owner models.Owner, collection, docID, sessionID string) s
 	return waitlistPulseKeyPrefix(owner, collection, docID) + sessionID
 }
 
-// waitlistPulseKeyPrefix is every pulse key for one document, up to and including
-// the separator the session id follows.
-//
-// The scripts build a pulse key in Lua by concatenating this with a session id,
-// so the whole key has one builder: two that agreed by hand would let a Go writer
-// and a Lua reader address different keys, which reads as a waiter who is never
-// alive.
+// waitlistPulseKeyPrefix is every pulse key for one document, up to and including the separator the
+// session id follows.
 func waitlistPulseKeyPrefix(owner models.Owner, collection, docID string) string {
 	return pulsePrefix + lockScope(owner) + KeyPartSep + collection + KeyPartSep + docID + KeyPartSep
 }
@@ -160,12 +145,8 @@ func PeekWaitlistHeadAlive(ctx context.Context, rdb *eipredis.Redis, owner model
 	return "", fmt.Errorf("peek waitlist alive: loop exceeded")
 }
 
-// EnqueueWaitlistUnique enqueues a session on the waitlist (deduped), carrying
-// the account it belongs to so a promotion can name the holder.
-//
-// The bare session id is removed as well as the entry: a session queued before
-// the account rode along is the same waiter, and leaving it would queue them
-// twice.
+// EnqueueWaitlistUnique enqueues a session on the waitlist (deduped), carrying the account it
+// belongs to so a promotion can name the holder.
 func EnqueueWaitlistUnique(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID, sessionID, accountID string) error {
 	k := waitlistKey(owner, collection, docID)
 	pipe, err := rdb.Pipe()
@@ -192,9 +173,6 @@ func PeekWaitlistHead(ctx context.Context, rdb *eipredis.Redis, owner models.Own
 }
 
 // RemoveFromWaitlist removes one occurrence of a session from the waitlist.
-//
-// Both shapes are removed because a caller names a session rather than an entry,
-// and the account it is paired with here is the one that queued it.
 func RemoveFromWaitlist(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID, sessionID, accountID string) error {
 	k := waitlistKey(owner, collection, docID)
 	if _, err := rdb.RemoveFromList(ctx, k, 1, waitlistEntry(sessionID, accountID)); err != nil {
@@ -219,8 +197,6 @@ func ParseExpiredLockKey(key string) (owner models.Owner, collection, docID stri
 	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
 		return models.Owner{}, "", "", false
 	}
-	// The planner rides on the key so a keyspace notification needs no lookup. One
-	// naming none is dropped rather than promoted against a guess.
 	parsed, err := parseLockScope(parts[0])
 	if err != nil {
 		return models.Owner{}, "", "", false
@@ -267,22 +243,8 @@ func deleteLock(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, co
 	return err
 }
 
-// PromoteWaitlistHead atomically transfers ownership of the lock for
-// (owner, collection, docID) to the alive head of the waitlist.
-//
-// Used by the TTL expiry subscriber (HandOver has its own atomic script that
-// also enforces the prior-holder check). Returns:
-//   - (head, &rec, true, nil)  — a live waitlist head was found, the lock now
-//     points at them, the waitlist has been dequeued, and the caller should
-//     publish the appropriate `document_lock_handoff_completed` event.
-//   - ("",   nil,  false, nil) — no live waitlist head; caller decides whether
-//     to /release outright (handover) or publish `document_lock_expired`
-//     (expiry subscriber).
-//   - ("",   nil,  false, err) — fatal Redis error, caller should bail.
-//
-// The new record clears extend/probe state so it reads back as a clean lease.
-// The peek-alive walk, lock rewrite and waitlist dequeue happen inside one
-// Redis EVAL so a second concurrent promotion cannot double-grant.
+// PromoteWaitlistHead atomically transfers ownership of the lock for (owner, collection, docID) to
+// the alive head of the waitlist.
 func PromoteWaitlistHead(
 	ctx context.Context,
 	rdb *eipredis.Redis,
@@ -307,21 +269,6 @@ func PromoteWaitlistHead(
 		ExpiresAtUnix:   tx.ExpiresAtUnix,
 	}
 	return tx.NewHolderSessionID, rec, true, nil
-}
-
-// LockHeldBySession reports whether a non-expired lock is actively held by requesterSessionID.
-func LockHeldBySession(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, collection, docID, requesterSessionID string) (bool, error) {
-	if rdb.Driver() == nil || requesterSessionID == "" {
-		return false, nil
-	}
-	rec, err := GetLock(ctx, rdb, owner, collection, docID)
-	if err != nil {
-		return false, err
-	}
-	if rec == nil || rec.HolderSessionID == "" {
-		return false, nil
-	}
-	return rec.HolderSessionID == requesterSessionID, nil
 }
 
 // LockHeldByOther reports whether a non-expired lock is held by a session other than requesterSessionID.

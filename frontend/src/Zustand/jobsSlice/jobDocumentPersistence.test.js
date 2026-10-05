@@ -20,8 +20,6 @@ function held(jobID, name) {
   return {
     jobID,
     name,
-    includedInGroup: false,
-    groupID: "",
     _meta: { revision: 3 },
   };
 }
@@ -29,8 +27,6 @@ function held(jobID, name) {
 function envelope(jobID, name) {
   return {
     jobID,
-    includedInGroup: false,
-    groupID: "",
     document: toDocument(held(jobID, name)),
   };
 }
@@ -123,8 +119,6 @@ describe("queueing job documents for the next save", () => {
       expect(actions().getPendingJobDocumentWritesPayload()).toEqual([
         {
           jobID: "job-1",
-          includedInGroup: false,
-          groupID: "",
           revision: 3,
           document: { name: "Rifter" },
         },

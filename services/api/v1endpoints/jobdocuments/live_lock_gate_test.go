@@ -15,6 +15,8 @@ import (
 	eipmongo "eve-industry-planner/shared/mongo"
 	eipredis "eve-industry-planner/shared/redis"
 	"eve-industry-planner/shared/stackservices"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 const (
@@ -24,9 +26,8 @@ const (
 )
 
 type lockGateRename struct {
-	jobID   string
-	name    string
-	groupID string
+	jobID string
+	name  string
 }
 
 type lockHeldBody struct {
@@ -34,8 +35,8 @@ type lockHeldBody struct {
 	Saved       int      `json:"saved"`
 	SavedDocIDs []string `json:"savedDocIDs"`
 	Rejected    []struct {
-		DocID           string `json:"docID"`
-		HolderSessionID string `json:"holderSessionID"`
+		DocID               string `json:"docID"`
+		HolderParticipantID string `json:"holderParticipantID"`
 	} `json:"rejected"`
 }
 
@@ -77,11 +78,9 @@ func (s *plannerScope) renameAs(t *testing.T, sessionID string, renames ...lockG
 	writes := make([]models.JobWriteBody, 0, len(renames))
 	for _, rename := range renames {
 		writes = append(writes, models.JobWriteBody{
-			JobID:           rename.jobID,
-			Revision:        storedRevision(t, s, rename.jobID),
-			IncludedInGroup: rename.groupID != "",
-			GroupID:         rename.groupID,
-			Document:        loopDocumentNaming(t, rename.name),
+			JobID:    rename.jobID,
+			Revision: storedRevision(t, s, rename.jobID),
+			Document: loopDocumentNaming(t, rename.name),
 		})
 	}
 	return s.putWritesAsSession(writes, s.account, s.handle, sessionID, "")
@@ -124,7 +123,7 @@ func TestLive_LockGate_aJobHeldElsewhereIsLeftAndTheRestOfTheBatchWritten(t *tes
 		t.Errorf("saved %d %v, want only the free job", body.Saved, body.SavedDocIDs)
 	}
 	if len(body.Rejected) != 1 || body.Rejected[0].DocID != "lock-gate-held" ||
-		body.Rejected[0].HolderSessionID != lockGateOtherSession {
+		body.Rejected[0].HolderParticipantID != documentlock.ParticipantID(lockGateOtherSession) {
 		t.Errorf("rejected %+v, want the held job named with its holder", body.Rejected)
 	}
 	assertStoredName(t, s, "lock-gate-free", "renamed beside it")
@@ -168,18 +167,50 @@ func TestLive_LockGate_aBatchWhollyHeldElsewhereWritesNothing(t *testing.T) {
 	}
 }
 
-func TestLive_LockGate_theGroupsHolderWritesAMemberJobHeldElsewhere(t *testing.T) {
+func TestLive_LockGate_holdingTheGroupDoesNotWriteAMemberJobHeldElsewhere(t *testing.T) {
 	s := newPlannerScope(t)
 	redis := s.seedLockGateJobs(t, "lock-gate-member")
 	s.holdLock(t, redis, s.account, lockGateSaverSession, eipmongo.CollectionJobGroups, lockGateGroupID)
 	s.holdLock(t, redis, plannerScopeOtherAccount, lockGateOtherSession, eipmongo.CollectionJobDocuments, "lock-gate-member")
 
-	rec := s.renameAs(t, lockGateSaverSession, lockGateRename{
-		jobID: "lock-gate-member", name: "renamed by the group's holder", groupID: lockGateGroupID,
+	body := decodeLockHeld(t, s.renameAs(t, lockGateSaverSession, lockGateRename{
+		jobID: "lock-gate-member", name: "renamed by the group's holder",
+	}))
+
+	if len(body.Rejected) != 1 || body.Rejected[0].DocID != "lock-gate-member" ||
+		body.Rejected[0].HolderParticipantID != documentlock.ParticipantID(lockGateOtherSession) {
+		t.Errorf("rejected %+v, want the member job named with its own holder", body.Rejected)
+	}
+	assertStoredName(t, s, "lock-gate-member", plannerScopeJob("lock-gate-member").Name)
+}
+
+func TestLive_LockGate_takingTheGroupLeavesAMemberJobWithItsHolder(t *testing.T) {
+	s := newPlannerScope(t)
+	redis := s.seedLockGateJobs(t, "lock-gate-member")
+	if _, err := s.mongo.Groups.BulkUpsertGroups(context.Background(), s.owner, s.account, []models.Group{{
+		GroupID: lockGateGroupID, GroupName: "Lock gate group", IncludedJobIDs: []string{"lock-gate-member"},
+	}}, time.Now().UTC(), "", ""); err != nil {
+		t.Fatalf("seed group: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = s.mongo.Groups.Collection().DeleteMany(context.Background(),
+			bson.M{"_id": eipmongo.OwnerScopedDocumentID(s.owner, lockGateGroupID)})
+	})
+	s.holdLock(t, redis, plannerScopeOtherAccount, lockGateOtherSession, eipmongo.CollectionJobDocuments, "lock-gate-member")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	granted, err := documentlock.NewService(documentlock.Deps{Redis: redis, NATS: nats(t)}).
+		Acquire(ctx, s.owner, s.account, lockGateSaverSession, eipmongo.CollectionJobGroups, lockGateGroupID)
+	if err != nil || granted.StatusCode != http.StatusCreated {
+		t.Fatalf("acquire the group = %v %v, want it granted", granted, err)
+	}
+	t.Cleanup(func() {
+		_ = documentlock.DeleteDocLock(context.Background(), redis, s.owner, eipmongo.CollectionJobGroups, lockGateGroupID)
 	})
 
-	if rec.Code >= http.StatusBadRequest {
-		t.Fatalf("group holder's write = %d: %s", rec.Code, rec.Body.String())
+	held, err := documentlock.GetLock(ctx, redis, s.owner, eipmongo.CollectionJobDocuments, "lock-gate-member")
+	if err != nil || held == nil || held.HolderSessionID != lockGateOtherSession {
+		t.Fatalf("member job lock = %+v %v, want it still held by %s", held, err, lockGateOtherSession)
 	}
-	assertStoredName(t, s, "lock-gate-member", "renamed by the group's holder")
 }

@@ -14,7 +14,6 @@ import (
 	"eve-industry-planner/shared/telemetry/apimetrics"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // DeleteJobDocumentsHandler handles DELETE /api/v1/job-documents with { jobIDs: [] }.
@@ -74,41 +73,7 @@ func (h *Handlers) DeleteJobDocumentsHandler(w http.ResponseWriter, r *http.Requ
 			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents delete lock gate: missing session", "job_docs_delete_missing_session", "job_documents", nil, nil)
 			return
 		}
-		jobGroupBypass := documentlock.JobGroupBypass{}
-		if h.Mongo != nil {
-			type jobGroupRow struct {
-				ID              string `bson:"_id"`
-				GroupID         string `bson:"groupID"`
-				IncludedInGroup bool   `bson:"includedInGroup"`
-			}
-			collection := h.Mongo.JobDocuments.Collection()
-			cur, findErr := collection.Find(ctx,
-				bson.M{"_id": bson.M{"$in": eipmongo.OwnerScopedDocumentIDs(owner, reqBody.JobIDs)}},
-				options.Find().SetProjection(bson.M{"groupID": 1, "includedInGroup": 1}))
-			if findErr != nil {
-				metrics.Error("lock_error")
-				helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents delete lock gate: group lookup failed", "job_docs_lock_gate_group_lookup_failed", "job_documents", findErr, nil)
-				return
-			}
-			for cur.Next(ctx) {
-				var row jobGroupRow
-				if err := cur.Decode(&row); err != nil {
-					_ = cur.Close(ctx)
-					metrics.Error("lock_error")
-					helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents delete lock gate: group decode failed", "job_docs_lock_gate_group_decode_failed", "job_documents", err, nil)
-					return
-				}
-				if row.IncludedInGroup && row.GroupID != "" {
-					jobGroupBypass[eipmongo.BareDocumentID(row.ID)] = row.GroupID
-				}
-			}
-			if err := cur.Close(ctx); err != nil {
-				metrics.Error("lock_error")
-				helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents delete lock gate: group cursor close failed", "job_docs_lock_gate_group_cursor_failed", "job_documents", err, nil)
-				return
-			}
-		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, reqBody.JobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, reqBody.JobIDs)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")

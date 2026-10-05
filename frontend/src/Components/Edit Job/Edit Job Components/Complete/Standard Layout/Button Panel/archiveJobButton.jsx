@@ -71,7 +71,7 @@ export function ArchiveJobButton() {
 
     await saveUserAccountDocument();
     removeJobsFromJobArray(job.jobID);
-    await yieldEditJobDocumentLocksOnLeave({ jobID, groupID: null });
+    await yieldEditJobDocumentLocksOnLeave({ jobID });
     navigate({ to: "/jobplanner" });
   };
 

@@ -26,15 +26,8 @@ import { yieldEditJobDocumentLocksOnLeave } from "../../../Functions/DocumentLoc
 import { jobDraftNow, useJobDraft, useJobModified } from "./useJobDraft";
 
 /**
- * Registers two handlers while the edit-job page is mounted:
- *
- *     chips, child job button) can request navigation to another job with the
- *     standard save / discard rules.
- *     prompt for save / discard before handing the lock to a requesting tab,
- *     instead of dropping it to neutral.
- *
- * Both flows share the unsaved-changes dialogue; `dialogueMode` selects copy and
- * routes the outcome to the right resolver.
+ * Asks the reader to save or discard before the edit page navigates to another job or hands its
+ * lock to a session that requested it.
  */
 export function useEditJobLeaveConfirm() {
   const queryClient = useQueryClient();
@@ -44,39 +37,21 @@ export function useEditJobLeaveConfirm() {
   const openJobName = useJobDraft((job) => job.name);
   const jobModified = useJobModified();
 
-  /**
-   * Tracked reactively so the dialogue can grey out Save the moment a hand-over
-   * lands while it's already open; also guards the save handlers below from
-   * firing `closeActiveJob` after the lock flipped to read-only.
-   */
   const persistGate = useActiveJobPersistGate();
 
-  /** Navigation flow */
   const pendingNavigationResolveRef = useRef(null);
   const pendingNavRef = useRef(null);
-  /** Release-request flow */
   const pendingReleaseResolveRef = useRef(null);
   const pendingReleaseTargetRef = useRef(null);
 
-  /** Which flow currently owns the dialogue (drives the copy + resolver) */
   const [dialogueMode, setDialogueMode] = useState("navigation");
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [leaveSaving, setLeaveSaving] = useState(false);
   const [nextJobName, setNextJobName] = useState(null);
 
-  /**
-   * Send the holder away from the edit page after a release-flow save/discard
-   * mirrors {@link ../saveIcon.jsx}'s post-save routing. Lands on the parent
-   * group when one is in the route search; falls back to the planner. Called
-   * after the lock has been handed over so the unmount cleanup is a no-op.
-   */
   const yieldLocksForCurrentEditJob = useCallback(async () => {
-    const search = routeSearch ?? {};
-    await yieldEditJobDocumentLocksOnLeave({
-      jobID: routeJobID,
-      groupID: search.activeGroup,
-    });
-  }, [routeJobID, routeSearch]);
+    await yieldEditJobDocumentLocksOnLeave({ jobID: routeJobID });
+  }, [routeJobID]);
 
   const navigateAfterRelease = useCallback(() => {
     const search = routeSearch ?? {};
@@ -85,10 +60,6 @@ export function useEditJobLeaveConfirm() {
       navigate({
         to: "/group/$groupID",
         params: { groupID },
-        // The route's own job, not the session's: this runs once the job has
-        // been handed over or saved, and both of those end the session — so a
-        // job tree told to centre on what the session still held would be told
-        // to centre on nothing.
         search: buildGroupSearchAfterEditClose(search, routeJobID),
       });
       return;
@@ -107,8 +78,6 @@ export function useEditJobLeaveConfirm() {
       pendingReleaseResolveRef.current = null;
       pendingReleaseTargetRef.current = null;
       closeDialogueState();
-      // Cancelled handover → tell the slice to dismiss the snackbar / clear the
-      // pendingAccessRequest flag (i.e. treat the request as denied).
       resolve?.("cancelled");
       return;
     }
@@ -126,14 +95,7 @@ export function useEditJobLeaveConfirm() {
       const { handOverEditAccess } =
         useUsersStore.getState().documentLock.actions;
       leaveEditedJobWhereItStands();
-      // Hand the lock over BEFORE we navigate; the new holder is already a
-      // queued waitlist entry server-side, so we mustn't unmount through the
-      // neutral-release path (`/release` instead of `/hand-over`).
-      try {
-        await handOverEditAccess(target.collection, target.docID);
-      } catch {
-        /* server-side hand-over already publishes the event; ignore */
-      }
+      await handOverEditAccess(target.collection, target.docID).catch(() => {});
       await yieldLocksForCurrentEditJob();
       pendingReleaseResolveRef.current = null;
       pendingReleaseTargetRef.current = null;
@@ -174,14 +136,18 @@ export function useEditJobLeaveConfirm() {
       if (!persistGate.canPersist) return;
       setLeaveSaving(true);
       try {
-        await saveOpenJob(queryClient);
+        if ((await saveOpenJob(queryClient)) === "kept-open") {
+          pendingReleaseResolveRef.current = null;
+          pendingReleaseTargetRef.current = null;
+          closeDialogueState();
+          resolve("cancelled");
+          return;
+        }
         const { handOverEditAccess } =
           useUsersStore.getState().documentLock.actions;
-        try {
-          await handOverEditAccess(target.collection, target.docID);
-        } catch {
-          /* ignore */
-        }
+        await handOverEditAccess(target.collection, target.docID).catch(
+          () => {},
+        );
         await yieldLocksForCurrentEditJob();
         pendingReleaseResolveRef.current = null;
         pendingReleaseTargetRef.current = null;
@@ -197,13 +163,16 @@ export function useEditJobLeaveConfirm() {
     const resolve = pendingNavigationResolveRef.current;
     const pending = pendingNavRef.current;
     if (!resolve || !pending) return;
-    // Belt-and-braces: even though the dialogue disables Save when locked, the
-    // lock can flip between dialogue-open and the click (server-side cascade or
-    // hand-over). Refuse to call `closeActiveJob` against a doc we don't own.
     if (!persistGate.canPersist) return;
     setLeaveSaving(true);
     try {
-      await saveOpenJob(queryClient);
+      if ((await saveOpenJob(queryClient)) === "kept-open") {
+        pendingNavigationResolveRef.current = null;
+        pendingNavRef.current = null;
+        closeDialogueState();
+        resolve("cancelled");
+        return;
+      }
       await yieldLocksForCurrentEditJob();
       navigate({
         to: "/editjob/$jobID",
@@ -228,9 +197,6 @@ export function useEditJobLeaveConfirm() {
     yieldLocksForCurrentEditJob,
   ]);
 
-  // Registered once and left alone: the cleanup below answers whatever is
-  // pending, so re-running this would cancel a prompt the reader is looking
-  // at. The event reads the job and the route as they are when it is asked.
   const onNavigationRequested = useEffectEvent((payload, resolve) => {
     const openJob = jobDraftNow();
     if (!openJob) {
@@ -254,10 +220,7 @@ export function useEditJobLeaveConfirm() {
 
     if (!jobModified) {
       void (async () => {
-        await yieldEditJobDocumentLocksOnLeave({
-          jobID: routeJobID,
-          groupID: routeSearch?.activeGroup,
-        });
+        await yieldEditJobDocumentLocksOnLeave({ jobID: routeJobID });
         navigate({
           to: "/editjob/$jobID",
           params: { jobID: targetId },
@@ -299,15 +262,11 @@ export function useEditJobLeaveConfirm() {
     };
   }, [navigate]);
 
-  // Registered once, for the same reason as the navigation handler above.
   const onReleaseRequested = useEffectEvent((payload, resolve) => {
     if (!jobDraftNow() || !payload?.collection || !payload?.docID) {
       resolve("not-handled");
       return;
     }
-    // If we're already in the navigation dialogue, deny the release request
-    // rather than hijack the user's open prompt — they can still try to
-    // hand over after they finish their navigation choice.
     if (
       pendingNavigationResolveRef.current ||
       pendingReleaseResolveRef.current
@@ -315,8 +274,6 @@ export function useEditJobLeaveConfirm() {
       resolve("cancelled");
       return;
     }
-    // No unsaved changes → no point opening the dialogue; let the slice
-    // proceed with the hand-over directly.
     if (!jobModified) {
       resolve("not-handled");
       return;
@@ -358,8 +315,6 @@ export function useEditJobLeaveConfirm() {
       currentJobName: openJobName ?? "",
       nextJobName,
       mode: dialogueMode,
-      // Navigation mode is the only path that can hit the dialogue on a read-only
-      // job (release_request implies we still hold the lock).
       saveDisabled: dialogueMode === "navigation" && !persistGate.canPersist,
     },
   };

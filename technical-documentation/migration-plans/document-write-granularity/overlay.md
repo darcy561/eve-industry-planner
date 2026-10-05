@@ -325,10 +325,10 @@ pins what wraps them.
 
 ## Stage D — The lock stops being broad
 
-**Part landed: the batch refusal is per document, and the server writes a batch marked as one change
-whole or not at all, and a close is sent that way** — § A save marked as one change and § A close is
-one change. The rest of the stage — the review panel a refused close opens, the group lease and the
-lock becoming advisory — has not been taken: see § Why the rest of Stage D is not safe yet.
+**Landed.** The batch refusal is per document; a close is sent as one change and written whole or not
+at all; a refused close keeps the editor open on a review of the reader's changes; and the lock covers
+one job — a group's lock covers the group's own document and nothing else, and a job's own lock still
+keeps every other session's saves off it. See § The lock covers one job.
 
 ### A held job no longer costs the batch
 
@@ -443,41 +443,197 @@ write and the account's linked ESI data are all made only once the close has lan
 writes none of them and leaves the group as it was, where it used to add the new jobs to the group
 before the save and write the group and the links whatever the save answered.
 
-**A refused close is told, not retried.** `persistJobChangeToApi` answers `conflict`, `locked` or
-`failed`, warns the reader each time, counts no revision and queues nothing back: a close put back on
-the queue would later go per document, outside the change. A transport failure is no exception once
-the request's own retries are spent. The edits remain in the reader's copy, and the edit session ends
-as it did, until the review panel below replaces that.
+**A refused close is not retried.** `persistJobChangeToApi` answers `conflict`, `locked` or
+`failed`, counts no revision and queues nothing back: a close put back on the queue would later go per
+document, outside the change. A transport failure is no exception once the request's own retries are
+spent. A lock held elsewhere or a failed request warns the reader; a stale job does not, because the
+review that follows does the telling. The editor stays open with the reader's changes —
+§ The review panel.
 
 Vitest covers the close sending one request with the edited job by what changed and the rest whole,
 taking and folding what the queue held, counting every written job, every refusal leaving nothing
 counted or queued, and a refused close writing neither the group nor the links. The fixture is read
 by both sides, and a live handler test writes a 101-job change.
 
-**Not built yet:** the review panel a refused close opens instead of ending the edit session, and the
-lock becoming advisory. A change sent while a debounced save of one of its jobs is still in the air is
-refused as stale against this tab's own write — safe, since nothing is written, but the reader is
-warned about a conflict they caused.
+### A copy arriving under the reader's changes
 
-### Why the rest of Stage D is not safe yet
+When a new copy of a job the editor holds arrives, `setBase` in `jobDraftStore.js` no longer replays
+the reader's log onto it blind. `reviewChanges` in `jobDraftReview.js` sorts each logged change, oldest
+first, into the four outcomes [job-document-drafts](../job-document-drafts/plan.md) § The merge, when
+the lock frees defines, judging each later change on top of the earlier ones that still apply:
 
-[plan.md](./plan.md) § Why the lock is as broad as it is argues the relaxation rests on a version
-check: *"the version check is what makes the relaxation safe."* That check is no longer inert — the
-SPA carries the revision and a whole-document write is filtered on it, so two members writing one job
-already refuse each other.
+| Outcome | Test | What the rebase does |
+|---------|------|----------------------|
+| Applies clean | nothing in the copy moved at any place the change set | re-applies it over the copy |
+| Already done | the copy holds the reader's value at every place | drops it |
+| Conflicts | the copy set one of those places differently | holds it aside, still shown |
+| Gone | a place it set no longer has a parent in the copy | holds it aside, still shown |
 
-A close no longer half-lands: it goes as one change, so a member whose neighbouring job moved under
-them has nothing written and is told — § A close is one change. What the lock still protects is the
-reader's *work*. A refused close today ends the edit session and leaves the edits only in the
-reader's copy, so the lock is what stops a member spending an edit on a close that will be refused.
-Relaxing it waits on the review panel that lets the reader carry those edits onto the jobs as they now
-stand.
+A change that builds on a held one — editing a setup the reader added in a change now held — is held
+with it and kept or dropped with it.
 
-So the group lease still stands in for every job in it, and every write path still consults the lock.
+**The reader's version stays on screen where the two clash.** Held changes sit in a `held` layer, out
+of the save but not out of the draft: each carries a `restore`, the change's own places or, where the
+copy removed a parent, that parent as the reader had it, and the draft lays those over the copy after
+the log. Fields the reader never touched take the copy's values quietly. Nothing the copy changed is
+put over the reader's own value until they choose: `keepHeld` puts a conflict back into the log over
+the copy, `dropHeld` lets it go and the copy's value shows, and a change to something gone cannot be
+kept. Undo reaches a held change like any other step — undoing it lets it go — and redo puts it
+back. A question
+in `scratch` that no longer applies is dropped, and redo is cleared for a job whose copy changed. A
+copy identical to the one held changes nothing.
 
-Owed here, once conditional writes are live: what the group lock covers once it stops covering member
-jobs, what a write path does with the lock after it stops gating, and which of the lock's Redis
-machinery survives.
+**This fixed a defect.** The rebase replayed every change with Immer's `applyPatches`, which throws
+when a change's target has gone, so a copy that deleted a setup or a row the reader had edited broke
+the open editor.
+
+Held changes count as the reader's for `useJobModified`, so leaving an editor holding only held changes
+still asks first.
+
+A save never sends past them: `saveOpenJob` opens the review instead of saving while any change of
+the open job is held, and answers `kept-open`.
+
+### The review panel
+
+Designed on the planned Edit Job page in the design canvas *Edit Job — reviewing a refused save*, and
+built on today's page as `ChangeReviewDialogue` on the `ContentDialogue` shell and `IncomingSaveNotice`
+as an `Alert` under the linked-job badge — page-local, since the page is not on the app-shell design
+yet. The other member's change is called **the incoming save**; the stored document, **the saved
+job**.
+
+- **Mid-edit, a notice, never the dialogue.** When an incoming save holds any of the reader's changes
+  aside, a notice under the stage rail says so and offers *Review changes*. The page keeps showing the
+  reader's version where the two clash.
+- **A refused close opens the dialogue.** Nothing was saved, so the editor stays open, the refused jobs
+  are read again so their copies arrive through the same review, and the dialogue lists the reader's
+  changes one per row, named as undo names them.
+- **Only a conflict asks.** *Keep mine* or *Take the incoming save*, each with its value; *Save again*
+  waits until every conflict has an answer. A change that can't be applied says what the incoming save
+  removed and is never offered. One that still applies is kept unless unticked. One already saved is
+  listed so nothing the reader did disappears unexplained. A change depending on another is decided
+  with it.
+- **The jobs a close links, repairs or resizes are not rows**: they are worked out again from the saved
+  copies when the reader saves again. *Keep editing* closes the dialogue and leaves the notice.
+
+How it runs:
+
+- **The dialogue opens from an app event**, `openChangeReview` in `Events/changeReviewEvents.js`, so
+  the close — outside React — can open it. Opened by the reader rather than a refusal, its button is
+  *Apply*, which settles their choices and leaves them editing.
+- **`reviewOf`** in `jobDraftStore.js` groups the open job's changes: held conflicts with their
+  followers and both values at each place, held gone changes, the log as what still applies, and
+  `settled`, the changes an incoming save already held, kept only to say so. A value shows when it is a
+  single figure; a change to a whole row shows its name alone. A gone change cannot name what was
+  removed, so it says the incoming save removed what it was made to.
+- **`settleChangeReview`** applies the choices in one step: the conflicts kept go back into the log over
+  the incoming save, every other held change of the job goes, the unticked changes leave the log, and
+  `settled` empties. *Save again* then runs what the Save button runs — `useSaveAndLeave`, shared with
+  it — so a second refusal reopens the review.
+- **A refused close keeps the editor open.** `closeActiveJob` answers `kept-open`; before it does,
+  `restoreSavedJobs` reads back every job the close touched, which replaces the planner's copies the
+  close had already recalculated in place, drops the jobs the server no longer holds and the new jobs
+  the close would have created, and hands each copy to the editor through `documentArrived` — the same
+  review an incoming save gets. Only a stale job opens the dialogue; a lock held elsewhere or a failed
+  request warns and leaves the editor open with the reader's changes. If the saved jobs cannot be read
+  back, the reader is told to reload before saving again. Every caller of `saveOpenJob`
+  stays on the page on `kept-open`: the Save button, both leave-confirm flows — a hand-over request is
+  then answered as declined — and the child-job button.
+
+Vitest covers the grouping and settling over the real draft store, the dialogue and notice over the
+real edit session — the notice never opening the review, both choices, an unticked change, *Keep
+editing*, and a lost lock disabling *Save again* — the save refusing to send past held changes, a
+refused close keeping the editor open and restoring the jobs it touched, and an incoming save that
+clashes arriving through the real inbound path and keeping the reader's value.
+
+### Two tabs on one job, end to end
+
+`TestLive_ConflictLoop_…` in `api/v1endpoints/jobdocuments` runs the conflict against the stack: an
+editing tab, a member's tab and a bystander, connected through the real websocket service to one
+corporation planner. The member's save reaches the editor and the bystander and not the member; the
+editor's close, sent as one change at the revision it read, is refused whole with the job named at
+its current revision and nothing written; the editor reads the job back and saves again at that
+revision, which lands and reaches the member and the bystander and not the editor. The stored job ends
+with the editor's name and without the row the member's save removed.
+
+The run writes
+[job-conflict-capture.json](../../../testing/fixtures/realtime-messages/job-conflict-capture.json):
+the documents before, after the member's save and after the editor's, the bodies sent, the server's
+answers, and every frame each tab was sent. Like the delta capture it is committed and rewritten by
+the next live run, and nothing in it is written by hand.
+
+`changeReview.conflictLoop.replay.test.jsx` plays each tab's side through the real store, edit
+session, save path, delivery handler and review dialogue, with only the HTTP calls answered from the
+capture:
+
+- **The editor whose delivery went missing** saves; the body it builds equals the one the live server
+  refused; it reads the job back, stays open with its own name on screen and the member's removal
+  applied, and opens the review; keeping its value and pressing *Save again* sends exactly the body the
+  live server accepted, closes the editor and leaves the job at the stored revision. A late delivery of
+  the member's save then changes nothing.
+- **The editor that was told** keeps its own name, shows the notice without opening the review, and
+  once kept saves the accepted body without a refusal.
+- **The member's tab and the bystander** apply what they were sent and end equal to what the server
+  stored.
+
+Skipping the read-back after a refusal, or dropping the reader's version of a held change, fails it.
+
+Going advisory was weighed and not taken — § The lock covers one job.
+
+A close sent while a debounced save of one of its jobs is still in the air is refused as stale against
+this tab's own write: safe, since nothing is written, but the reader is warned about a conflict they
+caused.
+
+### The lock covers one job
+
+**Decided: the lock stays, and it covers one job.** Making it advisory — no save consulting it — was
+the plan's furthest step. It was not taken: a job's own lock still refuses another session's save,
+which is the one-writer rule [job-document-drafts](../job-document-drafts/plan.md) § The lock is the
+isolation, and it stays is built on, and the fallback this plan's risk note names. What went is the
+breadth.
+
+**A group's lock covers its own document.** Holding it no longer reaches a member job:
+
+- The save gates stopped exempting a group's holder. `CollectLockHeldElsewhereRejects` lost its
+  `JobGroupBypass`, and the jobs PUT and DELETE and the archived-jobs PUT name every job another
+  session holds, whoever holds its group. The job DELETE's read of each job's group, made only to feed
+  the exemption, went with it.
+- Granting, handing over or force-releasing a group's lock, a group lock passing to its waitlist head
+  on expiry, and a group save adding members no longer release the member jobs' locks. `cascade.go`,
+  `cascade_pipeline.go`, the `document_lock_group_cascade` event and its two `reason` tags are gone, and
+  so is the lock package's Mongo dependency, which only the cascade used.
+- `BulkUpsertGroups` stopped reading each group before writing it to work out which members were new —
+  that diff fed only the membership cascade — and is one retried bulk write.
+  [job-groups](../job-groups/plan.md) planned to delete that diff; it is gone already.
+- The write envelope lost `includedInGroup` and `groupID`, which existed only to tell the gate which
+  group's holder to exempt. They were unreleased, so the envelope changes in the same cutover as
+  Stage C; both sides ship together, and a body still carrying them is refused as unreadable.
+
+**The SPA asks for the job's own lock.** `resolveDocumentLockApiTarget`, which turned a request for a
+grouped job's lock into one for its group's, is gone, as is the patch that marked every member job
+editable when a group's lock was granted and the handling of the cascade event. The Edit Job page holds
+the job's lock always, and the group's as well when it was opened from the group, because a close
+still writes the group's document; the header shows both. `canPersistJobClose` and `canEditActiveJob`
+ask about the job's lock alone, so a job saves whoever holds its group. A group page's member card is
+locked when another session holds that job, as a planner card already was. Leaving the page — save,
+close, delete, archive, opening another job — releases or hands over the job's lock wherever the page
+was opened from; it used to skip that inside a group, when the group's lock stood in for the job's.
+
+**The group page's own saves of member jobs** are refused for any job another session holds, and kept
+queued until it is free, as any per-document lock refusal is — § A held job no longer costs the batch.
+
+Live tests show a group's holder refused a member job held elsewhere, and a group's lock granted with
+a real group document and NATS leaving that job's lock with its holder. Vitest covers the save gates
+asking the job alone, the Edit Job page taking both locks, and a member card locked by its job.
+
+**Reasons moved out of the lock package's comments** when it came under the comment rule: a waitlist
+pulse key has one builder, the prefix the Lua scripts concatenate a session id onto, so a Go writer
+and a Lua reader cannot address different keys and leave a waiter looking dead; and queueing a waiter
+removes their bare session id as well as their entry, because a session queued before the account rode
+along is the same waiter. Why an account planner's lock key is the bare account id is in
+[shared-planners](../shared-planners/plan.md).
+
+The live document-lock topics under `backend/api/document-lock/` still describe the group lease and
+its cascade; this section wins until promotion.
 
 ## Stage E — Delta delivery and client apply
 
@@ -848,8 +1004,9 @@ suite makes today is whole-document, which is why it holds.
 through the document lock service's own `Acquire` — the Lua path a browser's request takes — and puts
 a batch through the real handler. A job another session holds is dropped and named with its holder
 while the rest of the batch is written; a batch held throughout writes nothing; the holder's own write
-is not held back; and the holder of a group writes a member job another session holds. Breaking the
-gate, the group bypass, or the requester it compares against each fails the case written for it.
+is not held back; and the holder of a group is refused a member job another session holds, while
+taking a group's lock leaves that job's lock with its holder. Breaking the gate or the requester it
+compares against fails the case written for it.
 
 It uses the stack's Redis rather than `testing/redislive`, as the full loop does for its sessions:
 `redislive` refuses the stack's port because its tests delete keys by prefix, and the runner already

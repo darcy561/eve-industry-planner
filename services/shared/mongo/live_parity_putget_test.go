@@ -102,22 +102,17 @@ func TestLive_putGetJobsGroupsRoundtrip(t *testing.T) {
 		}
 		assertGroupRoundtrip(t, g, gotGroup2, now3, parityScratchAccount, "parity-sess-3", "parity-client-3")
 
-		g.IncludedJobIDs = []string{jobID, "delta-a", "delta-b"}
+		g.IncludedJobIDs = []string{jobID, "member-a", "member-b"}
 		now4 := now.Add(3 * time.Second)
-		_, err = groupsColl.UpdateOne(ctx,
-			bson.M{"_id": eipmongo.OwnerScopedDocumentID(models.AccountOwner(parityScratchAccount), groupID)},
-			bson.M{"$set": bson.M{"includedJobIDs": []string{jobID}}},
-		)
-		if err != nil {
-			t.Fatalf("reset includedJobIDs: %v", err)
+		if _, err := groups.BulkUpsertGroups(ctx, models.AccountOwner(parityScratchAccount), parityScratchAccount, []models.Group{g}, now4, "", ""); err != nil {
+			t.Fatalf("BulkUpsertGroups with new members: %v", err)
 		}
-		delta, err := groups.BulkUpsertGroups(ctx, models.AccountOwner(parityScratchAccount), parityScratchAccount, []models.Group{g}, now4, "", "")
+		gotGroup3, err := groups.LoadGroupByID(ctx, models.AccountOwner(parityScratchAccount), groupID)
 		if err != nil {
-			t.Fatalf("BulkUpsertGroups for delta: %v", err)
+			t.Fatalf("LoadGroupByID after new members: %v", err)
 		}
-		gotAdded := collectAddedJobIDs(delta.Deltas)
-		if !stringSetEqual(gotAdded, []string{"delta-a", "delta-b"}) {
-			t.Fatalf("membership delta AddedJobIDs=%v want [delta-a delta-b]", gotAdded)
+		if !stringSetEqual(gotGroup3.IncludedJobIDs, g.IncludedJobIDs) {
+			t.Fatalf("includedJobIDs = %v, want %v", gotGroup3.IncludedJobIDs, g.IncludedJobIDs)
 		}
 	}
 
@@ -231,14 +226,6 @@ func assertGroupRoundtrip(t *testing.T, wantSeed, got models.Group, now time.Tim
 	if !reflect.DeepEqual(got.IncludedJobIDs, wantSeed.IncludedJobIDs) {
 		t.Fatalf("includedJobIDs: got %v want %v", got.IncludedJobIDs, wantSeed.IncludedJobIDs)
 	}
-}
-
-func collectAddedJobIDs(deltas []eipmongo.GroupMembershipDelta) []string {
-	var out []string
-	for _, d := range deltas {
-		out = append(out, d.AddedJobIDs...)
-	}
-	return out
 }
 
 func stringSetEqual(a, b []string) bool {

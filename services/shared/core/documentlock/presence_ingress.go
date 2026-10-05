@@ -7,7 +7,7 @@ import (
 	"eve-industry-planner/shared/models"
 )
 
-// HandleViewerArrivedIngress mirrors POST /document-locks/viewer-arrived (Redis + optional NATS fan-out).
+// HandleViewerArrivedIngress records a viewer of a document and moves its holder to the contested lease.
 func HandleViewerArrivedIngress(ctx context.Context, d Deps, owner models.Owner, sessionID, collection, docID string) {
 	if d.Redis.Driver() == nil || sessionID == "" || collection == "" || docID == "" {
 		return
@@ -29,8 +29,6 @@ func HandleViewerArrivedIngress(ctx context.Context, d Deps, owner models.Owner,
 		return
 	}
 
-	// Any other session opening the doc (passive viewer) overrides solo lease,
-	// same policy as waitlist pressure — holder moves to contested TTL + extend cycle.
 	if added && rec != nil && rec.HolderSessionID != "" && rec.HolderSessionID != sessionID {
 		if _, err := RebindHolderLeaseContested(ctx, d.Redis, owner, collection, docID); err != nil {
 			logs.WarnCtx(ctx, "doc lock viewer arrived: rebind contested failed",
@@ -44,19 +42,17 @@ func HandleViewerArrivedIngress(ctx context.Context, d Deps, owner models.Owner,
 
 	if added {
 		_ = PublishLockEvent(ctx, d.NATS, owner, map[string]any{
-			LockPayloadEventKey: LockViewerEventJoined,
-			"collection":        collection,
-			"docID":             docID,
-			"sessionID":         sessionID,
+			LockPayloadEventKey:  LockViewerEventJoined,
+			"collection":         collection,
+			"docID":              docID,
+			"participantID":      ParticipantID(sessionID),
+			LockSourceSessionKey: sessionID,
 		})
 	}
 }
 
-// HandleViewerDepartedIngress mirrors POST /document-locks/viewer-departed.
-// When the departing session is the current lock holder, we still ZREM their
-// passive-viewer row (they may have been registered before promotion) but we
-// do not publish viewer_left — other sessions would misread that as "someone
-// stopped viewing" while that session is now the editor.
+// HandleViewerDepartedIngress removes a viewer of a document, publishing viewer_left
+// unless the departing session holds the lock.
 func HandleViewerDepartedIngress(ctx context.Context, d Deps, owner models.Owner, sessionID, collection, docID string) {
 	if d.Redis.Driver() == nil || sessionID == "" || collection == "" || docID == "" {
 		return
@@ -78,10 +74,11 @@ func HandleViewerDepartedIngress(ctx context.Context, d Deps, owner models.Owner
 
 	if removed && !suppressViewerLeftFanout {
 		_ = PublishLockEvent(ctx, d.NATS, owner, map[string]any{
-			LockPayloadEventKey: LockViewerEventLeft,
-			"collection":        collection,
-			"docID":             docID,
-			"sessionID":         sessionID,
+			LockPayloadEventKey:  LockViewerEventLeft,
+			"collection":         collection,
+			"docID":              docID,
+			"participantID":      ParticipantID(sessionID),
+			LockSourceSessionKey: sessionID,
 		})
 	}
 

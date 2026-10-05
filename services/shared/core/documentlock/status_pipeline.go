@@ -1,10 +1,3 @@
-// The batched read path behind /lock-state and /lock-state-batch.
-//
-// One pipeline queues four commands per document — the lock record, a prune of
-// expired viewer presence, the viewer count and the waitlist length — so a
-// batch of any size costs one round trip. A second pipeline follows only when a
-// record was found already expired.
-
 package documentlock
 
 import (
@@ -18,26 +11,14 @@ import (
 	eipredis "eve-industry-planner/shared/redis"
 )
 
-// statusDocRef identifies one doc in a status fetch. owner is hoisted
-// to a function-level arg because the batch is always scoped to one account.
+// statusDocRef identifies one document in a status fetch.
 type statusDocRef struct {
 	Collection string
 	DocID      string
 }
 
-// statusBatchFetch reads all the data needed to build /lock-state payloads
-// for the given (collection, docID) pairs in a single Redis pipeline,
-// returning a slice of payloads aligned to the input order.
-//
-// Side effects (mirrors the per-doc helpers it replaces):
-//   - viewer-set ZREMRANGEBYSCORE prunes expired viewer presence entries
-//     for every queried doc, so the returned `viewerCount` is fresh;
-//   - any lock record whose `expiresAtUnix` lies in the past is DEL-ed in
-//     a follow-up pipeline (Redis TTL would do this on its own; the
-//     explicit DEL keeps reads consistent for the rest of this request).
-//
-// `owner` must be non-empty; an empty `refs` slice returns an empty
-// result with no Redis traffic.
+// statusBatchFetch builds the /lock-state payload for each ref in one Redis round trip,
+// pruning expired viewers and deleting expired lock records on the way.
 func statusBatchFetch(
 	ctx context.Context,
 	rdb *eipredis.Redis,
@@ -84,7 +65,7 @@ func statusBatchFetch(
 	var expired []statusDocRef
 
 	for i, r := range refs {
-		_ = zrem[i].Val() // best-effort; missing key is fine
+		_ = zrem[i].Val()
 
 		payload := map[string]any{}
 
@@ -110,10 +91,7 @@ func statusBatchFetch(
 		} else {
 			maps.Copy(payload, LockPayloadForRecord(rec.ExpiresAtUnix, rec.LeaseMode))
 			payload["held"] = true
-			payload["holderSessionID"] = rec.HolderSessionID
-			// Whether the holder is the reader's own account, which is what
-			// decides whether taking the lock back is theirs to do. A boolean
-			// rather than the holder: who it is stays off the wire.
+			payload["holderParticipantID"] = ParticipantID(rec.HolderSessionID)
 			payload["heldByThisAccount"] = readerAccountID != "" &&
 				rec.AccountID == readerAccountID
 			payload["extendCount"] = rec.ExtendCount
@@ -124,7 +102,7 @@ func statusBatchFetch(
 				payload["waitlistLen"] = wl
 			}
 			if rec.ProbeTargetSessionID != "" {
-				payload["probeTargetSessionID"] = rec.ProbeTargetSessionID
+				payload["probeTargetParticipantID"] = ParticipantID(rec.ProbeTargetSessionID)
 				payload["probeExpiresAtUnix"] = rec.ProbeExpiresAtUnix
 			}
 		}
@@ -136,9 +114,6 @@ func statusBatchFetch(
 		results[i] = payload
 	}
 
-	// Best-effort cleanup of any expired locks observed in phase 1. We
-	// don't fail the whole call if this pipeline errs — the keys will
-	// expire naturally and the response above is still correct.
 	if len(expired) > 0 {
 		if delPipe, perr := rdb.Pipe(); perr == nil {
 			for _, r := range expired {
@@ -151,9 +126,8 @@ func statusBatchFetch(
 	return results, nil
 }
 
-// readPipelineLock pulls the record from an already-executed GET. Returns
-// ("", nil) when the key doesn't exist; ("", err) for true Redis errors —
-// `redis.Nil` is mapped to the "not present" case.
+// readPipelineLock returns the lock record from an executed GET, or "" when the key
+// does not exist.
 func readPipelineLock(get *eipredis.StringResult) (string, error) {
 	v, err := get.Result()
 	if eipredis.IsNotFound(err) {

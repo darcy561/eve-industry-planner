@@ -10,17 +10,10 @@ import {
   buildGrantedHolderPatch,
   numberOrNull,
 } from "../../Functions/DocumentLock/documentLockStatusFields.js";
-import { USER_JOB_GROUPS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
-import { patchGroupMemberJobScopesAfterGroupGrant } from "../../Functions/DocumentLock/patchGroupMemberJobScopesAfterGroupGrant.js";
 import { LOCK_WAITLIST_PULSE_INTERVAL_MS } from "../../Functions/DocumentLock/documentLockTimings.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
 
-/**
- * Mount acquire, unmount release, key tracking, waitlist pulse while queued.
- *
- * `lockHeld` / `readOnly` enable edge-triggered self-heal when the scope would
- * otherwise be vacant-but-editable (#21).
- */
+/** Mount acquire, unmount release, key tracking, waitlist pulse while queued. */
 export function useLockAcquireRelease({
   collection,
   docID,
@@ -35,7 +28,6 @@ export function useLockAcquireRelease({
   cancelReadOnlyGrace,
   waitingInHandoffQueue,
   releaseOnUnmount = true,
-  cascadeMemberJobScopesOnGrant = false,
 }) {
   const acquireInFlightRef = useRef(false);
   useEffect(() => {
@@ -77,12 +69,6 @@ export function useLockAcquireRelease({
           ...buildGrantedHolderPatch(data, { withClearedHandoff: true }),
           lockScopeBootstrapped: true,
         });
-        if (
-          collection === USER_JOB_GROUPS_COLLECTION &&
-          cascadeMemberJobScopesOnGrant
-        ) {
-          patchGroupMemberJobScopesAfterGroupGrant(docID);
-        }
         void postDocumentLockViewerDeparted(collection, docID).catch(() => {});
         return;
       }
@@ -115,14 +101,7 @@ export function useLockAcquireRelease({
         lockTtlSeconds: null,
       });
     }
-  }, [
-    collection,
-    docID,
-    enabled,
-    patch,
-    dispatchHeld,
-    cascadeMemberJobScopesOnGrant,
-  ]);
+  }, [collection, docID, enabled, patch, dispatchHeld]);
 
   const runTryAcquireGuarded = useCallback(async () => {
     if (acquireInFlightRef.current) return;
@@ -168,9 +147,6 @@ export function useLockAcquireRelease({
     void (async () => {
       try {
         if (!cancelled) {
-          // Re-opening an editor page (e.g. group after Close Group) is explicit
-          // intent to hold the lease again — `releaseOnUnmount: false` scopes keep
-          // stale `suppressVacancyAcquire` across navigations.
           if (scopeOnMount.suppressVacancyAcquire === true) {
             patch({ suppressVacancyAcquire: false });
           }
@@ -183,8 +159,6 @@ export function useLockAcquireRelease({
             collection,
             docID,
           );
-          // Vacant acquire: stay un-bootstrapped so the header stays hidden while
-          // #21 self-heal retries; only mark ready once holder/read-only is known.
           if (
             scope.lockHeld === true ||
             scope.readOnly === true ||
@@ -219,7 +193,6 @@ export function useLockAcquireRelease({
     releaseOnUnmount,
   ]);
 
-  // #21 — never stay "editable" without either the lease or read-only viewer state.
   useEffect(() => {
     if (!enabled || !collection || !docID) return;
     if (lockHeld || readOnly) return;

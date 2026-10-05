@@ -25,18 +25,6 @@ vi.mock("../Functions/DocumentLock/documentLockAcquireFeedback.js", () => ({
   suppressDocumentLockVacancyNotice: vi.fn(),
 }));
 
-const { mockResolveDocumentLockApiTarget } = vi.hoisted(() => ({
-  mockResolveDocumentLockApiTarget: vi.fn((collection, docID) => ({
-    collection,
-    docID,
-  })),
-}));
-
-vi.mock("../Functions/DocumentLock/resolveDocumentLockApiTarget.js", () => ({
-  resolveDocumentLockApiTarget: (...args) =>
-    mockResolveDocumentLockApiTarget(...args),
-}));
-
 import documentLockSlice from "./documentLockSlice.js";
 import {
   acquireDocumentLock,
@@ -66,17 +54,13 @@ function createLockOnlyStore() {
 }
 
 describe("documentLockSlice", () => {
-  /** @type {ReturnType<typeof createLockOnlyStore>} */
+  /**
+   * @type {ReturnType<typeof createLockOnlyStore>}
+   */
   let useStore;
 
   beforeEach(() => {
     useStore = createLockOnlyStore();
-    mockResolveDocumentLockApiTarget.mockImplementation(
-      (collection, docID) => ({
-        collection,
-        docID,
-      }),
-    );
   });
 
   it("patchDocumentLockForScope merges into existing scope", () => {
@@ -194,16 +178,12 @@ describe("documentLockSlice", () => {
 });
 
 describe("documentLockSlice — async lock flows (regression)", () => {
-  /** @type {ReturnType<typeof createLockOnlyStore>} */
+  /**
+   * @type {ReturnType<typeof createLockOnlyStore>}
+   */
   let useStore;
 
   beforeEach(() => {
-    mockResolveDocumentLockApiTarget.mockImplementation(
-      (collection, docID) => ({
-        collection,
-        docID,
-      }),
-    );
     useStore = createLockOnlyStore();
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
@@ -260,11 +240,7 @@ describe("documentLockSlice — async lock flows (regression)", () => {
     ).toBe(true);
   });
 
-  it("requestAccess: group member job calls POST /request on the group lock", async () => {
-    mockResolveDocumentLockApiTarget.mockReturnValueOnce({
-      collection: "job_groups",
-      docID: "group-1",
-    });
+  it("requestAccess: a job in a group asks for the job's own lock", async () => {
     requestDocumentLockAccess.mockResolvedValue({
       ok: true,
       status: 202,
@@ -276,12 +252,12 @@ describe("documentLockSlice — async lock flows (regression)", () => {
       .documentLock.actions.requestAccess("job_documents", "job-in-group");
 
     expect(requestDocumentLockAccess).toHaveBeenCalledWith(
-      "job_groups",
-      "group-1",
+      "job_documents",
+      "job-in-group",
     );
     expect(
       useStore.getState().documentLock.scopes[
-        docLockScopeKey("job_groups", "group-1")
+        docLockScopeKey("job_documents", "job-in-group")
       ]?.waitingInHandoffQueue,
     ).toBe(true);
   });
@@ -584,8 +560,6 @@ describe("documentLockSlice — async lock flows (regression)", () => {
     );
   });
 
-  // A reader pressed a button. Saying nothing leaves them unable to tell a
-  // failure from the lock having been cleared.
   it("forceReleaseSameAccountEditLock: says so when the request fails", async () => {
     forceReleaseDocumentLockSameAccount.mockRejectedValue(new Error("network"));
 
@@ -601,8 +575,6 @@ describe("documentLockSlice — async lock flows (regression)", () => {
     expect(acquireDocumentLock).not.toHaveBeenCalled();
   });
 
-  // The lock is somebody else's. The server refuses, and the reader is told
-  // what to do instead rather than that there was no lock.
   it("forceReleaseSameAccountEditLock: says a lock held by another member cannot be cleared", async () => {
     forceReleaseDocumentLockSameAccount.mockResolvedValue({ status: 409 });
 

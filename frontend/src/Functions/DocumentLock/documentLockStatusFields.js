@@ -48,7 +48,7 @@ export function buildGrantedHolderPatch(data, options = {}) {
     patch.extendSegmentCount = 0;
     patch.waitlistLen = null;
     patch.handoffPendingHolder = false;
-    patch.pendingHandoffOfferClientID = null;
+    patch.pendingHandoffOfferParticipantID = null;
     patch.pendingHandoffExpiresAtUnix = null;
     patch.handoffOfferForMe = false;
   }

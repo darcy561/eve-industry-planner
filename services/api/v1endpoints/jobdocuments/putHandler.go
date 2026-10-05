@@ -81,14 +81,10 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 		jobIDs := make([]string, 0, len(reqBody.Jobs))
-		jobGroupBypass := documentlock.JobGroupBypass{}
 		for _, write := range reqBody.Jobs {
 			jobIDs = append(jobIDs, write.JobID)
-			if write.IncludedInGroup && write.GroupID != "" {
-				jobGroupBypass[write.JobID] = write.GroupID
-			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")

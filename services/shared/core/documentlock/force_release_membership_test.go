@@ -112,7 +112,7 @@ func TestTwoMembersContendForOneLock(t *testing.T) {
 	if acquired, _ := second.Payload["acquired"].(bool); acquired {
 		t.Fatal("both members hold the lock, so it is not a lock")
 	}
-	if holder, _ := second.Payload["holderSessionID"].(string); holder != "sess-ann" {
+	if holder, _ := second.Payload["holderParticipantID"].(string); holder != ParticipantID("sess-ann") {
 		t.Errorf("Bo was told the holder is %q, want sess-ann", holder)
 	}
 }

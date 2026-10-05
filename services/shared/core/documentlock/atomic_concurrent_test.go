@@ -16,12 +16,6 @@ import (
 	eipredis "eve-industry-planner/shared/redis"
 )
 
-// concurrencyTestService builds a Service with Redis only — no JetStream /
-// Mongo since those are needed only for publish/cascade and the script
-// transitions are pure-Redis.
-//
-// Returns the service, the underlying client + miniredis (so tests can fast-
-// forward time / seed state), and a t.Cleanup runs everything.
 func concurrencyTestService(t *testing.T) (*Service, *eipredis.Redis, *miniredis.Miniredis) {
 	t.Helper()
 	f := redisfake.New(t)
@@ -30,10 +24,6 @@ func concurrencyTestService(t *testing.T) (*Service, *eipredis.Redis, *miniredis
 	return svc, rdb, f.Server
 }
 
-// TestAtomic_AcquireRace launches many goroutines all attempting to acquire a
-// fresh lock simultaneously. The Lua script must serialise the
-// read-modify-write, so exactly one caller is granted; the rest see the
-// granted holder as the contended-payload holder.
 func TestAtomic_AcquireRace(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := concurrencyTestService(t)
@@ -57,7 +47,7 @@ func TestAtomic_AcquireRace(t *testing.T) {
 				return
 			}
 			results[i].status = out.StatusCode
-			if h, ok := out.Payload["holderSessionID"].(string); ok {
+			if h, ok := out.Payload["holderParticipantID"].(string); ok {
 				results[i].holder = h
 			}
 		})
@@ -72,13 +62,12 @@ func TestAtomic_AcquireRace(t *testing.T) {
 		case http.StatusCreated:
 			granted++
 			winningHolder = r.holder
-			if winningHolder != sessionIDForIndex(i) {
-				t.Errorf("granted result[%d] reports holder=%q, want %q", i, winningHolder, sessionIDForIndex(i))
+			if winningHolder != ParticipantID(sessionIDForIndex(i)) {
+				t.Errorf("granted result[%d] reports holder=%q, want %q", i, winningHolder, ParticipantID(sessionIDForIndex(i)))
 			}
 		case http.StatusOK:
-			// Contended — must report a non-empty holder.
 			if r.holder == "" {
-				t.Errorf("contended result[%d] missing holderSessionID", i)
+				t.Errorf("contended result[%d] missing holderParticipantID", i)
 			}
 		default:
 			t.Errorf("result[%d] unexpected status=%d", i, r.status)
@@ -87,7 +76,6 @@ func TestAtomic_AcquireRace(t *testing.T) {
 	if granted != 1 {
 		t.Fatalf("expected exactly one granted, got %d", granted)
 	}
-	// Every contended result must agree on the winning holder.
 	for i, r := range results {
 		if r.status == http.StatusOK && r.holder != winningHolder {
 			t.Errorf("contended[%d] holder=%q diverges from winner=%q", i, r.holder, winningHolder)
@@ -95,16 +83,11 @@ func TestAtomic_AcquireRace(t *testing.T) {
 	}
 }
 
-// TestAtomic_ReleaseRespectsHolder asserts that a Release call from a session
-// other than the current holder does not delete the lock. Two concurrent
-// non-holder Releases must both no-op (regression coverage for the historic
-// TOCTOU between read-holder-check and DEL).
 func TestAtomic_ReleaseRespectsHolder(t *testing.T) {
 	t.Parallel()
 	svc, rdb, _ := concurrencyTestService(t)
 	ctx := context.Background()
 
-	// Seed: sess-real holds the lock.
 	mustAcquire(t, ctx, svc, "sess-real")
 
 	var wg sync.WaitGroup
@@ -137,10 +120,6 @@ func TestAtomic_ReleaseRespectsHolder(t *testing.T) {
 	}
 }
 
-// TestAtomic_HandOverRace seeds a holder with multiple alive waiters and
-// fires two HandOver calls in parallel. Exactly one must promote the head;
-// the other has to observe the new holder (and no-op or promote the *new*
-// head, never double-grant the same waiter).
 func TestAtomic_HandOverRace(t *testing.T) {
 	t.Parallel()
 	svc, rdb, _ := concurrencyTestService(t)
@@ -151,10 +130,7 @@ func TestAtomic_HandOverRace(t *testing.T) {
 		mustEnqueueWithPulse(t, ctx, rdb, w)
 	}
 
-	// Both HandOvers run as "sess-holder" — only one of them can find the
-	// record still owned by sess-holder; the second will see it has rotated
-	// and return 409 noop. (No double-grant of sess-wait-1.)
-	var promotedTo atomic.Value // string
+	var promotedTo atomic.Value
 	var noopCount int32
 	var wg sync.WaitGroup
 	for range 2 {
@@ -166,7 +142,7 @@ func TestAtomic_HandOverRace(t *testing.T) {
 			}
 			switch out.StatusCode {
 			case http.StatusOK:
-				holder, _ := out.Payload["holderSessionID"].(string)
+				holder, _ := out.Payload["holderParticipantID"].(string)
 				promotedTo.Store(holder)
 			case http.StatusConflict:
 				atomic.AddInt32(&noopCount, 1)
@@ -181,14 +157,13 @@ func TestAtomic_HandOverRace(t *testing.T) {
 	if promoted == "" {
 		t.Fatalf("expected one HandOver to promote a waiter")
 	}
-	if promoted != "sess-wait-1" {
+	if promoted != ParticipantID("sess-wait-1") {
 		t.Fatalf("expected promotion of head sess-wait-1, got %q", promoted)
 	}
 	if noopCount != 1 {
 		t.Fatalf("expected exactly one noop sibling, got %d", noopCount)
 	}
 
-	// The remaining waiter must still be in the queue (no double-dequeue).
 	n, err := WaitlistLen(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("WaitlistLen: %v", err)
@@ -205,10 +180,6 @@ func TestAtomic_HandOverRace(t *testing.T) {
 	}
 }
 
-// TestAtomic_ClaimHandoffOnlyProbeTargetWins seeds a probe targeting one
-// session, then launches concurrent ClaimHandoff attempts from that session
-// AND a non-target. Only the probe target may succeed (granted); the impostor
-// must see "no active probe for this session".
 func TestAtomic_ClaimHandoffOnlyProbeTargetWins(t *testing.T) {
 	t.Parallel()
 	svc, rdb, _ := concurrencyTestService(t)
@@ -218,7 +189,6 @@ func TestAtomic_ClaimHandoffOnlyProbeTargetWins(t *testing.T) {
 	mustEnqueueWithPulse(t, ctx, rdb, "sess-target")
 	mustEnqueueWithPulse(t, ctx, rdb, "sess-impostor")
 
-	// Manually paint a probe targeting sess-target.
 	rec, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock: %v", err)
@@ -264,7 +234,6 @@ func TestAtomic_ClaimHandoffOnlyProbeTargetWins(t *testing.T) {
 		t.Errorf("expected impostor to be rejected, got 200 with %v", impostor.Payload)
 	}
 
-	// Lock must now be held by sess-target.
 	rec, err = GetLock(ctx, rdb, testOwner, testCollection, testDocID)
 	if err != nil {
 		t.Fatalf("GetLock after claim: %v", err)
@@ -277,9 +246,6 @@ func TestAtomic_ClaimHandoffOnlyProbeTargetWins(t *testing.T) {
 	}
 }
 
-// TestAtomic_RequestAccessRace covers the auto-grant code path on an empty
-// lock. Two concurrent RequestAccess calls on a vacant doc — exactly one
-// should be granted, the other must end up queued (not double-granted).
 func TestAtomic_RequestAccessRace(t *testing.T) {
 	t.Parallel()
 	svc, rdb, _ := concurrencyTestService(t)
@@ -332,9 +298,6 @@ func TestAtomic_RequestAccessRace(t *testing.T) {
 	}
 }
 
-// TestAtomic_ExtendCycle walks the extend state machine: three free renewals,
-// then either a cycle reset when nothing is waiting, or a probe set against a
-// live head.
 func TestAtomic_ExtendCycle(t *testing.T) {
 	t.Parallel()
 	svc, rdb, _ := concurrencyTestService(t)
@@ -342,8 +305,6 @@ func TestAtomic_ExtendCycle(t *testing.T) {
 
 	mustAcquire(t, ctx, svc, "sess-holder")
 
-	// Renew up to MaxExtensionsBeforeHandoffConsult times — every one should
-	// be a plain extend (no probe).
 	for i := range MaxExtensionsBeforeHandoffConsult {
 		out, err := svc.Extend(ctx, testOwner, "sess-holder", testCollection, testDocID)
 		if err != nil {
@@ -371,8 +332,6 @@ func TestAtomic_ExtendCycle(t *testing.T) {
 	})
 
 	t.Run("probe_set_when_alive_head_exists", func(t *testing.T) {
-		// Bump back up to the threshold, then enqueue a live waiter and
-		// trigger the consult step.
 		for i := range MaxExtensionsBeforeHandoffConsult {
 			if _, err := svc.Extend(ctx, testOwner, "sess-holder", testCollection, testDocID); err != nil {
 				t.Fatalf("pre-probe Extend[%d]: %v", i, err)
@@ -401,9 +360,6 @@ func TestAtomic_ExtendCycle(t *testing.T) {
 	})
 }
 
-// TestAtomic_HandOverFallsBackToReleaseWhenNoLiveWaiter covers the "released_no_queue"
-// path: a waiter is enqueued but their pulse never set (or expired). HandOver
-// must release the lock outright instead of granting to a stale entry.
 func TestAtomic_HandOverFallsBackToReleaseWhenNoLiveWaiter(t *testing.T) {
 	t.Parallel()
 	svc, rdb, _ := concurrencyTestService(t)
@@ -438,9 +394,6 @@ func TestAtomic_HandOverFallsBackToReleaseWhenNoLiveWaiter(t *testing.T) {
 	}
 }
 
-// TestHandOverNoopWhenCallerNotRedisHolder covers POST /hand-over when the
-// caller's session id does not match Redis holderSessionID: must be 409 with
-// ErrCodeHandOverNoop (distinct from released_no_queue 204 for the SPA).
 func TestHandOverNoopWhenCallerNotRedisHolder(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := concurrencyTestService(t)
@@ -458,8 +411,6 @@ func TestHandOverNoopWhenCallerNotRedisHolder(t *testing.T) {
 		t.Fatalf("payload=%v want error=%q", out.Payload, ErrCodeHandOverNoop)
 	}
 }
-
-// --- helpers ---------------------------------------------------------------
 
 func sessionIDForIndex(i int) string {
 	const alpha = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -514,7 +465,7 @@ func TestForceReleaseSameAccount(t *testing.T) {
 	if out == nil || out.StatusCode != http.StatusCreated {
 		t.Fatalf("expected 201 granted, got %+v", out)
 	}
-	if holder, _ := out.Payload["holderSessionID"].(string); holder != "other-sess" {
+	if holder, _ := out.Payload["holderParticipantID"].(string); holder != ParticipantID("other-sess") {
 		t.Fatalf("expected holder other-sess, got %q", holder)
 	}
 	got, err := GetLock(ctx, rdb, testOwner, testCollection, testDocID)

@@ -435,6 +435,9 @@ func (w *Watcher) processChangeEvent(ctx context.Context, changeEvent bson.M) er
 		return nil
 	}
 
+	document = withoutSessionMeta(document)
+	previousDocument = withoutSessionMeta(previousDocument)
+
 	var delta jobDelta
 	if collection == eipmongo.CollectionJobDocuments && operationType == "update" {
 		delta, _ = jobDeltaFor(updateDescription)
@@ -631,6 +634,23 @@ func usersRefreshTokensField(doc bson.M) any {
 		return v
 	}
 	return nil
+}
+
+// withoutSessionMeta is a document with the session that wrote it taken out of its `_meta`: a
+// session id is a credential, and the document is delivered to every member of its planner.
+func withoutSessionMeta(doc map[string]any) map[string]any {
+	meta := subDocumentToMap(doc[models.MetaFieldName])
+	if meta == nil {
+		return doc
+	}
+	kept := make(map[string]any, len(meta))
+	for key, value := range meta {
+		if key != models.MetaFieldSessionID {
+			kept[key] = value
+		}
+	}
+	doc[models.MetaFieldName] = kept
+	return doc
 }
 
 func stripUsersRefreshTokenFields(doc map[string]any) {

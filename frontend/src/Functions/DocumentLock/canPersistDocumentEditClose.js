@@ -1,16 +1,12 @@
 import { selectScopedDocumentLock } from "./documentLockSelectors.js";
 import {
-  isJobInLiveGroup,
-  isJobLockSubordinateToGroup,
-} from "./groupSubordinateJobLock.js";
-import {
   USER_JOBS_COLLECTION,
   USER_JOB_GROUPS_COLLECTION,
 } from "./documentLockCollections.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
- * Whether this tab may PUT a scoped document (holder + not read-only).
+ * Whether this tab holds a document's lock and is not read-only on it.
  *
  * @param {*} state — root store state
  * @param {string} collection
@@ -24,9 +20,8 @@ function canPersistDocumentScope(state, collection, docID) {
 }
 
 /**
- * UI mutate gate shared by edit-job and group pages.
- * Logged-out: local-only edits — no Redis lease. Logged-in: same holder check
- * used for API persist (`canPersistJobClose` / `canPersistGroupClose`).
+ * Whether the reader may change a document here: always when signed out, since nothing is saved,
+ * and otherwise only as its holder.
  *
  * @param {boolean} hasDocument
  * @param {*} state
@@ -40,6 +35,8 @@ function canEditLocallyOrAsHolder(hasDocument, state, holderEligible) {
 }
 
 /**
+ * Whether this tab may save a group's own document.
+ *
  * @param {string | undefined | null} groupID
  * @param {*} [state] — root store state; defaults to current snapshot
  * @returns {boolean}
@@ -52,54 +49,34 @@ export function canPersistGroupClose(
 }
 
 /**
- * Server persist eligibility for edit-job save/close: solo jobs need the job
- * lock; group edit sessions need only the group lock (group holder owns member
- * jobs). Callers that hit the API should still gate with `isLoggedIn`.
+ * Whether this tab may save a job: it holds that job's own lock, whatever group the job is in.
  *
  * @param {string | undefined | null} jobID
- * @param {string | undefined | null} groupID
  * @param {*} [state] — root store state; defaults to current snapshot
  * @returns {boolean}
  */
-export function canPersistJobClose(
-  jobID,
-  groupID,
-  state = useUsersStore.getState(),
-) {
+export function canPersistJobClose(jobID, state = useUsersStore.getState()) {
   if (!jobID) return false;
-  if (isJobLockSubordinateToGroup(state, groupID)) {
-    return canPersistDocumentScope(state, USER_JOB_GROUPS_COLLECTION, groupID);
-  }
-  if (!canPersistDocumentScope(state, USER_JOBS_COLLECTION, jobID)) {
-    return false;
-  }
-  if (!isJobInLiveGroup(state, groupID)) return true;
-  return canPersistDocumentScope(state, USER_JOB_GROUPS_COLLECTION, groupID);
+  return canPersistDocumentScope(state, USER_JOBS_COLLECTION, jobID);
 }
 
 /**
- * Edit-job UI mutate gate (save / delete / sibling links / leave-save).
+ * Whether the Edit Job page may change the open job.
  *
  * @param {string | undefined | null} jobID
- * @param {string | undefined | null} groupID — pass null when not `includedInGroup`
  * @param {*} [state] — root store state; defaults to current snapshot
  * @returns {boolean}
  */
-export function canEditActiveJob(
-  jobID,
-  groupID,
-  state = useUsersStore.getState(),
-) {
+export function canEditActiveJob(jobID, state = useUsersStore.getState()) {
   return canEditLocallyOrAsHolder(
     Boolean(jobID),
     state,
-    canPersistJobClose(jobID, groupID, state),
+    canPersistJobClose(jobID, state),
   );
 }
 
 /**
- * Group-page UI mutate gate (side-menu mutations, rename, etc.).
- * Pair of {@link canEditActiveJob}; holder rules from {@link canPersistGroupClose}.
+ * Whether the group page may change the group's own document.
  *
  * @param {string | undefined | null} groupID
  * @param {*} [state] — root store state; defaults to current snapshot

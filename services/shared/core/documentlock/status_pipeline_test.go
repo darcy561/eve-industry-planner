@@ -101,8 +101,8 @@ func TestStatusBatchFetch_HeldWithViewersAndWaitlist(t *testing.T) {
 	if held, _ := p["held"].(bool); !held {
 		t.Fatalf("expected held=true, got %v", p)
 	}
-	if got, _ := p["holderSessionID"].(string); got != "sess-holder" {
-		t.Fatalf("holderSessionID: got %q", got)
+	if got, _ := p["holderParticipantID"].(string); got != ParticipantID("sess-holder") {
+		t.Fatalf("holderParticipantID: got %q", got)
 	}
 	if got, _ := p["extendCount"].(int); got != 2 {
 		t.Fatalf("extendCount: got %v", p["extendCount"])
@@ -253,8 +253,8 @@ func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T)
 	if _, ok := jobs[jobID]; !ok {
 		t.Fatalf("job %q missing from jobs map", jobID)
 	}
-	if got, _ := jobs[jobID].(map[string]any)["holderSessionID"].(string); got != "sess-job" {
-		t.Fatalf("job holderSessionID: got %q", got)
+	if got, _ := jobs[jobID].(map[string]any)["holderParticipantID"].(string); got != ParticipantID("sess-job") {
+		t.Fatalf("job holderParticipantID: got %q", got)
 	}
 	if _, ok := jobs["missing-job"]; !ok {
 		t.Fatalf("missing-job should still occupy a slot with held=false")
@@ -263,8 +263,8 @@ func TestStatusBatchResults_RoutesJobsAndGroupsIntoSeparateBuckets(t *testing.T)
 	if _, ok := groups[groupID]; !ok {
 		t.Fatalf("group %q missing from groups map", groupID)
 	}
-	if got, _ := groups[groupID].(map[string]any)["holderSessionID"].(string); got != "sess-group" {
-		t.Fatalf("group holderSessionID: got %q", got)
+	if got, _ := groups[groupID].(map[string]any)["holderParticipantID"].(string); got != ParticipantID("sess-group") {
+		t.Fatalf("group holderParticipantID: got %q", got)
 	}
 	if _, ok := groups[""]; ok {
 		t.Fatalf("blank doc IDs must be skipped, not occupy a slot")
@@ -298,8 +298,8 @@ func TestStatusPayloadForDoc_MatchesBatchPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("statusBatchFetch: %v", err)
 	}
-	if got, want := single["holderSessionID"], batch[0]["holderSessionID"]; got != want {
-		t.Fatalf("holderSessionID mismatch: %v vs %v", got, want)
+	if got, want := single["holderParticipantID"], batch[0]["holderParticipantID"]; got != want || got == nil {
+		t.Fatalf("holderParticipantID mismatch: %v vs %v", got, want)
 	}
 	if got, want := single["held"], batch[0]["held"]; got != want {
 		t.Fatalf("held mismatch: %v vs %v", got, want)

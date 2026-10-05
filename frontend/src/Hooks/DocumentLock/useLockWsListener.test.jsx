@@ -7,9 +7,9 @@ import {
   DOCUMENT_LOCK_CUSTOM_EVENT,
   DOCUMENT_LOCK_DOMAIN_EVENTS,
 } from "../../Functions/DocumentLock/documentLockEvents.js";
-import { USER_JOBS_COLLECTION } from "../../Functions/DocumentLock/documentLockCollections.js";
 import { docLockScopeKey } from "../../Functions/DocumentLock/documentLockScope.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
+import { lockParticipantID } from "../../Functions/DocumentLock/lockParticipant.js";
 
 const { showDocumentLockAccessRequestSnackbar } = snackbarSpies;
 
@@ -61,7 +61,6 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
       useLockWsListener({
         collection,
         docID,
-        sessionID: "jwt-session-shared",
         pendingAccessRequestMessage: "Another tab wants access.",
         patch,
         syncLockFromServer,
@@ -94,7 +93,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED,
         collection,
         docID,
-        requesterSessionID: "jwt-session-shared",
+        requesterParticipantID: lockParticipantID("jwt-session-shared"),
       });
     });
 
@@ -121,7 +120,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         event: DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED,
         collection,
         docID,
-        requesterSessionID: "other-session",
+        requesterParticipantID: lockParticipantID("other-session"),
       });
     });
 
@@ -143,7 +142,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED,
         collection,
         docID,
-        requesterSessionID: "other-session",
+        requesterParticipantID: lockParticipantID("other-session"),
       });
     });
 
@@ -152,7 +151,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
     unmount();
   });
 
-  it("ignores REQUESTED without requesterSessionID", async () => {
+  it("ignores REQUESTED without requesterParticipantID", async () => {
     storeSnapshot.documentLock.scopes[scopeKey] = {
       lockHeld: true,
       readOnly: false,
@@ -186,7 +185,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED,
         collection,
         docID: "other-job",
-        requesterSessionID: "x",
+        requesterParticipantID: lockParticipantID("x"),
       });
     });
 
@@ -286,7 +285,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_PROBE,
         collection,
         docID,
-        probeTargetSessionID: "next-holder",
+        probeTargetParticipantID: lockParticipantID("next-holder"),
       });
     });
 
@@ -304,7 +303,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.HANDOFF_PROBE,
         collection,
         docID,
-        probeTargetSessionID: "someone-else",
+        probeTargetParticipantID: lockParticipantID("someone-else"),
       });
     });
 
@@ -326,7 +325,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_JOINED,
         collection,
         docID,
-        sessionID: "other-viewer",
+        participantID: lockParticipantID("other-viewer"),
       });
     });
 
@@ -348,7 +347,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_LEFT,
         collection,
         docID,
-        sessionID: "other-viewer",
+        participantID: lockParticipantID("other-viewer"),
       });
     });
 
@@ -356,7 +355,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
     unmount();
   });
 
-  it("VIEWER_JOINED ignores echo for same sessionID", async () => {
+  it("VIEWER_JOINED ignores the echo of this tab's own viewing", async () => {
     storeSnapshot.account.sessionID = "same-sess";
     storeSnapshot.documentLock.scopes[scopeKey] = { viewerCount: 5 };
     const { patch, unmount } = mountListener(false);
@@ -367,47 +366,7 @@ describe("useLockWsListener — document_lock_requested (regression)", () => {
         type: DOCUMENT_LOCK_DOMAIN_EVENTS.VIEWER_JOINED,
         collection,
         docID,
-        sessionID: "same-sess",
-      });
-    });
-
-    expect(patch).not.toHaveBeenCalled();
-    unmount();
-  });
-
-  it("GROUP_CASCADE clears scope when releases include this docID", async () => {
-    const { patch, dispatchHeld, cancelReadOnlyGrace, unmount } =
-      mountListener(true);
-
-    await act(async () => {
-      dispatchLockEvent({
-        event: DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE,
-        type: DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE,
-        collection: USER_JOBS_COLLECTION,
-        releases: [{ docID: "other" }, { docID }],
-      });
-    });
-
-    expect(cancelReadOnlyGrace).toHaveBeenCalled();
-    expect(dispatchHeld).toHaveBeenCalledWith({
-      type: DOCUMENT_LOCK_HELD_ACTIONS.SET,
-      held: false,
-    });
-    expect(patch).toHaveBeenCalledWith(
-      expect.objectContaining({ lockHeld: false, readOnly: false }),
-    );
-    unmount();
-  });
-
-  it("GROUP_CASCADE ignores when collection mismatches listener scope", async () => {
-    const { patch, unmount } = mountListener(true);
-
-    await act(async () => {
-      dispatchLockEvent({
-        event: DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE,
-        type: DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE,
-        collection: "job_groups",
-        releases: [{ docID }],
+        participantID: lockParticipantID("same-sess"),
       });
     });
 

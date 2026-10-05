@@ -115,8 +115,8 @@ func finishLockAcquireSuccess(r *http.Request, hc lockHandlerContext, out *docum
 			msg = "document lock read-only"
 			extra["acquired"] = false
 			extra["read_only"] = true
-			if holder, ok := out.Payload["holderSessionID"].(string); ok && holder != "" {
-				extra["holder_session_id"] = holder
+			if holder, ok := out.Payload["holderParticipantID"].(string); ok && holder != "" {
+				extra["holder_participant_id"] = holder
 			}
 		}
 	}
@@ -142,8 +142,8 @@ func finishLockExtendSuccess(r *http.Request, hc lockHandlerContext, out *docume
 			operation = "extend-read-only"
 			msg = "document lock read-only"
 			extra["read_only"] = true
-			if holder, ok := out.NotHolderPayload["holderSessionID"].(string); ok && holder != "" {
-				extra["holder_session_id"] = holder
+			if holder, ok := out.NotHolderPayload["holderParticipantID"].(string); ok && holder != "" {
+				extra["holder_participant_id"] = holder
 			}
 		}
 
@@ -168,7 +168,7 @@ func finishLockExtendSuccess(r *http.Request, hc lockHandlerContext, out *docume
 		operation = "extend-handoff-probe"
 		msg = "document lock extend handoff probe"
 		if out.Extras.ProbeTargetSessionID != "" {
-			extra["probe_target_session_id"] = out.Extras.ProbeTargetSessionID
+			extra["probe_target_participant_id"] = documentlock.ParticipantID(out.Extras.ProbeTargetSessionID)
 		}
 	default:
 		extra["outcome"] = "extended"
@@ -210,10 +210,10 @@ func finishLockRequestSuccess(r *http.Request, hc lockHandlerContext, res *docum
 func handoffHolderExtra(previousHolderSessionID, newHolderSessionID string) map[string]any {
 	extra := map[string]any{}
 	if previousHolderSessionID != "" {
-		extra["previous_holder_session_id"] = previousHolderSessionID
+		extra["previous_holder_participant_id"] = documentlock.ParticipantID(previousHolderSessionID)
 	}
 	if newHolderSessionID != "" {
-		extra["new_holder_session_id"] = newHolderSessionID
+		extra["new_holder_participant_id"] = documentlock.ParticipantID(newHolderSessionID)
 	}
 	return extra
 }

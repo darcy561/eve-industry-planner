@@ -5,10 +5,11 @@ import { selectScopedDocumentLock } from "../../Functions/DocumentLock/documentL
 import { numberOrNull } from "../../Functions/DocumentLock/documentLockStatusFields.js";
 import { clearedHandoffState } from "./documentLockHookShared.js";
 import { DOCUMENT_LOCK_HELD_ACTIONS } from "./documentLockHeldReducer.js";
+import { myLockParticipantID } from "../../Functions/DocumentLock/lockParticipant.js";
 
 /**
- * GET /lock-state (via client) → Zustand scope patch; drives holder/viewer/neutral
- * branches and read-only grace after TTL-shaped races.
+ * Reads one document's lock state from the server and patches the edit page's lock scope
+ * as holder, viewer or neutral.
  */
 export function useLockSyncFromServer({
   collection,
@@ -22,7 +23,7 @@ export function useLockSyncFromServer({
   const syncLockFromServer = useCallback(async () => {
     if (!enabled || !collection || !docID) return;
 
-    const mySessionID = useUsersStore.getState()?.account?.sessionID;
+    const me = myLockParticipantID();
     try {
       const res = await getDocumentLockState(collection, docID);
       if (!res.ok) return;
@@ -41,6 +42,7 @@ export function useLockSyncFromServer({
         if (prev.lockHeld) {
           patch({
             lockHeld: false,
+            heldByThisAccount: false,
             readOnly: false,
             pendingAccessRequest: false,
             lockExpiresAtUnix: null,
@@ -57,6 +59,7 @@ export function useLockSyncFromServer({
         if (prev.readOnly) {
           patch({
             lockHeld: false,
+            heldByThisAccount: false,
             pendingAccessRequest: false,
             lockExpiresAtUnix: null,
             lockTtlSeconds: null,
@@ -69,6 +72,7 @@ export function useLockSyncFromServer({
         }
         patch({
           lockHeld: false,
+          heldByThisAccount: false,
           readOnly: false,
           pendingAccessRequest: false,
           lockExpiresAtUnix: null,
@@ -80,20 +84,17 @@ export function useLockSyncFromServer({
         return;
       }
 
-      const holder = data.holderSessionID;
+      const holder = data.holderParticipantID;
       const pendingTarget =
-        typeof data.probeTargetSessionID === "string"
-          ? data.probeTargetSessionID
-          : typeof data.pendingHandoffTargetSessionID === "string"
-            ? data.pendingHandoffTargetSessionID
-            : null;
-      const pendingExpires =
-        numberOrNull(data, "probeExpiresAtUnix") ??
-        numberOrNull(data, "pendingHandoffExpiresAtUnix");
-      if (mySessionID && holder === mySessionID) {
+        typeof data.probeTargetParticipantID === "string"
+          ? data.probeTargetParticipantID
+          : null;
+      const pendingExpires = numberOrNull(data, "probeExpiresAtUnix");
+      if (me && holder === me) {
         dispatchHeld({ type: DOCUMENT_LOCK_HELD_ACTIONS.SET, held: true });
         const holderPatch = {
           lockHeld: true,
+          heldByThisAccount: true,
           readOnly: false,
           waitingInHandoffQueue: false,
           lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
@@ -101,7 +102,7 @@ export function useLockSyncFromServer({
           extendSegmentCount: numberOrNull(data, "extendCount"),
           waitlistLen: numberOrNull(data, "waitlistLen"),
           handoffPendingHolder: pendingTarget != null && pendingTarget !== "",
-          pendingHandoffOfferClientID: pendingTarget,
+          pendingHandoffOfferParticipantID: pendingTarget,
           pendingHandoffExpiresAtUnix: pendingExpires,
           handoffOfferForMe: false,
         };
@@ -116,12 +117,13 @@ export function useLockSyncFromServer({
       const viewerPatch = {
         readOnly: true,
         lockHeld: false,
+        heldByThisAccount: data.heldByThisAccount === true,
         lockExpiresAtUnix: numberOrNull(data, "expiresAtUnix"),
         lockTtlSeconds: numberOrNull(data, "ttlSeconds"),
         extendSegmentCount: numberOrNull(data, "extendCount"),
         waitlistLen: numberOrNull(data, "waitlistLen"),
         handoffPendingHolder: false,
-        pendingHandoffOfferClientID: pendingTarget,
+        pendingHandoffOfferParticipantID: pendingTarget,
         pendingHandoffExpiresAtUnix: pendingExpires,
         handoffOfferForMe: false,
       };
@@ -129,9 +131,7 @@ export function useLockSyncFromServer({
         viewerPatch.viewerCount = data.viewerCount;
       }
       patch(viewerPatch);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, [
     collection,
     docID,

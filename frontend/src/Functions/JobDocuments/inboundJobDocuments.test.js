@@ -187,6 +187,48 @@ describe("a document arriving for a job somebody has open", () => {
     expect(job.name).toBe("Renamed by somebody else");
   });
 
+  it("keeps the reader's value where the incoming save set the same thing, and sets it aside", async () => {
+    const session = await openSession("job-1", {
+      jobID: "job-1",
+      name: "Rifter",
+      jobStatus: 1,
+      build: { setup: { "setup-1": { id: "setup-1", runCount: 3 } } },
+    });
+    session.actions.run({
+      name: "set run count",
+      recipe: (job) => {
+        job.build.setup["setup-1"].runCount = 4;
+      },
+    });
+
+    enqueueInboundJobDocumentChange(
+      "upsert",
+      "job-1",
+      {
+        jobID: "job-1",
+        name: "Renamed by somebody else",
+        jobStatus: 1,
+        build: { setup: { "setup-1": { id: "setup-1", runCount: 5 } } },
+      },
+      12,
+    );
+    await flush();
+
+    const { default: useUsersStore } =
+      await import("../../Zustand/usersStore.js");
+    const held = useUsersStore.getState().editSession;
+    const job = await heldJob(held, "job-1");
+    expect(job.build.setup["setup-1"].runCount).toBe(4);
+    expect(job.name).toBe("Renamed by somebody else");
+    expect(held.draft.held).toEqual([
+      expect.objectContaining({
+        command: "set run count",
+        outcome: "conflict",
+      }),
+    ]);
+    expect(held.draft.log).toEqual([]);
+  });
+
   it("ignores a document for a job no editor is holding", async () => {
     const session = await openSession("job-1", { jobID: "job-1" });
 

@@ -1,3 +1,5 @@
+import { NOTHING_AT_PATH, valueAtPath } from "../Helper/valueAtPath.js";
+
 /**
  * The body for a write covering the given log entries.
  *
@@ -10,7 +12,7 @@ export function writeBody(document, entries) {
 
   const cleared = [];
   for (const path of shortest(gone)) {
-    if (Array.isArray(valueAt(document, path.slice(0, -1)))) {
+    if (Array.isArray(valueAtPath(document, path.slice(0, -1)))) {
       changed.push(path.slice(0, -1));
       continue;
     }
@@ -20,16 +22,14 @@ export function writeBody(document, entries) {
   const partial = {};
   const written = [];
   for (const path of shortest(changed)) {
-    const value = valueAt(document, path);
-    if (value === MISSING) continue;
+    const value = valueAtPath(document, path);
+    if (value === NOTHING_AT_PATH) continue;
     place(partial, path, value);
     written.push(path);
   }
 
   return { document: partial, removed: removals(document, cleared, written) };
 }
-
-const MISSING = Symbol("no value at that path");
 
 /**
  * The log's patches split into the paths a write sets and the paths it clears.
@@ -64,13 +64,13 @@ function sort(entries) {
  * @param {object} document
  * @param {Array<Array<string|number>>} cleared - Removal paths, shortest already applied
  * @param {Array<Array<string|number>>} written - The paths the partial document carries. A path the
- *   job changed and then dropped is not among them, so the row it named is still reported removed
+ *     job changed and then dropped is not among them, so the row it named is still reported removed
  * @returns {Array<Array<string>>}
  */
 function removals(document, cleared, written) {
   const paths = [];
   for (const path of cleared) {
-    if (valueAt(document, path) !== MISSING) continue;
+    if (valueAtPath(document, path) !== NOTHING_AT_PATH) continue;
     if (written.some((other) => covers(other, path))) continue;
 
     paths.push(path.map(String));
@@ -79,8 +79,8 @@ function removals(document, cleared, written) {
 }
 
 /**
- * Drops any path another path already covers, so a collection being sent whole
- * does not also send its rows.
+ * Drops any path another path already covers, so a collection being sent whole does not also send
+ * its rows.
  *
  * @param {Array<Array<string|number>>} paths
  * @returns {Array<Array<string|number>>}
@@ -105,21 +105,6 @@ function shortest(paths) {
 function covers(outer, inner) {
   if (outer.length > inner.length) return false;
   return outer.every((step, index) => String(step) === String(inner[index]));
-}
-
-/**
- * @param {object} document
- * @param {Array<string|number>} path
- * @returns {*} The value, or `MISSING` where the path leads nowhere
- */
-function valueAt(document, path) {
-  let held = document;
-  for (const step of path) {
-    if (held === null || typeof held !== "object") return MISSING;
-    if (!(step in held)) return MISSING;
-    held = held[step];
-  }
-  return held;
 }
 
 /**

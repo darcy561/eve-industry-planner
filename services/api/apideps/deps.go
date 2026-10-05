@@ -1,6 +1,4 @@
 // Package apideps holds this API service’s shared backing connections for HTTP handlers.
-// Composition root builds one Deps; handler packages embed it and use methods — do not
-// thread Deps (or individual connections) as handler parameters.
 package apideps
 
 import (
@@ -19,28 +17,15 @@ import (
 
 // Deps is this API process’s data-plane handles (not a browser/SPA client).
 type Deps struct {
-	Mongo *eipmongo.Mongo
-	Redis *eipredis.Redis
-	NATS  *eipnats.NATS
-	// EntityCipher derives the refs that replace raw entity ids. Nil in mongo-only
-	// wiring, so handlers that write documents carrying ids must check it.
+	Mongo        *eipmongo.Mongo
+	Redis        *eipredis.Redis
+	NATS         *eipnats.NATS
 	EntityCipher *entityid.Cipher
-	// ESI is the shared limiter. The api makes no metered ESI calls, so this is
-	// here for what an outage stops rather than for what it meters: EVE SSO goes
-	// down with everything else, and a caller that reports what it saw lets the
-	// rest of the fleet stop retrying into it. Nil in mongo-only wiring.
-	//
-	// Naming a planner does call ESI, on the unmetered public corporation and
-	// alliance routes. They disclose no rate-limit group, so the client learns
-	// none and charges the call to nothing.
-	ESI esiclient.API
-	// Maintenance is the live maintenance flag. Nil in mongo-only wiring, which reads as off.
-	Maintenance *appconfig.MaintenanceFlag
+	ESI          esiclient.API
+	Maintenance  *appconfig.MaintenanceFlag
 }
 
 // FromClients maps the composition-root connect bag into Deps for handlers.
-// refs derives entity refs, esi reaches the shared limiter and maintenance is
-// the live flag; the connect bag carries none of the three.
 func FromClients(c *stackservices.Clients, refs *entityid.Cipher, esi esiclient.API, maintenance *appconfig.MaintenanceFlag) *Deps {
 	if c == nil {
 		return &Deps{ESI: esi, Maintenance: maintenance}
@@ -70,10 +55,6 @@ func New(mongo *eipmongo.Mongo) *Deps {
 }
 
 // ReportSSO tells the shared limiter whether EVE SSO answered.
-//
-// SSO is not metered by ESI: it holds no bucket and spends no token. What it
-// contributes is evidence, as its own source, about whether CCP's servers are
-// up — which is the one thing an outage couples the two together by.
 func (d *Deps) ReportSSO(ctx context.Context, err error) {
 	if d == nil || d.ESI == nil {
 		return
@@ -85,5 +66,5 @@ func (d *Deps) LockDeps() documentlock.Deps {
 	if d == nil {
 		return documentlock.Deps{}
 	}
-	return documentlock.Deps{Mongo: d.Mongo, Redis: d.Redis, NATS: d.NATS}
+	return documentlock.Deps{Redis: d.Redis, NATS: d.NATS}
 }

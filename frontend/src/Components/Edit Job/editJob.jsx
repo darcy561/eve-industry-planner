@@ -45,6 +45,8 @@ import {
 import { useStripRedundantJobMarketHubOverrides } from "../../Hooks/Planner/useStripRedundantJobMarketHubOverrides.js";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import EditJobLeaveConfirmDialogue from "./EditJobLeaveConfirmDialogue";
+import ChangeReviewDialogue from "./ChangeReviewDialogue";
+import IncomingSaveNotice from "./IncomingSaveNotice";
 import { useEditJobLeaveConfirm } from "./Edit Job Hooks/useEditJobLeaveConfirm";
 import EditJobStepContentSelector from "./EditJobStepContentSelector";
 import { useEditJobInitialState } from "./Edit Job Hooks/useEditJobInitialState";
@@ -67,9 +69,6 @@ export default function EditJob_New() {
   const openJobItemID = useJobDraft((job) => job.itemID);
   const openJobGroupID = useJobDraft((job) => job.groupID);
   const jobPricing = useJobDraft((job) => job.build.localPricing);
-  // The three fields the step rules are made of, rather than the job: the frame
-  // draws a header and a stepper, and a page that read the whole job to place
-  // its stepper would redraw every panel under it on any edit at all.
   const jobStatus = useJobDraft((job) => job.jobStatus) ?? 0;
   const includedInGroup = useJobDraft((job) => job.includedInGroup);
   const isReadyToSell = useJobDraft((job) => job.isReadyToSell);
@@ -92,10 +91,6 @@ export default function EditJob_New() {
     isLoading,
   });
 
-  // The session is a slice of the store, so leaving this page does not end it.
-  // A job left in it is one the next open reads instead of loading — the reader
-  // is handed back a draft they walked away from, and saving it writes that
-  // abandoned edit over whatever the job now holds.
   useEffect(() => () => endEditSession(), []);
 
   useWarnBeforeUnload();
@@ -334,6 +329,9 @@ export default function EditJob_New() {
               <LinkedJobBadge />
             </Grid>
             <Grid size={12}>
+              <IncomingSaveNotice />
+            </Grid>
+            <Grid size={12}>
               <Stepper activeStep={jobStatus} orientation="vertical">
                 {jobStatuses.map((status) => {
                   return (
@@ -437,12 +435,12 @@ export default function EditJob_New() {
       <MarketDataDialogue />
       <AssetsDialogue />
       <EditJobLeaveConfirmDialogue {...leaveConfirmDialogueProps} />
+      <ChangeReviewDialogue />
     </>
   );
 
   /**
-   * Read `/editjob/$id` query params at call time (e.g. link-tree button) - avoids subscribing
-   * to search on every render when the dialogue is rarely opened.
+   * Read `/editjob/$id` query params at call time (e.g.
    *
    * @returns {{ activeGroup: string|undefined, pageView: string|undefined }}
    */

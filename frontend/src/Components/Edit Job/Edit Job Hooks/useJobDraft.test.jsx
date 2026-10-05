@@ -1,8 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The real session slice over a store of its own: what this hook is for is the
-// subscription, so standing the store in would measure the stand-in.
 vi.mock("../../../Zustand/usersStore", async () => {
   const { create } = await import("zustand");
   const { default: editSessionSlice } =
@@ -11,7 +9,8 @@ vi.mock("../../../Zustand/usersStore", async () => {
 });
 
 const { default: useUsersStore } = await import("../../../Zustand/usersStore");
-const { useJobDraft, useJobActions } = await import("./useJobDraft.js");
+const { useJobDraft, useJobActions, useJobModified } =
+  await import("./useJobDraft.js");
 const { renderCounts } = await import("../../../tests/renderCounts.jsx");
 
 const session = () => useUsersStore.getState().editSession.actions;
@@ -108,9 +107,6 @@ describe("reading part of the job being edited", () => {
     expect(screen.getByText("nothing open")).toBeInTheDocument();
   });
 
-  // What lets a panel take its writes from the store without subscribing to the
-  // job: every command returns a new session, and none of them returns new
-  // actions.
   it("hands back the same actions across an edit", async () => {
     const seen = [];
     const Panel = () => {
@@ -132,8 +128,6 @@ describe("reading part of the job being edited", () => {
     expect(useUsersStore.getState().editSession.actions).toBe(seen[0]);
   });
 
-  // The failure this catches looks right on screen and passes every test of what
-  // the panel draws, so it is caught where it is made instead.
   it("refuses a selector that builds its answer", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const Materials = () => {
@@ -142,5 +136,25 @@ describe("reading part of the job being edited", () => {
     };
 
     expect(() => render(<Materials />)).toThrow(/builds a new value/);
+  });
+});
+
+describe("whether the editor holds the reader's changes", () => {
+  const Modified = () => <span>{String(useJobModified())}</span>;
+
+  it("still says so once a copy arriving under them sets them aside", async () => {
+    render(<Modified />);
+    await act(async () => {
+      session().run({
+        name: "rename",
+        recipe: (job) => {
+          job.name = "mine";
+        },
+      });
+      session().documentArrived("job-1", { ...aJob(), name: "theirs" });
+    });
+
+    expect(useUsersStore.getState().editSession.draft.log).toEqual([]);
+    expect(screen.getByText("true")).toBeInTheDocument();
   });
 });

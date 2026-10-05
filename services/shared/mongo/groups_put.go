@@ -12,39 +12,11 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// GroupMembershipDelta lists job IDs newly present in IncludedJobIDs after a group upsert.
-type GroupMembershipDelta struct {
-	GroupID     string
-	AddedJobIDs []string
-}
-
-// BulkUpsertGroupsResult aggregates BulkWrite counts plus membership diffs.
+// BulkUpsertGroupsResult counts what a group upsert wrote and what it refused.
 type BulkUpsertGroupsResult struct {
 	UpsertedCount int64
 	ModifiedCount int64
-	Deltas        []GroupMembershipDelta
 	FailedCount   int
-}
-
-func diffAddedJobIDs(prev, next []string) []string {
-	prevSet := make(map[string]struct{}, len(prev))
-	for _, id := range prev {
-		if id == "" {
-			continue
-		}
-		prevSet[id] = struct{}{}
-	}
-	var out []string
-	for _, id := range next {
-		if id == "" {
-			continue
-		}
-		if _, ok := prevSet[id]; ok {
-			continue
-		}
-		out = append(out, id)
-	}
-	return out
 }
 
 // BulkUpsertGroups runs one unordered BulkWrite for all groups (mongo.Groups).
@@ -76,74 +48,24 @@ func (d *Docs) BulkUpsertGroups(ctx context.Context, owner models.Owner, account
 		return nil, nil
 	}
 
-	ids := make([]string, len(valid))
-	for i := range valid {
-		ids[i] = valid[i].GroupID
+	bulkOps := make([]mongo.WriteModel, 0, len(valid))
+	for _, g := range valid {
+		update, uerr := SetDocumentWithRevision(g, nil)
+		if uerr != nil {
+			return nil, uerr
+		}
+		bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
+			SetFilter(bson.M{"_id": OwnerScopedDocumentID(owner, g.GroupID)}).
+			SetUpdate(update).
+			SetUpsert(true))
 	}
-
-	var bulkRes *mongo.BulkWriteResult
-	err = Retry(ctx, "BulkUpsertGroups", func() error {
-		prevByID := make(map[string][]string, len(ids))
-		cur, ferr := coll.Find(ctx,
-			bson.M{"_id": bson.M{"$in": OwnerScopedDocumentIDs(owner, ids)}},
-			options.Find().SetProjection(bson.M{"includedJobIDs": 1, "_id": 1}),
-		)
-		if ferr != nil {
-			return ferr
-		}
-		for cur.Next(ctx) {
-			var doc struct {
-				ID             string   `bson:"_id"`
-				IncludedJobIDs []string `bson:"includedJobIDs"`
-			}
-			if derr := cur.Decode(&doc); derr != nil {
-				_ = cur.Close(ctx)
-				return derr
-			}
-			prevByID[BareDocumentID(doc.ID)] = doc.IncludedJobIDs
-		}
-		if err := cur.Err(); err != nil {
-			_ = cur.Close(ctx)
-			return err
-		}
-		_ = cur.Close(ctx)
-
-		bulkOps := make([]mongo.WriteModel, 0, len(valid))
-		for _, g := range valid {
-			update, uerr := SetDocumentWithRevision(g, nil)
-			if uerr != nil {
-				return uerr
-			}
-			bulkOps = append(bulkOps, mongo.NewUpdateOneModel().
-				SetFilter(bson.M{"_id": OwnerScopedDocumentID(owner, g.GroupID)}).
-				SetUpdate(update).
-				SetUpsert(true))
-		}
-		var opErr error
-		bulkRes, opErr = coll.BulkWrite(ctx, bulkOps, options.BulkWrite().SetOrdered(false))
-		if opErr != nil {
-			return opErr
-		}
-
-		lastByID := make(map[string]models.Group, len(valid))
-		for _, g := range valid {
-			lastByID[g.GroupID] = g
-		}
-		deltas := make([]GroupMembershipDelta, 0)
-		for gid, g := range lastByID {
-			prev := prevByID[gid]
-			added := diffAddedJobIDs(prev, g.IncludedJobIDs)
-			if len(added) > 0 {
-				deltas = append(deltas, GroupMembershipDelta{GroupID: gid, AddedJobIDs: added})
-			}
-		}
-		result.UpsertedCount = bulkRes.UpsertedCount
-		result.ModifiedCount = bulkRes.ModifiedCount
-		result.Deltas = deltas
-		return nil
+	bulkRes, err := RetryValue(ctx, "BulkUpsertGroups", func() (*mongo.BulkWriteResult, error) {
+		return coll.BulkWrite(ctx, bulkOps, options.BulkWrite().SetOrdered(false))
 	})
 	if err != nil {
 		return nil, err
 	}
+	result.UpsertedCount = bulkRes.UpsertedCount
+	result.ModifiedCount = bulkRes.ModifiedCount
 	return result, nil
 }

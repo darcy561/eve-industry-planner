@@ -19,8 +19,6 @@ const document = () => ({
 function job(over = {}) {
   return {
     ...document(),
-    includedInGroup: false,
-    groupID: "",
     ...over,
   };
 }
@@ -31,8 +29,6 @@ describe("a write the reader's changes are known for", () => {
 
     expect(write).toEqual({
       jobID: "job-1",
-      includedInGroup: false,
-      groupID: "",
       revision: 7,
       document: { name: "A job" },
     });
@@ -69,24 +65,6 @@ describe("a write that cannot say what changed", () => {
 
     expect(write.document).toEqual(toDocument(created));
     expect(write).not.toHaveProperty("revision");
-  });
-});
-
-describe("what the lock gate is told", () => {
-  it("states the group on a write carrying only the fields that changed", () => {
-    const grouped = job({ includedInGroup: true, groupID: "group-3" });
-
-    const write = jobWriteEnvelope(grouped, [entry(changed(["name"]))]);
-
-    expect(write.includedInGroup).toBe(true);
-    expect(write.groupID).toBe("group-3");
-  });
-
-  it("states a job's absence from a group rather than leaving it out", () => {
-    const write = jobWriteEnvelope(job({ groupID: undefined }), null);
-
-    expect(write.includedInGroup).toBe(false);
-    expect(write.groupID).toBe("");
   });
 });
 

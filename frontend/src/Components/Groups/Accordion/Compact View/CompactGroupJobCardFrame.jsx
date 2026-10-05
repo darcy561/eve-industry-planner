@@ -35,21 +35,9 @@ export function CompactGroupJobCardFrame({
 }) {
   const { activeGroupID } = useUsersStore((state) => state.jobData);
   const { multiSelect } = useUsersStore((state) => state.jobData);
-  /**
-   * `cardLocked` gates destructive affordances (multi-select, delete) that
-   * require an exclusive lock. The Edit/View button stays enabled — the edit
-   * page itself handles the read-only path via `useDocumentLock`, so we let the
-   * user open the job to view its details and switch to editing if/when the
-   * lock becomes available.
-   *
-   * `useJobCardLockState` subscribes to the per-job lock and composes the
-   * group cascade flag the parent passes in, returning the scope-aware
-   * read-only copy used by the Tooltip below.
-   */
   const { cardLocked, reason: cardLockReason } = useJobCardLockState({
     jobID: job.jobID,
     groupReadOnly,
-    jobLockSubordinateToGroup: true,
   });
   const { addToMultiSelect, removeFromMultiSelect } =
     useUsersStore.getState().jobData.actions;

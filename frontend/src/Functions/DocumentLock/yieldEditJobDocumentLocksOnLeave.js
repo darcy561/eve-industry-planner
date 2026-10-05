@@ -2,17 +2,12 @@ import useUsersStore from "../../Zustand/usersStore.js";
 import { USER_JOBS_COLLECTION } from "./documentLockCollections.js";
 
 /**
- * Release (or hand over) the **solo** per-job lock before leaving edit job.
+ * Releases the open job's own lock on leaving the Edit Job page, or hands it to whoever asked for it;
+ * a group's lock is left for Close Group.
  *
- * When `groupID` is set, the tab is in a group editing session: the group
- * lease and per-job leases stay until **Close Group** or an accepted handoff —
- * do not call this helper (and use `releaseOnUnmount: false` on
- * `useDocumentLock` for those scopes).
- *
- * @param {{ jobID?: string | null, groupID?: string | null }} params
+ * @param {{ jobID?: string | null }} params
  */
-export async function yieldEditJobDocumentLocksOnLeave({ jobID, groupID }) {
-  if (groupID) return;
+export async function yieldEditJobDocumentLocksOnLeave({ jobID }) {
   if (!jobID) return;
   await useUsersStore
     .getState()

@@ -2,21 +2,17 @@ import { writeBody } from "./writeBody.js";
 import { toDocument } from "./jobDocument.js";
 
 /**
- * The write for a job, field-scoped where both the log of what moved and the
- * revision it was recorded against are in hand, and whole otherwise.
+ * The write for a job, field-scoped where both the log of what moved and the revision it was
+ * recorded against are in hand, and whole otherwise.
  *
  * @param {object} job
  * @param {Array<object>|null|undefined} entries - Log entries behind the write
- * @returns {{jobID: string, revision?: number, includedInGroup: boolean, groupID: string, document: object, removed?: Array<Array<string>>}|null}
- *   `null` where the log leaves nothing to write
+ * @returns {{jobID: string, revision?: number, document: object, removed?: Array<Array<string>>}|null}
+ *     `null` where the log leaves nothing to write
  */
 export function jobWriteEnvelope(job, entries) {
   const document = toDocument(job);
-  const envelope = {
-    jobID: job.jobID,
-    includedInGroup: Boolean(job.includedInGroup),
-    groupID: job.groupID ?? "",
-  };
+  const envelope = { jobID: job.jobID };
 
   const revision = job?._meta?.revision;
   if (!entries?.length || !(revision > 0)) {
@@ -36,8 +32,8 @@ export function jobWriteEnvelope(job, entries) {
 }
 
 /**
- * The writes for jobs changed by something other than the reader editing them,
- * each carrying its whole document.
+ * The writes for jobs changed by something other than the reader editing them, each carrying its
+ * whole document.
  *
  * @param {Array<object>} jobs
  * @returns {Array<object>}

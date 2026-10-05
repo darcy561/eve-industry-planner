@@ -52,6 +52,7 @@ taken deliberately rather than drifting.
 | E — bootstrap that half-succeeds | **Landed.** The login handler discards what it minted at both failure points, the lifecycle counters moved below the document read, the ESI secret strip is asserted, and the no-op cookie helpers are deleted. #52 closed unchanged and #53 moved to shared-planners § Stage I. Behaviour: [overlay.md](./overlay.md) § Stage E |
 | F — the security decisions that were never taken | **Not started.** Three decisions, each of which may legitimately close as declined |
 | G — a callback the browser did not ask for | **Landed.** `/signout` ignores an arrival the app did not make, and the exchange refuses a callback carrying no state this browser was issued. The value is minted by a route of its own, held in `sessionStorage` and bound by an HttpOnly cookie |
+| H — a session id on the wire | **Landed, in the shared-planners cutover.** Lock events, lock-state rows and lock refusals name a session by a one-way participant id; `_meta.sessionID` is off every JSON encoding and out of what the change stream delivers. **Owed:** session ids in logs and traces. See § Stage H |
 
 ---
 
@@ -435,6 +436,51 @@ and arriving at `/signout` without the app having sent you there does not end a 
 
 ---
 
+### Stage H — a session id on the wire
+
+**Found** while reviewing the document lock for shared planners. A planner session id is the whole of
+a request's credential: `X-Session-ID` alone authenticates a private API call, and the websocket takes
+the same value as `planner_session_id` (`shared/plannersession/request/extract.go`, `cookie.go`). The
+lock put that value on the wire — `holderSessionID`, `requesterSessionID`, `probeTargetSessionID`,
+`previousHolderSessionID` and `sessionID` on every `doc.lock` event, on lock-state rows and on 409
+refusal rows — and shared-planners Stage H routes lock events to every member of a planner. The writer's
+session also rode out on every document in `_meta.sessionID`, through the API's JSON and through the
+change stream's raw delivery. On a shared planner, any member could read another member's session off
+the socket and act as them until it rotated.
+
+**Not reachable in production yet**: there, lock events go only to the account's own tabs and every
+document is the reader's own. It ships with the shared-planners cutover, which is what made it
+reachable, and that cutover is a hard one, so the wire change rides it.
+
+**What landed:**
+
+- A lock names a session by `documentlock.ParticipantID`: the first 16 bytes of SHA-256 over a domain
+  prefix and the session id, in hex. Session ids are random UUIDs, so the digest cannot be reversed or
+  guessed. The wire fields are renamed to say so — `participantID`, `holderParticipantID`,
+  `requesterParticipantID`, `probeTargetParticipantID`, `previousHolderParticipantID` — so a real id
+  left behind would be visibly wrong. Redis keeps the real id; only what leaves the server changes.
+- A tab derives its own participant id the same way (`lockParticipantID`, on `@noble/hashes`, which is
+  synchronous and works on a plain-HTTP self-host where `crypto.subtle` does not) and compares against
+  that. `testing/fixtures/document-lock/participant.json` pins the derivation for both languages.
+- A viewer event carries the real session in `sourceSessionID`, a routing field the websocket service
+  reads to skip that session's own tabs and strips before the frame reaches a browser.
+- `MetaData.SessionID` is `json:"-"`, and the change stream takes `sessionID` out of `_meta` on the
+  document and the previous document it delivers. The session-response surface fixture lost the two
+  `_meta.sessionID` rows accordingly.
+- The lock's own logs name a holder by participant id.
+
+**Proved by:** a lifecycle test that runs acquire, a contended acquire, a viewer arriving, a request,
+extends, a hand-over, a release, a viewer leaving and a same-account force-release against an
+in-process NATS and Redis, and fails if a marker in the session ids appears in any published event or
+response outside the routing field — putting one raw id back fails it. Beside it: the participant
+derivation against the fixture in both languages, the websocket wire builder stripping the routing
+field, and the change stream dropping `_meta.sessionID`.
+
+**Owed:** session ids are written to logs and traces throughout — the websocket's connection logs and
+spans, the auth middleware's failure detail, the lock handlers' debug detail. Logs are not broadcast,
+but a credential does not belong in them either; the fix is one rule in the logging layer (log the
+participant id, never the session) rather than call site by call site.
+
 ## Wire compatibility
 
 Assessed for every stage that could touch a client-visible surface.
@@ -446,6 +492,7 @@ Assessed for every stage that could touch a client-visible surface.
 | Account-wide revoke endpoint (Stage B) | **Additive** | A new route, `POST /api/v1/auth/sessions/revoke-all`. Landed. |
 | Minting a sign-in state (Stage G) | **Additive** | A new route and a new short-lived cookie; nothing existing changes shape. Landed. |
 | The exchange requiring `state` (Stage G) | **Breaking for a client that does not send it** | Landed. Only this SPA calls `/api/v1/eve-sso/tokens/exchange`, and it ships with the change. A sign-in already in flight across the deploy fails and is retried by signing in again. |
+| Lock payloads name a participant, not a session; `_meta.sessionID` leaves the JSON (Stage H) | **Breaking** | Rides the shared-planners hard cutover; SPA and API ship together. Landed. |
 | New counters and log fields (Stage C) | **Additive** | Telemetry only. |
 | A credential-failure reason on the rotate and bootstrap responses (Stage D) | **Additive** | A new optional field; older clients ignore it. |
 | ~~Failing bootstrap where it currently warns (Stage E)~~ | **Withdrawn** | The grants fill it referred to is #53, now [shared-planners](../shared-planners/plan.md) § Stage I. Nothing left in this project makes a warned failure fatal. |
@@ -502,3 +549,5 @@ Then delete this folder and its row in [`../contents.md`](../contents.md).
 1. **Stage C** — makes the rest measurable, and the runbook is owed regardless.
 2. **Stage D** — independent; can run alongside any of the above.
 3. **Stage F** — decisions, whenever there is appetite to take them.
+4. **Stage H's logging half** — before the shared-planners cutover, since that is when other members'
+   sessions start arriving at a reader's own tabs and server logs widen in what they hold.

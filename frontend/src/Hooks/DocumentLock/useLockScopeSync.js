@@ -15,14 +15,10 @@ import {
   patchPlannerGroupLockScopeFromApi,
   patchPlannerJobLockScopeFromApi,
 } from "./plannerLockScopeFromApi.js";
-import { groupMemberJobScopeAfterGroupGrantPartial } from "../../Functions/DocumentLock/patchGroupMemberJobScopesAfterGroupGrant.js";
 
 /**
- * Iterates the requested `(jobIDs, groupIDs)` arrays in `chunkSize`-sized
- * batches over `POST /document-locks/lock-state-batch`, applying every row through
- * `applyDocumentLockStatusFromPayload`. Groups (when present) are only sent
- * with the first chunk because they are far fewer than jobs and one batch
- * always carries the entire group set.
+ * Reads the lock state of the given jobs and groups in batches of `chunkSize` and applies each row
+ * to the store.
  *
  * @param {string[]} jobIDs
  * @param {string[]} groupIDs
@@ -90,20 +86,14 @@ async function syncLockScopesFromApi(jobIDs, groupIDs, isCancelled, chunkSize) {
 
 /**
  * Shared planner-page lock sync core for `useJobPlannerJobLockSync` and
- * `useJobPlannerPageLockSync`. Wraps three pieces of behaviour:
- *
- *   1. Debounced batch refresh when `jobIDs` or `groupIDs` change (coalesces
- *      rapid Zustand churn into a single round-trip).
- *   2. Listener on `eip-document-lock` so single-scope WS events refresh just
- *      that scope (avoids a full batch on every fan-out).
- *   3. Login gating — re-runs on `isLoggedIn` transitions only.
+ * `useJobPlannerPageLockSync`.
  *
  * @param {{
- *   getJobIDs: () => string[],
- *   getGroupIDs: () => string[],
- *   trackGroups: boolean,
- *   chunkSize: number,
- * }} options
+ *     getJobIDs: () => string[],
+ *     getGroupIDs: () => string[],
+ *     trackGroups: boolean,
+ *     chunkSize: number,
+ *   }} options
  */
 export function useLockScopeSync({
   getJobIDs,
@@ -115,11 +105,6 @@ export function useLockScopeSync({
   const jobArray = useUsersStore((s) => s.jobData.jobArray);
   const groupArray = useUsersStore((s) => s.jobData.groupArray);
 
-  /**
-   * Single string key so React can compare cheaply; reruns the debounced
-   * fetch when any jobID set membership changes (and, on the page hook, any
-   * groupID).
-   */
   const syncKey = useMemo(() => {
     const jobs = jobArray
       .map((j) => j.jobID)
@@ -159,38 +144,6 @@ export function useLockScopeSync({
 
       const t = typeof p.event === "string" ? p.event : p.type;
 
-      /**
-       * Group → jobs cascade event. Apply every release directly to the
-       * store in one `patchManyDocumentLockScopes` call instead of
-       * firing N `patchPlannerJobLockScopeFromApi` HTTP refetches. The
-       * server has already DEL-ed the lock keys (see
-       * `documentlock/cascade_pipeline.go`), so the payload's contents
-       * are authoritative.
-       */
-      if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.GROUP_CASCADE) {
-        if (!Array.isArray(p.releases) || p.releases.length === 0) return;
-        if (p.collection !== USER_JOBS_COLLECTION) return;
-        const updates = [];
-        for (const r of p.releases) {
-          if (!r || typeof r.docID !== "string" || !r.docID) continue;
-          updates.push({
-            collection: USER_JOBS_COLLECTION,
-            docID: r.docID,
-            partial: groupMemberJobScopeAfterGroupGrantPartial(),
-          });
-        }
-        if (updates.length > 0) {
-          useUsersStore
-            .getState()
-            .documentLock.actions.patchManyDocumentLockScopes(updates);
-        }
-        return;
-      }
-
-      // Edit-job / header UX handles `document_lock_requested` via
-      // `useLockWsListener` (snackbar + `pendingAccessRequest`). Refetching
-      // planner lock-state here does not drive planner cards and can reorder
-      // after the snackbar path; skip the extra GET.
       if (t === DOCUMENT_LOCK_DOMAIN_EVENTS.REQUESTED) {
         return;
       }

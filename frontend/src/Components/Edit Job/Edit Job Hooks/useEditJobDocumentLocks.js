@@ -7,6 +7,10 @@ import {
   USER_JOBS_COLLECTION,
 } from "../../../Functions/DocumentLock/documentLockCollections.js";
 
+/**
+ * Holds the open job's own lock while the Edit Job page shows it, and the group's lock as well when
+ * the page was opened from that group.
+ */
 export function useEditJobDocumentLocks({
   jobID,
   openJobID,
@@ -24,27 +28,21 @@ export function useEditJobDocumentLocks({
     documentLockReady && activeGroupID && groupID === activeGroupID,
   );
 
-  // Group edit sessions: the group lock owns every member job — no per-job acquire.
-  useDocumentLock(
-    USER_JOBS_COLLECTION,
-    jobID ?? "",
-    documentLockReady && !groupLockReady,
-    {
-      releaseOnUnmount: true,
-      pendingAccessRequestMessage:
-        "Another tab requested edit access for this job.",
-      becameOwnerVacantMessage:
-        "You now hold the edit lock for this job — this tab is the editor.",
-      lostOwnerMessage:
-        "This tab is now read-only for this job — another session holds the edit lock.",
-      extendNudgeMessage:
-        "This job's edit session is about to end — renew now while this tab is visible.",
-      passiveViewerMessage: (count) =>
-        count === 1
-          ? "Another session is viewing this job — you still hold the edit lock."
-          : `${count} other sessions are viewing this job — you still hold the edit lock.`,
-    },
-  );
+  useDocumentLock(USER_JOBS_COLLECTION, jobID ?? "", documentLockReady, {
+    releaseOnUnmount: true,
+    pendingAccessRequestMessage:
+      "Another tab requested edit access for this job.",
+    becameOwnerVacantMessage:
+      "You now hold the edit lock for this job — this tab is the editor.",
+    lostOwnerMessage:
+      "This tab is now read-only for this job — another session holds the edit lock.",
+    extendNudgeMessage:
+      "This job's edit session is about to end — renew now while this tab is visible.",
+    passiveViewerMessage: (count) =>
+      count === 1
+        ? "Another session is viewing this job — you still hold the edit lock."
+        : `${count} other sessions are viewing this job — you still hold the edit lock.`,
+  });
 
   useDocumentLock(
     USER_JOB_GROUPS_COLLECTION,
@@ -68,28 +66,25 @@ export function useEditJobDocumentLocks({
   );
 
   const headerLockRegistrations = useMemo(() => {
-    if (groupLockReady && activeGroupID) {
-      return [
-        {
-          collection: USER_JOB_GROUPS_COLLECTION,
-          docID: activeGroupID,
-          enabled: true,
-          label: "Group",
-          readOnlyMessage:
-            "This group is being edited in another session (read-only). Member jobs share this lock.",
-          treeOwnership: "full",
-        },
-      ];
-    }
-
+    const job = {
+      collection: USER_JOBS_COLLECTION,
+      docID: jobID ?? "",
+      enabled: Boolean(isLoggedIn && jobID),
+      label: "Job",
+      readOnlyMessage:
+        "This job is being edited in another session (read-only).",
+      treeOwnership: "full",
+    };
+    if (!groupLockReady || !activeGroupID) return [job];
     return [
+      job,
       {
-        collection: USER_JOBS_COLLECTION,
-        docID: jobID ?? "",
-        enabled: Boolean(isLoggedIn && jobID),
-        label: "Job",
+        collection: USER_JOB_GROUPS_COLLECTION,
+        docID: activeGroupID,
+        enabled: true,
+        label: "Group",
         readOnlyMessage:
-          "This job is being edited in another session (read-only).",
+          "This group is being edited in another session (read-only).",
         treeOwnership: "full",
       },
     ];

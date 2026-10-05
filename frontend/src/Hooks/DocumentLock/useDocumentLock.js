@@ -18,11 +18,7 @@ import { scopeHasLeasePressure } from "../../Functions/DocumentLock/documentLock
 const DEFAULT_PENDING_ACCESS_SNACKBAR =
   "Another tab requested edit access for this document.";
 
-/**
- * Per-tab document lock engine. Composes concern-specific sub-hooks (#10) and
- * a small `held` reducer (#16) for the imperative holder mirror used by
- * `/release` and WS holder checks.
- */
+/** Per-tab document lock engine. */
 export function useDocumentLock(collection, docID, enabled, options = {}) {
   const pendingAccessRequestMessage =
     options.pendingAccessRequestMessage ?? DEFAULT_PENDING_ACCESS_SNACKBAR;
@@ -37,8 +33,6 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     "Your edit session is about to end — renew now while this tab is visible.";
   const passiveViewerMessage = options.passiveViewerMessage;
   const releaseOnUnmount = options.releaseOnUnmount !== false;
-  const cascadeMemberJobScopesOnGrant =
-    options.cascadeMemberJobScopesOnGrant === true;
   const lockHeld = useUsersStore(
     (s) => selectScopedDocumentLock(s, collection, docID).lockHeld,
   );
@@ -71,7 +65,6 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
       selectScopedDocumentLock(s, collection, docID).lockScopeBootstrapped ===
       true,
   );
-  const sessionID = useUsersStore((s) => s.account.sessionID);
 
   const leasePressure = scopeHasLeasePressure({
     readOnly,
@@ -140,7 +133,6 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
     cancelReadOnlyGrace,
     waitingInHandoffQueue,
     releaseOnUnmount,
-    cascadeMemberJobScopesOnGrant,
   });
 
   const { syncLockFromServer } = useLockSyncFromServer({
@@ -236,7 +228,6 @@ export function useDocumentLock(collection, docID, enabled, options = {}) {
   useLockWsListener({
     collection,
     docID,
-    sessionID,
     pendingAccessRequestMessage,
     patch,
     syncLockFromServer,

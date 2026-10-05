@@ -25,19 +25,7 @@ import (
 // batch is capped well below it, so a request is a single round trip.
 const archivedJobStatsBatch = 200
 
-// PutArchivedJobsHandler serves PUT /v1/archived-jobs, upserting a batch into
-// archivedJobs.
-//
-// Statuses are what a client should expect; frontend saveArchivedJobs retries
-// only 408, 429 and 5xx.
-//
-//   - 400 — malformed JSON, empty batch, batch >100, empty jobID, duplicate jobIDs
-//   - 403 — a job names an owner that is not the authenticated account
-//   - 500 — Mongo bulk write failure
-//   - 204 — success
-//
-// Each job is stamped with _meta.archivedBy, archivedAt, accountID, lastModified
-// and lastUpdatedBy.
+// PutArchivedJobsHandler serves PUT /v1/archived-jobs, upserting a batch into archivedJobs.
 func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request) {
 	obsCtx := r.Context()
 	start := helper.RequestStartOrNow(obsCtx)
@@ -121,8 +109,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	})
 
 	sessionID := helper.AuthenticatedSessionID(r)
-	// Resolved before the lock gate as well as the write: a lock names the planner
-	// the document belongs to, so the gate has to ask about the one being written.
 	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, metrics, "archived_jobs")
 	if !ok {
 		return
@@ -135,17 +121,12 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 		jobIDs := make([]string, 0, len(reqBody.Jobs))
-		jobGroupBypass := documentlock.JobGroupBypass{}
 		for _, j := range reqBody.Jobs {
-			if j.JobID == "" {
-				continue
-			}
-			jobIDs = append(jobIDs, j.JobID)
-			if j.IncludedInGroup && j.GroupID != "" {
-				jobGroupBypass[j.JobID] = j.GroupID
+			if j.JobID != "" {
+				jobIDs = append(jobIDs, j.JobID)
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs, jobGroupBypass)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -194,14 +175,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 			SetUpdate(update).
 			SetUpsert(true))
 
-		// The row is derived from the job and nothing else, so it is built where
-		// the job already is. Leaving it to be discovered later would mean asking
-		// "which of this account's jobs have no row", which costs a pass over the
-		// whole archive on every archive — the cost the incremental path exists to
-		// avoid.
-		//
-		// It is written uncounted: the fold queued below is what puts its figures
-		// into the aggregates.
 		row, rowErr := statistics.NewRow(*job, now)
 		if rowErr != nil {
 			unbuildable++
@@ -223,9 +196,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// After the jobs, so a row never describes a job that failed to save. A
-	// failure here is not a failure to archive: the jobs are saved, and the
-	// reconcile rota builds rows for archived jobs that have none.
 	if len(statsRows) > 0 {
 		if rowErr := h.Mongo.WriteStatsRows(ctx, statsRows, archivedJobStatsBatch); rowErr != nil {
 			logs.AttachHandlerCaveat(r, "stats_rows_not_written",
@@ -242,14 +212,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 	nJobs := len(reqBody.Jobs)
 
-	// The rows written above are not in the account's aggregates yet. Queuing
-	// rather than folding them here keeps the write cheap and collapses a burst of
-	// archives into one pass — the rows carry no contribution stamp, so whichever
-	// pass runs finds all of them.
-	//
-	// A failure to queue is logged rather than failing the request: the jobs are
-	// saved and their rows are still unstamped, so the next archive or a manual
-	// rebuild picks them up.
 	if err := h.Mongo.QueueOwnerWork(ctx, owner, eipmongo.StatsWorkDelta, time.Now().UTC()); err != nil {
 		logs.AttachHandlerCaveat(r, "stats_rebuild_not_queued",
 			"archived jobs saved but the statistics rebuild was not queued",

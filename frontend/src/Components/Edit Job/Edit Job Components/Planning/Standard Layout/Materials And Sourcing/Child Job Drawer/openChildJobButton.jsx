@@ -33,10 +33,7 @@ export function OpenChildJobButton({ childJobObjects, jobDisplay }) {
 
   const navigateToPendingJob = async () => {
     if (!pendingNav) return;
-    await yieldEditJobDocumentLocksOnLeave({
-      jobID: routeJobID,
-      groupID: search.activeGroup,
-    });
+    await yieldEditJobDocumentLocksOnLeave({ jobID: routeJobID });
     navigate({
       to: "/editjob/$jobID",
       params: { jobID: pendingNav.jobID },
@@ -92,7 +89,10 @@ export function OpenChildJobButton({ childJobObjects, jobDisplay }) {
           if (!pendingNav || !persist.canPersist) return;
           setLeaveSaving(true);
           try {
-            await saveOpenJob(queryClient);
+            if ((await saveOpenJob(queryClient)) === "kept-open") {
+              closeFallbackDialogue();
+              return;
+            }
             navigateToPendingJob();
           } finally {
             setLeaveSaving(false);

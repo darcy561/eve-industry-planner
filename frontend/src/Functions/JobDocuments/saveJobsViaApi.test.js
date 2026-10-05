@@ -11,13 +11,22 @@ vi.mock("../Endpoints/Private/jobDocuments.js", async (importOriginal) => ({
   putJobDocumentsBatch: (...args) => putJobDocumentsBatch(...args),
 }));
 
+const requestJobDocumentsByIdsFromApi = vi.fn();
+
+vi.mock("../Endpoints/Private/requestJobDocumentsByIds.js", () => ({
+  requestJobDocumentsByIdsFromApi: (...args) =>
+    requestJobDocumentsByIdsFromApi(...args),
+}));
+
 const warned = vi.fn();
 vi.mock("../../Events/snackbarEvents.js", () => ({
   showSnackbarWarning: (...args) => warned(...args),
 }));
 
 const { default: useUsersStore } = await import("../../Zustand/usersStore.js");
-const { saveJobsAsOneChange } = await import("./saveJobsViaApi.js");
+const { restoreSavedJobs, saveJobsAsOneChange } =
+  await import("./saveJobsViaApi.js");
+const { jobFromDocument } = await import("./jobDocument.js");
 
 function jobAt(jobID, revision) {
   const meta = revision ? { revision } : {};
@@ -145,23 +154,23 @@ describe("saving jobs as one change", () => {
           rejected: [{ docID: "linked", expected: 2, current: 3, gone: false }],
         },
       }),
-      "changed elsewhere",
+      [],
     ],
     [
       "locked",
       refusal(DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE, {
         lockHeldDocIDs: [{ docID: "linked" }],
       }),
-      "none of it was saved",
+      ["none of it was saved"],
     ],
     [
       "failed",
       Object.assign(new Error("unreadable"), { status: 400 }),
-      "could not be saved",
+      ["could not be read"],
     ],
-    ["failed", new Error("network"), "could not be saved"],
+    ["failed", new Error("network"), ["could not be saved"]],
   ])(
-    "answers %s, counts nothing and leaves nothing queued",
+    "answers %s, counts nothing, leaves nothing queued and warns as it should",
     async (outcome, err, told) => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       putJobDocumentsChange.mockRejectedValueOnce(err);
@@ -175,7 +184,75 @@ describe("saving jobs as one change", () => {
       expect(revisionOf("edited")).toBe(4);
       expect(revisionOf("linked")).toBe(2);
       expect(queued()).toEqual({});
-      expect(warned).toHaveBeenCalledWith(expect.stringContaining(told), 8);
+      expect(warned.mock.calls).toEqual(
+        told.map((words) => [expect.stringContaining(words), 8]),
+      );
     },
   );
+});
+
+describe("putting a refused change's jobs back as they are saved", () => {
+  beforeEach(() => {
+    useUsersStore.getState().jobData.actions.resetJobDataStore();
+    useUsersStore.getState().editSession.actions.closeSession();
+  });
+
+  it("takes the saved copies, drops the jobs that are gone and the new ones it would have made", async () => {
+    const { jobData, editSession } = useUsersStore.getState();
+    jobData.actions.updateOrAddJobsToJobArray([
+      jobFromDocument({ jobID: "edited", name: "changed here" }),
+      jobFromDocument({ jobID: "linked", name: "resized here" }),
+      jobFromDocument({ jobID: "deleted", name: "still held" }),
+      jobFromDocument({ jobID: "created", name: "never saved" }),
+    ]);
+    editSession.actions.openJob("edited", {
+      jobID: "edited",
+      name: "changed here",
+    });
+    requestJobDocumentsByIdsFromApi.mockResolvedValueOnce([
+      jobFromDocument({
+        jobID: "edited",
+        name: "as saved",
+        _meta: { revision: 5 },
+      }),
+      jobFromDocument({
+        jobID: "linked",
+        name: "as saved",
+        _meta: { revision: 2 },
+      }),
+    ]);
+
+    await restoreSavedJobs(["edited", "linked", "deleted"], ["created"]);
+
+    const held = Object.fromEntries(
+      useUsersStore
+        .getState()
+        .jobData.jobArray.map((job) => [job.jobID, job.name]),
+    );
+    expect(held).toEqual({ edited: "as saved", linked: "as saved" });
+    expect(useUsersStore.getState().editSession.draft.base.edited.name).toBe(
+      "as saved",
+    );
+  });
+
+  it("says so and still answers when the saved jobs cannot be read back", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    warned.mockReset();
+    useUsersStore
+      .getState()
+      .jobData.actions.updateOrAddJobsToJobArray([
+        jobFromDocument({ jobID: "created", name: "never saved" }),
+      ]);
+    requestJobDocumentsByIdsFromApi.mockRejectedValueOnce(new Error("offline"));
+
+    await expect(
+      restoreSavedJobs(["edited"], ["created"]),
+    ).resolves.toBeUndefined();
+
+    expect(useUsersStore.getState().jobData.jobArray).toEqual([]);
+    expect(warned).toHaveBeenCalledWith(
+      expect.stringContaining("could not be read back"),
+      8,
+    );
+  });
 });

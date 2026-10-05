@@ -8,15 +8,21 @@ import {
   committedFor,
   discard,
   draftFor,
+  entriesFor,
   emptyDraftState,
+  dropHeld,
   forgetJob,
   hasChanges,
+  heldFor,
   keepAsked,
+  keepHeld,
   leaveScratch,
   nextRedo,
   nextUndo,
   redo,
+  reviewOf,
   setBase,
+  settleReview,
   TYPING_COALESCE_MS,
   undo,
 } from "./jobDraftStore";
@@ -54,8 +60,6 @@ describe("the job a reader is looking at", () => {
   });
 });
 
-// The base is never written to, which is what lets a change be taken back and
-// what lets a document arriving underneath one be applied without disturbing it.
 describe("the document underneath", () => {
   it("is not written to by a change", () => {
     const held = document();
@@ -84,9 +88,6 @@ describe("the document underneath", () => {
   });
 });
 
-// The whole point of the layers: a reader selecting a part of the job that an
-// edit did not touch holds the same object afterwards, so it can be compared by
-// identity instead of by value.
 describe("what an edit leaves alone", () => {
   it("hands back the same object it was before", () => {
     const held = holding();
@@ -104,9 +105,6 @@ describe("what an edit leaves alone", () => {
   });
 });
 
-// Not an optimisation: a panel subscribing through the store is asked for its
-// value more than once per render, and a read that rebuilds the job each time
-// never settles.
 describe("reading the same state twice", () => {
   it("answers with the same job both times", () => {
     const state = change(holding(), "job-1", "set run count", (job) => {
@@ -117,10 +115,6 @@ describe("reading the same state twice", () => {
   });
 });
 
-// The draft is a field rather than something a reader works out, so a function
-// returning a state around the rebuild would leave one describing layers it no
-// longer has — and a reader comparing by identity would never notice. Each of
-// them is held to it here, against the layers replayed from scratch.
 describe("the draft a writer leaves behind", () => {
   const replayed = (state, jobID) =>
     [
@@ -178,8 +172,6 @@ describe("the draft a writer leaves behind", () => {
   });
 });
 
-// A question the player asked. It changes what is on screen and never reaches a
-// save, which is what lets a job be stepped back and looked at.
 describe("a question, as against a change", () => {
   const asked = () =>
     ask(holding(), "job-1", "look at planning", (job) => {
@@ -277,8 +269,6 @@ describe("whether there is anything to save", () => {
   });
 });
 
-// Leaving without saving. Nothing is written back, so what arrived while the
-// editor was open is what the reader is left on.
 describe("dropping what the reader changed", () => {
   it("leaves them on the document as it now stands", () => {
     const changed = change(holding(), "job-1", "set run count", (job) => {
@@ -329,8 +319,6 @@ describe("dropping what the reader changed", () => {
   });
 });
 
-// An edit session is not one document: linking a child writes the child's
-// parents, and close time recalculates the tree.
 describe("more than one job at once", () => {
   it("holds each job's changes against its own document", () => {
     const two = setBase(holding(), "job-2", document({ jobID: "job-2" }));
@@ -353,8 +341,6 @@ describe("more than one job at once", () => {
   });
 });
 
-// An entry has to carry what it takes to put the job back, or undo cannot work
-// and neither can reviewing a draft against a job that has moved.
 describe("what an entry records", () => {
   it("carries what it changed and what puts it back", () => {
     const state = change(holding(), "job-1", "set run count", (job) => {
@@ -423,8 +409,6 @@ describe("a job the editor is not holding", () => {
   });
 });
 
-// Undo reads the log backwards a step at a time, where a step is what the
-// player did rather than a path that moved.
 describe("taking a step back", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -476,8 +460,6 @@ describe("taking a step back", () => {
     expect(undo(state)).toBe(state);
   });
 
-  // A question is undoable the same way a change is, and the newest step is the
-  // newest whichever layer it landed in.
   it("takes back a question before the change under it", () => {
     const state = ask(renamed(), "job-1", "try a run count", (job) => {
       job.build.setup["setup-1"].runCount = 99;
@@ -488,9 +470,6 @@ describe("taking a step back", () => {
     expect(draftFor(back, "job-1").name).toBe("Renamed");
   });
 
-  // The base moves under the editor whenever a co-member saves, so a step taken
-  // back must leave the arrived document standing rather than the job as it was
-  // when the step was made.
   it("keeps a document that arrived while the step stood", () => {
     const arrived = setBase(
       renamed(),
@@ -540,9 +519,6 @@ describe("putting a step back", () => {
   });
 });
 
-// Typing a cost into a field produces a keystroke's worth of change each time.
-// Without coalescing the player would press undo twenty times to take back one
-// number.
 describe("a run of typing", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -599,10 +575,6 @@ describe("a run of typing", () => {
     expect(state.log).toHaveLength(2);
   });
 
-  // Only replaces merge, because that is the pair whose inverse is provably
-  // still right: the older before-image describes a field the newer patch only
-  // overwrites. A step that puts a field there in the first place is left as its
-  // own step rather than reasoned about.
   it("does not merge a step that adds a field", () => {
     vi.useFakeTimers();
     const state = change(
@@ -636,9 +608,6 @@ describe("a run of typing", () => {
   });
 });
 
-// Keeping a question moves it into the log, where it is replayed alongside the
-// changes — so where it sits in that order is the whole of whether a change made
-// after it survives.
 describe("keeping a question the player asked", () => {
   const asked = () =>
     ask(holding(), "job-1", "look at planning", (job) => {
@@ -674,5 +643,276 @@ describe("keeping a question the player asked", () => {
 
     expect(state.log).toHaveLength(2);
     expect(committedFor(state, "job-1").jobStatus).toBe(3);
+  });
+});
+
+describe("a document arriving under the reader's changes", () => {
+  const renamed = (state) =>
+    change(state, "job-1", "rename", (job) => {
+      job.name = "mine";
+    });
+  const runsSet = (state) =>
+    change(state, "job-1", "set run count", (job) => {
+      job.build.setup["setup-1"].runCount = 40;
+    });
+
+  it("keeps a change nobody else touched, over what arrived", () => {
+    const state = setBase(
+      renamed(holding()),
+      "job-1",
+      document({ jobStatus: 2 }),
+    );
+
+    expect(draftFor(state, "job-1")).toMatchObject({
+      name: "mine",
+      jobStatus: 2,
+    });
+    expect(heldFor(state, "job-1")).toEqual([]);
+  });
+
+  it("drops a change the arriving document already holds", () => {
+    const state = setBase(
+      renamed(holding()),
+      "job-1",
+      document({ name: "mine" }),
+    );
+
+    expect(hasChanges(state, "job-1")).toBe(false);
+    expect(heldFor(state, "job-1")).toEqual([]);
+  });
+
+  it("sets aside a change the arriving document set differently, still showing the reader's", () => {
+    const state = setBase(
+      renamed(holding()),
+      "job-1",
+      document({ name: "theirs" }),
+    );
+
+    expect(draftFor(state, "job-1").name).toBe("mine");
+    expect(committedFor(state, "job-1").name).toBe("theirs");
+    expect(hasChanges(state, "job-1")).toBe(false);
+    expect(heldFor(state, "job-1")).toEqual([
+      expect.objectContaining({
+        command: "rename",
+        outcome: "conflict",
+        changes: [{ path: ["name"], mine: "mine" }],
+      }),
+    ]);
+  });
+
+  it("sets aside a change to something that is gone, still showing it as the reader had it", () => {
+    const state = setBase(
+      runsSet(holding()),
+      "job-1",
+      document({ build: { setup: {}, materials: {} } }),
+    );
+
+    expect(draftFor(state, "job-1").build.setup).toEqual({
+      "setup-1": { id: "setup-1", runCount: 40 },
+    });
+    expect(committedFor(state, "job-1").build.setup).toEqual({});
+    expect(heldFor(state, "job-1")).toEqual([
+      expect.objectContaining({ command: "set run count", outcome: "gone" }),
+    ]);
+  });
+
+  it("puts a kept conflict back over what arrived", () => {
+    const arrived = setBase(
+      renamed(holding()),
+      "job-1",
+      document({ name: "theirs" }),
+    );
+    const [held] = heldFor(arrived, "job-1");
+
+    const state = keepHeld(arrived, held.seq);
+
+    expect(draftFor(state, "job-1").name).toBe("mine");
+    expect(hasChanges(state, "job-1")).toBe(true);
+    expect(heldFor(state, "job-1")).toEqual([]);
+    expect(Object.keys(state.log[0]).sort()).toEqual([
+      "at",
+      "command",
+      "inversePatches",
+      "jobID",
+      "patches",
+      "seq",
+    ]);
+  });
+
+  it("will not keep a change to something that is gone", () => {
+    const arrived = setBase(
+      runsSet(holding()),
+      "job-1",
+      document({ build: { setup: {}, materials: {} } }),
+    );
+    const [held] = heldFor(arrived, "job-1");
+
+    expect(keepHeld(arrived, held.seq)).toBe(arrived);
+  });
+
+  it("lets a dropped change go and leaves the document as it arrived", () => {
+    const arrived = setBase(
+      renamed(holding()),
+      "job-1",
+      document({ name: "theirs" }),
+    );
+    const [held] = heldFor(arrived, "job-1");
+
+    const state = dropHeld(arrived, held.seq);
+
+    expect(heldFor(state, "job-1")).toEqual([]);
+    expect(draftFor(state, "job-1").name).toBe("theirs");
+  });
+
+  it("drops a question that no longer applies and keeps the rest", () => {
+    const asked = ask(holding(), "job-1", "try more runs", (job) => {
+      job.build.setup["setup-1"].runCount = 99;
+    });
+
+    const state = setBase(
+      asked,
+      "job-1",
+      document({ build: { setup: {}, materials: {} } }),
+    );
+
+    expect(state.scratch).toEqual([]);
+    expect(draftFor(state, "job-1").build.setup).toEqual({});
+  });
+
+  it("leaves the reader's changes alone when the same document arrives again", () => {
+    const changed = renamed(holding());
+
+    const state = setBase(changed, "job-1", document());
+
+    expect(state.log).toBe(changed.log);
+    expect(nextRedo(state)).toBe(nextRedo(changed));
+  });
+
+  it("drops a held change with the one it builds on, whichever is named", () => {
+    const added = change(holding(), "job-1", "add setup", (job) => {
+      job.build.setup["setup-2"] = { id: "setup-2", runCount: 1 };
+    });
+    const edited = change(added, "job-1", "set its runs", (job) => {
+      job.build.setup["setup-2"].runCount = 5;
+    });
+    const arrived = setBase(
+      edited,
+      "job-1",
+      document({
+        build: {
+          setup: { "setup-2": { id: "setup-2", runCount: 3 } },
+          materials: {},
+        },
+      }),
+    );
+    const follower = heldFor(arrived, "job-1").find((entry) => entry.follows);
+
+    expect(heldFor(dropHeld(arrived, follower.seq), "job-1")).toEqual([]);
+  });
+
+  it("forgets what undo took back once a different copy arrives", () => {
+    const undoneOnce = undo(renamed(holding()));
+
+    const state = setBase(undoneOnce, "job-1", document({ jobStatus: 2 }));
+
+    expect(nextRedo(undoneOnce)).toBeDefined();
+    expect(nextRedo(state)).toBeUndefined();
+  });
+
+  it("lets a held change go on undo and brings it back on redo", () => {
+    const arrived = setBase(
+      renamed(holding()),
+      "job-1",
+      document({ name: "theirs" }),
+    );
+
+    const undone = undo(arrived);
+    expect(draftFor(undone, "job-1").name).toBe("theirs");
+    expect(heldFor(undone, "job-1")).toEqual([]);
+
+    const redone = redo(undone);
+    expect(draftFor(redone, "job-1").name).toBe("mine");
+    expect(heldFor(redone, "job-1")).toHaveLength(1);
+  });
+
+  it("drops what is held when the reader discards", () => {
+    const arrived = setBase(
+      renamed(holding()),
+      "job-1",
+      document({ name: "theirs" }),
+    );
+
+    expect(heldFor(discard(arrived), "job-1")).toEqual([]);
+    expect(heldFor(discard(arrived, "job-1"), "job-1")).toEqual([]);
+    expect(heldFor(forgetJob(arrived, "job-1"), "job-1")).toEqual([]);
+  });
+});
+
+describe("what the reader is asked to review", () => {
+  const made = () => {
+    let state = holding();
+    state = change(state, "job-1", "rename", (job) => {
+      job.name = "mine";
+    });
+    state = change(state, "job-1", "set run count", (job) => {
+      job.build.setup["setup-1"].runCount = 40;
+    });
+    state = change(state, "job-1", "set status", (job) => {
+      job.jobStatus = 2;
+    });
+    return change(state, "job-1", "drop tritanium", (job) => {
+      delete job.build.materials[34];
+    });
+  };
+  const arrived = () =>
+    setBase(
+      made(),
+      "job-1",
+      document({
+        name: "theirs",
+        build: { setup: {}, materials: {} },
+      }),
+    );
+
+  it("groups each change by how it stands", () => {
+    const review = reviewOf(arrived(), "job-1");
+
+    expect(review.choose).toEqual([
+      {
+        seq: 1,
+        command: "rename",
+        follows: [],
+        values: [{ mine: "mine", incoming: "theirs" }],
+      },
+    ]);
+    expect(review.gone).toEqual([{ seq: 2, command: "set run count" }]);
+    expect(review.applies).toEqual([{ seq: 3, command: "set status" }]);
+    expect(review.saved).toEqual([{ seq: 4, command: "drop tritanium" }]);
+  });
+
+  it("keeps the conflicts the reader keeps and lets the rest go", () => {
+    const state = settleReview(arrived(), "job-1", { keep: [1], letGo: [3] });
+
+    expect(draftFor(state, "job-1")).toMatchObject({
+      name: "mine",
+      jobStatus: 1,
+    });
+    expect(draftFor(state, "job-1").build.setup).toEqual({});
+    expect(entriesFor(state, "job-1").map((entry) => entry.command)).toEqual([
+      "rename",
+    ]);
+    expect(reviewOf(state, "job-1")).toEqual({
+      choose: [],
+      gone: [],
+      applies: [{ seq: 1, command: "rename" }],
+      saved: [],
+    });
+  });
+
+  it("takes the incoming save for every conflict the reader does not keep", () => {
+    const state = settleReview(arrived(), "job-1", { keep: [], letGo: [] });
+
+    expect(draftFor(state, "job-1").name).toBe("theirs");
+    expect(heldFor(state, "job-1")).toEqual([]);
   });
 });

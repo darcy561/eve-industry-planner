@@ -63,9 +63,6 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	wsClientID := helper.ExtractWSClientID(r)
 	sessionID := helper.AuthenticatedSessionID(r)
 
-	// Resolved before the lock gate as well as the write: a lock is namespaced by
-	// the planner the document belongs to, so the gate has to ask about the same
-	// planner the upsert will write.
 	owner, ok := helper.RequestPlannerOwner(w, r, h.Mongo, h.EntityCipher, metrics, "groups_put")
 	if !ok {
 		return
@@ -83,7 +80,7 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 				groupIDs = append(groupIDs, g.GroupID)
 			}
 		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, groupIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, groupIDs)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")
@@ -118,26 +115,6 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	failedCount := result.FailedCount
 	savedCount := int(result.UpsertedCount + result.ModifiedCount)
-
-	if sessionID != "" && h.locks.Redis != nil && len(result.Deltas) > 0 {
-		for _, delta := range result.Deltas {
-			if len(delta.AddedJobIDs) == 0 {
-				continue
-			}
-			held, herr := documentlock.LockHeldBySession(ctx, h.locks.Redis, owner, eipmongo.CollectionJobGroups, delta.GroupID, sessionID)
-			if herr != nil {
-				logs.AttachHandlerCaveat(r, "group_lock_cascade_check_failed", "group membership cascade: group lock check failed", map[string]any{
-					"error":    herr.Error(),
-					"group_id": delta.GroupID,
-				})
-				continue
-			}
-			if !held {
-				continue
-			}
-			documentlock.ReleaseStaleDependentJobLocksOnGroupMembershipAdded(ctx, h.locks, owner, delta.GroupID, delta.AddedJobIDs, sessionID)
-		}
-	}
 
 	if failedCount > 0 {
 		logs.AttachHandlerCaveat(r, "batch_partial_failure", "some groups failed validation in batch", map[string]any{

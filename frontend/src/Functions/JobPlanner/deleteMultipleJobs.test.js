@@ -125,8 +125,6 @@ describe("deleting a job that something else was built from", () => {
     const [written] = sentWrites();
     expect(written).toEqual({
       jobID: "parent",
-      includedInGroup: false,
-      groupID: "",
       document: expect.objectContaining({ jobID: "parent" }),
     });
     expect(written).not.toHaveProperty("revision");

@@ -46,8 +46,10 @@ export function applyLockHeldElsewhereFromApiBody(text) {
     patch(collection, row.docID, {
       lockHeld: false,
       readOnly: true,
-      holderSessionID:
-        typeof row.holderSessionID === "string" ? row.holderSessionID : "",
+      holderParticipantID:
+        typeof row.holderParticipantID === "string"
+          ? row.holderParticipantID
+          : "",
       lockExpiresAtUnix: exp,
       lockTtlSeconds: null,
       pendingAccessRequest: false,

@@ -17,7 +17,7 @@ export function CloseJobIcon() {
 
   async function onClick() {
     const groupID = search.activeGroup;
-    await yieldEditJobDocumentLocksOnLeave({ jobID, groupID });
+    await yieldEditJobDocumentLocksOnLeave({ jobID });
     leaveEditedJobWhereItStands();
 
     if (groupID) {

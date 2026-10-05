@@ -92,10 +92,10 @@ func TestIntegrationDocLockViewerEventSkipsTheSessionThatCausedIt(t *testing.T) 
 	f.waitClients(2, 2*time.Second)
 
 	wire, suppress := lockWire(t, map[string]any{
-		documentlock.LockPayloadEventKey: documentlock.LockViewerEventJoined,
-		"collection":                     "jobs",
-		"docID":                          "job-viewer",
-		"sessionID":                      "sess-viewer-src",
+		documentlock.LockPayloadEventKey:  documentlock.LockViewerEventJoined,
+		"collection":                      "jobs",
+		"docID":                           "job-viewer",
+		documentlock.LockSourceSessionKey: "sess-viewer-src",
 	})
 	if suppress != "sess-viewer-src" {
 		t.Fatalf("viewer event should suppress its session, got %q", suppress)

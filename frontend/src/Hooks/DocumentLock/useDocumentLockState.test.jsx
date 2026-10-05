@@ -107,7 +107,7 @@ describe("useDocumentLockState", () => {
     expect(result.current.reason).toContain("job");
   });
 
-  it("useJobCardLockState ignores per-job read-only when subordinate to group", () => {
+  it("useJobCardLockState locks a member card whose job another session holds, whoever holds the group", () => {
     storeRef.current
       .getState()
       .documentLock.actions.patchDocumentLockForScope(
@@ -116,12 +116,9 @@ describe("useDocumentLockState", () => {
         { readOnly: true },
       );
     const { result } = renderHook(() =>
-      useJobCardLockState({
-        jobID: "job-1",
-        groupReadOnly: false,
-        jobLockSubordinateToGroup: true,
-      }),
+      useJobCardLockState({ jobID: "job-1", groupReadOnly: false }),
     );
-    expect(result.current.cardLocked).toBe(false);
+    expect(result.current.cardLocked).toBe(true);
+    expect(result.current.reason).toContain("job");
   });
 });

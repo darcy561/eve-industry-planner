@@ -1,0 +1,1296 @@
+{
+	"after": {
+		"_meta": {
+			"clientID": "0x3989d9e6f340",
+			"createdAt": "0001-01-01T00:00:00Z",
+			"lastModified": "2026-10-04T20:44:43.248Z",
+			"lastUpdatedBy": "eip-parity-planner-scope-account",
+			"revision": 3
+		},
+		"blueprintTypeID": null,
+		"build": {
+			"childJobs": {},
+			"extrasCosts": {},
+			"inventionEntries": {},
+			"materials": {},
+			"setup": {}
+		},
+		"displayOnPlanner": false,
+		"esi": {
+			"industryJobs": {},
+			"marketOrders": {},
+			"transactions": {}
+		},
+		"groupID": "",
+		"includedInGroup": false,
+		"isReadyToSell": false,
+		"itemID": 587,
+		"itemsProducedPerRun": 0,
+		"jobID": "eip-conflict-job",
+		"jobStatus": 0,
+		"jobType": 0,
+		"layout": {},
+		"maxProductionLimit": 0,
+		"metaLevel": null,
+		"name": "Named by the editor",
+		"parentJobs": [],
+		"rawData": {
+			"materials": [],
+			"products": [],
+			"time": 0
+		},
+		"schemaVersion": 1,
+		"skills": {},
+		"volume": 0
+	},
+	"afterIncoming": {
+		"_meta": {
+			"clientID": "0x3989d9e6f760",
+			"createdAt": "0001-01-01T00:00:00Z",
+			"lastModified": "2026-10-04T20:44:40.232Z",
+			"lastUpdatedBy": "eip-parity-planner-scope-account",
+			"revision": 2
+		},
+		"blueprintTypeID": null,
+		"build": {
+			"childJobs": {},
+			"extrasCosts": {},
+			"inventionEntries": {},
+			"materials": {},
+			"setup": {}
+		},
+		"displayOnPlanner": false,
+		"esi": {
+			"industryJobs": {},
+			"marketOrders": {},
+			"transactions": {}
+		},
+		"groupID": "",
+		"includedInGroup": false,
+		"isReadyToSell": false,
+		"itemID": 587,
+		"itemsProducedPerRun": 0,
+		"jobID": "eip-conflict-job",
+		"jobStatus": 0,
+		"jobType": 0,
+		"layout": {},
+		"maxProductionLimit": 0,
+		"metaLevel": null,
+		"name": "Named by the incoming save",
+		"parentJobs": [],
+		"rawData": {
+			"materials": [],
+			"products": [],
+			"time": 0
+		},
+		"schemaVersion": 1,
+		"skills": {},
+		"volume": 0
+	},
+	"answered": {
+		"kept": {
+			"status": 204
+		},
+		"reread": {
+			"body": [
+				{
+					"_meta": {
+						"clientID": "0x3989d9e6f760",
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:40.232Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"revision": 2
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Named by the incoming save",
+					"parentJobs": [],
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				}
+			],
+			"status": 200
+		},
+		"stale": {
+			"body": {
+				"collection": "job_documents",
+				"error": "revision_conflict",
+				"rejected": [
+					{
+						"current": 2,
+						"docID": "eip-conflict-job",
+						"expected": 1,
+						"gone": false
+					}
+				],
+				"saved": 0,
+				"savedDocIDs": []
+			},
+			"status": 409
+		}
+	},
+	"before": {
+		"_meta": {
+			"createdAt": "0001-01-01T00:00:00Z",
+			"lastModified": "2026-10-04T20:44:37.123Z",
+			"lastUpdatedBy": "eip-parity-planner-scope-account",
+			"revision": 1
+		},
+		"blueprintTypeID": null,
+		"build": {
+			"childJobs": {},
+			"extrasCosts": {
+				"e-1": {
+					"category": "0",
+					"categoryLabel": "",
+					"extraText": "Courier",
+					"extraValue": 120000,
+					"id": "e-1"
+				}
+			},
+			"inventionEntries": {},
+			"materials": {},
+			"setup": {}
+		},
+		"displayOnPlanner": false,
+		"esi": {
+			"industryJobs": {},
+			"marketOrders": {},
+			"transactions": {}
+		},
+		"groupID": "",
+		"includedInGroup": false,
+		"isReadyToSell": false,
+		"itemID": 587,
+		"itemsProducedPerRun": 0,
+		"jobID": "eip-conflict-job",
+		"jobStatus": 0,
+		"jobType": 0,
+		"layout": {},
+		"maxProductionLimit": 0,
+		"metaLevel": null,
+		"name": "Before either save",
+		"parentJobs": [],
+		"rawData": {
+			"materials": [],
+			"products": [],
+			"time": 0
+		},
+		"schemaVersion": 1,
+		"skills": {},
+		"volume": 0
+	},
+	"frames": {
+		"bystander": [
+			{
+				"clientID": "0x3989d9ef8b00",
+				"container_id": "7e3ad81f11f6",
+				"subscription": {
+					"account": true,
+					"alliance": false,
+					"corporation": false
+				},
+				"type": "connected"
+			},
+			{
+				"collection": "job_documents",
+				"docID": "eip-conflict-job",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-conflict-job",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:37.123Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 1
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {
+							"e-1": {
+								"category": "0",
+								"categoryLabel": "",
+								"extraText": "Courier",
+								"extraValue": 120000,
+								"id": "e-1"
+							}
+						},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Before either save",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "insert",
+				"owner": "corporation:98000123",
+				"position": 3508296,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-conflict-job"
+			},
+			{
+				"collection": "job_documents",
+				"docID": "eip-loop-probe-corporation",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-loop-probe-corporation",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:37.2Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 1
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 0,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-loop-probe-corporation",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "2026-10-04T20:44:37.198153532Z",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "insert",
+				"owner": "corporation:98000123",
+				"position": 3508297,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-loop-probe-corporation"
+			},
+			{
+				"appliesTo": 1,
+				"changed": [
+					{
+						"path": [
+							"_meta",
+							"lastModified"
+						],
+						"value": "2026-10-04T20:44:40.205Z"
+					},
+					{
+						"path": [
+							"_meta",
+							"revision"
+						],
+						"value": 2
+					},
+					{
+						"path": [
+							"name"
+						],
+						"value": "2026-10-04T20:44:40.204839213Z"
+					}
+				],
+				"collection": "job_documents",
+				"docID": "eip-loop-probe-corporation",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-loop-probe-corporation",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:40.205Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 2
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 0,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-loop-probe-corporation",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "2026-10-04T20:44:40.204839213Z",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "update",
+				"owner": "corporation:98000123",
+				"position": 3508298,
+				"revision": 2,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-loop-probe-corporation"
+			},
+			{
+				"appliesTo": 1,
+				"changed": [
+					{
+						"path": [
+							"_meta",
+							"clientID"
+						],
+						"value": "0x3989d9e6f760"
+					},
+					{
+						"path": [
+							"_meta",
+							"lastModified"
+						],
+						"value": "2026-10-04T20:44:40.232Z"
+					},
+					{
+						"path": [
+							"_meta",
+							"revision"
+						],
+						"value": 2
+					},
+					{
+						"path": [
+							"name"
+						],
+						"value": "Named by the incoming save"
+					}
+				],
+				"collection": "job_documents",
+				"docID": "eip-conflict-job",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-conflict-job",
+					"_meta": {
+						"clientID": "0x3989d9e6f760",
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:40.232Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 2
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Named by the incoming save",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "update",
+				"owner": "corporation:98000123",
+				"position": 3508299,
+				"removed": [
+					[
+						"build",
+						"extrasCosts",
+						"e-1"
+					]
+				],
+				"revision": 2,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-conflict-job"
+			},
+			{
+				"appliesTo": 2,
+				"changed": [
+					{
+						"path": [
+							"_meta",
+							"clientID"
+						],
+						"value": "0x3989d9e6f340"
+					},
+					{
+						"path": [
+							"_meta",
+							"lastModified"
+						],
+						"value": "2026-10-04T20:44:43.248Z"
+					},
+					{
+						"path": [
+							"_meta",
+							"revision"
+						],
+						"value": 3
+					},
+					{
+						"path": [
+							"name"
+						],
+						"value": "Named by the editor"
+					}
+				],
+				"collection": "job_documents",
+				"docID": "eip-conflict-job",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-conflict-job",
+					"_meta": {
+						"clientID": "0x3989d9e6f340",
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:43.248Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 3
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Named by the editor",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "update",
+				"owner": "corporation:98000123",
+				"position": 3508300,
+				"revision": 3,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-conflict-job"
+			}
+		],
+		"editor": [
+			{
+				"clientID": "0x3989d9e6f340",
+				"container_id": "7e3ad81f11f6",
+				"subscription": {
+					"account": true,
+					"alliance": false,
+					"corporation": false
+				},
+				"type": "connected"
+			},
+			{
+				"collection": "job_documents",
+				"docID": "eip-conflict-job",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-conflict-job",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:37.123Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 1
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {
+							"e-1": {
+								"category": "0",
+								"categoryLabel": "",
+								"extraText": "Courier",
+								"extraValue": 120000,
+								"id": "e-1"
+							}
+						},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Before either save",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "insert",
+				"owner": "corporation:98000123",
+				"position": 3508296,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-conflict-job"
+			},
+			{
+				"collection": "job_documents",
+				"docID": "eip-loop-probe-corporation",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-loop-probe-corporation",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:37.2Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 1
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 0,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-loop-probe-corporation",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "2026-10-04T20:44:37.198153532Z",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "insert",
+				"owner": "corporation:98000123",
+				"position": 3508297,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-loop-probe-corporation"
+			},
+			{
+				"appliesTo": 1,
+				"changed": [
+					{
+						"path": [
+							"_meta",
+							"lastModified"
+						],
+						"value": "2026-10-04T20:44:40.205Z"
+					},
+					{
+						"path": [
+							"_meta",
+							"revision"
+						],
+						"value": 2
+					},
+					{
+						"path": [
+							"name"
+						],
+						"value": "2026-10-04T20:44:40.204839213Z"
+					}
+				],
+				"collection": "job_documents",
+				"docID": "eip-loop-probe-corporation",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-loop-probe-corporation",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:40.205Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 2
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 0,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-loop-probe-corporation",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "2026-10-04T20:44:40.204839213Z",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "update",
+				"owner": "corporation:98000123",
+				"position": 3508298,
+				"revision": 2,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-loop-probe-corporation"
+			},
+			{
+				"appliesTo": 1,
+				"changed": [
+					{
+						"path": [
+							"_meta",
+							"clientID"
+						],
+						"value": "0x3989d9e6f760"
+					},
+					{
+						"path": [
+							"_meta",
+							"lastModified"
+						],
+						"value": "2026-10-04T20:44:40.232Z"
+					},
+					{
+						"path": [
+							"_meta",
+							"revision"
+						],
+						"value": 2
+					},
+					{
+						"path": [
+							"name"
+						],
+						"value": "Named by the incoming save"
+					}
+				],
+				"collection": "job_documents",
+				"docID": "eip-conflict-job",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-conflict-job",
+					"_meta": {
+						"clientID": "0x3989d9e6f760",
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:40.232Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 2
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Named by the incoming save",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "update",
+				"owner": "corporation:98000123",
+				"position": 3508299,
+				"removed": [
+					[
+						"build",
+						"extrasCosts",
+						"e-1"
+					]
+				],
+				"revision": 2,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-conflict-job"
+			}
+		],
+		"member": [
+			{
+				"clientID": "0x3989d9e6f760",
+				"container_id": "7e3ad81f11f6",
+				"subscription": {
+					"account": true,
+					"alliance": false,
+					"corporation": false
+				},
+				"type": "connected"
+			},
+			{
+				"collection": "job_documents",
+				"docID": "eip-conflict-job",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-conflict-job",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:37.123Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 1
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {
+							"e-1": {
+								"category": "0",
+								"categoryLabel": "",
+								"extraText": "Courier",
+								"extraValue": 120000,
+								"id": "e-1"
+							}
+						},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Before either save",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "insert",
+				"owner": "corporation:98000123",
+				"position": 3508296,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-conflict-job"
+			},
+			{
+				"collection": "job_documents",
+				"docID": "eip-loop-probe-corporation",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-loop-probe-corporation",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:37.2Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 1
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 0,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-loop-probe-corporation",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "2026-10-04T20:44:37.198153532Z",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "insert",
+				"owner": "corporation:98000123",
+				"position": 3508297,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-loop-probe-corporation"
+			},
+			{
+				"appliesTo": 1,
+				"changed": [
+					{
+						"path": [
+							"_meta",
+							"lastModified"
+						],
+						"value": "2026-10-04T20:44:40.205Z"
+					},
+					{
+						"path": [
+							"_meta",
+							"revision"
+						],
+						"value": 2
+					},
+					{
+						"path": [
+							"name"
+						],
+						"value": "2026-10-04T20:44:40.204839213Z"
+					}
+				],
+				"collection": "job_documents",
+				"docID": "eip-loop-probe-corporation",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-loop-probe-corporation",
+					"_meta": {
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:40.205Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 2
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 0,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-loop-probe-corporation",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "2026-10-04T20:44:40.204839213Z",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "update",
+				"owner": "corporation:98000123",
+				"position": 3508298,
+				"revision": 2,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-loop-probe-corporation"
+			},
+			{
+				"appliesTo": 2,
+				"changed": [
+					{
+						"path": [
+							"_meta",
+							"clientID"
+						],
+						"value": "0x3989d9e6f340"
+					},
+					{
+						"path": [
+							"_meta",
+							"lastModified"
+						],
+						"value": "2026-10-04T20:44:43.248Z"
+					},
+					{
+						"path": [
+							"_meta",
+							"revision"
+						],
+						"value": 3
+					},
+					{
+						"path": [
+							"name"
+						],
+						"value": "Named by the editor"
+					}
+				],
+				"collection": "job_documents",
+				"docID": "eip-conflict-job",
+				"document": {
+					"_id": "corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n|eip-conflict-job",
+					"_meta": {
+						"clientID": "0x3989d9e6f340",
+						"createdAt": "0001-01-01T00:00:00Z",
+						"lastModified": "2026-10-04T20:44:43.248Z",
+						"lastUpdatedBy": "eip-parity-planner-scope-account",
+						"owner": {
+							"id": "corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n",
+							"kind": "corporation"
+						},
+						"revision": 3
+					},
+					"blueprintTypeID": null,
+					"build": {
+						"childJobs": {},
+						"extrasCosts": {},
+						"inventionEntries": {},
+						"materials": {},
+						"setup": {}
+					},
+					"displayOnPlanner": false,
+					"esi": {
+						"industryJobs": {},
+						"marketOrders": {},
+						"transactions": {}
+					},
+					"groupID": "",
+					"includedInGroup": false,
+					"isReadyToSell": false,
+					"itemID": 587,
+					"itemsProducedPerRun": 0,
+					"jobID": "eip-conflict-job",
+					"jobStatus": 0,
+					"jobType": 0,
+					"layout": {},
+					"maxProductionLimit": 0,
+					"metaLevel": null,
+					"name": "Named by the editor",
+					"parentJobs": [],
+					"protected": {
+						"spec": "jf1"
+					},
+					"rawData": {
+						"materials": [],
+						"products": [],
+						"time": 0
+					},
+					"schemaVersion": 1,
+					"skills": {},
+					"volume": 0
+				},
+				"operationType": "update",
+				"owner": "corporation:98000123",
+				"position": 3508300,
+				"revision": 3,
+				"subject": "doc.update.corporation:corp_QlJfinz855ooNUw8KM0WcZKqb4CN0eRQ99_y2hrNk8Aogh-n.job_documents.eip-conflict-job"
+			}
+		]
+	},
+	"jobID": "eip-conflict-job",
+	"sent": {
+		"incoming": {
+			"jobID": "eip-conflict-job",
+			"revision": 1,
+			"document": {
+				"name": "Named by the incoming save"
+			},
+			"removed": [
+				[
+					"build",
+					"extrasCosts",
+					"e-1"
+				]
+			]
+		},
+		"kept": {
+			"jobs": [
+				{
+					"jobID": "eip-conflict-job",
+					"revision": 2,
+					"document": {
+						"name": "Named by the editor"
+					}
+				}
+			],
+			"oneChange": true
+		},
+		"stale": {
+			"jobs": [
+				{
+					"jobID": "eip-conflict-job",
+					"revision": 1,
+					"document": {
+						"name": "Named by the editor"
+					}
+				}
+			],
+			"oneChange": true
+		}
+	}
+}

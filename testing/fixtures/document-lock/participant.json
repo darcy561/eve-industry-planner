@@ -1,0 +1,6 @@
+{
+  "why": "How a document lock names a session to everyone who can see it. A session id is the credential a request authenticates with, and lock events reach every member of a shared planner, so what travels is a one-way digest the server and every tab derive the same way: the first 16 bytes of SHA-256 over a domain prefix and the session id, as lowercase hex. The server builds it in Go and a tab builds its own in JavaScript to recognise itself; a drift between the two leaves a tab unable to tell that it holds the lock.",
+  "domain": "eip-lock-participant\u0000",
+  "sessionID": "6f1c2a4e-1b9d-4c7e-9a3f-2d8b5e7c0a11",
+  "participantID": "84f6d5c9d807da70ff8b1119392fabcd"
+}

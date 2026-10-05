@@ -15,6 +15,7 @@ vi.mock("../../Zustand/usersStore.js", () => ({
 }));
 
 import { applyDocumentLockStatusFromPayload } from "./applyDocumentLockStatusFromPayload.js";
+import { lockParticipantID } from "./lockParticipant.js";
 
 describe("applyDocumentLockStatusFromPayload", () => {
   beforeEach(() => {
@@ -33,7 +34,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
   it("sets lockHeld when this session is holder", () => {
     applyDocumentLockStatusFromPayload("job_documents", "j1", {
       held: true,
-      holderSessionID: "session-self",
+      holderParticipantID: lockParticipantID("session-self"),
       expiresAtUnix: 100,
       ttlSeconds: 60,
       viewerCount: 2,
@@ -54,7 +55,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
   it("sets readOnly when another session holds", () => {
     applyDocumentLockStatusFromPayload("job_documents", "j1", {
       held: true,
-      holderSessionID: "other-session",
+      holderParticipantID: lockParticipantID("other-session"),
     });
     const k = docLockScopeKey("job_documents", "j1");
     const scope = storeHolder.current.getState().documentLock.scopes[k];
@@ -94,7 +95,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
   it("keeps whether the holder is this account's own session", () => {
     applyDocumentLockStatusFromPayload("job_documents", "j1", {
       held: true,
-      holderSessionID: "sess-other",
+      holderParticipantID: lockParticipantID("sess-other"),
       heldByThisAccount: true,
     });
 
@@ -104,7 +105,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
   it("does not claim the account's own when the server did not say so", () => {
     applyDocumentLockStatusFromPayload("job_documents", "j1", {
       held: true,
-      holderSessionID: "sess-other",
+      holderParticipantID: lockParticipantID("sess-other"),
     });
 
     expect(heldByThisAccount()).toBe(false);
@@ -113,7 +114,7 @@ describe("applyDocumentLockStatusFromPayload", () => {
   it("claims nothing once the lock is gone", () => {
     applyDocumentLockStatusFromPayload("job_documents", "j1", {
       held: true,
-      holderSessionID: "sess-other",
+      holderParticipantID: lockParticipantID("sess-other"),
       heldByThisAccount: true,
     });
     applyDocumentLockStatusFromPayload("job_documents", "j1", { held: false });

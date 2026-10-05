@@ -5,14 +5,6 @@ import { childJobIDsAfterEdits, parentJobIDsAfterEdits } from "./jobSelectors";
 /**
  * Reads one part of the open job, and re-renders only when that part changes.
  *
- * The selector is handed the draft as plain data, and what it returns is compared
- * by the store with `Object.is`.
- *
- * `undefined` comes back while no job is open — before the document arrives, and
- * again as the session is torn down under a panel still mounted. The selector is
- * not called in that window, so it can read the job's fields without guarding
- * each one.
- *
  * @template T
  * @param {(document: object) => T} selector - What this component reads
  * @returns {T|undefined}
@@ -28,12 +20,7 @@ export function useJobDraft(selector) {
 }
 
 /**
- * What a control says the reader did: `run`, `askAbout`, the undo steps and the
- * link intents.
- *
- * One object for the life of the store — a command replaces the layers under it
- * and never the actions — so a panel taking its writes from here is not woken by
- * the edits it makes.
+ * What a control says the reader did: `run`, `askAbout`, the undo steps and the link intents.
  *
  * @returns {object} The edit session's actions
  */
@@ -43,10 +30,6 @@ export function useJobActions() {
 
 /**
  * The parent links the reader has marked, to be written when the job closes.
- *
- * Narrower than the intents it is part of, because the session holds the parent
- * and child links in one object and rebuilds it for either: a reader who only
- * cares about parents would be woken by every child link taken on or off.
  *
  * @returns {{add: Array<string>, remove: Array<string>}}
  */
@@ -59,9 +42,6 @@ export function useParentLinkIntents() {
 /**
  * The child links the reader has marked under one material.
  *
- * Narrow for the same reason {@link useParentLinkIntents} is, and per material
- * as well: a link taken on under one material is nothing to a card for another.
- *
  * @param {number|string} materialTypeID
  * @returns {{add: Array<string>, remove: Array<string>}|undefined}
  */
@@ -72,8 +52,7 @@ export function useChildLinkIntents(materialTypeID) {
 }
 
 /**
- * The parents this job will have once the links the reader marked are carried
- * out.
+ * The parents this job will have once the links the reader marked are carried out.
  *
  * @returns {Array<string>}
  */
@@ -86,10 +65,6 @@ export function useParentJobIDs() {
 /**
  * The child jobs one material will have once those links are carried out.
  *
- * The child job built for the material but not saved is left out, the same way
- * the session's own read of this leaves it out: this answers what the job is
- * made of, not what the reader has in hand.
- *
  * @param {number|string} materialTypeID
  * @returns {Array<string>}
  */
@@ -100,11 +75,7 @@ export function useMaterialChildJobIDs(materialTypeID) {
 }
 
 /**
- * The ESI rows of one kind the reader has marked to link or unlink when the job
- * closes.
- *
- * Per kind, because marking a market order says nothing to a reader of
- * transactions.
+ * The ESI rows of one kind the reader has marked to link or unlink when the job closes.
  *
  * @param {"industryJobs"|"marketOrders"|"transactions"} kind
  * @returns {{add: Array<*>, remove: Array<*>}}
@@ -138,15 +109,17 @@ export function useTemporaryChildJob(materialTypeID) {
 }
 
 /**
- * Whether the reader has changed anything that would be saved.
- *
- * A question they asked does not count, which is what lets a job be stepped back
- * and looked at without arming the save prompt.
+ * Whether the editor holds changes of the reader's, ones a save would write or ones set aside for
+ * them to review; a question they asked does not count.
  *
  * @returns {boolean}
  */
 export function useJobModified() {
-  return useUsersStore((store) => hasChanges(store.editSession.draft));
+  return useUsersStore(
+    (store) =>
+      hasChanges(store.editSession.draft) ||
+      store.editSession.draft.held.length > 0,
+  );
 }
 
 /**
@@ -161,9 +134,6 @@ export function useSessionLoading() {
 /**
  * What the page says while it is loading.
  *
- * Read apart from the flag rather than with it: a pair would be a new object on
- * every read, which is what an equality-checked subscription cannot have.
- *
  * @returns {string|undefined}
  */
 export function useSessionLoadingMessage() {
@@ -173,9 +143,6 @@ export function useSessionLoadingMessage() {
 /**
  * The open job as it stands, for a handler rather than a render.
  *
- * A click reads what the job holds at the moment it is clicked, and subscribing
- * to the whole job to have it there would re-render the control on every edit.
- *
  * @returns {object|undefined} Plain data, or nothing when no job is open
  */
 export function jobDraftNow() {
@@ -184,14 +151,8 @@ export function jobDraftNow() {
 }
 
 /**
- * The selector's answer, having checked in development that it is an answer and
- * not a new object each time it is asked.
- *
- * A selector building its result — `Object.values(...)`, a `map`, an object
- * literal — subscribes the component to the whole job while looking correct:
- * nothing on screen differs and the mutator suites pass either way. Left to the
- * store it is worse than useless, because React reads the value more than once
- * per render and a value that never settles loops.
+ * The selector's answer, having checked in development that it is an answer and not a new object
+ * each time it is asked.
  *
  * @param {Function} selector
  * @param {object} document

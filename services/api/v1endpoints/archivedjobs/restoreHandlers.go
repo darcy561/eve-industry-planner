@@ -15,14 +15,11 @@ import (
 
 // restoreResponse is the same shape whichever route produced it.
 type restoreResponse struct {
-	RestoredJobIDs []string `json:"restoredJobIDs"`
-	// Jobs lets the calling client apply the restore itself: the realtime
-	// broadcast skips the client that caused it.
-	Jobs []models.Job `json:"jobs"`
-	// Conflicts and Unresolved are reported, not errors.
-	Conflicts  []esiConflict  `json:"conflicts,omitempty"`
-	Groups     []models.Group `json:"groups,omitempty"`
-	Unresolved []string       `json:"unresolved,omitempty"`
+	RestoredJobIDs []string       `json:"restoredJobIDs"`
+	Jobs           []models.Job   `json:"jobs"`
+	Conflicts      []esiConflict  `json:"conflicts,omitempty"`
+	Groups         []models.Group `json:"groups,omitempty"`
+	Unresolved     []string       `json:"unresolved,omitempty"`
 }
 
 // archiveSelection is how a request named the jobs it addresses. Restore and
@@ -144,11 +141,7 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// restoreLockRejects reports documents the restore would write that another
-// session is holding.
-//
-// An archived job holds no lock of its own, so its group's lock stands for it and
-// only an ungrouped job is gated on its own document.
+// restoreLockRejects reports documents the restore would write that another session is holding.
 func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, sessionID string, jobs []models.Job) (string, []documentlock.LockHeldElsewhereItem, error) {
 	if h.locks.Redis == nil {
 		return "", nil, nil
@@ -159,7 +152,7 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, s
 
 	groupIDs, _ := groupJobsByGroupID(jobs)
 	if len(groupIDs) > 0 {
-		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, groupIDs, nil)
+		rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, groupIDs)
 		if err != nil {
 			return "", nil, err
 		}
@@ -178,7 +171,7 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, s
 	if len(loose) == 0 {
 		return "", nil, nil
 	}
-	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, loose, nil)
+	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, loose)
 	if err != nil {
 		return "", nil, err
 	}
@@ -188,9 +181,8 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, s
 	return "", nil, nil
 }
 
-// selectJobsToRestore reads the addressed documents, returning the jobs and the
-// ids the walk could not resolve. Each job carries its own group, so the
-// selection does not name one.
+// selectJobsToRestore reads the addressed documents, returning the jobs and the ids the walk could
+// not resolve.
 func selectArchivedJobs(ctx context.Context, archive archiveScope, scope archiveSelection, id string) ([]models.Job, []string, error) {
 	switch scope {
 	case selectionJob:
@@ -204,7 +196,6 @@ func selectArchivedJobs(ctx context.Context, archive archiveScope, scope archive
 		return []models.Job{*job}, nil, nil
 
 	case selectionGroup:
-		// Everything the archive still holds for the group.
 		jobs, err := loadArchivedJobsByFilter(ctx, ArchivedJobQuery{
 			Scope:   archive,
 			GroupID: id,

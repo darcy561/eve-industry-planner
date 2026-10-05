@@ -11,8 +11,7 @@ import (
 	eipredis "eve-industry-planner/shared/redis"
 )
 
-// ViewerPresenceTTL is the maximum age of a viewer-presence entry without a refresh
-// before it's evicted by PruneAndCountViewers.
+// ViewerPresenceTTL is how long a viewer-presence entry lives without a refresh.
 const ViewerPresenceTTL = 5 * time.Minute
 
 const viewerPresencePrefix = "doc_lock_viewers:"
@@ -44,10 +43,8 @@ func RemoveViewer(ctx context.Context, rdb *eipredis.Redis, owner models.Owner, 
 	return n > 0, nil
 }
 
-// StripPassiveViewerOnHolderGrant removes holderSessionID from the viewer registry
-// when they become the editor (e.g. waitlist promotion after passive viewing).
-// When publishLeft is true and an entry was removed, emits viewer_left so other
-// sessions refresh viewerCount without treating the editor as a passive viewer.
+// StripPassiveViewerOnHolderGrant removes a new holder from the viewers of the document,
+// publishing viewer_left when publishLeft is set and an entry was removed.
 func StripPassiveViewerOnHolderGrant(
 	ctx context.Context,
 	d Deps,
@@ -72,10 +69,11 @@ func StripPassiveViewerOnHolderGrant(
 		return
 	}
 	_ = PublishLockEvent(ctx, d.NATS, owner, map[string]any{
-		LockPayloadEventKey: LockViewerEventLeft,
-		"collection":        collection,
-		"docID":             docID,
-		"sessionID":         holderSessionID,
+		LockPayloadEventKey:  LockViewerEventLeft,
+		"collection":         collection,
+		"docID":              docID,
+		"participantID":      ParticipantID(holderSessionID),
+		LockSourceSessionKey: holderSessionID,
 	})
 }
 

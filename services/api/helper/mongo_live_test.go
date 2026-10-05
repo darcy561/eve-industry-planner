@@ -415,19 +415,8 @@ func TestLive_GroupsMembershipDelta(t *testing.T) {
 	if res == nil {
 		t.Fatal("BulkUpsertGroups returned nil result")
 	}
-	added := false
-	for _, d := range res.Deltas {
-		if d.GroupID != groupID {
-			continue
-		}
-		for _, id := range d.AddedJobIDs {
-			if id == jobID {
-				added = true
-			}
-		}
-	}
-	if !added {
-		t.Fatalf("expected AddedJobIDs to include %s; deltas=%+v", jobID, res.Deltas)
+	if res.ModifiedCount != 1 {
+		t.Fatalf("ModifiedCount = %d, want the group rewritten", res.ModifiedCount)
 	}
 
 	got, err := m.Groups.LoadGroupByID(ctx, models.AccountOwner(apiLiveScratchAccount), groupID)

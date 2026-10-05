@@ -10,6 +10,7 @@ const {
   saved,
   handedOver,
   leaveSteps,
+  closeOutcome,
 } = vi.hoisted(() => ({
   navigated: [],
   store: { current: null },
@@ -18,13 +19,10 @@ const {
   yielded: [],
   saved: [],
   handedOver: [],
-  // One log for both, because the order of the two is the thing worth
-  // pinning: two arrays say each happened, not which happened first.
   leaveSteps: [],
+  closeOutcome: { current: "closed" },
 }));
 
-// Stable, as the router's own is: a fresh function each render would re-run the
-// effects that register the handlers, and their cleanup cancels what is pending.
 const navigate = (options) => navigated.push(options);
 
 vi.mock("@tanstack/react-router", () => ({
@@ -33,8 +31,6 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search.current,
 }));
 
-// `QueryClient` as well as the hook: the leave paths reach `Job`, and the
-// module chain behind it builds the app's own client at import time.
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({}),
   QueryClient: class {},
@@ -63,7 +59,7 @@ vi.mock("../../../Functions/JobPlanner/closeActiveJob", () => ({
   default: async (jobToSave, jobModifiedFlag) => {
     saved.push({ jobID: jobToSave?.jobID, jobModifiedFlag });
     leaveSteps.push("saved");
-    return true;
+    return closeOutcome.current;
   },
 }));
 
@@ -82,11 +78,6 @@ function job(jobID, name = "Tritanium") {
   return { jobID, name, itemID: 34 };
 }
 
-/**
- * @param {object} [opts]
- * @param {string[]} [opts.deletedJobIDs] - jobs the store no longer holds, as a
- *   job deleted by another member while this reader had it open
- */
 function seed({
   activeJob = job("job-1"),
   jobModified = false,
@@ -112,15 +103,10 @@ function seed({
     },
   };
 
-  // Leaving reads the job from the session, which is where the editor holds it,
-  // so a test expecting one put back has to have opened it.
   const { actions } = useUsersStore.getState().editSession;
   actions.closeSession();
   if (activeJob) actions.openJob(activeJob.jobID, activeJob);
 
-  // Unsaved changes are a real change to the draft, because that is what the
-  // hook asks: a flag handed in would say the job had been edited while the
-  // layers under it said it had not.
   if (jobModified && activeJob) {
     actions.run({
       name: "rename the job",
@@ -133,7 +119,6 @@ function seed({
   return { activeJob, jobModified };
 }
 
-/** Jobs put back into the array by a discard. */
 const restored = [];
 
 function mount() {
@@ -148,6 +133,7 @@ beforeEach(() => {
   leaveSteps.length = 0;
   search.current = {};
   persistGate.canPersist = true;
+  closeOutcome.current = "closed";
 });
 
 afterEach(() => {
@@ -286,10 +272,6 @@ describe("another session asking for the lock", () => {
     );
   });
 
-  // The registration is deliberately made once and never again: its cleanup
-  // cancels whatever is pending. Were it to re-run while a prompt was up, it
-  // would answer the other session on the reader's behalf and leave the
-  // dialogue open with nothing behind it.
   it("does not answer for the reader when the page re-renders", async () => {
     seed({ jobModified: true });
     const { result, rerender } = mount();
@@ -379,9 +361,6 @@ describe("saving from the prompt", () => {
     expect(result.current.leaveConfirmDialogueProps.saveDisabled).toBe(true);
   });
 
-  // Discarding restores the copy taken when editing began — unless the job went
-  // while the reader had it open, when putting it back would show them what they
-  // have just been told is gone.
   it("does not put back a job deleted while it was open", async () => {
     seed({ jobModified: true, deletedJobIDs: ["job-1"] });
 
@@ -412,9 +391,6 @@ describe("saving from the prompt", () => {
     expect(restored.map((job) => job.jobID)).toEqual(["job-1"]);
   });
 
-  // Handing the lock over discards the same way navigating away does, so it
-  // needs the same refusal: a job that went while this reader held it must not
-  // be put back for the session taking over.
   it("does not put back a job deleted while the lock was handed over", async () => {
     seed({ jobModified: true, deletedJobIDs: ["job-1"] });
 
@@ -451,12 +427,6 @@ describe("saving from the prompt", () => {
     expect(restored.map((job) => job.jobID)).toEqual(["job-1"]);
   });
 
-  // The whole of the save-and-hand-over path, which is the one a reader takes
-  // when another session asks for a job they have unsaved work on: the job is
-  // written first, the lock goes to the session waiting for it, and only then
-  // does the holder leave the page. In that order, because a hand-over that
-  // went first would let the other session read the job as it was before the
-  // save.
   it("saves, hands the lock over and then leaves", async () => {
     search.current = { activeGroup: "group-1" };
     seed({ jobModified: true });
@@ -483,11 +453,6 @@ describe("saving from the prompt", () => {
     expect(outcome).toBe("proceed");
   });
 
-  // Handing the lock over sends the holder back where they came from, and a
-  // reader who was looking at the group's job tree is sent back to it centred
-  // on the job they have just let go of. The id has to be the route's own: by
-  // the time this navigates, the save or the discard has ended the session, so
-  // a job read out of it then is no job at all.
   it("centres the group's job tree on the job it handed over", async () => {
     search.current = { activeGroup: "group-1", pageView: "jobTree" };
     seed({ jobModified: true });
@@ -508,5 +473,52 @@ describe("saving from the prompt", () => {
       params: { groupID: "group-1" },
       search: { pageView: "jobTree", focusJobId: "job-1" },
     });
+  });
+
+  it("stays and keeps the lock when the save keeps the editor open", async () => {
+    seed({ jobModified: true });
+    closeOutcome.current = "kept-open";
+    const { result } = mount();
+
+    let outcome;
+    await act(async () => {
+      requestEditJobReleaseConfirmation({
+        collection: "jobs",
+        docID: "job-1",
+      }).then((answer) => {
+        outcome = answer;
+      });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onSave();
+    });
+
+    expect(saved).toHaveLength(1);
+    expect(handedOver).toEqual([]);
+    expect(navigated).toEqual([]);
+    expect(outcome).toBe("cancelled");
+    expect(result.current.leaveConfirmDialogueProps.open).toBe(false);
+  });
+
+  it("stays on the job when the save before moving keeps the editor open", async () => {
+    seed({ jobModified: true });
+    closeOutcome.current = "kept-open";
+    const { result } = mount();
+
+    let outcome;
+    await act(async () => {
+      requestEditJobNavigation({ jobID: "job-2" }).then((answer) => {
+        outcome = answer;
+      });
+    });
+    await act(async () => {
+      await result.current.leaveConfirmDialogueProps.onSave();
+    });
+
+    expect(saved).toHaveLength(1);
+    expect(navigated).toEqual([]);
+    expect(yielded).toEqual([]);
+    expect(outcome).toBe("cancelled");
+    expect(result.current.leaveConfirmDialogueProps.open).toBe(false);
   });
 });

@@ -7,26 +7,10 @@ import (
 
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
-	eipmongo "eve-industry-planner/shared/mongo"
 )
 
-// RunExpirySubscriber listens for Redis TTL expirations on doc-lock keys
-// and drives the waitlist promotion / `document_lock_expired` fan-out.
-//
-// This is a **singleton** workload — only one process should drive it at a
-// time. We host it in the `core` service (which is structurally a singleton
-// via docker-compose `container_name`) and gate the loop behind a Redis
-// lease so rolling-deploy overlap and (future) multi-replica scenarios
-// can't produce duplicate events.
-//
-// The function blocks until ctx is cancelled or PSubscribe returns an
-// unrecoverable error. Callers integrating with `redis/lease.RunWhileHeld`
-// should pass this directly as the `fn` callback — the scoped context
-// passed in will be cancelled when the lease is lost, which closes the
-// PSubscribe channel and returns cleanly.
-//
-// The Service deps must include Redis + JetStream; without either the
-// function returns a nil error immediately (caller logs it once on startup).
+// RunExpirySubscriber listens for Redis TTL expirations on doc-lock keys and drives the waitlist
+// promotion / `document_lock_expired` fan-out.
 func RunExpirySubscriber(ctx context.Context, d Deps) error {
 	if d.Redis.Driver() == nil || d.NATS == nil {
 		return nil
@@ -111,9 +95,6 @@ func handleExpiryMessage(ctx context.Context, d Deps, rawKey string) {
 
 	if promoted {
 		StripPassiveViewerOnHolderGrant(ctx, d, owner, collection, docID, newHolder, true)
-		if collection == eipmongo.CollectionJobGroups {
-			ReleaseStaleDependentJobLocksAfterGroupGrant(ctx, d, owner, docID, newHolder)
-		}
 	}
 }
 

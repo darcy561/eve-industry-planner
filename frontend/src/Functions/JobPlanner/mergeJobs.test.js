@@ -94,8 +94,6 @@ describe("merging two jobs that build the same item", () => {
     expect(written).toEqual([
       {
         jobID: "merged",
-        includedInGroup: false,
-        groupID: "",
         document: expect.objectContaining({ jobID: "merged" }),
       },
     ]);

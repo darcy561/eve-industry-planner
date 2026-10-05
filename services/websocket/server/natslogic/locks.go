@@ -16,18 +16,8 @@ func innerLockEventName(inner map[string]any) string {
 	return ""
 }
 
-// BuildDocumentLockWire turns a JetStream doc.lock inner JSON object into one
-// WebSocket JSON object:
-//
-//	{ "type": "document_lock", "event": "<document_lock_*…>", …fields from inner… }
-//
-// The domain discriminator is always `event` (see documentlock.LockPayloadEventKey).
-// The outer `type` is only the realtime channel tag — there is no nested `payload`.
-//
-// suppressSessionID is set for fan-out echo suppression (see subscription.go):
-// viewer joined/left only. `document_lock_requested` is never suppressed here —
-// requesterSessionID is the JWT session id (shared across tabs), so suppressing
-// would skip the lock-holding tab as well; the SPA gates the snackbar on heldRef.
+// BuildDocumentLockWire turns a doc.lock event into the frame a browser receives, and names the
+// session whose own tabs a viewer event is not echoed to.
 func BuildDocumentLockWire(rawPayload []byte) (wire []byte, suppressSessionID string, err error) {
 	var inner map[string]any
 	if err := jsoncodec.Unmarshal(rawPayload, &inner); err != nil {
@@ -44,7 +34,7 @@ func BuildDocumentLockWire(rawPayload []byte) (wire []byte, suppressSessionID st
 		"event": eventName,
 	}
 	for k, v := range inner {
-		if k == documentlock.LockPayloadEventKey || k == "type" {
+		if k == documentlock.LockPayloadEventKey || k == "type" || k == documentlock.LockSourceSessionKey {
 			continue
 		}
 		out[k] = v
@@ -52,7 +42,7 @@ func BuildDocumentLockWire(rawPayload []byte) (wire []byte, suppressSessionID st
 
 	switch eventName {
 	case documentlock.LockViewerEventJoined, documentlock.LockViewerEventLeft:
-		if sid, ok := inner["sessionID"].(string); ok {
+		if sid, ok := inner[documentlock.LockSourceSessionKey].(string); ok {
 			suppressSessionID = strings.TrimSpace(sid)
 		}
 	}

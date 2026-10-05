@@ -134,7 +134,6 @@ function GroupPageFrame() {
 
   useDocumentLock(USER_JOB_GROUPS_COLLECTION, groupID, groupLockEnabled, {
     releaseOnUnmount: false,
-    cascadeMemberJobScopesOnGrant: true,
     pendingAccessRequestMessage:
       "Another tab requested edit access for this group.",
     becameOwnerVacantMessage:

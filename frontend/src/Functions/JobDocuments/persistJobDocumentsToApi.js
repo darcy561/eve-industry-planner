@@ -11,15 +11,10 @@ import { showSnackbarWarning } from "../../Events/snackbarEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
- * What a flush did, for a caller that has to tell a write that landed from one
- * that was refused.
+ * What a flush did, for a caller that has to tell a write that landed from one that was refused.
  *
  * @typedef {"saved" | "locked" | "conflict" | "failed"} JobDocumentPersistOutcome
  */
-
-/** What the reader is told when the server could not read a save. */
-const UNREADABLE_SAVE_MESSAGE =
-  "Some changes could not be saved and have been discarded. Reload to continue from the saved version.";
 
 /**
  * The jobs a refused save had already written before the part that failed.
@@ -102,7 +97,10 @@ export async function persistJobDocumentsToApi() {
       }
       actions.clearPendingJobDocumentWrites(queuedIds);
       console.error("Job documents were refused as unreadable", err);
-      showSnackbarWarning(UNREADABLE_SAVE_MESSAGE, 8);
+      showSnackbarWarning(
+        "Some changes could not be saved and have been discarded. Reload to continue from the saved version.",
+        8,
+      );
       return "failed";
     }
     console.error("Error saving job documents to API", err);
@@ -112,7 +110,7 @@ export async function persistJobDocumentsToApi() {
 
 /**
  * Sends writes as one change and answers what it did; a refused change wrote none of its jobs, and
- * the reader is told why.
+ * the reader is told why unless the review that follows a stale change does the telling.
  *
  * @param {Array<object>} writes - Envelopes from `jobWriteEnvelope`
  * @returns {Promise<JobDocumentPersistOutcome>}
@@ -127,25 +125,21 @@ export async function persistJobChangeToApi(writes) {
       .jobData.actions.countWrittenJobRevisions(writes.map((w) => w.jobID));
     return "saved";
   } catch (err) {
+    if (err?.code === CLIENT_ERROR_REVISION_CONFLICT) {
+      return "conflict";
+    }
     if (err?.code === DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE) {
       showSnackbarWarning(
-        "Another member is editing a job this change touches, so none of it was saved.",
+        "Another member is editing a job this change touches, so none of it was saved. Your changes are still open.",
         8,
       );
       return "locked";
     }
-    if (err?.code === CLIENT_ERROR_REVISION_CONFLICT) {
-      showSnackbarWarning(
-        revisionConflictMessage(err.revisionConflict?.rejected ?? []),
-        8,
-      );
-      return "conflict";
-    }
     console.error("Job change was not saved", err);
     showSnackbarWarning(
       err?.status === 400
-        ? UNREADABLE_SAVE_MESSAGE
-        : "Your changes could not be saved. Reload to continue from the saved version.",
+        ? "Some of your changes could not be read, so none of them were saved. Your changes are still open."
+        : "Your changes could not be saved. They are still open, so you can try again.",
       8,
     );
     return "failed";

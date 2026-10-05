@@ -18,11 +18,7 @@ export function DeleteJobIcon() {
 
   const deleteBlockedReason = persistAffordanceBlockedReason({
     readOnly: persist.readOnly,
-    jobReadOnly: persist.jobReadOnly,
-    groupReadOnly: persist.groupReadOnly,
     jobLockHeld: persist.jobLockHeld,
-    groupLockHeld: persist.groupLockHeld,
-    hasGroup: persist.hasGroup,
     action: "delete is disabled",
   });
 
@@ -41,10 +37,7 @@ export function DeleteJobIcon() {
             if (!persist.canPersist) return;
             await deleteJobsFromPlanner(openJobID);
             const groupIDFromParams = search.activeGroup;
-            await yieldEditJobDocumentLocksOnLeave({
-              jobID,
-              groupID: groupIDFromParams,
-            });
+            await yieldEditJobDocumentLocksOnLeave({ jobID });
             if (groupIDFromParams) {
               navigate({
                 to: "/group/$groupID",

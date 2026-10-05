@@ -2,6 +2,7 @@ import {
   discard,
   forgetJob,
   setBase,
+  settleReview,
 } from "../../Components/Edit Job/Edit Job Hooks/jobDraftStore.js";
 import {
   buildSetIsLoadingActionPayload,
@@ -42,15 +43,6 @@ export const coreActions = (set, get) => ({
   /**
    * Takes a document that has arrived for a job the editor is holding.
    *
-   * The reader's own changes sit above it and re-apply, which is what lets an
-   * open editor follow the document instead of keeping the copy it opened.
-   *
-   * The document is normalised before it gets here, the same way an opened job
-   * is: one written before the reshape names its ESI rows elsewhere, and a base
-   * holding it would answer nothing to every figure read off it. This slice
-   * cannot do that itself — the class that normalises reads the store, and the
-   * store holds this slice.
-   *
    * @param {string} jobID
    * @param {object} document - The job as plain data, normalised
    */
@@ -66,6 +58,29 @@ export const coreActions = (set, get) => ({
       }),
       false,
       "editJobDocumentArrived",
+    );
+  },
+
+  /**
+   * Applies the reader's review of the job the editor is open on: the set-aside changes they keep
+   * go back over the incoming save, the rest go, and the changes they let go leave the log.
+   *
+   * @param {{keep: Array<number>, letGo: Array<number>}} choices
+   */
+  settleChangeReview: (choices) => {
+    set(
+      (state) => {
+        const { activeJobID, draft } = state.editSession;
+        if (!activeJobID) return state;
+        return {
+          editSession: {
+            ...state.editSession,
+            draft: settleReview(draft, activeJobID, choices),
+          },
+        };
+      },
+      false,
+      "settleEditJobChangeReview",
     );
   },
 
@@ -90,7 +105,9 @@ export const coreActions = (set, get) => ({
     );
   },
 
-  /** @param {string} jobID */
+  /**
+   * @param {string} jobID
+   */
   forgetEditedJob: (jobID) => {
     set(
       (state) => ({

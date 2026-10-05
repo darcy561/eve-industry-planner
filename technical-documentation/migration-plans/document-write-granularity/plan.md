@@ -636,7 +636,8 @@ below.
 **The batch refusal becomes per document.** Already owed by Stage A; this is where the client stops
 treating a 409 as a wall and starts reconciling the documents that actually moved.
 
-**The lock becomes advisory.** It gates nothing server-side and exists to show who is editing what, to
+~~**The lock becomes advisory.**~~ **Weighed and not taken** — a job's own lock still refuses another
+session's save; see [overlay.md](./overlay.md) § The lock covers one job. What was proposed: it gates nothing server-side and exists to show who is editing what, to
 offer handover, and to let a member avoid a collision before spending effort on one. The Redis
 machinery — waitlist, handoff probe, viewer presence, contested versus solo lease — is kept as it
 stands; what changes is that no write path consults it.
@@ -1026,6 +1027,58 @@ It decides nothing about whether the stage is built — the § Done when line st
 decides whether removing the full document afterwards is worth the breaking change.
 
 
+### Stage F — Every multi-job write is one change
+
+Stage D made a close one change. The other writes that touch several jobs at once still go as several
+requests built from local copies, and a shared planner is where that breaks. Found by an investigation
+of merge and of the lock under shared planners; the evidence is in the overlay once built.
+
+**Merge** (`mergeJobs.js`) saves the replacement and the relinked parents and children in one request,
+then deletes the old jobs in a second. It takes no lock, the delete has no revision check, and a partly
+refused save throws "No jobs were removed" after part of it landed — leaving the replacement beside the
+old jobs with one-sided links. Neighbours not loaded locally keep links to deleted ids; the group's
+membership is recomputed from loaded jobs only, dropping members this tab never fetched; purchases,
+linked runs and notes on the old jobs are discarded without a word; and the account's ESI links are
+removed locally and never saved. **Multi-delete** (`deleteMultipleJobs.js`) and **archive**
+(`archiveJobButton.jsx`, `archiveGroupJobs.js`) have the same save-then-delete shape.
+
+**The rework:**
+
+- **Deletes join one change.** `JobWriteBatch` gains `deletes`, each naming a job and the revision it
+  was read at. Inside `WriteJobChange`'s transaction a delete is conditional on that revision, stamped
+  with the session and client first as `DeleteManyAfterStampingMeta` does; a delete that matches
+  nothing refuses the change, and `staleInChange` names it moved or gone. The lock gate covers written
+  and deleted ids together. Wire: additive in shape, but an old server would ignore `deletes` and write
+  the replacement while dropping nothing, so it ships with the server half — a hard cutover.
+- **Merge, multi-delete and archive send one change.** Before building, the SPA reads back the selected
+  jobs and every parent and child they name, so links and revisions are complete and current rather
+  than whatever this tab happened to load. The tree logic stays in the SPA; the server owns only
+  atomicity, the lock and the revisions. A refusal restores the touched jobs from the server, as a
+  refused close does.
+- **The group and the account follow the change.** As for a close: the group write and the ESI links
+  are written only once the change lands, and job-groups' move of membership onto `job.groupID`
+  deletes merge's group recompute.
+- **Nothing a lock refuses is silent.** About a dozen callers ignore what `saveJobsViaApi` answers — the
+  price entry dialogue, mass build, drag and drop, templates, `closeGroup` and others — so a write
+  refused by another member's lock stays queued with no retry and no word, while the screen shows it
+  done. Each says which jobs were held and offers to ask for them, or puts the store back.
+
+**Leftovers from Stage D, taken here:** the group page and the Edit Job page still take the group's
+lock, so only one member works a group page at a time — the group lock should be taken only to change
+the group's own document; and archived-job restore still gates a grouped job on its group rather than
+on itself (`archivedjobs/restoreHandlers.go`).
+
+**Decisions owed before building:**
+
+1. What a refused merge shows. A close's review panel compares the reader's commands; a merge has
+   none, because the merge is the edit. Proposed: the selection stays, a panel lists what moved — jobs
+   edited, gone or held, naming no member — and offers to merge again from the current jobs.
+2. Whether merge warns before discarding purchases, linked runs and notes on the jobs it replaces,
+   especially ones another member recorded.
+3. Whether merge takes the locks of every job it touches first, or relies on the server refusing the
+   whole change. Recommended: the latter, with the selection re-checked against lock state when Merge
+   is pressed.
+
 ## Wire compatibility
 
 | Surface | Change |
@@ -1033,10 +1086,12 @@ decides whether removing the full document afterwards is worth the breaking chan
 | Job write endpoint | **breaking** at Stage C — an envelope of a partial document and a list of removed row paths replaces a body of a whole document, with no dual-shape period. API and SPA deploy together for this change; neither half rolls back alone |
 | Document revision field | **already landed**, ahead of this project. `_meta.revision` is on every stored document and every job write increments it. Nothing here adds it |
 | Job write request body | additive at Stage A — a body may carry the revision it read. Absent means unversioned, and an unversioned write is accepted as it is today, which is what lets the server be converted before the client |
+| Job write envelope | **breaking**, in the Stage C cutover — `includedInGroup` and `groupID` are removed; they fed only the group holder's exemption. Unreleased, so both sides ship together
 | Job write response | **breaking** at Stage A — a per-document result replaces a whole-batch 409. The 409 shape stays available for a client that has not moved, but a mixed outcome has no representation in it |
 | Realtime document payload | additive at Stage E — a message carries each path the update set with its value, the removed row paths, and the pair of revisions it moves between, beside the full document a client may still take. Removing the full document is the breaking half, is where the payload saving is, and is separable |
 | Close request | additive at Stage D — a batch may be marked as one change, which the server writes in one transaction or refuses whole. An unmarked batch is written per document as today |
-| Document lock enforcement | **breaking** at Stage D — write paths stop consulting the lock. Not a wire shape, but every client that treated a 409 as the only refusal has to handle a version conflict instead, which is why Stage B precedes it |
+| Deletes inside one change | **breaking in effect** at Stage F — `deletes` on `JobWriteBatch` is additive in shape, but a server that ignored it would write a merge's replacement and drop nothing, so it ships with the server half |
+| Document lock enforcement | **narrowed** at Stage D — a job's lock is consulted for that job alone; a group's holder is no longer exempt from a member job's lock. Not a wire shape |
 | `document_lock_group_cascade` | **removed** at Stage D along with the group lease over member jobs. No client behaviour depends on it once per-job locks are not force-released by a group |
 | Document lock HTTP and websocket surfaces | unchanged. The lock keeps its endpoints and events at Stage D; what changes is that no write path consults the answer |
 | Stored documents | no migration. A field-scoped write produces the same document a whole-document write does |
@@ -1054,11 +1109,9 @@ decides whether removing the full document afterwards is worth the breaking chan
 
 ## Open questions
 
-- **Whether the lock gate should trust what a request says about a job's group.** It builds its
-  `JobGroupBypass` from the `includedInGroup` and `groupID` the request carries, so a request naming a
-  group it does not belong to is let past that group's lease. Reading each job's stored group state
-  instead costs a query per batch and closes it. Long-standing rather than introduced here — this
-  stage carries the two fields in the envelope precisely so it changes nothing about it.
+- ~~**Whether the lock gate should trust what a request says about a job's group.**~~ **Settled by
+  removal.** The gate stopped exempting a group's holder at Stage D, so nothing reads a job's group
+  from the request any more and the two envelope fields went with it.
 - **Whether a linked run should store a plain corporation id.** `LinkedESIJob.CorporationID` is
   `bson:"corporation_id,omitempty"` where the same field on `MarketOrder` and `Transaction` is
   `bson:"-"`, so that one row stores the plain id beside the ciphered `corporation_ref` its own
@@ -1106,10 +1159,10 @@ decides whether removing the full document afterwards is worth the breaking chan
   Reading the code settled the shape of the question as well as the answer: the edits are applied to
   the local store either way, so they are never *lost from the screen* — what a refusal costs is the
   next reload, and what it needs is a signal rather than a rescue.
-- **What the group lock covers once it stops covering member jobs.** Structure alone — membership,
-  name, ordering — is the reading Stage D is written against. Whether reordering a group while another
-  member edits a job in it is a conflict at all is the question underneath, and it is a product
-  judgement rather than a mechanical one.
+- ~~**What the group lock covers once it stops covering member jobs.**~~ **Settled: the group's own
+  document.** Membership, name and ordering are guarded by it; a member job by its own lock. Whether
+  reordering a group while another member edits a job in it should be a conflict is left to
+  [job-groups](../job-groups/plan.md), which moves membership onto the job.
 - **Whether the account document needs a gate.** It is written by every close, carries linked ESI
   orders, industry jobs and transactions, and has no lock check on any write path today. It is
   account-scoped rather than planner-held, so it may be correct that it stays ungated — but that is
@@ -1123,8 +1176,9 @@ decides whether removing the full document afterwards is worth the breaking chan
 | A — a write that checks the revision | **Landed, server side, and proved against a real database.** A job carrying a revision is written conditionally on it as its own `UpdateOne`, whose match is the answer; a job carrying none is batched and upserted as before, so the change is additive. The refusal is answered per document as a 409 `revision_conflict` carrying `saved` and `rejected[]`. The first build batched the conditional writes and inferred the outcome from a later read, which passed every unit test and reported every refused write as applied — see § Stage A. **Landed is not the same as operating: nothing sends a revision yet**, so every production write still takes the unconditional path and no write is refused for a stale base. A project depending on this needs the client half — Stage C here — not Stage A. See [overlay.md](./overlay.md) § Stage A |
 | B — a refused write is an outcome the UI handles | **Landed.** All three defects closed: the client recognises a `revision_conflict` beside the lock conflict it already handled, drops the refused write from the pending queue rather than replaying it forever, and warns the user; `persistJobDocumentsToApi` answers an outcome that `saveJobsViaApi` passes through, so `closeActiveJob` stops reporting a refused write as saved; and the client's own gate warns instead of discarding edits silently — in `closeGroup` as well as `closeActiveJob`, which carried the same defect for the group lock. Stage A's ordering constraint is discharged. See [overlay.md](./overlay.md) § Stage B |
 | C — field-scoped writes | **Landed, and proved end to end. Not deployed.** A save sends one envelope per job — the id and group beside the document — and where the editor recorded what the reader changed, that document carries only those fields and names the rows that went. Where nothing recorded it, the whole document goes, checked against the revision its own `_meta` carries. The endpoint plans the stored update from the job model's own bson tags, refuses a body naming `_meta`, and writes the row whole where a ciphered id has no stored path. A write the server cannot read is dropped from the queue and said out loud rather than retried for as long as the tab stays open. The envelope is pinned for both sides by [job-write/body.json](../../../testing/fixtures/job-write/body.json), and driven through the real handler into real Mongo, where only the named field, the named row and the revision move. **It cuts over with [job-document-drafts](../job-document-drafts/plan.md) Stage 2**, whose `prepareRelease` step reshapes the documents in the same cutover: a path-scoped write into an un-reshaped document writes a key that means nothing, so the two go together rather than one waiting on the other. See [overlay.md](./overlay.md) § Stage C |
-| D — the lock stops being broad | **Part landed: the batch refusal is per document, and a close is sent as one change, which the server writes in one transaction or refuses whole, with the group and ESI links written only after it lands.** The review panel a refused close opens is not built. A held job is dropped from the batch and the rest written, answered as a 409 carrying `saved` and every held document; the client keeps only the held ids queued. The other two removals are **not safe yet** — they rest on conditional writes, and no write is conditional until the SPA carries the revision, which is Stage C. Relaxing the lock now would remove the only protection operating. See [overlay.md](./overlay.md) § Stage D |
+| D — the lock stops being broad | **Landed.** A held job no longer costs the batch; a close is sent as one change and written in one transaction or refused whole, with the group and ESI links written only after it lands; a refused close keeps the editor open on the saved jobs and opens a review of the reader's changes, and an incoming save mid-edit keeps the reader's value wherever the two clash and says so. **The lock covers one job**: a group's lock covers its own document only, the cascade and the group holder's exemption are gone, and a job's own lock still refuses other sessions' saves — advisory was weighed and not taken. See [overlay.md](./overlay.md) § Stage D |
 | E — delta delivery and client apply | **Landed, end to end.** A job document's update publishes each path it set, with its value, in the client's names, the paths it cleared, and the pair of revisions it moves between, beside the whole document a client may still take. The envelope is pinned for both languages by [job-delta.json](../../../testing/fixtures/realtime-messages/job-delta.json), and a live test drives a real write through a real change stream. A client applies one onto the document it holds, folding a window's deltas in order and reading the job again where they do not join up. One save is followed the whole way: through the real endpoint, a real change stream, the stack's own websocket service, to the tabs that receive it and the tab that must not — and then through the SPA's handlers, where the applied document has to be the one the server stored. § The loop a change has to survive. § Where it starts has the slices, [overlay.md](./overlay.md) §§ Slice 1 to Slice 8 what runs. Behind Stage C here, because a delta is meaningless until the write that produces it is field-scoped; its shared-planners dependency is discharged and `jobArray` is plain since [job-document-drafts](../job-document-drafts/plan.md) Stage 5. The design is settled in § Stage E: the delivery carries each path the update set with its value and the paths it cleared, and the pair of `_meta.revision` values it moves between, because the delivery position is a global sequence and cannot prove a document missed nothing. Owed before building: the payload figure, measured against a restored copy of live |
+| F — every multi-job write is one change | **Not started.** Merge, multi-delete and archive become one change with deletes inside the transaction; no write refused by a lock goes unsaid; the group lock only for the group's own document; restore checked per job. Three decisions owed — § Stage F |
 
 ## Recommended pickup order
 
@@ -1163,16 +1217,10 @@ saving belongs to the separable breaking half that removes the full document. Sc
 which narrows re-rendering; the log is complete without it, because every change already goes through
 a command and the job on screen cannot be changed any other way.
 
-**Stage D's remaining removals are still blocked, and no longer for the reason first written here.**
-The relaxation rests on a version check, and that check is no longer inert: the SPA carries the
-revision a job was delivered at and a whole-document write is filtered on it, so two members writing
-one job already refuse each other.
-
-What the check does not cover is what the lock covers. A refusal protects a document; the lock
-protects a close, which writes the edited job and every job it linked, repaired or resized, a batch
-at a time rather than atomically. A member whose neighbouring job moved learns so by refusal and is
-told — but the close has already half-landed. Relaxing the lock would trade a protection against
-reaching that state for one that only reports it afterwards.
+**Stage D has landed.** A close is one change, written in one transaction or refused whole; a refused
+close keeps the editor open on a review of the reader's changes; and the lock covers one job — a
+group's lock its own document, a job's lock that job. Going advisory was weighed and not taken, so the
+one-writer rule [job-document-drafts](../job-document-drafts/plan.md) is built on stands.
 
 **Stage E was always behind Stage C**, because a delta is meaningless until the write producing it is
 field-scoped.
@@ -1180,12 +1228,18 @@ field-scoped.
 **What remains in [job-document-drafts](../job-document-drafts/plan.md)** that touches this project is
 its Stage 2 reaching the live release window, which gates deploying Stage C here.
 
-**[job-groups](../job-groups/plan.md) waits on this project, and half its wait is over.** Its
-dependency table names Stage A — landed — and Stage D's removal of the group lease over member jobs,
-which is not, and which § Stage D explains cannot be taken until conditional writes are live. So that
-project stays blocked, on the second of the two rather than both. Its own plan still reads as though
-both are outstanding; the dependency is stated there rather than here, which is the same one-way
-linking that let Stage C be designed twice.
+**[job-groups](../job-groups/plan.md) no longer waits on this project.** Its dependency table names
+Stage A and Stage D's removal of the group lease over member jobs; both have landed, and the membership
+diff in `BulkUpsertGroups` it planned to delete is already gone. Its own plan still lists the
+dependency as outstanding until its owner updates it.
+
+**Stage F is next**: merge, multi-delete and archive become one change, and no write a lock refuses
+goes unsaid — three decisions are owed first (§ Stage F).
+
+**What else stands between this project and promotion** is the cutover, not code: Stage C deploys with
+[job-document-drafts](../job-document-drafts/plan.md) Stage 2 in the release window; the payload figure
+§ Stage E owes, measured on a restored copy of live; and a live figure for how many whole jobs one
+close carries against the 1 MB body limit — [overlay.md](./overlay.md) § A save marked as one change.
 
 **What this project supplies to others, and the caveat on it.** Stage A gives a document version and
 a write that refuses a stale base. Both are built and proved against a real database, and on this branch every write of a stored job carries
@@ -1194,5 +1248,5 @@ sends no revision, so every live write still takes the unconditional path. Sayin
 without that caveat reads as protection that does not exist.
 
 **The lock gate has a live test.** A lock another session really holds, taken through the lock
-service against the stack's Redis, makes the handler drop that job and write the rest — the proof
-Stage D's remaining work stands on. See [overlay.md](./overlay.md) § What proves this works.
+service against the stack's Redis, makes the handler drop that job and write the rest, and a group's holder is refused a member job
+another session holds. See [overlay.md](./overlay.md) § What proves this works.

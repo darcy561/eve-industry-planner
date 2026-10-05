@@ -27,9 +27,7 @@ export function selectDocumentLockReadOnly(state, collection, docID) {
 }
 
 /**
- * Drop IDs that are read-only for `collection` (held by another session). Used by
- * "Select All" affordances on the job planner so locked job cards can't be pulled
- * into bulk operations even when the user can still passively view them.
+ * Drop IDs that are read-only for `collection` (held by another session).
  *
  * @param {*} state — root `usersStore` state
  * @param {string} collection
@@ -45,4 +43,18 @@ export function filterUnlockedDocumentIDs(state, collection, docIDs) {
     result.push(docID);
   }
   return result;
+}
+
+/**
+ * Whether a group still exists on the planner, which a job's `groupID` does not prove: an archived
+ * or deleted group's jobs keep it.
+ *
+ * @param {*} state — root store state
+ * @param {string | undefined | null} groupID
+ * @param {boolean} [includedInGroup=true]
+ * @returns {boolean}
+ */
+export function isJobInLiveGroup(state, groupID, includedInGroup = true) {
+  if (!groupID || includedInGroup === false) return false;
+  return Boolean(state?.jobData?.actions?.getGroupObject?.(groupID));
 }

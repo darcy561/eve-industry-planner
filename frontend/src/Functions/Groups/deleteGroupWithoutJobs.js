@@ -7,6 +7,7 @@ import {
 import { getDocumentLockState } from "../Endpoints/Private/documentLockClient.js";
 import { showSnackbarError } from "../../Events/snackbarEvents.js";
 import useUsersStore from "../../Zustand/usersStore.js";
+import { myLockParticipantID } from "../DocumentLock/lockParticipant.js";
 
 /**
  * Deletes a group and returns jobs to normal planner snapshots (local + cloud when logged in).
@@ -33,11 +34,11 @@ export async function deleteGroupWithoutJobs(inputGroupID) {
     if (lockRes.ok) {
       const lockBody = await lockRes.json().catch(() => ({}));
       if (lockBody.held) {
-        const mySessionID = useUsersStore.getState().account.sessionID;
+        const me = myLockParticipantID();
         if (
-          lockBody.holderSessionID &&
-          mySessionID &&
-          lockBody.holderSessionID !== mySessionID
+          lockBody.holderParticipantID &&
+          me &&
+          lockBody.holderParticipantID !== me
         ) {
           showSnackbarError(
             "Cannot delete this group: another session holds the edit lock.",
@@ -45,7 +46,7 @@ export async function deleteGroupWithoutJobs(inputGroupID) {
           );
           return;
         }
-        if (lockBody.holderSessionID && !mySessionID) {
+        if (lockBody.holderParticipantID && !me) {
           showSnackbarError(
             "Cannot delete this group: session identity is unavailable.",
             5,

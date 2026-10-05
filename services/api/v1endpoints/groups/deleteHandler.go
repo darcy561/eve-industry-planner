@@ -86,8 +86,6 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			if doc.ID != "" {
-				// Bare: what remains of these ids is the lock, which keys on the id
-				// a client sends.
 				resolvedIDs = append(resolvedIDs, eipmongo.BareDocumentID(doc.ID))
 			}
 		}
@@ -118,7 +116,7 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.locks.Redis != nil {
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, resolvedIDs, nil)
+		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, resolvedIDs)
 		if lerr != nil {
 			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
 				metrics.Error("auth_error")

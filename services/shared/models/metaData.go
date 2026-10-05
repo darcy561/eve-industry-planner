@@ -8,7 +8,7 @@ type MetaData struct {
 	Owner        Owner     `bson:"owner" json:"-"`
 	Revision     int64     `bson:"revision,omitempty" json:"revision,omitempty"`
 	ClientID     string    `bson:"clientID,omitempty" json:"clientID,omitempty"`
-	SessionID    string    `bson:"sessionID,omitempty" json:"sessionID,omitempty"`
+	SessionID    string    `bson:"sessionID,omitempty" json:"-"`
 }
 
 // MetaFieldOwner is the `_meta` key holding the owner, for the changestream,

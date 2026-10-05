@@ -13,7 +13,7 @@ func writeExtendJSON(w http.ResponseWriter, status int, expUnix int64, extendCou
 	payload["extendCount"] = extendCount
 	payload["handoffPending"] = x.HandoffPending
 	if x.ProbeTargetSessionID != "" {
-		payload["probeTargetSessionID"] = x.ProbeTargetSessionID
+		payload["probeTargetParticipantID"] = documentlock.ParticipantID(x.ProbeTargetSessionID)
 	}
 	if x.ProbeExpiresAtUnix > 0 {
 		payload["probeExpiresAtUnix"] = x.ProbeExpiresAtUnix

@@ -133,10 +133,8 @@ func (s *plannerScope) putJobs(jobs []models.Job, accountID, plannerHandle strin
 	writes := make([]map[string]any, 0, len(jobs))
 	for _, job := range jobs {
 		writes = append(writes, map[string]any{
-			"jobID":           job.JobID,
-			"includedInGroup": job.IncludedInGroup,
-			"groupID":         job.GroupID,
-			"document":        job,
+			"jobID":    job.JobID,
+			"document": job,
 		})
 	}
 	rec := httptest.NewRecorder()

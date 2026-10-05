@@ -5,7 +5,11 @@ import normaliseParentChildRelationships from "../Shared/normaliseParentChildRel
 import materialTreeShaker from "../Helper/materialTreeShaker";
 import getAllRelatedJobs from "../Helper/getAllRelatedJobs";
 import { canPersistJobClose } from "../DocumentLock/canPersistDocumentEditClose.js";
-import { saveJobsAsOneChange } from "../JobDocuments/saveJobsViaApi.js";
+import {
+  restoreSavedJobs,
+  saveJobsAsOneChange,
+} from "../JobDocuments/saveJobsViaApi.js";
+import { openChangeReview } from "../../Events/changeReviewEvents";
 import {
   showSnackbarInfo,
   showSnackbarWarning,
@@ -17,6 +21,12 @@ import { saveUserAccountDocument } from "../Endpoints/Private/userDocument";
 import recalculateJobForNewTotal from "./recalculateJobForNewTotal";
 import { closeAdjustmentSummary } from "./closeAdjustmentSummary";
 
+/**
+ * Saves the job being edited with every job its close links, repairs or resizes, and ends the edit;
+ * a refused save keeps the editor open on the saved copies and the reader's changes.
+ *
+ * @returns {Promise<"closed"|"kept-open">}
+ */
 export default async function closeActiveJob(
   jobToSave,
   jobModifiedFlag,
@@ -44,12 +54,12 @@ export default async function closeActiveJob(
 
   if (!jobModifiedFlag) {
     endEditSession();
-    return;
+    return "closed";
   }
 
   if (!inputJob?.jobID) {
     endEditSession();
-    return;
+    return "closed";
   }
 
   if (!findJobInJobArray(inputJob.jobID)) {
@@ -58,7 +68,7 @@ export default async function closeActiveJob(
       8,
     );
     endEditSession();
-    return;
+    return "closed";
   }
 
   let recalculatedJobIds = new Set();
@@ -133,9 +143,7 @@ export default async function closeActiveJob(
     inputJob.displayOnPlanner = true;
   }
 
-  const groupID = inputJob.includedInGroup ? inputJob.groupID : null;
-  const persistToServer =
-    isLoggedIn && canPersistJobClose(inputJob.jobID, groupID);
+  const persistToServer = isLoggedIn && canPersistJobClose(inputJob.jobID);
 
   const jobsToPersist = [
     inputJob,
@@ -143,7 +151,6 @@ export default async function closeActiveJob(
     ...batchUpdates,
   ];
 
-  let saveRefused = false;
   if (persistToServer) {
     const outcome = await saveJobsAsOneChange(
       jobsToPersist,
@@ -151,8 +158,18 @@ export default async function closeActiveJob(
         ? { [inputJob.jobID]: changesToEditedJob }
         : undefined,
     );
-    saveRefused =
-      outcome === "conflict" || outcome === "locked" || outcome === "failed";
+    if (outcome !== "saved") {
+      await restoreSavedJobs(
+        jobsToPersist
+          .map((job) => job.jobID)
+          .filter((jobID) => !IDsOfNewJobs.has(jobID)),
+        [...IDsOfNewJobs],
+      );
+      if (outcome === "conflict") {
+        openChangeReview({ refused: true });
+      }
+      return "kept-open";
+    }
   }
 
   const esl = esiDataToLink ?? {};
@@ -167,22 +184,20 @@ export default async function closeActiveJob(
     eslIj.remove?.length > 0 ||
     eslTr.remove?.length > 0;
 
-  if (!saveRefused) {
-    useUsersStore.getState().account.actions.addLinkedEsiData({
-      ordersToAdd: eslMo.add,
-      jobsToAdd: eslIj.add,
-      transactionsToAdd: eslTr.add,
-      ordersToRemove: eslMo.remove,
-      jobsToRemove: eslIj.remove,
-      transactionsToRemove: eslTr.remove,
-    });
-  }
+  useUsersStore.getState().account.actions.addLinkedEsiData({
+    ordersToAdd: eslMo.add,
+    jobsToAdd: eslIj.add,
+    transactionsToAdd: eslTr.add,
+    ordersToRemove: eslMo.remove,
+    jobsToRemove: eslIj.remove,
+    transactionsToRemove: eslTr.remove,
+  });
 
-  if (!saveRefused && hasAnyChanges && persistToServer) {
+  if (hasAnyChanges && persistToServer) {
     await saveUserAccountDocument();
   }
 
-  if (!saveRefused && inputJob.includedInGroup) {
+  if (inputJob.includedInGroup) {
     const updatedGroup = getGroupObject(inputJob.groupID);
     updatedGroup?.addJobsToGroup(tempJobs);
     if (updatedGroup?.groupID) {
@@ -203,10 +218,8 @@ export default async function closeActiveJob(
   updateOrAddJobsToJobArray([inputJob, ...tempJobs, ...batchUpdates]);
   endEditSession();
   if (persistToServer) {
-    if (!saveRefused) {
-      showSnackbarInfo(closeAdjustmentSummary(inputJob, adjustments), 5);
-    }
-    return;
+    showSnackbarInfo(closeAdjustmentSummary(inputJob, adjustments), 5);
+    return "closed";
   }
   if (isLoggedIn) {
     showSnackbarWarning(
@@ -214,4 +227,5 @@ export default async function closeActiveJob(
       8,
     );
   }
+  return "closed";
 }

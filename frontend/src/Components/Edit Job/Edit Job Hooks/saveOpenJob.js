@@ -1,14 +1,15 @@
 import useUsersStore from "../../../Zustand/usersStore";
 import closeActiveJob from "../../../Functions/JobPlanner/closeActiveJob";
 import { jobDraftNow } from "./useJobDraft";
-import { entriesFor, hasChanges } from "./jobDraftStore";
+import { entriesFor, hasChanges, heldFor } from "./jobDraftStore";
+import { openChangeReview } from "../../../Events/changeReviewEvents";
 
 /**
- * Saves the job the editor holds and ends the session, reading what it needs off
- * the session at the moment the reader presses.
+ * Saves the job the editor holds and ends the session, unless changes set aside by an incoming save
+ * are still to review or the save is refused, which keep the editor open.
  *
  * @param {import("@tanstack/react-query").QueryClient} queryClient
- * @returns {Promise<void>}
+ * @returns {Promise<"closed"|"kept-open">}
  */
 export async function saveOpenJob(queryClient) {
   const {
@@ -19,7 +20,12 @@ export async function saveOpenJob(queryClient) {
     parentChildToEdit,
   } = useUsersStore.getState().editSession;
 
-  await closeActiveJob(
+  if (heldFor(draft, activeJobID).length > 0) {
+    openChangeReview();
+    return "kept-open";
+  }
+
+  return await closeActiveJob(
     jobDraftNow(),
     hasChanges(draft),
     temporaryChildJobs,

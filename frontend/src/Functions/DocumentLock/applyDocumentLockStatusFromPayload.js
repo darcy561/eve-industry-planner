@@ -4,6 +4,7 @@ import { selectScopedDocumentLock } from "./documentLockSelectors.js";
 import { endReadOnlyGraceIfApplicable } from "./readOnlyGrace.js";
 import { LOCK_READONLY_GRACE_MS } from "./documentLockTimings.js";
 import { numberOrNull } from "./documentLockStatusFields.js";
+import { myLockParticipantID } from "./lockParticipant.js";
 
 /** Per-(collection, docID) pending grace timer ids. Module-level so planner-only
  *  scopes (no `useDocumentLock` attached) still self-heal. */
@@ -29,21 +30,8 @@ function startLockGrace(collection, docID) {
 }
 
 /**
- * Maps a single `/document-locks/lock-state` (or batch row) JSON payload into Zustand document-lock scope state.
- *
- * Lock-gone semantics: when `data.held` is false we PRESERVE the existing
- * scope's `readOnly` flag instead of forcing it to false, and arm a short
- * module-level grace timer that releases readOnly if no follow-up holder
- * appears. This avoids the "all cards flash editable" race on TTL expiry —
- * a TTL expiry is typically followed within ~ms by either a former-holder
- * `document_lock_acquired` or a server-side `document_lock_handoff_completed`
- * (waitlist promotion); both arrive as a fresh refetch with `held: true` and
- * cancel the grace inline. Voluntary-release events still clear readOnly
- * promptly because `useDocumentLock` patches `readOnly: false` directly when
- * it handles the released event, and the subsequent planner-sync refetch then
- * re-reads that post-release `false` (no grace armed because prev.readOnly is
- * already false). Planner-only scopes (no `useDocumentLock` attached) rely on
- * the grace timer alone, then become editable after the grace window.
+ * Writes one lock-state payload into the document-lock scope, keeping it read-only briefly
+ * when the lock disappears so a following holder does not flash editable.
  *
  * @param {string} collection
  * @param {string} docID
@@ -52,15 +40,17 @@ function startLockGrace(collection, docID) {
 export function applyDocumentLockStatusFromPayload(collection, docID, data) {
   if (!docID || !data || typeof data !== "object") return;
 
-  const sessionID = useUsersStore.getState().account.sessionID;
+  const me = myLockParticipantID();
   const held = data.held === true;
   const holder =
-    typeof data.holderSessionID === "string" ? data.holderSessionID : "";
+    typeof data.holderParticipantID === "string"
+      ? data.holderParticipantID
+      : "";
 
   let readOnly;
   let lockHeld;
   if (held && holder) {
-    if (sessionID && holder === sessionID) {
+    if (me && holder === me) {
       lockHeld = true;
       readOnly = false;
     } else {
@@ -86,15 +76,10 @@ export function applyDocumentLockStatusFromPayload(collection, docID, data) {
   const patch = {
     readOnly,
     lockHeld,
-    // Whether the holder is one of this account's own sessions, which is the
-    // difference between a lock this reader may take back and one they may not.
-    // It names nobody: who holds it stays off the wire.
     heldByThisAccount: held ? data.heldByThisAccount === true : false,
     lockExpiresAtUnix: held ? numberOrNull(data, "expiresAtUnix") : null,
     lockTtlSeconds: held ? numberOrNull(data, "ttlSeconds") : null,
   };
-  // `viewerCount` is authoritative from the server — overwrite on every refresh
-  // so out-of-band joins/leaves we missed (e.g. WS reconnect) self-heal here.
   if (typeof data.viewerCount === "number") {
     patch.viewerCount = data.viewerCount;
   }

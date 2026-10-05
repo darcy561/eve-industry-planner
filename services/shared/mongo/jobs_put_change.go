@@ -71,16 +71,20 @@ func (m *Mongo) WriteJobChange(ctx context.Context, owner models.Owner, accountI
 // revision must still be at it, and a new job must not already exist.
 func (d *Docs) writeInChange(ctx context.Context, owner models.Owner, write conditionalJobWrite) (bool, error) {
 	if write.expected > 0 {
-		res, err := d.coll.UpdateOne(ctx, conditionalJobFilter(owner, write), write.update)
+		res, err := RetryValue(ctx, "ConditionalUpsertJobInChange", func() (*mongo.UpdateResult, error) {
+			return d.coll.UpdateOne(ctx, conditionalJobFilter(owner, write), write.update)
+		})
 		if err != nil {
 			return false, fmt.Errorf("conditional write %s: %w", write.jobID, err)
 		}
 		return res.MatchedCount > 0, nil
 	}
-	_, err := d.coll.UpdateOne(ctx, bson.M{
-		"_id":             OwnerScopedDocumentID(owner, write.jobID),
-		FieldMetaRevision: bson.M{"$exists": false},
-	}, write.update, options.UpdateOne().SetUpsert(true))
+	_, err := RetryValue(ctx, "CreateJobInChange", func() (*mongo.UpdateResult, error) {
+		return d.coll.UpdateOne(ctx, bson.M{
+			"_id":             OwnerScopedDocumentID(owner, write.jobID),
+			FieldMetaRevision: bson.M{"$exists": false},
+		}, write.update, options.UpdateOne().SetUpsert(true))
+	})
 	if mongo.IsDuplicateKeyError(err) {
 		return false, nil
 	}

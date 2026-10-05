@@ -76,8 +76,8 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheGroup(t *testing.T) {
 	if len(rejects) != 1 || rejects[0].DocID != "group-1" {
 		t.Fatalf("rejects = %+v, want group-1 held by another session", rejects)
 	}
-	if rejects[0].HolderSessionID != lockTestOther {
-		t.Fatalf("holder = %q", rejects[0].HolderSessionID)
+	if rejects[0].HolderParticipantID != documentlock.ParticipantID(lockTestOther) {
+		t.Fatalf("holder = %q", rejects[0].HolderParticipantID)
 	}
 }
 

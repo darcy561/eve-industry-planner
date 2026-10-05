@@ -17,19 +17,18 @@ vi.mock("../../Zustand/usersStore.js", async () => {
 import { yieldEditJobDocumentLocksOnLeave } from "./yieldEditJobDocumentLocksOnLeave.js";
 
 describe("yieldEditJobDocumentLocksOnLeave", () => {
-  it("yields solo job lock when no groupID", async () => {
-    await yieldEditJobDocumentLocksOnLeave({ jobID: "job-1", groupID: null });
+  it("yields the job's own lock", async () => {
+    yieldDocumentLockOnLeave.mockClear();
+    await yieldEditJobDocumentLocksOnLeave({ jobID: "job-1" });
     expect(yieldDocumentLockOnLeave).toHaveBeenCalledWith(
       "job_documents",
       "job-1",
     );
   });
 
-  it("no-ops in group context", async () => {
-    await yieldEditJobDocumentLocksOnLeave({
-      jobID: "job-1",
-      groupID: "group-1",
-    });
+  it("yields nothing when no job is open", async () => {
+    yieldDocumentLockOnLeave.mockClear();
+    await yieldEditJobDocumentLocksOnLeave({ jobID: null });
     expect(yieldDocumentLockOnLeave).not.toHaveBeenCalled();
   });
 });
