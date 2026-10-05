@@ -168,13 +168,7 @@ func (d *Docs) deleteManyAfterStampingMeta(ctx context.Context, filter bson.M, n
 	if err != nil {
 		return 0, fmt.Errorf("DeleteManyAfterStampingMeta: nil collection")
 	}
-	set := bson.M{FieldMetaLastModified: now}
-	if sessionID != "" {
-		set[FieldMetaSessionID] = sessionID
-	}
-	if wsClientID != "" {
-		set[FieldMetaClientID] = wsClientID
-	}
+	set := MetaStamp(now, sessionID, wsClientID)
 	result, err := RetryValue(ctx, operationName, func() (*mongo.DeleteResult, error) {
 		if _, err := coll.UpdateMany(ctx, filter, bson.M{"$set": set}); err != nil {
 			return nil, err

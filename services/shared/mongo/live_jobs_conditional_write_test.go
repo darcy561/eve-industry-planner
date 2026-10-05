@@ -14,15 +14,6 @@ import (
 
 const conditionalWriteScratchAccount = "eip-parity-conditional-write"
 
-func readJob(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, jobID string) models.Job {
-	t.Helper()
-	job, err := mongo.JobDocuments.LoadJobByID(ctx, owner, jobID)
-	if err != nil {
-		t.Fatalf("read %s: %v", jobID, err)
-	}
-	return job
-}
-
 func writeJobs(t *testing.T, ctx context.Context, mongo *eipmongo.Mongo, owner models.Owner, jobs []models.Job) []eipmongo.RevisionConflict {
 	t.Helper()
 	_, failed, conflicts, err := mongo.JobDocuments.BulkUpsertJobs(
@@ -47,8 +38,8 @@ func TestLive_aStaleConditionalWriteIsRefusedAndTheCurrentOneKept(t *testing.T) 
 	const jobID = "job-conditional-write"
 	writeJobs(t, ctx, mongo, owner, []models.Job{{JobID: jobID, Name: "first"}})
 
-	readByA := readJob(t, ctx, mongo, owner, jobID)
-	readByB := readJob(t, ctx, mongo, owner, jobID)
+	readByA := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID)
+	readByB := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID)
 	if readByA.MetaData.Revision == 0 {
 		t.Fatal("the stored job carries no revision, so no write can be conditional")
 	}
@@ -77,7 +68,7 @@ func TestLive_aStaleConditionalWriteIsRefusedAndTheCurrentOneKept(t *testing.T) 
 		t.Fatal("the document still exists, so the conflict must not report it gone")
 	}
 
-	stored := readJob(t, ctx, mongo, owner, jobID)
+	stored := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID)
 	if stored.Name != "written by A" {
 		t.Fatalf("stored name = %q, want A's write kept", stored.Name)
 	}
@@ -101,10 +92,10 @@ func TestLive_aBatchWithOneStaleJobWritesTheRest(t *testing.T) {
 		{JobID: freshID, Name: "fresh before"},
 	})
 
-	stale := readJob(t, ctx, mongo, owner, staleID)
-	fresh := readJob(t, ctx, mongo, owner, freshID)
+	stale := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, staleID)
+	fresh := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, freshID)
 
-	moved := readJob(t, ctx, mongo, owner, staleID)
+	moved := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, staleID)
 	moved.Name = "moved by somebody else"
 	writeJobs(t, ctx, mongo, owner, []models.Job{moved})
 
@@ -115,10 +106,10 @@ func TestLive_aBatchWithOneStaleJobWritesTheRest(t *testing.T) {
 	if len(conflicts) != 1 || conflicts[0].JobID != staleID {
 		t.Fatalf("conflicts = %+v, want only the stale job refused", conflicts)
 	}
-	if got := readJob(t, ctx, mongo, owner, freshID); got.Name != "fresh after" {
+	if got := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, freshID); got.Name != "fresh after" {
 		t.Fatalf("the unconflicted job was not written: name = %q", got.Name)
 	}
-	if got := readJob(t, ctx, mongo, owner, staleID); got.Name != "moved by somebody else" {
+	if got := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, staleID); got.Name != "moved by somebody else" {
 		t.Fatalf("the refused write landed anyway: name = %q", got.Name)
 	}
 }
@@ -133,7 +124,7 @@ func TestLive_aWriteAgainstADeletedDocumentIsReportedGone(t *testing.T) {
 
 	const jobID = "job-deleted-under-writer"
 	writeJobs(t, ctx, mongo, owner, []models.Job{{JobID: jobID, Name: "before"}})
-	read := readJob(t, ctx, mongo, owner, jobID)
+	read := mongolive.ReadJob(t, ctx, mongo.JobDocuments, owner, jobID)
 
 	if _, err := mongo.JobDocuments.DeleteManyAfterStampingMeta(ctx,
 		bson.M{"_id": eipmongo.OwnerScopedDocumentID(owner, jobID)},

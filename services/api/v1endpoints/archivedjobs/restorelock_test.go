@@ -19,7 +19,6 @@ const (
 	lockTestAccount = "account-1"
 )
 
-// A personal planner is keyed by its account, so the two name one scope.
 var lockTestOwner = models.AccountOwner(lockTestAccount)
 
 const (
@@ -55,9 +54,6 @@ func archivedMemberOf(jobID, groupID string) models.Job {
 	return models.Job{JobID: jobID, GroupID: groupID, IncludedInGroup: true}
 }
 
-// A second session with the group open holds its lock. Restoring into that group
-// rewrites the document under them, so the restore is refused rather than racing
-// the group save that session will make.
 func TestRestoreIsRefusedWhileAnotherSessionHoldsTheGroup(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
@@ -81,8 +77,6 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheGroup(t *testing.T) {
 	}
 }
 
-// The session doing the restore is the one holding the group: nothing to protect
-// it from.
 func TestRestoreProceedsWhenTheRestoringSessionHoldsTheGroup(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
@@ -97,8 +91,6 @@ func TestRestoreProceedsWhenTheRestoringSessionHoldsTheGroup(t *testing.T) {
 	}
 }
 
-// A related set can reach several groups; a hold on any one of them refuses the
-// whole restore, because the write is one sequence.
 func TestRestoreIsRefusedWhenAnyGroupInTheSetIsHeld(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
@@ -118,8 +110,6 @@ func TestRestoreIsRefusedWhenAnyGroupInTheSetIsHeld(t *testing.T) {
 	}
 }
 
-// A job with no group has no group lock to stand for it, so it is gated on its
-// own document.
 func TestRestoreIsRefusedWhileAnotherSessionHoldsTheJob(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
@@ -137,9 +127,7 @@ func TestRestoreIsRefusedWhileAnotherSessionHoldsTheJob(t *testing.T) {
 	}
 }
 
-// While a job is archived its group's lock stands for it, so a lock left on the
-// job document itself is not what decides the restore.
-func TestAGroupedJobIsGatedOnItsGroupNotItself(t *testing.T) {
+func TestAGroupedJobIsGatedOnItselfAsWellAsItsGroup(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
 	seedLock(t, rdb, eipmongo.CollectionJobDocuments, "job-a", lockTestOther)
@@ -148,12 +136,11 @@ func TestAGroupedJobIsGatedOnItsGroupNotItself(t *testing.T) {
 	collection, rejects, err := h.restoreLockRejects(context.Background(), lockTestOwner, lockTestSession,
 		[]models.Job{archivedMemberOf("job-a", "group-1")})
 
-	if err != nil || collection != "" || len(rejects) != 0 {
-		t.Fatalf("a grouped job was gated on its own document: collection=%q rejects=%+v err=%v", collection, rejects, err)
+	if err != nil || collection != eipmongo.CollectionJobDocuments || len(rejects) != 1 || rejects[0].DocID != "job-a" {
+		t.Fatalf("a grouped job held elsewhere was restored: collection=%q rejects=%+v err=%v", collection, rejects, err)
 	}
 }
 
-// The group's holder owns its archived members, so its own restore proceeds.
 func TestTheGroupHolderMayRestoreItsMembers(t *testing.T) {
 	t.Parallel()
 	rdb := eipredis.NewRedis(redisfake.New(t).Client)
@@ -168,7 +155,6 @@ func TestTheGroupHolderMayRestoreItsMembers(t *testing.T) {
 	}
 }
 
-// Enforcement needs a session to compare against.
 func TestRestoreLockGateRequiresASession(t *testing.T) {
 	t.Parallel()
 	h := handlersWithRedis(t, eipredis.NewRedis(redisfake.New(t).Client))
@@ -178,7 +164,6 @@ func TestRestoreLockGateRequiresASession(t *testing.T) {
 	}
 }
 
-// Without Redis there is no enforcement, matching every other gated route.
 func TestRestoreLockGateIsInertWithoutRedis(t *testing.T) {
 	t.Parallel()
 	h := New(&apideps.Deps{})

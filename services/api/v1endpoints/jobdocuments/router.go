@@ -7,7 +7,7 @@ import (
 	"eve-industry-planner/api/helper"
 )
 
-// Router routes /api/v1/job-documents (filtered reads + batch write/delete on job_documents).
+// Router routes /api/v1/job-documents: reads by id and the planner list, and batch writes.
 func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	method := r.Method
@@ -19,8 +19,6 @@ func (h *Handlers) Router(w http.ResponseWriter, r *http.Request) {
 			h.GetJobDocumentsByIDsHandler(w, r)
 		case http.MethodPut:
 			h.PutJobDocumentsHandler(w, r)
-		case http.MethodDelete:
-			h.DeleteJobDocumentsHandler(w, r)
 		default:
 			helper.RespondEndpointError(w, r, http.StatusMethodNotAllowed, "Method not allowed", "invalid method for job-documents collection", "job_docs_method_not_allowed", "job_documents", nil, map[string]any{"method": method})
 		}

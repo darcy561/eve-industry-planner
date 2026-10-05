@@ -78,12 +78,13 @@ func restoreJobs(ctx context.Context, h *Handlers, req restoreRequest) (restoreR
 		req.Jobs[i].MetaData.ArchivedAt = time.Time{}
 		req.Jobs[i].MetaData.ArchivedBy = ""
 		req.Jobs[i].MetaData.ArchiveProcessed = false
+		req.Jobs[i].MetaData.Revision = 0
 	}
 
-	if _, failed, _, writeErr := h.Mongo.JobDocuments.BulkUpsertJobs(ctx, req.Archive.Owner, req.AccountID, req.Jobs, now, req.SessionID, req.WSClientID); writeErr != nil {
+	if _, failed, refused, writeErr := h.Mongo.WriteJobChange(ctx, req.Archive.Owner, req.AccountID, eipmongo.JobChange{Whole: req.Jobs}, now, req.SessionID, req.WSClientID); writeErr != nil {
 		return restoreResult{}, fmt.Errorf("write job documents: %w", writeErr)
-	} else if len(failed) > 0 {
-		return restoreResult{}, fmt.Errorf("write job documents: %d of %d rejected", len(failed), len(req.Jobs))
+	} else if len(failed) > 0 || len(refused) > 0 {
+		return restoreResult{}, fmt.Errorf("write job documents: %d of %d rejected", len(failed)+len(refused), len(req.Jobs))
 	}
 
 	if req.Archive.relinksESI {
@@ -123,17 +124,12 @@ func conflictIndex(conflicts []esiConflict) map[esiLinkKind]map[int64]struct{} {
 	return out
 }
 
-// stripConflictedLinks removes what another job holds from a restored job. A job
-// holds an ESI id by carrying its row, so the row itself goes.
+// stripConflictedLinks removes the rows another job holds from a restored job.
 func stripConflictedLinks(job *models.Job, conflicted map[esiLinkKind]map[int64]struct{}) {
-	for id := range conflicted[esiLinkOrder] {
-		delete(job.ESI.MarketOrders, strconv.FormatInt(id, 10))
-	}
-	for id := range conflicted[esiLinkJob] {
-		delete(job.ESI.LinkedJobs, strconv.FormatInt(id, 10))
-	}
-	for id := range conflicted[esiLinkTransaction] {
-		delete(job.ESI.Transactions, strconv.FormatInt(id, 10))
+	for kind, ids := range conflicted {
+		for id := range ids {
+			esiLinkRows[kind].drop(job, strconv.FormatInt(id, 10))
+		}
 	}
 }
 

@@ -3,6 +3,9 @@ package archivedjobs
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"eve-industry-planner/shared/models"
@@ -22,12 +25,31 @@ const (
 	esiLinkTransaction esiLinkKind = "transaction"
 )
 
-// esiLinkField is where each kind's ids live on a job document. A job holds an
-// ESI id by carrying the row itself, so the search reads the rows.
-var esiLinkField = map[esiLinkKind]string{
-	esiLinkOrder:       "build.sale.marketOrders.order_id",
-	esiLinkJob:         "build.costs.linkedJobs.job_id",
-	esiLinkTransaction: "build.sale.transactions.transaction_id",
+// esiLinkRow is where one kind's rows sit on a job, keyed by the ESI id each holds, and how a job's
+// ids of that kind are read and one of its rows dropped.
+type esiLinkRow struct {
+	path []string
+	held func(models.Job) []int64
+	drop func(*models.Job, string)
+}
+
+// esiLinkRows is every kind of ESI row a job holds.
+var esiLinkRows = map[esiLinkKind]esiLinkRow{
+	esiLinkOrder: {
+		path: []string{"esi", "marketOrders"},
+		held: models.Job.LinkedOrderIDs,
+		drop: func(job *models.Job, id string) { delete(job.ESI.MarketOrders, id) },
+	},
+	esiLinkJob: {
+		path: []string{"esi", "industryJobs"},
+		held: models.Job.LinkedESIJobIDs,
+		drop: func(job *models.Job, id string) { delete(job.ESI.LinkedJobs, id) },
+	},
+	esiLinkTransaction: {
+		path: []string{"esi", "transactions"},
+		held: models.Job.LinkedTransactionIDs,
+		drop: func(job *models.Job, id string) { delete(job.ESI.Transactions, id) },
+	},
 }
 
 // esiConflict is one ESI entry a restored job cannot reclaim, and the planner
@@ -125,7 +147,7 @@ func resolveESILinks(ctx context.Context, m *eipmongo.Mongo, accountID string, l
 
 // esiHoldersFor finds which planner job holds each id, one query per kind.
 func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kind esiLinkKind, ids []int64, excludeJobIDs []string) (map[int64]esiHolder, error) {
-	field, ok := esiLinkField[kind]
+	rows, ok := esiLinkRows[kind]
 	if !ok {
 		return nil, fmt.Errorf("unknown esi link kind %q", kind)
 	}
@@ -134,7 +156,18 @@ func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kin
 		return nil, fmt.Errorf("job documents collection is required")
 	}
 
-	filter := eipmongo.OwnerFilter(models.AccountOwner(accountID), bson.M{field: bson.M{"$in": ids}})
+	held := make(bson.A, 0, len(ids))
+	var field string
+	for _, id := range ids {
+		key := strconv.FormatInt(id, 10)
+		path, err := models.JobRowPath(append(slices.Clone(rows.path), key))
+		if err != nil {
+			return nil, err
+		}
+		field = strings.TrimSuffix(path, "."+key)
+		held = append(held, bson.M{path: bson.M{"$exists": true}})
+	}
+	filter := eipmongo.OwnerFilter(models.AccountOwner(accountID), bson.M{"$or": held})
 	if len(excludeJobIDs) > 0 {
 		filter["jobID"] = bson.M{"$nin": excludeJobIDs}
 	}
@@ -143,11 +176,9 @@ func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kin
 	err := eipmongo.Retry(ctx, "resolve esi link holders", func() error {
 		clear(out)
 		cursor, findErr := coll.Find(ctx, filter, options.Find().SetProjection(bson.M{
-			"jobID":                   1,
-			"name":                    1,
-			"build.costs.linkedJobs":  1,
-			"build.sale.marketOrders": 1,
-			"build.sale.transactions": 1,
+			"jobID": 1,
+			"name":  1,
+			field:   1,
 		}))
 		if findErr != nil {
 			return findErr
@@ -159,22 +190,12 @@ func esiHoldersFor(ctx context.Context, m *eipmongo.Mongo, accountID string, kin
 			wanted[id] = struct{}{}
 		}
 
-		var rows []models.Job
-		if allErr := cursor.All(ctx, &rows); allErr != nil {
+		var found []models.Job
+		if allErr := cursor.All(ctx, &found); allErr != nil {
 			return allErr
 		}
-		for _, row := range rows {
-			var held []int64
-			switch kind {
-			case esiLinkOrder:
-				held = row.LinkedOrderIDs()
-			case esiLinkJob:
-				held = row.LinkedESIJobIDs()
-			case esiLinkTransaction:
-				held = row.LinkedTransactionIDs()
-			}
-			for _, id := range held {
-				// A holder carries all its own ids; only the intersection counts.
+		for _, row := range found {
+			for _, id := range rows.held(row) {
 				if _, asked := wanted[id]; !asked {
 					continue
 				}
@@ -217,22 +238,14 @@ func applyESILinks(ctx context.Context, m *eipmongo.Mongo, accountID string, fre
 		addToSet["linkedTrans"] = bson.M{"$each": free.Transactions}
 	}
 
-	set := bson.M{eipmongo.FieldMetaLastModified: now}
-	if sessionID != "" {
-		set[eipmongo.FieldMetaSessionID] = sessionID
-	}
-	if wsClientID != "" {
-		set[eipmongo.FieldMetaClientID] = wsClientID
-	}
+	set := eipmongo.MetaStamp(now, sessionID, wsClientID)
 
 	return eipmongo.Retry(ctx, "relink esi ids", func() error {
 		_, err := coll.UpdateOne(ctx,
 			eipmongo.OwnerFilter(models.AccountOwner(accountID)),
 			bson.M{
 				"$addToSet": addToSet,
-				// Clients drop realtime events older than their cursor, so the
-				// write must move the document's clock.
-				"$set": set,
+				"$set":      set,
 			})
 		return err
 	})

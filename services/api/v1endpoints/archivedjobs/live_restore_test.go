@@ -196,9 +196,7 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	holder.ESI.LinkedJobs = map[string]models.LinkedESIJob{
 		strconv.Itoa(contested): {JobID: contested},
 	}
-	if _, failed, _, err := mongo.JobDocuments.BulkUpsertJobs(ctx, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, []models.Job{holder}, now, "sess-3", ""); err != nil || len(failed) > 0 {
-		t.Fatalf("seed holder job: %v, failed %d", err, len(failed))
-	}
+	mongolive.SeedJobs(t, ctx, mongo, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, holder)
 
 	archived := seedJob("job-restore-contested")
 	archived.ESI.LinkedJobs = map[string]models.LinkedESIJob{
@@ -237,4 +235,36 @@ func TestLive_restoreStripsAnEsiIdAnotherJobAlreadyHolds(t *testing.T) {
 	if !slices.Contains(restored.LinkedESIJobIDs(), free) {
 		t.Fatalf("restored job lost an uncontested id: %v", restored.LinkedESIJobIDs())
 	}
+}
+
+func TestLive_restoreRefusesAJobAlreadyOnThePlanner(t *testing.T) {
+	mongo := mongolive.Require(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	mongolive.ScratchAccount(t, mongo, restoreScratchAccount)
+
+	h := restoreHandlers(t, mongo)
+	now := time.Now().UTC()
+	live := seedJob("job-restore-twice")
+	live.Name = "already on the planner"
+	mongolive.SeedJobs(t, ctx, mongo, models.AccountOwner(restoreScratchAccount), restoreScratchAccount, live)
+	archiveJob(t, ctx, h, seedJob("job-restore-twice"), now)
+
+	scope, err := plannerArchiveScope(mongo, models.AccountOwner(restoreScratchAccount))
+	if err != nil {
+		t.Fatalf("archive scope: %v", err)
+	}
+	jobs, _, err := selectArchivedJobs(ctx, scope, selectionJob, "job-restore-twice")
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("select: %v, jobs %d", err, len(jobs))
+	}
+
+	if _, err := restoreJobs(ctx, h, restoreRequest{Archive: scope, AccountID: restoreScratchAccount, Jobs: jobs}); err == nil {
+		t.Fatal("restore over a job already on the planner succeeded")
+	}
+
+	if kept := mongolive.ReadJob(t, ctx, mongo.JobDocuments, models.AccountOwner(restoreScratchAccount), "job-restore-twice"); kept.Name != "already on the planner" {
+		t.Fatalf("live job = %q, want it left as it was", kept.Name)
+	}
+	mongolive.ReadJob(t, ctx, mongo.ArchivedJobs, models.AccountOwner(restoreScratchAccount), "job-restore-twice")
 }

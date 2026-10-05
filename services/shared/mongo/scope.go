@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"maps"
+	"time"
 
 	"eve-industry-planner/shared/models"
 
@@ -19,6 +20,19 @@ const (
 	FieldMetaSessionID    = models.MetaFieldName + "." + models.MetaFieldSessionID
 	FieldMetaClientID     = models.MetaFieldName + "." + models.MetaFieldClientID
 )
+
+// MetaStamp is the _meta $set a write or removal stamps: when it happened, and the session and client
+// that made it where they are known.
+func MetaStamp(now time.Time, sessionID, wsClientID string) bson.M {
+	stamp := bson.M{FieldMetaLastModified: now}
+	if sessionID != "" {
+		stamp[FieldMetaSessionID] = sessionID
+	}
+	if wsClientID != "" {
+		stamp[FieldMetaClientID] = wsClientID
+	}
+	return stamp
+}
 
 // OwnerFilter matches what one owner holds, naming both halves so an id cannot match another kind's
 // planner; any extra conditions given are added to it.

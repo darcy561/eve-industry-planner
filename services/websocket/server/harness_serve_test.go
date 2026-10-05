@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -50,6 +51,8 @@ func TestHarnessServe(t *testing.T) {
 	locks := documentlock.NewService(documentlock.DepsFromClients(f.Server.Stack))
 
 	var position atomic.Uint64
+	var storedMu sync.Mutex
+	stored := map[string]map[string]any{}
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/shutdown" {
 			stopOnce.Do(func() { close(stop) })
@@ -133,29 +136,54 @@ func TestHarnessServe(t *testing.T) {
 		}
 
 		var body struct {
-			Jobs     []map[string]any `json:"jobs"`
-			JobIDs   []string         `json:"jobIDs"`
-			GroupIDs []string         `json:"groupIDs"`
+			Jobs    []map[string]any `json:"jobs"`
+			JobIDs  []string         `json:"jobIDs"`
+			Deletes []struct {
+				JobID string `json:"jobID"`
+			} `json:"deletes"`
+			GroupIDs []string `json:"groupIDs"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "unreadable body: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		deliveries := make([]map[string]any, 0, len(body.Jobs)+len(body.JobIDs)+len(body.GroupIDs))
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/job-documents") {
+			storedMu.Lock()
+			found := make([]map[string]any, 0, len(body.JobIDs))
+			for _, docID := range body.JobIDs {
+				if document, held := stored[docID]; held {
+					found = append(found, document)
+				}
+			}
+			storedMu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(found)
+			return
+		}
+		deliveries := make([]map[string]any, 0, len(body.Jobs)+len(body.Deletes)+len(body.GroupIDs))
+		storedMu.Lock()
 		for _, write := range body.Jobs {
 			docID, _ := write["jobID"].(string)
 			document, _ := write["document"].(map[string]any)
+			held := stored[docID]
+			if held == nil {
+				held = map[string]any{"jobID": docID}
+			}
+			maps.Copy(held, document)
+			stored[docID] = held
 			deliveries = append(deliveries, map[string]any{
 				"collection": eipmongo.CollectionJobDocuments,
 				"docID":      docID, "operationType": "update", "document": document,
 			})
 		}
-		for _, docID := range body.JobIDs {
+		for _, remove := range body.Deletes {
+			delete(stored, remove.JobID)
 			deliveries = append(deliveries, map[string]any{
 				"collection": eipmongo.CollectionJobDocuments,
-				"docID":      docID, "operationType": "delete",
+				"docID":      remove.JobID, "operationType": "delete",
 			})
 		}
+		storedMu.Unlock()
 		for _, docID := range body.GroupIDs {
 			deliveries = append(deliveries, map[string]any{
 				"collection": eipmongo.CollectionJobGroups,

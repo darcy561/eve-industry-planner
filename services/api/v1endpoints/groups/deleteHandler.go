@@ -2,7 +2,6 @@ package groups
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -110,31 +109,9 @@ func (h *Handlers) DeleteGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := helper.AuthenticatedSessionID(r)
-	if sessionID == "" {
-		metrics.Error("auth_error")
-		helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "groups delete lock gate: missing session", "groups_delete_missing_session", "groups_delete", nil, nil)
+	rejects, ok := helper.GateDocumentLocks(w, r, metrics, h.locks.Redis, owner, eipmongo.CollectionJobGroups, "groups_delete", resolvedIDs)
+	if !ok || helper.RefuseHeldDocuments(w, r, metrics, eipmongo.CollectionJobGroups, rejects) {
 		return
-	}
-	if h.locks.Redis != nil {
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, resolvedIDs)
-		if lerr != nil {
-			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
-				metrics.Error("auth_error")
-				helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "groups delete lock gate: session required", "groups_delete_session_required", "groups_delete", lerr, nil)
-				return
-			}
-			metrics.Error("lock_error")
-			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "failed to check group doc lock before delete", "groups_delete_lock_gate_failed", "groups_delete", lerr, nil)
-			return
-		}
-		if len(rejects) > 0 {
-			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobGroups, rejects)
-			return
-		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
-			"doc_count": len(resolvedIDs),
-		})
 	}
 
 	now := time.Now().UTC()

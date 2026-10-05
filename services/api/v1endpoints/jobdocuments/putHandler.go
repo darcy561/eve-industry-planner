@@ -2,13 +2,11 @@ package jobdocuments
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -37,12 +35,6 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if len(reqBody.Jobs) == 0 {
-		metrics.Error("no_jobs")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No jobs provided", "no jobs provided in batch request", "job_docs_put_no_jobs", "job_documents", nil, nil)
-		return
-	}
-
 	const maxBatchSize = 100
 	if len(reqBody.Jobs) > maxBatchSize && !reqBody.OneChange {
 		metrics.Error("batch_too_large")
@@ -53,16 +45,15 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	for _, write := range reqBody.Jobs {
-		if err := write.Validate(); err != nil {
-			metrics.Error("invalid_write")
-			helper.RespondEndpointError(w, r, http.StatusBadRequest, "A write could not be read", "job documents put invalid write", "job_docs_put_invalid_write", "job_documents", err, nil)
-			return
-		}
+	if err := reqBody.Validate(); err != nil {
+		metrics.Error("invalid_write")
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "A write could not be read", "job documents put invalid write", "job_docs_put_invalid_write", "job_documents", err, nil)
+		return
 	}
 
 	logs.AttachDebugStep(r, "batch_validated", map[string]any{
 		"batch_size": len(reqBody.Jobs),
+		"deletes":    len(reqBody.Deletes),
 	})
 
 	sessionID := helper.AuthenticatedSessionID(r)
@@ -73,45 +64,18 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var lockRejects []documentlock.LockHeldElsewhereItem
-	if h.locks.Redis != nil {
-		if sessionID == "" {
-			metrics.Error("auth_error")
-			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents put lock gate: missing session", "job_docs_put_missing_session", "job_documents", nil, nil)
-			return
-		}
-		jobIDs := make([]string, 0, len(reqBody.Jobs))
-		for _, write := range reqBody.Jobs {
-			jobIDs = append(jobIDs, write.JobID)
-		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs)
-		if lerr != nil {
-			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
-				metrics.Error("auth_error")
-				helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "job documents put lock gate: session required", "job_docs_put_session_required", "job_documents", lerr, nil)
-				return
-			}
-			metrics.Error("lock_error")
-			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "job documents put lock gate failed", "job_docs_lock_gate_failed", "job_documents", lerr, nil)
-			return
-		}
-		lockRejects = rejects
-		if len(rejects) > 0 && reqBody.OneChange {
-			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
-			return
-		}
-		if len(rejects) > 0 {
-			reqBody.Jobs = dropHeldWrites(reqBody.Jobs, rejects)
-			metrics.Error("lock_conflict")
-		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
-			"doc_count": len(jobIDs),
-			"held":      len(rejects),
-		})
-
+	lockRejects, ok := helper.GateDocumentLocks(w, r, metrics, h.locks.Redis, owner, eipmongo.CollectionJobDocuments, "job_docs_put", reqBody.JobIDs())
+	if !ok {
+		return
+	}
+	if reqBody.OneChange && helper.RefuseHeldDocuments(w, r, metrics, eipmongo.CollectionJobDocuments, lockRejects) {
+		return
+	}
+	if len(lockRejects) > 0 {
+		reqBody.Jobs = dropHeldWrites(reqBody.Jobs, lockRejects)
+		metrics.Error("lock_conflict")
 		if len(reqBody.Jobs) == 0 {
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
+			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, lockRejects)
 			return
 		}
 	}
@@ -155,7 +119,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if len(wholeWrites) == 0 && len(fieldWrites) == 0 {
+	if len(wholeWrites) == 0 && len(fieldWrites) == 0 && len(reqBody.Deletes) == 0 {
 		metrics.Error("no_valid_jobs")
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No valid jobs to save", "no valid jobs in batch", "job_docs_put_no_valid_jobs", "job_documents", nil, nil)
 		return
@@ -167,7 +131,8 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 	var conflicts []eipmongo.RevisionConflict
 
 	if reqBody.OneChange {
-		applied, changeFailed, changeConflicts, cerr := h.Mongo.WriteJobChange(ctx, owner, accountID, wholeWrites, fieldWrites, now, sessionID, wsClientID)
+		change := eipmongo.JobChange{Whole: wholeWrites, Fields: fieldWrites, Deletes: reqBody.Deletes}
+		applied, changeFailed, changeConflicts, cerr := h.Mongo.WriteJobChange(ctx, owner, accountID, change, now, sessionID, wsClientID)
 		if cerr != nil {
 			metrics.Error("database_error")
 			helper.RespondEndpointServerError(w, r, "Failed to save jobs", "failed to write job documents as one change", "job_docs_change_failed", "job_documents", cerr, nil)
@@ -179,7 +144,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 		}
 		conflicts = changeConflicts
 		if len(conflicts) == 0 {
-			savedCount = int(applied)
+			savedCount = int(applied) - len(reqBody.Deletes)
 			savedDocIDs = append(writtenIDs(wholeWrites, func(job models.Job) string { return job.JobID }, nil, nil),
 				writtenIDs(fieldWrites, func(write eipmongo.JobFieldWrite) string { return write.JobID }, nil, nil)...)
 		}
@@ -248,6 +213,7 @@ func (h *Handlers) PutJobDocumentsHandler(w http.ResponseWriter, r *http.Request
 
 	metrics.Success()
 	m.JobsSaved.Add(ctx, float64(savedCount))
+	m.JobsDeleted.Add(ctx, float64(len(reqBody.Deletes)))
 	m.JobsRequested.Observe(ctx, float64(len(reqBody.Jobs)))
 
 	logs.AttachHandlerSuccessDetail(r, "batch job documents upserted", map[string]any{

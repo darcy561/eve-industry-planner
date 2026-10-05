@@ -20,6 +20,17 @@ type RevisionConflict struct {
 	Gone     bool
 }
 
+// retiredJobRootKeys are the root-level lifecycle keys older job documents carry, cleared on every
+// upsert of a live or archived job.
+var retiredJobRootKeys = bson.M{
+	"accountID":        "",
+	"archiveProcessed": "",
+	"archived":         "",
+	"archiveTimeStamp": "",
+	"deleted":          "",
+	"deletedTimeStamp": "",
+}
+
 // conditionalJobWrite is one write held back from the batch because its answer has
 // to be read on its own rather than in BulkWrite's totals.
 type conditionalJobWrite struct {
@@ -43,7 +54,7 @@ func planJobDocumentWrites(owner models.Owner, accountID string, jobs []models.J
 		job.MetaData.LastUpdatedBy = accountID
 		job.MetaData.Owner = owner
 		ApplyMetaSessionClient(&job.MetaData.MetaData, sessionID, wsClientID)
-		update, err := SetDocumentWithRevision(job, JobDocumentsUpsertUnset)
+		update, err := SetDocumentWithRevision(job, retiredJobRootKeys)
 		if err != nil {
 			failed = append(failed, job.JobID)
 			continue

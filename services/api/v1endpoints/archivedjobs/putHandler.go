@@ -2,30 +2,24 @@ package archivedjobs
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/jobidentity"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
 	"eve-industry-planner/shared/statistics"
 	"eve-industry-planner/shared/telemetry/apimetrics"
-
-	"go.mongodb.org/mongo-driver/v2/bson"
-	mongodriver "go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// archivedJobStatsBatch bounds one bulk write of statistics rows. The archive
-// batch is capped well below it, so a request is a single round trip.
+// archivedJobStatsBatch bounds one bulk write of statistics rows.
 const archivedJobStatsBatch = 200
 
-// PutArchivedJobsHandler serves PUT /v1/archived-jobs, upserting a batch into archivedJobs.
+// PutArchivedJobsHandler serves PUT /v1/archived-jobs, moving jobs off the planner into the archive in
+// one transaction that refuses the whole batch when any job moved since it was read.
 func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request) {
 	obsCtx := r.Context()
 	start := helper.RequestStartOrNow(obsCtx)
@@ -51,16 +45,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	if len(reqBody.Jobs) == 0 {
 		metrics.Error("no_jobs")
 		helper.RespondEndpointError(w, r, http.StatusBadRequest, "No jobs provided", "archived jobs put: empty batch", "archived_jobs_put_no_jobs", "archived_jobs_put", nil, nil)
-		return
-	}
-
-	const maxBatchSize = 100
-	if len(reqBody.Jobs) > maxBatchSize {
-		metrics.Error("batch_too_large")
-		helper.RespondEndpointError(w, r, http.StatusBadRequest, fmt.Sprintf("Batch too large (max %d jobs)", maxBatchSize), "archived jobs put: batch too large", "archived_jobs_put_batch_too_large", "archived_jobs_put", nil, map[string]any{
-			"count": len(reqBody.Jobs),
-			"max":   maxBatchSize,
-		})
 		return
 	}
 
@@ -114,41 +98,12 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if h.locks.Redis != nil {
-		if sessionID == "" {
-			metrics.Error("auth_error")
-			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "archived jobs put lock gate: missing session", "archived_jobs_put_missing_session", "archived_jobs_put", nil, nil)
-			return
-		}
-		jobIDs := make([]string, 0, len(reqBody.Jobs))
-		for _, j := range reqBody.Jobs {
-			if j.JobID != "" {
-				jobIDs = append(jobIDs, j.JobID)
-			}
-		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs)
-		if lerr != nil {
-			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
-				metrics.Error("auth_error")
-				helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "archived jobs put lock gate: session required", "archived_jobs_put_session_required", "archived_jobs_put", lerr, nil)
-				return
-			}
-			metrics.Error("lock_error")
-			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "archived jobs put lock gate failed", "archived_jobs_lock_gate_failed", "archived_jobs_put", lerr, nil)
-			return
-		}
-		if len(rejects) > 0 {
-			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobDocuments, rejects)
-			return
-		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
-			"doc_count": len(jobIDs),
-		})
+	rejects, ok := helper.GateDocumentLocks(w, r, metrics, h.locks.Redis, owner, eipmongo.CollectionJobDocuments, "archived_jobs_put", models.JobIDsOf(reqBody.Jobs))
+	if !ok || helper.RefuseHeldDocuments(w, r, metrics, eipmongo.CollectionJobDocuments, rejects) {
+		return
 	}
 
 	now := time.Now().UTC()
-	bulkOps := make([]mongodriver.WriteModel, 0, len(reqBody.Jobs))
 	statsRows := make([]models.ArchivedJobStats, 0, len(reqBody.Jobs))
 	var unbuildable int
 	for i := range reqBody.Jobs {
@@ -162,19 +117,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		job.MetaData.ArchivedAt = now
 		job.MetaData.ArchivedBy = accountID
 
-		update, uerr := eipmongo.SetDocumentWithRevision(job, eipmongo.ArchivedJobsUpsertUnset)
-		if uerr != nil {
-			metrics.Error("build_update_failed")
-			helper.RespondEndpointServerError(w, r, "Failed to archive jobs",
-				"archived jobs: build update failed", "archived_jobs_update_failed",
-				"archived_jobs", uerr, nil)
-			return
-		}
-		bulkOps = append(bulkOps, mongodriver.NewUpdateOneModel().
-			SetFilter(bson.M{"_id": eipmongo.OwnerScopedDocumentID(owner, job.JobID)}).
-			SetUpdate(update).
-			SetUpsert(true))
-
 		row, rowErr := statistics.NewRow(*job, now)
 		if rowErr != nil {
 			unbuildable++
@@ -183,16 +125,22 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 		statsRows = append(statsRows, row)
 	}
 
-	collection := h.Mongo.ArchivedJobs.Collection()
-	var result *mongodriver.BulkWriteResult
-	err := eipmongo.Retry(ctx, fmt.Sprintf("bulk upsert %d archived jobs", len(bulkOps)), func() error {
-		var e error
-		result, e = collection.BulkWrite(ctx, bulkOps, options.BulkWrite().SetOrdered(false))
-		return e
-	})
+	unarchivable, conflicts, err := h.Mongo.ArchiveJobs(ctx, owner, reqBody.Jobs, now, sessionID, helper.ExtractWSClientID(r))
 	if err != nil {
 		metrics.Error("database_error")
-		helper.RespondEndpointServerError(w, r, "Failed to save archived jobs", "archived jobs put: bulk write", "archived_jobs_upsert_failed", "archived_jobs_put", err, nil)
+		helper.RespondEndpointServerError(w, r, "Failed to save archived jobs", "archived jobs put: archive move", "archived_jobs_upsert_failed", "archived_jobs_put", err, nil)
+		return
+	}
+	if len(unarchivable) > 0 {
+		metrics.Error("no_revision")
+		helper.RespondEndpointError(w, r, http.StatusBadRequest, "A job was sent without the revision it was read at", "archived jobs put: job without a revision", "archived_jobs_put_no_revision", "archived_jobs_put", nil, map[string]any{
+			"failed": unarchivable,
+		})
+		return
+	}
+	if len(conflicts) > 0 {
+		metrics.Error("revision_conflict")
+		helper.RespondRevisionConflictJSON(w, r, eipmongo.CollectionJobDocuments, 0, nil, conflicts)
 		return
 	}
 
@@ -209,7 +157,6 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 			map[string]any{"account_id": accountID, "jobs": unbuildable})
 	}
 
-	savedCount := int(result.UpsertedCount + result.ModifiedCount)
 	nJobs := len(reqBody.Jobs)
 
 	if err := h.Mongo.QueueOwnerWork(ctx, owner, eipmongo.StatsWorkDelta, time.Now().UTC()); err != nil {
@@ -219,25 +166,18 @@ func (h *Handlers) PutArchivedJobsHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	logs.AttachDebugStep(r, "mongo_write_completed", map[string]any{
-		"saved": savedCount,
+		"saved": nJobs,
 		"jobs":  nJobs,
 	})
-	if savedCount != nJobs {
-		logs.AttachHandlerCaveat(r, "mongo_write_count_mismatch", "mongo write count differs from batch size", map[string]any{
-			"jobs":      nJobs,
-			"saved_ops": savedCount,
-		})
-	}
-
 	w.WriteHeader(http.StatusNoContent)
 	metrics.Success()
-	m.JobsSaved.Add(obsCtx, float64(savedCount))
+	m.JobsSaved.Add(obsCtx, float64(nJobs))
 	m.IndividualJobsArchived.Add(obsCtx, float64(nJobs))
 	m.JobsRequested.Observe(obsCtx, float64(nJobs))
 
 	logs.AttachHandlerSuccessDetail(r, "archived jobs put done", map[string]any{
 		"jobs":        nJobs,
-		"saved_ops":   savedCount,
+		"saved_ops":   nJobs,
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }

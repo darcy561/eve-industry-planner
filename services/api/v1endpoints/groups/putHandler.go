@@ -2,13 +2,11 @@ package groups
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"eve-industry-planner/api/helper"
-	"eve-industry-planner/shared/core/documentlock"
 	"eve-industry-planner/shared/logs"
 	"eve-industry-planner/shared/models"
 	eipmongo "eve-industry-planner/shared/mongo"
@@ -68,37 +66,15 @@ func (h *Handlers) PutGroupsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.locks.Redis != nil {
-		if sessionID == "" {
-			metrics.Error("auth_error")
-			helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "groups put lock gate: missing session", "groups_put_missing_session", "groups_put", nil, nil)
-			return
+	var groupIDs []string
+	for _, g := range reqBody.Groups {
+		if g.GroupID != "" {
+			groupIDs = append(groupIDs, g.GroupID)
 		}
-		var groupIDs []string
-		for _, g := range reqBody.Groups {
-			if g.GroupID != "" {
-				groupIDs = append(groupIDs, g.GroupID)
-			}
-		}
-		rejects, lerr := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobGroups, groupIDs)
-		if lerr != nil {
-			if errors.Is(lerr, documentlock.ErrSessionRequiredForLockGate) {
-				metrics.Error("auth_error")
-				helper.RespondEndpointError(w, r, http.StatusUnauthorized, "Unauthorized", "groups put lock gate: session required", "groups_put_session_required", "groups_put", lerr, nil)
-				return
-			}
-			metrics.Error("lock_error")
-			helper.RespondEndpointServerError(w, r, "Failed to verify document lock", "groups put lock gate failed", "groups_lock_gate_failed", "groups_put", lerr, nil)
-			return
-		}
-		if len(rejects) > 0 {
-			metrics.Error("lock_conflict")
-			helper.RespondLockHeldElsewhereJSON(w, r, eipmongo.CollectionJobGroups, rejects)
-			return
-		}
-		logs.AttachDebugStep(r, "lock_gate_passed", map[string]any{
-			"doc_count": len(groupIDs),
-		})
+	}
+	rejects, ok := helper.GateDocumentLocks(w, r, metrics, h.locks.Redis, owner, eipmongo.CollectionJobGroups, "groups_put", groupIDs)
+	if !ok || helper.RefuseHeldDocuments(w, r, metrics, eipmongo.CollectionJobGroups, rejects) {
+		return
 	}
 
 	now := time.Now()

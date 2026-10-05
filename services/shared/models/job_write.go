@@ -30,11 +30,80 @@ type JobWriteBody struct {
 	Removed  [][]string     `json:"removed,omitempty"`
 }
 
-// JobWriteBatch is a save request: the writes it carries, and whether they land as one change,
-// written together or not at all.
+// JobDeleteBody is one job a change removes, named with the revision it was read at.
+type JobDeleteBody struct {
+	JobID    string `json:"jobID"`
+	Revision int64  `json:"revision"`
+}
+
+// JobWriteBatch is a save request: the writes it carries, the jobs it removes, and whether they
+// land as one change, written together or not at all.
 type JobWriteBatch struct {
-	Jobs      []JobWriteBody `json:"jobs"`
-	OneChange bool           `json:"oneChange,omitzero"`
+	Jobs      []JobWriteBody  `json:"jobs"`
+	Deletes   []JobDeleteBody `json:"deletes,omitempty"`
+	OneChange bool            `json:"oneChange,omitzero"`
+}
+
+// Validate reports what stops this delete being made: a delete must name its job and the revision
+// it was read at.
+func (b JobDeleteBody) Validate() error {
+	if b.JobID == "" {
+		return fmt.Errorf("job delete: a delete named no job")
+	}
+	if b.Revision <= 0 {
+		return fmt.Errorf("job delete: %s names no revision it was read at", b.JobID)
+	}
+	return nil
+}
+
+// Validate reports what stops this batch being written at all: deletes ride only a batch marked
+// as one change, and no job is both written and removed.
+func (b JobWriteBatch) Validate() error {
+	if len(b.Jobs) == 0 && len(b.Deletes) == 0 {
+		return fmt.Errorf("job write: a batch carried no jobs")
+	}
+	if len(b.Deletes) > 0 && !b.OneChange {
+		return fmt.Errorf("job write: deletes ride only a batch marked as one change")
+	}
+	written := make(map[string]bool, len(b.Jobs))
+	for _, write := range b.Jobs {
+		if err := write.Validate(); err != nil {
+			return err
+		}
+		written[write.JobID] = true
+	}
+	for _, remove := range b.Deletes {
+		if err := remove.Validate(); err != nil {
+			return err
+		}
+		if written[remove.JobID] {
+			return fmt.Errorf("job write: %s is both written and removed", remove.JobID)
+		}
+	}
+	return nil
+}
+
+// JobIDsOf names the jobs given, leaving out any that carry no id.
+func JobIDsOf(jobs []Job) []string {
+	ids := make([]string, 0, len(jobs))
+	for i := range jobs {
+		if jobs[i].JobID != "" {
+			ids = append(ids, jobs[i].JobID)
+		}
+	}
+	return ids
+}
+
+// JobIDs names every job the batch touches, written or removed.
+func (b JobWriteBatch) JobIDs() []string {
+	ids := make([]string, 0, len(b.Jobs)+len(b.Deletes))
+	for _, write := range b.Jobs {
+		ids = append(ids, write.JobID)
+	}
+	for _, remove := range b.Deletes {
+		ids = append(ids, remove.JobID)
+	}
+	return ids
 }
 
 // IsWholeDocument reports whether this write carries the whole job rather than
@@ -77,13 +146,19 @@ func JobSetPaths(document jsontext.Value, job *Job) (map[string]any, error) {
 func JobUnsetPaths(removed [][]string) ([]string, error) {
 	paths := make([]string, 0, len(removed))
 	for _, path := range removed {
-		resolved, err := resolveRowPath(reflect.TypeFor[Job](), path)
+		resolved, err := JobRowPath(path)
 		if err != nil {
 			return nil, err
 		}
 		paths = append(paths, resolved)
 	}
 	return paths, nil
+}
+
+// JobRowPath is where a row of one of a job's keyed collections is stored, given the path a client
+// names it by.
+func JobRowPath(path []string) (string, error) {
+	return resolveRowPath(reflect.TypeFor[Job](), path)
 }
 
 func walkSet(present map[string]jsontext.Value, held reflect.Value, at []string, set map[string]any) error {

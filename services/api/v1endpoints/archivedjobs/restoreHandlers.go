@@ -141,7 +141,8 @@ func (h *Handlers) RestoreArchivedJobsHandler(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// restoreLockRejects reports documents the restore would write that another session is holding.
+// restoreLockRejects reports documents the restore would write that another session is holding: the
+// groups it writes, then every job.
 func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, sessionID string, jobs []models.Job) (string, []documentlock.LockHeldElsewhereItem, error) {
 	if h.locks.Redis == nil {
 		return "", nil, nil
@@ -161,17 +162,11 @@ func (h *Handlers) restoreLockRejects(ctx context.Context, owner models.Owner, s
 		}
 	}
 
-	loose := make([]string, 0, len(jobs))
-	for i := range jobs {
-		if jobs[i].JobID == "" || jobs[i].GroupID != "" {
-			continue
-		}
-		loose = append(loose, jobs[i].JobID)
-	}
-	if len(loose) == 0 {
+	jobIDs := models.JobIDsOf(jobs)
+	if len(jobIDs) == 0 {
 		return "", nil, nil
 	}
-	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, loose)
+	rejects, err := documentlock.CollectLockHeldElsewhereRejects(ctx, h.locks.Redis, owner, sessionID, eipmongo.CollectionJobDocuments, jobIDs)
 	if err != nil {
 		return "", nil, err
 	}

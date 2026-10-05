@@ -17,6 +17,7 @@ type jobWriteCorpus struct {
 	Job         jsontext.Value      `json:"job"`
 	Write       models.JobWriteBody `json:"write"`
 	Change      jsontext.Value      `json:"change"`
+	WithDeletes jsontext.Value      `json:"changeWithDeletes"`
 	StoredPaths struct {
 		Set   []string `json:"set"`
 		Unset []string `json:"unset"`
@@ -101,5 +102,21 @@ func TestTheCorpusChangeIsReadAsOneChange(t *testing.T) {
 	}
 	if len(batch.Jobs) != 1 || batch.Jobs[0].JobID != corpus.Write.JobID || batch.Jobs[0].Revision != corpus.Write.Revision {
 		t.Fatalf("the change carries %+v, want the corpus write", batch.Jobs)
+	}
+}
+
+func TestTheCorpusChangeWithDeletesIsReadWithItsRemovals(t *testing.T) {
+	t.Parallel()
+	corpus := loadJobWriteCorpus(t)
+
+	var batch models.JobWriteBatch
+	if err := jsoncodec.UnmarshalRequest(corpus.WithDeletes, &batch); err != nil {
+		t.Fatalf("the corpus change with deletes is one this endpoint cannot read: %v", err)
+	}
+	if err := batch.Validate(); err != nil {
+		t.Fatalf("the corpus change with deletes is refused: %v", err)
+	}
+	if want := []models.JobDeleteBody{{JobID: "job-replaced", Revision: 3}}; !slices.Equal(batch.Deletes, want) {
+		t.Fatalf("the change removes %+v, want %+v", batch.Deletes, want)
 	}
 }

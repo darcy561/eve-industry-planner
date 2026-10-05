@@ -1,7 +1,9 @@
 package jobdocuments
 
 import (
+	"context"
 	"encoding/json/jsontext"
+	"eve-industry-planner/testing/mongolive"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,10 +16,20 @@ import (
 
 func (s *plannerScope) putOneChange(t *testing.T, sessionID string, writes ...models.JobWriteBody) *httptest.ResponseRecorder {
 	t.Helper()
+	return s.putBatch(t, sessionID, models.JobWriteBatch{Jobs: writes, OneChange: true})
+}
+
+func (s *plannerScope) putBatch(t *testing.T, sessionID string, batch models.JobWriteBatch) *httptest.ResponseRecorder {
+	t.Helper()
 	rec := httptest.NewRecorder()
 	s.h.PutJobDocumentsHandler(rec, s.requestAsSession(http.MethodPut, "/api/v1/job-documents",
-		models.JobWriteBatch{Jobs: writes, OneChange: true}, s.account, s.handle, sessionID, ""))
+		batch, s.account, s.handle, sessionID, ""))
 	return rec
+}
+
+func (s *plannerScope) removal(t *testing.T, jobID string) models.JobDeleteBody {
+	t.Helper()
+	return models.JobDeleteBody{JobID: jobID, Revision: storedRevision(t, s, jobID)}
 }
 
 func (s *plannerScope) renameWrite(t *testing.T, jobID, name string) models.JobWriteBody {
@@ -137,4 +149,92 @@ func TestLive_OneChange_isNotSplitByTheBatchLimit(t *testing.T) {
 		t.Fatalf("change of %d jobs = %d, want 204: %s", len(writes), rec.Code, rec.Body.String())
 	}
 	assertStoredName(t, s, "one-change-large-100", "created in one change")
+}
+
+func TestLive_OneChange_removesTheJobsItNames(t *testing.T) {
+	s := newPlannerScope(t)
+	s.seedJobs(t, "one-change-replacement", "one-change-replaced")
+
+	rec := s.putBatch(t, lockGateSaverSession, models.JobWriteBatch{
+		Jobs:      []models.JobWriteBody{s.renameWrite(t, "one-change-replacement", "merged")},
+		Deletes:   []models.JobDeleteBody{s.removal(t, "one-change-replaced")},
+		OneChange: true,
+	})
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("change = %d, want 204: %s", rec.Code, rec.Body.String())
+	}
+	assertStoredName(t, s, "one-change-replacement", "merged")
+	mongolive.RequireJobAbsent(t, context.Background(), s.mongo.JobDocuments, s.owner, "one-change-replaced")
+}
+
+func TestLive_OneChange_aRemovalOfAJobSomeoneEditedRefusesTheWholeChange(t *testing.T) {
+	s := newPlannerScope(t)
+	s.seedJobs(t, "one-change-written", "one-change-edited")
+	write := s.renameWrite(t, "one-change-written", "merged")
+	remove := s.removal(t, "one-change-edited")
+	if rec := s.putWrites([]models.JobWriteBody{s.renameWrite(t, "one-change-edited", "edited by somebody else")},
+		s.account, s.handle); rec.Code >= http.StatusBadRequest {
+		t.Fatalf("intervening write = %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec := s.putBatch(t, lockGateSaverSession, models.JobWriteBatch{
+		Jobs: []models.JobWriteBody{write}, Deletes: []models.JobDeleteBody{remove}, OneChange: true,
+	})
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("change = %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	if body := decodeConflict(t, rec.Body.Bytes()); len(body.Rejected) != 1 || body.Rejected[0].DocID != "one-change-edited" {
+		t.Errorf("rejected %+v, want the edited job named", body.Rejected)
+	}
+	assertStoredName(t, s, "one-change-edited", "edited by somebody else")
+	assertStoredName(t, s, "one-change-written", plannerScopeJob("one-change-written").Name)
+}
+
+func TestLive_OneChange_aRemovalHeldElsewhereRefusesTheWholeChange(t *testing.T) {
+	s := newPlannerScope(t)
+	redis := s.seedLockGateJobs(t, "one-change-held-removal", "one-change-beside-removal")
+	s.holdLock(t, redis, plannerScopeOtherAccount, lockGateOtherSession, eipmongo.CollectionJobDocuments, "one-change-held-removal")
+
+	body := decodeLockHeld(t, s.putBatch(t, lockGateSaverSession, models.JobWriteBatch{
+		Jobs:      []models.JobWriteBody{s.renameWrite(t, "one-change-beside-removal", "merged")},
+		Deletes:   []models.JobDeleteBody{s.removal(t, "one-change-held-removal")},
+		OneChange: true,
+	}))
+
+	if len(body.Rejected) != 1 || body.Rejected[0].DocID != "one-change-held-removal" {
+		t.Errorf("rejected %+v, want the held job named", body.Rejected)
+	}
+	assertStoredName(t, s, "one-change-held-removal", plannerScopeJob("one-change-held-removal").Name)
+	assertStoredName(t, s, "one-change-beside-removal", plannerScopeJob("one-change-beside-removal").Name)
+}
+
+func TestLive_RemovalsOutsideOneChangeAreRefused(t *testing.T) {
+	s := newPlannerScope(t)
+	s.seedJobs(t, "batch-removal")
+
+	rec := s.putBatch(t, lockGateSaverSession, models.JobWriteBatch{
+		Deletes: []models.JobDeleteBody{s.removal(t, "batch-removal")},
+	})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("batch = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	assertStoredName(t, s, "batch-removal", plannerScopeJob("batch-removal").Name)
+}
+
+func TestLive_OneChange_thatOnlyRemovesLandsWithTheLockGateOn(t *testing.T) {
+	s := newPlannerScope(t)
+	s.seedLockGateJobs(t, "one-change-only-removed")
+
+	rec := s.putBatch(t, lockGateSaverSession, models.JobWriteBatch{
+		Deletes:   []models.JobDeleteBody{s.removal(t, "one-change-only-removed")},
+		OneChange: true,
+	})
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("change = %d, want 204: %s", rec.Code, rec.Body.String())
+	}
+	mongolive.RequireJobAbsent(t, context.Background(), s.mongo.JobDocuments, s.owner, "one-change-only-removed")
 }

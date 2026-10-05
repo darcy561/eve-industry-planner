@@ -497,3 +497,54 @@ func TestJobJSONRemovedNamesAListHeldUnderARowKey(t *testing.T) {
 		t.Errorf("want the row path, got %v", paths)
 	}
 }
+
+func aWrite(jobID string) JobWriteBody {
+	return JobWriteBody{JobID: jobID, Revision: 2, Document: jsontext.Value(`{"name":"renamed"}`)}
+}
+
+func TestJobWriteBatchRefusesDeletesOutsideOneChange(t *testing.T) {
+	batch := JobWriteBatch{Jobs: []JobWriteBody{aWrite("kept")}, Deletes: []JobDeleteBody{{JobID: "gone", Revision: 3}}}
+	if err := batch.Validate(); err == nil {
+		t.Fatal("a batch not marked as one change was allowed to remove jobs")
+	}
+}
+
+func TestJobWriteBatchRefusesAJobBothWrittenAndRemoved(t *testing.T) {
+	batch := JobWriteBatch{Jobs: []JobWriteBody{aWrite("both")}, Deletes: []JobDeleteBody{{JobID: "both", Revision: 3}}, OneChange: true}
+	if err := batch.Validate(); err == nil {
+		t.Fatal("a job both written and removed was allowed")
+	}
+}
+
+func TestJobWriteBatchRefusesARemovalWithoutItsRevision(t *testing.T) {
+	for _, remove := range []JobDeleteBody{{JobID: "gone"}, {Revision: 3}} {
+		batch := JobWriteBatch{Deletes: []JobDeleteBody{remove}, OneChange: true}
+		if err := batch.Validate(); err == nil {
+			t.Errorf("removal %+v was allowed", remove)
+		}
+	}
+}
+
+func TestJobWriteBatchRefusesAnEmptyBatch(t *testing.T) {
+	if err := (JobWriteBatch{OneChange: true}).Validate(); err == nil {
+		t.Fatal("a batch carrying nothing was allowed")
+	}
+}
+
+func TestJobWriteBatchAllowsAChangeThatOnlyRemoves(t *testing.T) {
+	batch := JobWriteBatch{Deletes: []JobDeleteBody{{JobID: "gone", Revision: 3}}, OneChange: true}
+	if err := batch.Validate(); err != nil {
+		t.Fatalf("a change that only removes was refused: %v", err)
+	}
+}
+
+func TestJobWriteBatchNamesEveryJobItTouches(t *testing.T) {
+	batch := JobWriteBatch{
+		Jobs:      []JobWriteBody{aWrite("written")},
+		Deletes:   []JobDeleteBody{{JobID: "removed", Revision: 3}},
+		OneChange: true,
+	}
+	if got := strings.Join(batch.JobIDs(), ","); got != "written,removed" {
+		t.Fatalf("JobIDs = %s, want written,removed", got)
+	}
+}

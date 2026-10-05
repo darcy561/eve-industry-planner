@@ -153,16 +153,8 @@ var (
 	derivedSetupFields = []string{"estimatedTime", "estimatedInstallCost"}
 )
 
-// pruneToShape drops what the reshaped document does not hold.
-//
-// A field nothing writes survives forever otherwise: the upsert builds `$set`
-// from the struct, so a key no model marshals is never touched, and the release
-// is the one pass that can reach it. `eipmongo.ArchivedJobsUpsertUnset` clears
-// the root-level lifecycle keys for the same reason, but only on a document
-// somebody saves; this reaches the ones nobody has opened.
-//
-// Every drop is counted by name rather than discarded quietly — a field turning
-// up here that nobody expected is a finding, not housekeeping.
+// pruneToShape drops what the reshaped document does not hold, counting every drop by name so an
+// unexpected field shows up in the report.
 func pruneToShape(out bson.M, build bson.M, esi bson.M, report *reshapeReport) {
 	prune(out, reshapedJobFields, "", report)
 	prune(build, reshapedBuildFields, "build.", report)
