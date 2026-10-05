@@ -10,7 +10,7 @@ const { addNewJobsToPlanner, showBlueprintArchiveDialogue } = vi.hoisted(
   }),
 );
 
-vi.mock("../../Functions/JobPlanner/addNewJobsToPlanner", () => ({
+vi.mock("../../Functions/Job/building/addNewJobsToPlanner", () => ({
   default: addNewJobsToPlanner,
 }));
 

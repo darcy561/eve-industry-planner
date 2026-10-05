@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { lockParticipantID } from "../../Functions/DocumentLock/lockParticipant.js";
 import { openClient, startWebsocketHarness } from "./crossClientHarness.js";
 
 /**
@@ -62,19 +63,14 @@ describe.skipIf(!RUN)("one account in two sessions", () => {
       ...DOC,
     );
 
-    // Contended, not refused outright: the lock is held, and the answer says by
-    // whom so the second session can decide what to offer its reader.
     expect(refused.status).toBe(200);
     expect(JSON.parse(refused.body)).toMatchObject({
       held: true,
       acquired: false,
-      holderSessionID: FIRST.sessionID,
+      holderParticipantID: lockParticipantID(FIRST.sessionID),
     });
   }, 60_000);
 
-  // The control that exists for exactly this case. The same call against a lock
-  // another *member* holds is answered as though no lock existed, which is what
-  // the SPA cannot currently tell apart.
   it("lets the account's other session take the lock over", async () => {
     const cleared = await second.call(
       LOCK_CLIENT,
@@ -84,7 +80,7 @@ describe.skipIf(!RUN)("one account in two sessions", () => {
 
     expect(cleared.status, `force-release said: ${cleared.body}`).toBe(201);
     expect(JSON.parse(cleared.body)).toMatchObject({
-      holderSessionID: SECOND.sessionID,
+      holderParticipantID: lockParticipantID(SECOND.sessionID),
     });
   }, 60_000);
 });

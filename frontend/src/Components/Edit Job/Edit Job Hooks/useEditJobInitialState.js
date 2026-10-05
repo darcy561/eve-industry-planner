@@ -2,11 +2,11 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clearOrphanedCustomStructureOnSetups } from "../../../Functions/Custom Structures/customStructureSetup";
-import correctSetupFigures from "../../../Functions/JobPlanner/correctSetupFigures";
+import { correctSetupFigures } from "../../../Functions/Job/setups/setups";
 import {
   jobFromDocument,
   toDocument,
-} from "../../../Functions/JobDocuments/jobDocument";
+} from "../../../Functions/Job/jobDocument";
 import { prefetchAccountTotalsQuery } from "../../../Hooks/React Query/Backend/statisticsTotals";
 import getMissingESIData from "../../../Functions/Shared/getMissingESIData";
 import { loadAllRelatedJobs } from "../../../Functions/Helper/getAllRelatedJobs";

@@ -5,7 +5,7 @@ const recalculateJobForNewTotal = vi.fn();
 const hydrateChildJobsWithMissingData = vi.fn().mockResolvedValue(undefined);
 
 vi.mock(
-  "../../../../../../../Functions/JobPlanner/recalculateJobForNewTotal",
+  "../../../../../../../Functions/Job/setups/recalculateJobForNewTotal",
   () => ({
     default: (...args) => recalculateJobForNewTotal(...args),
   }),

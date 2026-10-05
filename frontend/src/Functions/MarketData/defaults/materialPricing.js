@@ -4,7 +4,7 @@ import {
   quantityPurchased,
 } from "../../../Components/Edit Job/Edit Job Hooks/materialSelectors";
 import { ORDER_TYPES } from "../../../Context/defaultValues";
-import { MATERIAL_PLAN } from "../../Job/materialSourcingRow.js";
+import { MATERIAL_PLAN } from "../../Job/figures/materialSourcingRow.js";
 import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
 
 /**

@@ -13,7 +13,7 @@ const store = {
   jobs: new Map(),
 };
 
-vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
+vi.mock("../Job/sync/saveJobsViaApi.js", () => ({
   saveJobsViaApi: async () => {},
 }));
 
@@ -38,7 +38,7 @@ vi.mock("../../Zustand/usersStore.js", async () => {
 
 const { distributeItemCostsBetweenJobs, passBuildCostsToParentJobs } =
   await import("./passBuildCosts.js");
-const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../Job/jobDocument.js");
 
 function childProducing(jobID, produced, spend) {
   return jobFromDocument({

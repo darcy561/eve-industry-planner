@@ -2,23 +2,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { archived, navigated, removed, saveOk } = vi.hoisted(() => ({
-  archived: { jobs: null },
-  navigated: [],
-  removed: [],
-  saveOk: { current: true },
-}));
+const { archived, navigated, removed, cleared, released, requeued, outcome } =
+  vi.hoisted(() => ({
+    archived: { jobs: null },
+    navigated: [],
+    removed: [],
+    cleared: [],
+    released: [],
+    requeued: [],
+    outcome: { current: "saved" },
+  }));
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreOverSession } =
     await import("../../../../../../tests/usersStoreHarness.js");
   return usersStoreOverSession({
     jobData: {
-      actions: { removeJobsFromJobArray: (id) => removed.push(id) },
+      pendingJobDocumentWrites: { "job-1": null },
+      actions: {
+        removeJobsFromJobArray: (id) => removed.push(id),
+        takeQueuedJobDocumentWrites: (ids) => {
+          cleared.push(...ids);
+          return { [ids[0]]: null };
+        },
+        findJobInJobArray: (jobID) => ({ jobID }),
+        queueJobDocumentWritesFromJobs: (jobs) => requeued.push(...jobs),
+      },
     },
     account: {
       isLoggedIn: true,
-      actions: { addLinkedEsiData: () => {} },
+      actions: { addLinkedEsiData: (patch) => released.push(patch) },
     },
   });
 });
@@ -43,30 +56,23 @@ vi.mock("../../../../../../Events/snackbarEvents", async () => {
   return snackbarMock();
 });
 
-vi.mock("../../../../../../Functions/Endpoints/Private/archivedJobs", () => ({
-  default: async (jobs) => {
-    archived.jobs = jobs;
-    return saveOk.current;
-  },
-}));
+vi.mock(
+  "../../../../../../Functions/Endpoints/Private/archivedJobs.js",
+  () => ({
+    default: async (jobs) => {
+      archived.jobs = jobs;
+      return outcome.current;
+    },
+  }),
+);
 
 vi.mock(
   "../../../../../../Functions/Groups/markJobsArchivedInGroups.js",
   () => ({ markJobsArchivedInGroups: async () => {} }),
 );
 
-vi.mock(
-  "../../../../../../Functions/Endpoints/Private/jobDocuments.js",
-  () => ({ deleteJobDocumentsFromApi: async () => {} }),
-);
-
-vi.mock(
-  "../../../../../../Functions/Debounce/jobDocumentsPersistSchedule.js",
-  () => ({ flushPendingJobDocumentsSave: async () => {} }),
-);
-
 vi.mock("../../../../../../Functions/Endpoints/Private/userDocument", () => ({
-  saveUserAccountDocument: async () => {},
+  saveUserAccountDocument: async () => true,
 }));
 
 vi.mock("../../../../../../Hooks/React Query/Backend/archivedJobsList", () => ({
@@ -106,7 +112,10 @@ beforeEach(() => {
   archived.jobs = null;
   navigated.length = 0;
   removed.length = 0;
-  saveOk.current = true;
+  cleared.length = 0;
+  released.length = 0;
+  requeued.length = 0;
+  outcome.current = "saved";
   session().actions.closeSession();
   openJob();
 });
@@ -121,17 +130,28 @@ describe("archiving a finished job", () => {
     expect(archived.jobs[0].build).toEqual(expect.any(Object));
     expect(archived.jobs[0].jobID).toBe("job-1");
     expect(removed).toEqual(["job-1"]);
+    expect(cleared).toEqual(["job-1"]);
+    expect(requeued).toEqual([]);
+    expect([...released[0].jobsToRemove]).toEqual([1]);
     expect(navigated).toEqual([{ to: "/jobplanner" }]);
   });
 
-  it("keeps the job when the archive is refused", async () => {
-    saveOk.current = false;
-    render(<ArchiveJobButton />);
+  it.each(["locked", "conflict", "failed"])(
+    "keeps the job and its ESI links when the archive is refused (%s)",
+    async (refused) => {
+      outcome.current = refused;
+      render(<ArchiveJobButton />);
 
-    await archive();
+      await archive();
 
-    expect(snackbarSpies.showSnackbarError).toHaveBeenCalled();
-    expect(removed).toEqual([]);
-    expect(navigated).toEqual([]);
-  });
+      expect(snackbarSpies.showSnackbarError).toHaveBeenCalledWith(
+        expect.stringContaining("Nothing was archived"),
+        5,
+      );
+      expect(removed).toEqual([]);
+      expect(released).toEqual([]);
+      expect(requeued.map((held) => held.jobID)).toEqual(["job-1"]);
+      expect(navigated).toEqual([]);
+    },
+  );
 });

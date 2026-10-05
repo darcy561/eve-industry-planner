@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 
 describe("the revision a job was delivered at", () => {
   it("is kept and sent back", () => {

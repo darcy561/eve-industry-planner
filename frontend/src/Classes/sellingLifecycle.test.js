@@ -55,7 +55,7 @@ vi.mock("../Hooks/EveEsi/Character/useGetCharacterStandings", () => ({
 const { default: MarketOrder } = await import("./marketOrder.js");
 const { default: Transaction } = await import("./transaction.js");
 const { jobFromDocument, toDocument } =
-  await import("../Functions/JobDocuments/jobDocument.js");
+  await import("../Functions/Job/jobDocument.js");
 const { default: calcSellingCharges } =
   await import("../Functions/MarketOrders/calcSellingCharges.js");
 

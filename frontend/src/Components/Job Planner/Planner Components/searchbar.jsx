@@ -15,7 +15,7 @@ import useUsersStore from "../../../Zustand/usersStore";
 import VirtualisedRecipeSearch from "../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { useActiveGroupLockReadOnly } from "../../../Hooks/DocumentLock/useDocumentLockState";
-import addNewJobsToPlanner from "../../../Functions/JobPlanner/addNewJobsToPlanner";
+import addNewJobsToPlanner from "../../../Functions/Job/building/addNewJobsToPlanner";
 import { TYPE_IMAGE, typeImageUrl } from "../../../Functions/Shared/eveImage";
 
 export function SearchBar({ actions }) {

@@ -7,7 +7,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 
 const { default: buildParentChildRelationships } =
   await import("./buildParentChildRelationships.js");
-const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../Job/jobDocument.js");
 
 const TRITANIUM = 34;
 const PYERITE = 35;

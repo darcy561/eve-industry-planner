@@ -16,10 +16,7 @@ import {
   totalTransactionFees,
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors.js";
 import { describe, expect, test } from "vitest";
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 import Setup from "./jobSetup.js";
 
 function jobWith({ materials = [], invention = 0, totalQuantity = 10 }) {

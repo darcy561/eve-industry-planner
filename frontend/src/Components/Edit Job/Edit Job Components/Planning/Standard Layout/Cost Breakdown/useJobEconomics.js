@@ -4,9 +4,9 @@ import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { pricesWantedBy } from "../../../../../../Functions/MarketData/prices/pricesWanted.js";
 import { installCostForPlanning } from "../../../../../../Functions/Installation Costs/installCosts";
-import { buildCostBreakdown } from "../../../../../../Functions/Job/costBreakdown.js";
-import { calculateReturns } from "../../../../../../Functions/Job/returns.js";
-import { compareToHistory } from "../../../../../../Functions/Job/buildComparison.js";
+import { buildCostBreakdown } from "../../../../../../Functions/Job/figures/costBreakdown.js";
+import { calculateReturns } from "../../../../../../Functions/Job/figures/returns.js";
+import { compareToHistory } from "../../../../../../Functions/Job/figures/buildComparison.js";
 import {
   brokerFeeAmount,
   salesTaxAmount,

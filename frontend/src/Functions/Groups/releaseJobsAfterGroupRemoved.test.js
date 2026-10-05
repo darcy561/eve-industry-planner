@@ -10,7 +10,7 @@ vi.mock("../../Zustand/usersStore.js", async () => {
 });
 
 const saveJobsViaApi = vi.fn();
-vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
+vi.mock("../Job/sync/saveJobsViaApi.js", () => ({
   saveJobsViaApi: (...args) => saveJobsViaApi(...args),
 }));
 

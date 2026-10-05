@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import CostComparison from "./costComparison";
-import { compareToHistory } from "../../../../../../Functions/Job/buildComparison.js";
+import { compareToHistory } from "../../../../../../Functions/Job/figures/buildComparison.js";
 
 const history = (overrides = {}) => ({
   buildCount: 4,

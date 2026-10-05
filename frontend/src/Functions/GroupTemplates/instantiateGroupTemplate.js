@@ -5,10 +5,10 @@ import {
 
 import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import Group from "../../Classes/group";
-import { buildJob } from "../JobPlanner/buildJob";
-import mergeJobs from "../JobPlanner/mergeJobs";
+import { buildJob } from "../Job/building/buildJob";
+import mergeJobs from "../Job/changes/mergeJobs";
 import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships";
-import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
+import { saveJobsViaApi } from "../Job/sync/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 import getMissingESIData from "../Shared/getMissingESIData";
 
@@ -131,7 +131,7 @@ export async function instantiateGroupTemplate({
     throw new Error(`Unknown apply mode: ${mode}`);
   }
 
-  if (mode === "newGroup" && isLoggedIn) {
+  if (isLoggedIn) {
     await saveJobsViaApi(built);
   }
 

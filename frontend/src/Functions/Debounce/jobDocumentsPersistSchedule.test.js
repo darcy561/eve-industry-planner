@@ -7,7 +7,7 @@ const persistJobDocumentsToApi = vi.fn(
       resolvePersist = resolve;
     }),
 );
-vi.mock("../JobDocuments/persistJobDocumentsToApi.js", () => ({
+vi.mock("../Job/sync/persistJobDocumentsToApi.js", () => ({
   persistJobDocumentsToApi: () => persistJobDocumentsToApi(),
 }));
 vi.mock("../../Zustand/usersStore.js", async () => {

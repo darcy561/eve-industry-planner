@@ -1,55 +1,42 @@
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
-import { toDocument } from "../../JobDocuments/jobDocument.js";
+import { CLIENT_ERROR_REVISION_CONFLICT } from "../../Job/sync/revisionConflict.js";
+import { toDocument } from "../../Job/jobDocument.js";
 import requestWithPrivateHeaders, {
   privateBatchRetryConfig,
 } from "./applyPrivateHeaders.js";
 
 const ARCHIVED_JOBS_URL = "/api/v1/archived-jobs";
 
-/** Kept in sync with Go `PutArchivedJobsHandler` (`maxBatchSize`). */
-const MAX_ARCHIVED_JOBS_BATCH = 100;
-
 /**
- * Saves archived jobs to MongoDB via `PUT /api/v1/archived-jobs`.
+ * Moves jobs off the planner into the archive in one request, which the server makes whole or
+ * refuses whole.
  *
- * @param {Array<Object>} jobs - The jobs to archive, as plain data
- * @returns {Promise<boolean>} `true` on success. `false` if any batch failed (after `Promise.allSettled` in the private client) or the request threw. Batches use the same retry policy as other private `PUT` calls.
+ * @param {Array<Object>} jobs - The jobs to archive, each carrying the revision it was read at
+ * @returns {Promise<import("../../Job/sync/persistJobDocumentsToApi.js").JobDocumentPersistOutcome>}
  */
 async function saveArchivedJobs(jobs) {
-  if (!jobs || !Array.isArray(jobs) || jobs.length === 0) {
-    console.error("Invalid jobs array provided");
-    return false;
-  }
-
-  const payloads = jobs.map((job) => toDocument(job));
+  if (!Array.isArray(jobs) || jobs.length === 0) return "saved";
 
   try {
     await requestWithPrivateHeaders(
       ARCHIVED_JOBS_URL,
       {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ jobs: payloads }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobs: jobs.map((job) => toDocument(job)) }),
       },
-      {
-        requestName: "saveArchivedJobs",
-        retry: privateBatchRetryConfig,
-        batch: {
-          size: MAX_ARCHIVED_JOBS_BATCH,
-          arrayKey: "jobs",
-          errorLabel: "PUT /api/v1/archived-jobs",
-        },
-      },
+      { requestName: "saveArchivedJobs", retry: privateBatchRetryConfig },
     );
-    return true;
+    return "saved";
   } catch (error) {
     if (error?.code === DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE) {
-      return false;
+      return "locked";
+    }
+    if (error?.code === CLIENT_ERROR_REVISION_CONFLICT) {
+      return "conflict";
     }
     console.error("Error saving archived jobs:", error);
-    return false;
+    return "failed";
   }
 }
 

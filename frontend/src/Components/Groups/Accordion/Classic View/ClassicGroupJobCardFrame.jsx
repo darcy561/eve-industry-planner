@@ -29,7 +29,7 @@ import GLOBAL_CONFIG from "../../../../global-config-app";
 import GroupStep1JobCard from "./JobCards/groupStep1";
 import { RouterButton } from "../../../../Styled Components/Navigation/routerControls.jsx";
 import useUsersStore from "../../../../Zustand/usersStore";
-import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
+import deleteJobsFromPlanner from "../../../../Functions/Job/changes/deleteMultipleJobs";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";
 import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";

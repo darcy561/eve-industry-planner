@@ -2,7 +2,7 @@ import { IconButton, Tooltip } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import { useActiveJobPersistGate } from "./Edit Job Hooks/useActiveJobDocumentLock";
 import { persistAffordanceBlockedReason } from "../DocumentLock/LockGatedTooltip";
-import { useSaveAndLeave } from "./Edit Job Hooks/useSaveAndLeave";
+import { useSaveAndLeave } from "./Edit Job Hooks/saveOpenJob";
 
 export function SaveJobIcon() {
   const persist = useActiveJobPersistGate();

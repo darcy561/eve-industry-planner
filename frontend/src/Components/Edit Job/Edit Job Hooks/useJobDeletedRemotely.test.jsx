@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useJobDeletedRemotely } from "./useJobDeletedRemotely.js";
-import { JOBS_DELETED_REMOTELY_EVENT } from "../../../Functions/JobDocuments/inboundJobDocuments.js";
+import { JOBS_DELETED_REMOTELY_EVENT } from "../../../Functions/Job/sync/inboundJobDocuments.js";
 import {
   resetSnackbars,
   snackbarSpies,

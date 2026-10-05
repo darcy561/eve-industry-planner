@@ -1,9 +1,9 @@
 import { applyPatches } from "immer";
-import { sameValue } from "../../../Functions/Helper/sameValue.js";
 import {
   NOTHING_AT_PATH,
+  sameValue,
   valueAtPath,
-} from "../../../Functions/Helper/valueAtPath.js";
+} from "../../../Functions/Helper/documentValues.js";
 
 /**
  * How one of the reader's changes stands against a new copy of the job: it still applies, the copy

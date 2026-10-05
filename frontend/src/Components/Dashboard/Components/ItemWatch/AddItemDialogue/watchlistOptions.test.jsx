@@ -26,7 +26,7 @@ vi.mock("../../../../../Functions/Helper/getCachedData", async () => {
   });
 });
 
-vi.mock("../../../../../Functions/JobPlanner/applySetupChange", () => ({
+vi.mock("../../../../../Functions/Job/setups/applySetupChange", () => ({
   recalculateWatchListItemsFromSetup: () => {},
 }));
 

@@ -2,10 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import fs from "node:fs";
 import readline from "node:readline";
 import { resolve } from "node:path";
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 
 vi.mock("../Zustand/usersStore", async () => {
   const { usersStoreMock } = await import("../tests/usersStoreHarness.js");

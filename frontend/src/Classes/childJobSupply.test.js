@@ -17,8 +17,7 @@ vi.mock("../Zustand/usersStore.js", async () => {
 
 const { childJobSupplyForMaterial } =
   await import("../Components/Edit Job/Edit Job Components/Purchasing/Standard Layout/Material Cards/functions/childJobSupplyForMaterial.js");
-const { jobFromDocument } =
-  await import("../Functions/JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../Functions/Job/jobDocument.js");
 const { applyCommands, importPurchaseToMaterial } =
   await import("../Components/Edit Job/Edit Job Hooks/jobCommands.js");
 const { materialRequirementOf } =

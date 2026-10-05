@@ -3,7 +3,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
 import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
-import { leaveEditedJobWhereItStands } from "../../Functions/JobPlanner/editSessionLifetime.js";
+import { leaveEditedJobWhereItStands } from "../../Functions/Job/editing/editSessionLifetime.js";
 
 /**
  * Closing leaves the reader on the job as it now stands, which is the document

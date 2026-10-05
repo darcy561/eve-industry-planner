@@ -3,15 +3,14 @@ import {
   stepBackward,
   stepForward,
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
-import { copyOfJob } from "../JobDocuments/jobDocument";
-import Group from "../../Classes/group";
-import { scheduleSaveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
+import { workingGroups, workingJobs } from "../Job/changes/workingCopies.js";
+import { scheduleSaveJobsViaApi } from "../Job/sync/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 import { asIDList, isGroupID, isJobID } from "../Helper/ids";
 import {
   canMoveJobBackward,
   canMoveJobForward,
-} from "../Job/jobStepNavigation";
+} from "../Job/editing/jobStepNavigation";
 
 /**
  * Moves jobs or groups a stage forward or backward, committing copies and queuing
@@ -35,27 +34,12 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
   const selectedIDs = [...new Set(normalizedIDs.filter(Boolean))];
   if (!direction || selectedIDs.length === 0) return;
 
-  const workingJobsByID = new Map();
-  const workingGroupsByID = new Map();
+  const working = workingJobs(findJobInJobArray);
+  const groups = workingGroups(getGroupObject);
   const modifiedJobIDs = new Set();
   const modifiedGroupIDs = new Set();
-
-  const getWorkingJob = (jobID) => {
-    if (workingJobsByID.has(jobID)) return workingJobsByID.get(jobID);
-    const source = findJobInJobArray(jobID);
-    if (!source) return null;
-    const cloned = copyOfJob(source);
-    workingJobsByID.set(jobID, cloned);
-    return cloned;
-  };
-  const getWorkingGroup = (groupID) => {
-    if (workingGroupsByID.has(groupID)) return workingGroupsByID.get(groupID);
-    const source = getGroupObject(groupID);
-    if (!source) return null;
-    const cloned = new Group(source.toDocument());
-    workingGroupsByID.set(groupID, cloned);
-    return cloned;
-  };
+  const getWorkingJob = working.get;
+  const getWorkingGroup = groups.get;
 
   for (const inputID of selectedIDs) {
     if (isGroupID(inputID)) {
@@ -77,7 +61,7 @@ export default async function moveItemsOnPlanner(inputIDs, direction) {
   }
 
   const modifiedJobs = [...modifiedJobIDs]
-    .map((jobID) => workingJobsByID.get(jobID))
+    .map((jobID) => working.taken(jobID))
     .filter(Boolean);
   const groupedJobGroupIDs = [
     ...new Set(

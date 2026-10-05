@@ -3,7 +3,7 @@ import { Button } from "@mui/material";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { requestEditJobNavigation } from "../../../../../../../Events/editJobNavigationEvents";
-import { leaveEditedJobWhereItStands } from "../../../../../../../Functions/JobPlanner/editSessionLifetime.js";
+import { leaveEditedJobWhereItStands } from "../../../../../../../Functions/Job/editing/editSessionLifetime.js";
 import EditJobLeaveConfirmDialogue from "../../../../../EditJobLeaveConfirmDialogue";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { useActiveJobPersistGate } from "../../../../../Edit Job Hooks/useActiveJobDocumentLock";

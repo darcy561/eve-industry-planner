@@ -29,7 +29,7 @@ import ItemMarketActions from "../../../../Styled Components/Item/marketActions"
 import { formatNumberForLocale } from "../../../../Functions/Helper/numberParser";
 import { calculateInstallCostfromSetup } from "../../../../Functions/Installation Costs/installCosts";
 import { setupHasOrphanedCustomStructure } from "../../../../Functions/Custom Structures/customStructureSetup";
-import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
+import addNewJobsToPlanner from "../../../../Functions/Job/building/addNewJobsToPlanner";
 import {
   TYPE_IMAGE,
   typeImageUrl,

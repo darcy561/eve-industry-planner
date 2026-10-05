@@ -1,5 +1,5 @@
 import GLOBAL_CONFIG from "../../../global-config-app";
-import { EXIT_ROUTE } from "../../Job/returns";
+import { EXIT_ROUTE } from "../../Job/figures/returns";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 

@@ -4,11 +4,11 @@ import { logoutPlannerSession } from "../Functions/Auth/sessionClient.js";
 import { getTabPlannerRefreshToken } from "../Functions/Auth/tabSessionStorage.js";
 import { clearPlannerAuthCookiesClientSide } from "../Functions/Auth/plannerAuthCookies.js";
 import { disconnectWebsocket } from "../WebSocket/websocketClient.js";
-import { clearInboundJobDocumentCoalesce } from "../Functions/JobDocuments/inboundJobDocuments.js";
+import { clearInboundJobDocumentCoalesce } from "../Functions/Job/sync/inboundJobDocuments.js";
 import useUsersStore from "../Zustand/usersStore";
 import esiCredentials from "../Functions/Auth/esiCredentials/provider.js";
 import { isDeliberateSignout } from "../Functions/Auth/signoutIntent.js";
-import { endEditSession } from "../Functions/JobPlanner/editSessionLifetime.js";
+import { endEditSession } from "../Functions/Job/editing/editSessionLifetime.js";
 
 function clearClientSessionState() {
   const { resetJobDataStore } = useUsersStore.getState().jobData.actions;

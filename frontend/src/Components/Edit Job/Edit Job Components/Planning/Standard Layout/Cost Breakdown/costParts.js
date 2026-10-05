@@ -125,7 +125,7 @@ function basePartColour(theme, id) {
  * Every line of a breakdown as a part the proportion bar can draw, in the order
  * the table lists them.
  *
- * @param {import("../../../../../../Functions/Job/costBreakdown.js").CostBreakdown} cost
+ * @param {import("../../../../../../Functions/Job/figures/costBreakdown.js").CostBreakdown} cost
  * @param {object} theme
  * @returns {Array<{id: string, label: string, value: number, colour: string}>}
  */

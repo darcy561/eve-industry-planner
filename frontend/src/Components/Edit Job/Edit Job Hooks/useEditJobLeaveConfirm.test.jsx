@@ -55,8 +55,8 @@ vi.mock(
   }),
 );
 
-vi.mock("../../../Functions/JobPlanner/closeActiveJob", () => ({
-  default: async (jobToSave, jobModifiedFlag) => {
+vi.mock("../../../Functions/Job/editing/closeActiveJob", () => ({
+  closeActiveJob: async (jobToSave, jobModifiedFlag) => {
     saved.push({ jobID: jobToSave?.jobID, jobModifiedFlag });
     leaveSteps.push("saved");
     return closeOutcome.current;

@@ -39,7 +39,7 @@ import { describe, expect, it } from "vitest";
 import {
   jobFromDocument,
   toDocument,
-} from "../../../Functions/JobDocuments/jobDocument";
+} from "../../../Functions/Job/jobDocument";
 import Material from "../../../Classes/jobMaterial";
 import {
   boughtCost,

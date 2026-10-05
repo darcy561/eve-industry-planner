@@ -1,4 +1,4 @@
-import { toDocument } from "../../Functions/JobDocuments/jobDocument.js";
+import { toDocument } from "../../Functions/Job/jobDocument.js";
 import { esiJobIDs } from "./Edit Job Hooks/jobSelectors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent, act, waitFor } from "@testing-library/react";

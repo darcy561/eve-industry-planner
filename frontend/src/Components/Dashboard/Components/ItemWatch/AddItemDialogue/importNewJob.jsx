@@ -6,7 +6,7 @@ import getMissingESIData from "../../../../../Functions/Shared/getMissingESIData
 import checkJobTypeIsBuildable from "../../../../../Functions/Helper/checkJobTypeIsBuildable";
 import VirtualisedRecipeSearch from "../../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import useUsersStore from "../../../../../Zustand/usersStore";
-import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";
+import { buildJob } from "../../../../../Functions/Job/building/buildJob";
 
 export function ImportNewJob_WatchlistDialogue({
   setFailedImport,

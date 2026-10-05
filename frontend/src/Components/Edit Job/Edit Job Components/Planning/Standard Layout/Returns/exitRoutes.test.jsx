@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 
 import ExitRoutes, { signTone } from "./exitRoutes";
 import { FIGURE_TONE } from "../../../../../../Styled Components/Typography/figures";
-import { calculateReturns } from "../../../../../../Functions/Job/returns.js";
+import { calculateReturns } from "../../../../../../Functions/Job/figures/returns.js";
 
 const profitable = {
   sellPrice: 120,

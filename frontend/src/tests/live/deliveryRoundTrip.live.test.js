@@ -51,21 +51,21 @@ describe.skipIf(!RUN)("a save coming back as a delivery", () => {
     expect(applied["job_documents.job-shared"]).toBeGreaterThan(0);
 
     await reader.call(
-      "/src/Functions/Endpoints/Private/jobDocuments.js",
-      "deleteJobDocumentsFromApi",
+      "/src/Functions/Job/changes/deleteMultipleJobs.js",
+      "default",
       ["job-shared"],
     );
 
     await reader.until(
-      "jobData.jobArray",
-      (jobs) => !jobs?.some((job) => job.jobID === "job-shared"),
-      "the store to drop the job the server deleted",
+      "websocketSync.positions",
+      (positions) =>
+        positions?.["job_documents.job-shared"] >
+        applied["job_documents.job-shared"],
+      "the server's delete to be delivered",
     );
 
-    const afterDelete = await reader.read("websocketSync.positions");
-    expect(afterDelete["job_documents.job-shared"]).toBeGreaterThan(
-      applied["job_documents.job-shared"],
-    );
+    const jobs = await reader.read("jobData.jobArray");
+    expect(jobs.some((job) => job.jobID === "job-shared")).toBe(false);
   }, 60_000);
 
   it("takes a lock in the planner the SPA is working in", async () => {

@@ -1,5 +1,5 @@
 import { scheduleDebouncedJobDocumentsSave } from "../../Functions/Debounce/jobDocumentsPersistSchedule.js";
-import { jobWriteEnvelope } from "../../Functions/JobDocuments/jobWriteEnvelope.js";
+import { jobWriteEnvelope } from "../../Functions/Job/sync/jobWrite.js";
 
 /**
  * Adds to the queue what a write must carry for each job it names, keeping

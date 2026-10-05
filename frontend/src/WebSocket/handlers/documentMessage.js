@@ -1,6 +1,6 @@
 import useUsersStore from "../../Zustand/usersStore.js";
-import { enqueueInboundJobDocumentChange } from "../../Functions/JobDocuments/inboundJobDocuments.js";
-import { deltaFromMessage } from "../../Functions/JobDocuments/jobDelta.js";
+import { enqueueInboundJobDocumentChange } from "../../Functions/Job/sync/inboundJobDocuments.js";
+import { deltaFromMessage } from "../../Functions/Job/sync/jobDelta.js";
 import {
   handleApplicationSettingsDocumentDelete,
   handleApplicationSettingsDocumentUpsert,

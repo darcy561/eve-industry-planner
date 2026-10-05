@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   finalBuildRequests,
   importFromClipboard,
-} from "../../../Functions/JobPlanner/importFitFromClipboard";
+} from "../../../Functions/Job/building/importFitFromClipboard";
 import { ImportFittingItemRow } from "./importFittingItemRow";
 import { showSnackbarError } from "../../../Events/snackbarEvents";
 import { checkClipboardReadPermissions } from "../../../Functions/Clipboard/clipboardPermissions";

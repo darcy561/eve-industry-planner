@@ -52,7 +52,7 @@ vi.mock(
 
 const { applyDocumentMessage } = await import("./documentMessage.js");
 const { jobFromDocument, toDocument } =
-  await import("../../Functions/JobDocuments/jobDocument.js");
+  await import("../../Functions/Job/jobDocument.js");
 
 beforeEach(() => {
   vi.useFakeTimers();

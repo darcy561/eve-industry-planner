@@ -1,5 +1,5 @@
 import { totalQuantityProduced } from "../../../../../Edit Job Hooks/jobSelectors";
-import recalculateJobForNewTotal from "../../../../../../../Functions/JobPlanner/recalculateJobForNewTotal";
+import recalculateJobForNewTotal from "../../../../../../../Functions/Job/setups/recalculateJobForNewTotal";
 import {
   asJobArray,
   hydrateChildJobsWithMissingData,

@@ -10,7 +10,7 @@ import {
   formatNumberForLocale,
   formatPercentage,
 } from "../../../../../../Functions/Helper/numberParser";
-import { EXIT_ROUTE } from "../../../../../../Functions/Job/returns.js";
+import { EXIT_ROUTE } from "../../../../../../Functions/Job/figures/returns.js";
 
 /**
  * The ways out of a finished build, side by side.
@@ -20,7 +20,7 @@ import { EXIT_ROUTE } from "../../../../../../Functions/Job/returns.js";
  * not a thing the app knows, so neither is styled as the answer.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/Job/returns.js").ExitRoute[]} props.routes
+ * @param {import("../../../../../../Functions/Job/figures/returns.js").ExitRoute[]} props.routes
  */
 export default function ExitRoutes({ routes }) {
   return (
@@ -40,7 +40,7 @@ export default function ExitRoutes({ routes }) {
 
 /**
  * @param {object} props
- * @param {import("../../../../../../Functions/Job/returns.js").ExitRoute} props.route
+ * @param {import("../../../../../../Functions/Job/figures/returns.js").ExitRoute} props.route
  */
 function Route({ route }) {
   const tone = signTone(route.net);

@@ -8,7 +8,7 @@ import { blueprintOwner } from "../../../../../../Functions/Blueprints/blueprint
 import OwnerAvatar from "../../../../../../Styled Components/Avatar/OwnerAvatar";
 import useGetAllIndustryJobs from "../../../../../../Hooks/EveEsi/useGetAllIndustryJobs";
 import { formatNumberForLocale } from "../../../../../../Functions/Helper/numberParser";
-import applySetupChange from "../../../../../../Functions/JobPlanner/applySetupChange";
+import applySetupChange from "../../../../../../Functions/Job/setups/applySetupChange";
 import { typeImageUrl } from "../../../../../../Functions/Shared/eveImage";
 import {
   jobDraftNow,

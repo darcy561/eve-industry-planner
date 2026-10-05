@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import MaterialsTable from "./materialsTable";
-import { MATERIAL_PLAN } from "../../../../../../Functions/Job/materialSourcingRow.js";
+import { MATERIAL_PLAN } from "../../../../../../Functions/Job/figures/materialSourcingRow.js";
 
 const formatIsk = (value) => value.toFixed(2);
 const formatQuantity = (value) => value.toLocaleString("en-GB");

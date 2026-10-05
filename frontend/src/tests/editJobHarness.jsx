@@ -8,10 +8,7 @@ import {
   useJobDraft,
 } from "../Components/Edit Job/Edit Job Hooks/useJobDraft";
 import { hasChanges } from "../Components/Edit Job/Edit Job Hooks/jobDraftStore";
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 import seedLocationNames from "./seedLocationNames";
 import { testQueryClient } from "./queryClients.js";
 

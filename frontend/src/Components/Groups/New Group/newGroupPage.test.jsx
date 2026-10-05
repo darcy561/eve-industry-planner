@@ -29,7 +29,7 @@ vi.mock("../../../Functions/Debounce/jobGroupsPersistSchedule.js", () => ({
   },
 }));
 
-vi.mock("../../../Functions/JobDocuments/saveJobsViaApi.js", () => ({
+vi.mock("../../../Functions/Job/sync/saveJobsViaApi.js", () => ({
   saveJobsViaApi: async (jobs) => {
     saved.batches.push(jobs.map((job) => job.jobID));
   },
@@ -45,7 +45,7 @@ vi.mock("../../../Components/loadingPage", () => ({
 
 const { default: NewGroupPage } = await import("./newGroupPage.jsx");
 const { jobFromDocument } =
-  await import("../../../Functions/JobDocuments/jobDocument.js");
+  await import("../../../Functions/Job/jobDocument.js");
 const { AppEvent } = await import("../../../analytics/appEventNames");
 
 const TRITANIUM = 34;

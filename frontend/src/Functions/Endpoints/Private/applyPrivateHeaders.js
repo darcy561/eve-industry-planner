@@ -23,7 +23,7 @@ import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLo
 import {
   parseRevisionConflictBody,
   CLIENT_ERROR_REVISION_CONFLICT,
-} from "../../JobDocuments/revisionConflict.js";
+} from "../../Job/sync/revisionConflict.js";
 
 /**
  * Shared private API retry options (honours server `Retry-After` on 429).

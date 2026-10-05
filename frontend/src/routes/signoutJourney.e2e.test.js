@@ -39,7 +39,7 @@ const { default: useUsersStore } = await import("../Zustand/usersStore.js");
 const { queryClient } = await import("../queryClient.js");
 const { enterRoute } = await import("../tests/routerHarness.jsx");
 const { enqueueInboundJobDocumentChange } =
-  await import("../Functions/JobDocuments/inboundJobDocuments.js");
+  await import("../Functions/Job/sync/inboundJobDocuments.js");
 const { default: esiCredentials } =
   await import("../Functions/Auth/esiCredentials/provider.js");
 const { esiAccessToken } = await import("../tests/utils.js");

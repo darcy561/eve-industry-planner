@@ -7,7 +7,7 @@ import {
 import {
   MATERIAL_PLAN,
   hasSavingAvailable,
-} from "../../../../../../Functions/Job/materialSourcingRow.js";
+} from "../../../../../../Functions/Job/figures/materialSourcingRow.js";
 import StatusChip, {
   STATUS_TONE,
 } from "../../../../../../Styled Components/Chip/statusChip";
@@ -34,7 +34,7 @@ import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageA
  * says are the same answers at either width.
  *
  * @param {object} props
- * @param {import("../../../../../../Functions/Job/materialSourcingRow.js").MaterialSourcingRow[]} props.rows
+ * @param {import("../../../../../../Functions/Job/figures/materialSourcingRow.js").MaterialSourcingRow[]} props.rows
  * @param {(value: number) => string} props.formatIsk
  * @param {(value: number) => string} props.formatQuantity
  * @param {(typeID: number) => void} [props.onToggleRow]

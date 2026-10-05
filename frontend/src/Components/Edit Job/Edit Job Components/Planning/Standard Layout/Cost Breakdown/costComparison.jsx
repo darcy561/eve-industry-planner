@@ -23,7 +23,7 @@ const wrapper = { flex: "1 1 210px", minWidth: 210 };
  * without an empty comparison beside it.
  *
  * @param {object} props
- * @param {ReturnType<import("../../../../../../Functions/Job/buildComparison.js").compareToHistory>} props.comparison
+ * @param {ReturnType<import("../../../../../../Functions/Job/figures/buildComparison.js").compareToHistory>} props.comparison
  * @param {(value: number) => string} props.formatIsk
  */
 export default function CostComparison({ comparison, formatIsk }) {

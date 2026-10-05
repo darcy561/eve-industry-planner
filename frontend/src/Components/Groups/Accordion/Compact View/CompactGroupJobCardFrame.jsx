@@ -23,7 +23,7 @@ import { RouterButton } from "../../../../Styled Components/Navigation/routerCon
 import getTooltipContent from "./jobCardTooltips";
 import { useCurrentTime } from "../../../../Hooks/useCurrentTime";
 import useUsersStore from "../../../../Zustand/usersStore";
-import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
+import deleteJobsFromPlanner from "../../../../Functions/Job/changes/deleteMultipleJobs";
 import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";
 import { useJobCardLockState } from "../../../../Hooks/DocumentLock/useDocumentLockState";
 

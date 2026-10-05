@@ -21,7 +21,7 @@ import {
 import {
   buildMaterialSourcingRow,
   summariseSourcing,
-} from "../../../../../../Functions/Job/materialSourcingRow";
+} from "../../../../../../Functions/Job/figures/materialSourcingRow";
 import {
   readMarketPriceForType,
   readPriceRefreshedAt,

@@ -26,7 +26,7 @@ import {
   showSnackbarSuccess,
 } from "../../Events/snackbarEvents";
 import useUsersStore from "../../Zustand/usersStore";
-import { jobFromDocument } from "../../Functions/JobDocuments/jobDocument";
+import { jobFromDocument } from "../../Functions/Job/jobDocument";
 import Group from "../../Classes/group";
 import {
   RESTORE_SCOPES,

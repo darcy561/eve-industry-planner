@@ -14,7 +14,7 @@ vi.mock("../../Zustand/usersStore.js", async () => {
 });
 
 const enqueued = [];
-vi.mock("../../Functions/JobDocuments/inboundJobDocuments.js", () => ({
+vi.mock("../../Functions/Job/sync/inboundJobDocuments.js", () => ({
   enqueueInboundJobDocumentChange: (...args) => enqueued.push(args),
 }));
 

@@ -6,7 +6,7 @@ import InventionEntry from "../../../Classes/inventionEntry";
 import {
   jobFromDocument,
   toDocument,
-} from "../../../Functions/JobDocuments/jobDocument";
+} from "../../../Functions/Job/jobDocument";
 import Setup from "../../../Classes/jobSetup";
 import LinkedESIJob from "../../../Classes/linkedESIJob";
 import MarketOrder from "../../../Classes/marketOrder";

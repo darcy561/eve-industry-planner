@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import MaterialCards from "./materialCards";
-import { MATERIAL_PLAN } from "../../../../../../Functions/Job/materialSourcingRow.js";
+import { MATERIAL_PLAN } from "../../../../../../Functions/Job/figures/materialSourcingRow.js";
 
 vi.mock("../../../../../../Zustand/usersStore", async () => {
   const { usersStoreMock } =

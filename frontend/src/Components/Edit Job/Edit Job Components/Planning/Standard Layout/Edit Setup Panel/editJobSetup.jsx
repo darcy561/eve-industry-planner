@@ -37,7 +37,7 @@ import useUsersStore from "../../../../../../Zustand/usersStore";
 import SystemIndexTextField from "../../../../../../Styled Components/Textfield/systemIndex";
 import UseAlternativeCheckbox from "../../../../../../Styled Components/Checkbox/useAlternativeCheckbox";
 import ContentPanel from "../../../../../../Styled Components/Paper/ContentPanel";
-import applySetupChange from "../../../../../../Functions/JobPlanner/applySetupChange";
+import applySetupChange from "../../../../../../Functions/Job/setups/applySetupChange";
 import { setupShowsManualStructureFields } from "../../../../../../Functions/Custom Structures/customStructureSetup";
 import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
 import {

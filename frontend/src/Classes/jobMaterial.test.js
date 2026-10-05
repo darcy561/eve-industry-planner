@@ -1,9 +1,6 @@
 import { describe, expect, test } from "vitest";
 import Material from "./jobMaterial.js";
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 
 const storedRow = {
   typeID: 34,

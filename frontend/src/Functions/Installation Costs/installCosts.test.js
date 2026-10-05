@@ -39,7 +39,7 @@ const world = { indexes: {} };
 
 const { pirateFactions } = await import("../../Context/defaultValues.jsx");
 
-const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../Job/jobDocument.js");
 const { jobCostSoFar } = await import("../Groups/jobCostSoFar.js");
 const {
   calculateInstallCostfromSetup,

@@ -1,5 +1,6 @@
 import { SnackBarNotification } from "./Components/snackbar";
 import GeneralDialogue from "./Components/Dialogues/General/generalDialogue";
+import MergeJobsDialogue from "./Components/Dialogues/Merge Jobs/MergeJobsDialogue";
 import JobDependencyTreeDialogue from "./Components/Dialogues/Job Tree/JobDependencyTreeDialogue";
 import { Outlet } from "@tanstack/react-router";
 import { FeedbackIcon } from "./Components/Dialogues/Feedback/feedback";
@@ -37,6 +38,7 @@ export default function App() {
         <ErrorBoundary>
           <SnackBarNotification />
           <GeneralDialogue />
+          <MergeJobsDialogue />
           <JobDependencyTreeDialogue />
           {isMaintenanceMode ? (
             <MaintenanceMode />

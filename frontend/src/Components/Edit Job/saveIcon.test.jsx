@@ -21,8 +21,8 @@ vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ jobID: "job-1" }),
   useSearch: () => ({}),
 }));
-vi.mock("../../Functions/JobPlanner/closeActiveJob", () => ({
-  default: async (...args) => {
+vi.mock("../../Functions/Job/editing/closeActiveJob", () => ({
+  closeActiveJob: async (...args) => {
     closed.push(args);
   },
 }));

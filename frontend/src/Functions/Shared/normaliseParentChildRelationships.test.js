@@ -7,7 +7,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 
 const { default: normaliseParentChildRelationships } =
   await import("./normaliseParentChildRelationships.js");
-const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../Job/jobDocument.js");
 
 const TRITANIUM = 34;
 

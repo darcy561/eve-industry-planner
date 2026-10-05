@@ -1,5 +1,5 @@
 import GLOBAL_CONFIG from "../../global-config-app";
-import { EXIT_ROUTE } from "../../Functions/Job/returns";
+import { EXIT_ROUTE } from "../../Functions/Job/figures/returns";
 import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide";
 import {
   DEFAULT_REPROCESSING_CALCULATION_SETTINGS,

@@ -16,7 +16,7 @@ import useUsersStore from "../../../../Zustand/usersStore";
 import {
   convertImportedItemsToBuildRequests,
   importFromClipboard,
-} from "../../../../Functions/JobPlanner/importFitFromClipboard";
+} from "../../../../Functions/Job/building/importFitFromClipboard";
 
 function AddShipFittingPanel({ updateItemIDsToAdd, addNewGroupOnBuild }) {
   const [clipboardReadAllowed, updateClipboardReadAllowed] = useState(true);

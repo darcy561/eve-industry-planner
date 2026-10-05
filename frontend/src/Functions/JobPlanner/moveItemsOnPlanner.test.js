@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { jobFromDocument } from "../JobDocuments/jobDocument";
+import { jobFromDocument } from "../Job/jobDocument";
 import Group from "../../Classes/group";
 
 const { jobsByID, groupsByID, account, saved } = vi.hoisted(() => ({
@@ -31,7 +31,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 });
 
 const scheduleSaveJobsViaApi = vi.fn();
-vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
+vi.mock("../Job/sync/saveJobsViaApi.js", () => ({
   scheduleSaveJobsViaApi: (...args) => scheduleSaveJobsViaApi(...args),
 }));
 

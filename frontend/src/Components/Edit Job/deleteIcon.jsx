@@ -2,7 +2,7 @@ import { Tooltip, IconButton } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 
-import deleteJobsFromPlanner from "../../Functions/JobPlanner/deleteMultipleJobs";
+import deleteJobsFromPlanner from "../../Functions/Job/changes/deleteMultipleJobs";
 import { buildGroupSearchAfterEditClose } from "../../Functions/Groups/groupPageViewSearch";
 import { yieldEditJobDocumentLocksOnLeave } from "../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { useActiveJobPersistGate } from "./Edit Job Hooks/useActiveJobDocumentLock";
@@ -35,7 +35,7 @@ export function DeleteJobIcon() {
           disabled={!persist.canPersist}
           onClick={async () => {
             if (!persist.canPersist) return;
-            await deleteJobsFromPlanner(openJobID);
+            if (!(await deleteJobsFromPlanner(openJobID))) return;
             const groupIDFromParams = search.activeGroup;
             await yieldEditJobDocumentLocksOnLeave({ jobID });
             if (groupIDFromParams) {

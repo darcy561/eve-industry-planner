@@ -45,8 +45,8 @@ import {
 import { useStripRedundantJobMarketHubOverrides } from "../../Hooks/Planner/useStripRedundantJobMarketHubOverrides.js";
 import ContentPanel from "../../Styled Components/Paper/ContentPanel";
 import EditJobLeaveConfirmDialogue from "./EditJobLeaveConfirmDialogue";
-import ChangeReviewDialogue from "./ChangeReviewDialogue";
-import IncomingSaveNotice from "./IncomingSaveNotice";
+import ChangeReviewDialogue from "./Change Review/ChangeReviewDialogue";
+import IncomingSaveNotice from "./Change Review/IncomingSaveNotice";
 import { useEditJobLeaveConfirm } from "./Edit Job Hooks/useEditJobLeaveConfirm";
 import EditJobStepContentSelector from "./EditJobStepContentSelector";
 import { useEditJobInitialState } from "./Edit Job Hooks/useEditJobInitialState";
@@ -58,9 +58,9 @@ import {
   canMoveJobForward,
   getLastStepIndex,
   isFinalStepLockedForJob,
-} from "../../Functions/Job/jobStepNavigation";
+} from "../../Functions/Job/editing/jobStepNavigation";
 import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
-import { endEditSession } from "../../Functions/JobPlanner/editSessionLifetime.js";
+import { endEditSession } from "../../Functions/Job/editing/editSessionLifetime.js";
 
 export default function EditJob_New() {
   const actions = useJobActions();

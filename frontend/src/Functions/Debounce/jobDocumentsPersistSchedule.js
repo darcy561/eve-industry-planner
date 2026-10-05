@@ -1,4 +1,4 @@
-import { persistJobDocumentsToApi } from "../JobDocuments/persistJobDocumentsToApi.js";
+import { persistJobDocumentsToApi } from "../Job/sync/persistJobDocumentsToApi.js";
 import { createPersistDebounce } from "./helpers/createPersistDebounce.js";
 
 const debounce = createPersistDebounce({
@@ -15,7 +15,7 @@ export function scheduleDebouncedJobDocumentsSave() {
 /**
  * Clears the debounce timer and saves immediately.
  *
- * @returns {Promise<import("../JobDocuments/persistJobDocumentsToApi.js").JobDocumentPersistOutcome>}
+ * @returns {Promise<import("../Job/sync/persistJobDocumentsToApi.js").JobDocumentPersistOutcome>}
  */
 export async function flushPendingJobDocumentsSave() {
   return (await debounce.flushPending()) ?? "saved";

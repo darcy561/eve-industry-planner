@@ -10,7 +10,7 @@ vi.mock("../Debounce/jobGroupsPersistSchedule.js", () => ({
   flushPendingGroupSave: (...args) => flushPendingGroupSave(...args),
 }));
 
-vi.mock("../JobDocuments/saveJobsViaApi.js", () => ({
+vi.mock("../Job/sync/saveJobsViaApi.js", () => ({
   saveJobsViaApi: (...args) => saveJobsViaApi(...args),
 }));
 

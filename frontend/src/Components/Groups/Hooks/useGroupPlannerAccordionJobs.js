@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 
 import useUsersStore from "../../../Zustand/usersStore";
-import { filterJobsVisibleInActiveGroup } from "../../../Functions/JobPlanner/plannerAccordionJobFilters";
-import { sortJobsForPlannerStage } from "../../../Functions/JobPlanner/plannerStageJobSort";
+import { filterJobsVisibleInActiveGroup } from "../../../Functions/JobPlanner/plannerLists";
+import { sortJobsForPlannerStage } from "../../../Functions/JobPlanner/plannerLists";
 
 /**
  * Sorted, visibility-filtered jobs for one workflow stage on the group planner accordion.

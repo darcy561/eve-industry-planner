@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { estimatedMaterialCost } from "./estimatedMaterialCost.js";
-import { jobFromDocument } from "../JobDocuments/jobDocument";
+import { jobFromDocument } from "../Job/jobDocument";
 import seedPrices, { clearSeededPrices } from "../../tests/seedPrices.js";
 
 vi.mock("../../Zustand/usersStore.js", async () => {

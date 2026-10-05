@@ -1,4 +1,4 @@
-import { toDocument } from "../../../../../../Functions/JobDocuments/jobDocument.js";
+import { toDocument } from "../../../../../../Functions/Job/jobDocument.js";
 import { totalInventionCost } from "../../../../Edit Job Hooks/jobSelectors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -22,7 +22,7 @@ vi.mock("../../../../../../Zustand/usersStore", async () => {
 const { default: InventionEditor, invitesInvention } =
   await import("./inventionEditor");
 const { jobFromDocument } =
-  await import("../../../../../../Functions/JobDocuments/jobDocument.js");
+  await import("../../../../../../Functions/Job/jobDocument.js");
 const { default: useUsersStore } =
   await import("../../../../../../Zustand/usersStore");
 const { draftFor } =

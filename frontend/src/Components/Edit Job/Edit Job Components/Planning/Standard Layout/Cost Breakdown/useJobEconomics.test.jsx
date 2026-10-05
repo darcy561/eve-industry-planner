@@ -67,7 +67,7 @@ const { useJobEconomics } = await import("./useJobEconomics");
 const { default: useUsersStore } =
   await import("../../../../../../Zustand/usersStore");
 const { MATERIAL_PLAN } =
-  await import("../../../../../../Functions/Job/materialSourcingRow.js");
+  await import("../../../../../../Functions/Job/figures/materialSourcingRow.js");
 
 const session = () => useUsersStore.getState().editSession;
 

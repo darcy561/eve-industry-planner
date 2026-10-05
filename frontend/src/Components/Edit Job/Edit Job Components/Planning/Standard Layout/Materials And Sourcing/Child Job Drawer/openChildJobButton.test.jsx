@@ -19,7 +19,7 @@ vi.mock("../../../../../../../Events/editJobNavigationEvents", () => ({
   requestEditJobNavigation: async () => "not-handled",
 }));
 vi.mock(
-  "../../../../../../../Functions/JobPlanner/editSessionLifetime.js",
+  "../../../../../../../Functions/Job/editing/editSessionLifetime.js",
   () => ({
     leaveEditedJobWhereItStands: vi.fn(),
   }),

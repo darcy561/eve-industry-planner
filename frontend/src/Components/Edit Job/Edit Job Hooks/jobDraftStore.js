@@ -1,5 +1,5 @@
 import { applyPatches, enablePatches, freeze, produceWithPatches } from "immer";
-import { sameValue } from "../../../Functions/Helper/sameValue.js";
+import { sameValue } from "../../../Functions/Helper/documentValues.js";
 import { readAt, restoreOver, reviewChanges } from "./jobDraftReview.js";
 
 enablePatches();

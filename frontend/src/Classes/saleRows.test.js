@@ -11,10 +11,7 @@ import { describe, expect, it } from "vitest";
 import BrokerFee from "./brokerFee";
 import MarketOrder from "./marketOrder";
 import Transaction from "./transaction";
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 import InventionEntry from "./inventionEntry";
 import {
   addMarketOrder,

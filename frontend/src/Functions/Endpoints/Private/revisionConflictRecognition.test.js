@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { CLIENT_ERROR_REVISION_CONFLICT } from "../../JobDocuments/revisionConflict.js";
+import { CLIENT_ERROR_REVISION_CONFLICT } from "../../Job/sync/revisionConflict.js";
 import { DOCUMENT_LOCK_CLIENT_ERROR_LOCK_HELD_ELSEWHERE } from "../../DocumentLock/documentLockEvents.js";
 
 vi.mock("../../Auth/tabSessionStorage.js", async (importOriginal) => ({

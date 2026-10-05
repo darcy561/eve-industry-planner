@@ -1,4 +1,4 @@
-import { toDocument } from "../../Functions/JobDocuments/jobDocument.js";
+import { toDocument } from "../../Functions/Job/jobDocument.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const scheduled = vi.fn();

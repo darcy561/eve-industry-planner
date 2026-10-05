@@ -1,24 +1,25 @@
-import {
-  esiJobIDs,
-  esiOrderIDs,
-  esiTransactionIDs,
-} from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
-import saveArchivedJobs from "../Endpoints/Private/archivedJobs.js";
+import { flushPendingJobDocumentsSave } from "../Debounce/jobDocumentsPersistSchedule.js";
 import {
   showSnackbarError,
   showSnackbarSuccess,
 } from "../../Events/snackbarEvents.js";
-import { saveUserAccountDocument } from "../Endpoints/Private/userDocument.js";
 import { deleteJobGroupsFromApi } from "../Endpoints/Private/groups.js";
-import { deleteJobDocumentsFromApi } from "../Endpoints/Private/jobDocuments.js";
+import {
+  archiveJobsOnServer,
+  nothingChangedMessage,
+  releaseEsiLinksOf,
+} from "../Job/changes/jobChange.js";
+import { selectDocumentLockReadOnly } from "../DocumentLock/documentLockSelectors.js";
+import { USER_JOB_GROUPS_COLLECTION } from "../DocumentLock/documentLockCollections.js";
 import useUsersStore from "../../Zustand/usersStore.js";
 
 /**
- * Archives selected jobs from the active group. Reads job/account state from Zustand.
+ * Archives the active group's jobs that are not shown on the planner and removes the group, moving the
+ * jobs in one request that lands whole or not at all.
  *
  * @param {Array} selectedJobs
- * @returns {Promise<boolean>} `true` when jobs were archived on the server (caller may invalidate statistics queries); `false` otherwise.
+ * @returns {Promise<boolean>} Whether jobs were archived on the server, so statistics queries are stale
  */
 export async function archiveGroupJobs(selectedJobs) {
   const { jobData, account } = useUsersStore.getState();
@@ -27,6 +28,7 @@ export async function archiveGroupJobs(selectedJobs) {
     removeGroupFromGroupArray,
     removeJobsFromJobArray,
     getActiveGroupObject,
+    clearPendingJobDocumentWrites,
   } = jobData.actions;
 
   const activeGroup = getActiveGroupObject();
@@ -35,90 +37,56 @@ export async function archiveGroupJobs(selectedJobs) {
     return false;
   }
   const { groupID, groupName } = activeGroup;
-
-  const jobArray = jobData.jobArray;
   const isLoggedIn = account.isLoggedIn;
 
-  let newLinkedOrders = new Set();
-  let newLinkedTrans = new Set();
-  let newLinkedJobs = new Set();
-
-  const filteredJobs = selectedJobs.filter(
-    (job) => !jobArray.find((j) => j.jobID === job.jobID && j.displayOnPlanner),
-  );
-
-  // A job's own ESI rows, not the account's ledger of them: `linkedTrans` and
-  // `linkedJobs` are account fields, and reading them off a job released
-  // nothing, leaving every archived job's runs and sales spoken for forever.
-  for (const selectedJob of filteredJobs) {
-    for (const orderID of esiOrderIDs(selectedJob)) {
-      newLinkedOrders.add(orderID);
-    }
-    for (const transactionID of esiTransactionIDs(selectedJob)) {
-      newLinkedTrans.add(transactionID);
-    }
-    for (const jobID of esiJobIDs(selectedJob)) {
-      newLinkedJobs.add(jobID);
-    }
-  }
-
-  // Only the jobs that were archived leave the planner. A job kept back stays
-  // visible, still naming the group it came from.
-  const removeIds = new Set(filteredJobs.map((j) => j.jobID));
-  const linkedEsiPatch = {
-    ordersToAdd: new Set(),
-    jobsToAdd: new Set(),
-    transactionsToAdd: new Set(),
-    ordersToRemove: newLinkedOrders,
-    jobsToRemove: newLinkedJobs,
-    transactionsToRemove: newLinkedTrans,
-  };
-
-  if (!isLoggedIn) {
-    useUsersStore.getState().account.actions.addLinkedEsiData(linkedEsiPatch);
-    clearActiveGroupID();
-    removeGroupFromGroupArray(groupID);
-    removeJobsFromJobArray([...removeIds]);
-    showSnackbarSuccess(`${groupName} Archived`, 3);
-    return false;
-  }
-
-  const archivedOk = await saveArchivedJobs(filteredJobs);
-  if (!archivedOk) {
-    showSnackbarError("Some jobs could not be archived on the server.", 5);
-    return false;
-  }
-
-  try {
-    await deleteJobGroupsFromApi([groupID]);
-  } catch (err) {
-    const status = /** @type {{ status?: number }} */ (err)?.status;
-    if (status === 409) {
-      showSnackbarError(
-        "Cannot archive: another session holds the edit lock for this group.",
-        5,
-      );
-      return false;
-    }
-    console.error(err);
+  if (
+    selectDocumentLockReadOnly(
+      useUsersStore.getState(),
+      USER_JOB_GROUPS_COLLECTION,
+      groupID,
+    )
+  ) {
     showSnackbarError(
-      "Could not remove the group on the server after archiving jobs.",
+      nothingChangedMessage("archived", {
+        because: "another member is editing this group",
+      }),
       5,
     );
     return false;
   }
 
-  useUsersStore.getState().account.actions.addLinkedEsiData(linkedEsiPatch);
+  if (isLoggedIn) {
+    await flushPendingJobDocumentsSave();
+  }
+  const { findJobInJobArray } = useUsersStore.getState().jobData.actions;
+  const archivedJobs = selectedJobs
+    .map((job) => findJobInJobArray(job.jobID) ?? job)
+    .filter((job) => !job.displayOnPlanner);
+  const archivedIDs = archivedJobs.map((job) => job.jobID);
+
+  if (isLoggedIn) {
+    if (!(await archiveJobsOnServer(archivedJobs))) return false;
+    clearPendingJobDocumentWrites(archivedIDs);
+  }
+
   clearActiveGroupID();
   removeGroupFromGroupArray(groupID);
-  removeJobsFromJobArray([...removeIds]);
+  removeJobsFromJobArray(archivedIDs);
+  await releaseEsiLinksOf(archivedJobs, "archived");
 
-  await Promise.all([
-    deleteJobDocumentsFromApi(filteredJobs.map((j) => j.jobID)),
-    flushPendingGroupSave(),
-    saveUserAccountDocument(),
-  ]);
+  if (isLoggedIn) {
+    try {
+      await deleteJobGroupsFromApi([groupID]);
+      await flushPendingGroupSave();
+    } catch (err) {
+      console.error(err);
+      showSnackbarError(
+        "The jobs were archived, but the group could not be removed. Reload to see it.",
+        5,
+      );
+    }
+  }
 
   showSnackbarSuccess(`${groupName} Archived`, 3);
-  return true;
+  return isLoggedIn;
 }

@@ -1,5 +1,5 @@
 import getMissingESIData from "../../../../../../../Functions/Shared/getMissingESIData";
-import { buildJob } from "../../../../../../../Functions/JobPlanner/buildJob";
+import { buildJob } from "../../../../../../../Functions/Job/building/buildJob";
 import useUsersStore from "../../../../../../../Zustand/usersStore";
 
 export function asJobArray(jobs) {

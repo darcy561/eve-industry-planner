@@ -6,7 +6,7 @@ import {
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ItemTypes, JobCardUiSource } from "../../../Context/DnDTypes";
-import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
+import { saveJobsViaApi } from "../../../Functions/Job/sync/saveJobsViaApi.js";
 import { useJobLockReadOnly } from "../../../Hooks/DocumentLock/useDocumentLockState";
 import useUsersStore from "../../../Zustand/usersStore";
 

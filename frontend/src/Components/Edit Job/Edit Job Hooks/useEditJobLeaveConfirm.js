@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { leaveEditedJobWhereItStands } from "../../../Functions/JobPlanner/editSessionLifetime.js";
+import { leaveEditedJobWhereItStands } from "../../../Functions/Job/editing/editSessionLifetime.js";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import useUsersStore from "../../../Zustand/usersStore";

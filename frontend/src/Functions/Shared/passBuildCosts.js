@@ -9,7 +9,7 @@ import {
   importPurchaseToMaterial,
   importedQuantities,
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
-import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
+import { saveJobsViaApi } from "../Job/sync/saveJobsViaApi.js";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**

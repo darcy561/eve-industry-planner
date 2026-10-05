@@ -15,7 +15,7 @@ vi.mock("../Zustand/usersStore.js", async () => {
 });
 
 const { applyRecipeToJob, jobFromDocument, toDocument } =
-  await import("../Functions/JobDocuments/jobDocument.js");
+  await import("../Functions/Job/jobDocument.js");
 const {
   applyCommands,
   attachNewSetupToJob,

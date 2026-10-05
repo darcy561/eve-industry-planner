@@ -6,10 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import ExtraCost from "./extraCost";
 import InventionEntry from "./inventionEntry";
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 
 describe("ExtraCost", () => {
   it("settles the category as the row is built", () => {

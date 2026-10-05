@@ -4,8 +4,8 @@ import useUsersStore from "../../../Zustand/usersStore";
 import {
   filterGroupsForJobPlannerStage,
   filterJobsForJobPlannerStage,
-} from "../../../Functions/JobPlanner/plannerAccordionJobFilters";
-import { sortJobsForPlannerStage } from "../../../Functions/JobPlanner/plannerStageJobSort";
+} from "../../../Functions/JobPlanner/plannerLists";
+import { sortJobsForPlannerStage } from "../../../Functions/JobPlanner/plannerLists";
 
 /**
  * Resolved rows for one workflow stage on the job planner accordion (groups + planner jobs).

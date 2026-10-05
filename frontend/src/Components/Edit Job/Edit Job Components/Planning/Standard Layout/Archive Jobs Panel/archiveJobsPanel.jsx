@@ -27,7 +27,7 @@ import {
 import {
   averageCostPerItem,
   costRange,
-} from "../../../../../../Functions/Job/buildComparison.js";
+} from "../../../../../../Functions/Job/figures/buildComparison.js";
 
 const labelSx = {
   typography: { xs: "caption", md: "body2" },

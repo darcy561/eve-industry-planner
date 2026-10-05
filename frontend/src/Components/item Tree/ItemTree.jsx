@@ -16,7 +16,7 @@ import VirtualisedRecipeSearch from "../../Styled Components/autocomplete/virtua
 import { useItemList, useItemNames } from "../../Hooks/Static/useItems";
 import { STANDARD_TEXT_FORMAT } from "../../Context/defaultValues";
 import { appShellSetupSectionPaperSx } from "../../Context/appShell";
-import { buildJob } from "../../Functions/JobPlanner/buildJob";
+import { buildJob } from "../../Functions/Job/building/buildJob";
 import JobDependencyTreeFlow from "../../Styled Components/JobTreeFlow/JobDependencyTreeFlow";
 import { buildItemTreeLocally } from "./itemTreeBuilder";
 import {

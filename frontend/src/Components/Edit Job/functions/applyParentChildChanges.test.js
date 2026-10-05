@@ -11,7 +11,7 @@ vi.mock("../../../Zustand/usersStore", async () => {
 const { default: applyParentChildChanges } =
   await import("./applyParentChildChanges.js");
 const { jobFromDocument } =
-  await import("../../../Functions/JobDocuments/jobDocument.js");
+  await import("../../../Functions/Job/jobDocument.js");
 
 const TRITANIUM = 34;
 

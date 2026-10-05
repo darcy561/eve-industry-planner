@@ -6,7 +6,7 @@ vi.mock("../Zustand/usersStore", async () => {
 });
 
 const { jobFromDocument, toDocument } =
-  await import("../Functions/JobDocuments/jobDocument.js");
+  await import("../Functions/Job/jobDocument.js");
 const { addChildJob, applyCommands, removeChildJob, removeParentJob } =
   await import("../Components/Edit Job/Edit Job Hooks/jobCommands.js");
 

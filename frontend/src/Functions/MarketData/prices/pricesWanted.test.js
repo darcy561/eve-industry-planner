@@ -20,7 +20,7 @@ vi.mock("../defaults/marketGroupData.js", () => ({
 }));
 
 const { PRICING_SIDE } = await import("../defaults/pricingSide");
-const { jobFromDocument } = await import("../../JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../../Job/jobDocument.js");
 const { pricesWantedBy, pricesWantedByWatchlist, pricesWantedForTypes } =
   await import("./pricesWanted.js");
 

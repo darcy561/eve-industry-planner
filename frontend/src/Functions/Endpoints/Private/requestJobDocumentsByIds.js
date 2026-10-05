@@ -2,7 +2,7 @@
  * POST /api/v1/job-documents (batch by IDs) — HTTP only; no Zustand.
  * Use {@link fetchJobDocumentsByIdsFromApi} when the result should merge into the store.
  */
-import { jobFromDocument } from "../../JobDocuments/jobDocument.js";
+import { jobFromDocument } from "../../Job/jobDocument.js";
 import {
   requestWithPrivateHeaders,
   privateBatchRetryConfig,

@@ -43,7 +43,7 @@ const { MarkAsCompleteButton } = await import("./markAsComplete");
 const { PassBuildCostsButton } = await import("./passBuildCosts");
 const { SellGroupJobButton } = await import("./sellGroupJob");
 const { jobFromDocument } =
-  await import("../../../../../../Functions/JobDocuments/jobDocument.js");
+  await import("../../../../../../Functions/Job/jobDocument.js");
 
 const session = () => useUsersStore.getState().editSession;
 const group = () => useUsersStore.getState().jobData.groupArray[0];

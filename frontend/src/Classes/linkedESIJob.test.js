@@ -4,10 +4,7 @@ import {
 } from "../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import LinkedESIJob from "./linkedESIJob.js";
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 
 const HOUR = 60 * 60 * 1000;
 

@@ -3,8 +3,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import ReturnsPanel from "./returnsPanel";
-import { calculateReturns } from "../../../../../../Functions/Job/returns.js";
-import { compareToHistory } from "../../../../../../Functions/Job/buildComparison.js";
+import { calculateReturns } from "../../../../../../Functions/Job/figures/returns.js";
+import { compareToHistory } from "../../../../../../Functions/Job/figures/buildComparison.js";
 
 const inputs = {
   sellPrice: 120,

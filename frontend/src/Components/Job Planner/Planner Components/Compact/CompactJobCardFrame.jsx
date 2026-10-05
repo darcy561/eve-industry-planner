@@ -22,7 +22,7 @@ import {
 import { RouterButton } from "../../../../Styled Components/Navigation/routerControls.jsx";
 import GLOBAL_CONFIG from "../../../../global-config-app";
 import getTooltipContent from "./tooltipContent";
-import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
+import deleteJobsFromPlanner from "../../../../Functions/Job/changes/deleteMultipleJobs";
 import { useMediaQuery } from "@mui/material";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { getJobTypeAccentColour } from "../../../../Functions/Helper/jobTypeDividerColour";

@@ -3,7 +3,7 @@ import { quantityPurchased } from "../../Edit Job/Edit Job Hooks/materialSelecto
 import { useEffect, useCallback, useMemo } from "react";
 import { Box, Button, Grid, Typography } from "@mui/material";
 import { ItemPriceRow, itemPriceEntryFactory } from "./itemRow";
-import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
+import { saveJobsViaApi } from "../../../Functions/Job/sync/saveJobsViaApi.js";
 import MarketLocationSelect from "../../../Styled Components/Select/marketLocation";
 import OrderTypeSelect from "../../../Styled Components/Select/orderType";
 import {

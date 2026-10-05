@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   jobFromDocument,
   toDocument,
-} from "../../../Functions/JobDocuments/jobDocument";
+} from "../../../Functions/Job/jobDocument";
 import {
   childJobIDs,
   childJobIDsAfterEdits,

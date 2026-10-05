@@ -15,7 +15,7 @@ vi.mock("../Zustand/usersStore", async () => {
 });
 
 const { jobFromDocument, toDocument } =
-  await import("../Functions/JobDocuments/jobDocument.js");
+  await import("../Functions/Job/jobDocument.js");
 const { default: findIndustryJobsForItem } =
   await import("../Functions/IndustryJobs/findIndustryJobsForItem.js");
 const { linkESIJob, unlinkESIJob, updateLinkedJobData } =

@@ -6,7 +6,7 @@ vi.mock("../Zustand/usersStore", async () => {
 });
 
 const { jobFromDocument, toDocument } =
-  await import("../Functions/JobDocuments/jobDocument.js");
+  await import("../Functions/Job/jobDocument.js");
 
 describe("Job _meta", () => {
   it("never sends an account or owner back to the server", () => {

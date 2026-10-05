@@ -7,7 +7,7 @@ import {
   structureTypeMap,
   systemTypeMap,
 } from "../../../../../Context/defaultValues";
-import { recalculateWatchListItemsFromSetup } from "../../../../../Functions/JobPlanner/applySetupChange";
+import { recalculateWatchListItemsFromSetup } from "../../../../../Functions/Job/setups/applySetupChange";
 import VirtualisedSystemSearch from "../../../../../Styled Components/autocomplete/virtualisedSystemSearch";
 import CustomStructureSelect from "../../../../../Styled Components/Select/customStructure";
 import MaterialEfficiencySelect from "../../../../../Styled Components/Select/materialEfficiency";

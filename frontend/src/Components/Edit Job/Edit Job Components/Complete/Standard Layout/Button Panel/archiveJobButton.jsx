@@ -1,20 +1,12 @@
-import {
-  esiJobIDs,
-  esiOrderIDs,
-  esiTransactionIDs,
-} from "../../../../Edit Job Hooks/jobSelectors";
 import { Button, Tooltip } from "@mui/material";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { deleteJobDocumentsFromApi } from "../../../../../../Functions/Endpoints/Private/jobDocuments.js";
-import { flushPendingJobDocumentsSave } from "../../../../../../Functions/Debounce/jobDocumentsPersistSchedule.js";
-import { saveUserAccountDocument } from "../../../../../../Functions/Endpoints/Private/userDocument";
-import saveArchivedJobs from "../../../../../../Functions/Endpoints/Private/archivedJobs";
 import { markJobsArchivedInGroups } from "../../../../../../Functions/Groups/markJobsArchivedInGroups.js";
 import {
-  showSnackbarError,
-  showSnackbarSuccess,
-} from "../../../../../../Events/snackbarEvents";
+  archiveJobsOnServer,
+  releaseEsiLinksOf,
+} from "../../../../../../Functions/Job/changes/jobChange.js";
+import { showSnackbarSuccess } from "../../../../../../Events/snackbarEvents";
 import useUsersStore from "../../../../../../Zustand/usersStore";
 import { invalidateArchiveQueries } from "../../../../../../Hooks/React Query/Backend/archivedJobsList";
 import { useActiveJobReadOnly } from "../../../../Edit Job Hooks/useActiveJobDocumentLock";
@@ -34,42 +26,23 @@ export function ArchiveJobButton() {
   const archiveJobProcess = async () => {
     if (jobLockReadOnly) return;
     const job = jobDraftNow();
-    useUsersStore.getState().account.actions.addLinkedEsiData({
-      ordersToAdd: new Set(),
-      jobsToAdd: new Set(),
-      transactionsToAdd: new Set(),
-      ordersToRemove: esiOrderIDs(job),
-      jobsToRemove: esiJobIDs(job),
-      transactionsToRemove: esiTransactionIDs(job),
-    });
+    const { jobData } = useUsersStore.getState();
+    const wasQueued = job.jobID in (jobData.pendingJobDocumentWrites ?? {});
+    const owed = jobData.actions.takeQueuedJobDocumentWrites([job.jobID]);
 
-    const archivedOk = await saveArchivedJobs([job]);
-    if (!archivedOk) {
-      showSnackbarError(
-        "Could not archive job on the server. Please try again.",
-      );
+    if (!(await archiveJobsOnServer([job]))) {
+      const held = jobData.actions.findJobInJobArray(job.jobID);
+      if (wasQueued && held) {
+        jobData.actions.queueJobDocumentWritesFromJobs([held], owed);
+      }
       return;
     }
 
     invalidateArchiveQueries(queryClient);
-
     await markJobsArchivedInGroups([job]);
-
-    try {
-      await flushPendingJobDocumentsSave();
-      await deleteJobDocumentsFromApi([job.jobID]);
-    } catch (err) {
-      console.error(err);
-      showSnackbarError(
-        "Job was archived but removing it from the server failed. Try refreshing or deleting from the planner.",
-        5,
-      );
-      return;
-    }
-
     showSnackbarSuccess(`${job.name} Archived`);
 
-    await saveUserAccountDocument();
+    await releaseEsiLinksOf([job], "archived");
     removeJobsFromJobArray(job.jobID);
     await yieldEditJobDocumentLocksOnLeave({ jobID });
     navigate({ to: "/jobplanner" });

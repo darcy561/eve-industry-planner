@@ -1,7 +1,4 @@
-import {
-  jobFromDocument,
-  toDocument,
-} from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument, toDocument } from "../Functions/Job/jobDocument";
 
 /**
  * The job a command leaves behind, rebuilt from the document it changed.

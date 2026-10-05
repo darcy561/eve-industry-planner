@@ -8,8 +8,8 @@ vi.mock("../../../Zustand/usersStore", async () => {
 });
 
 const closeActiveJob = vi.fn().mockResolvedValue("closed");
-vi.mock("../../../Functions/JobPlanner/closeActiveJob", () => ({
-  default: (...args) => closeActiveJob(...args),
+vi.mock("../../../Functions/Job/editing/closeActiveJob", () => ({
+  closeActiveJob: (...args) => closeActiveJob(...args),
 }));
 
 const openChangeReview = vi.fn();

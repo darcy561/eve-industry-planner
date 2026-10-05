@@ -36,7 +36,7 @@ vi.mock("../Zustand/usersStore.js", async () => {
 const { useRefreshLinkedESIData } =
   await import("../Components/Edit Job/Hooks/useRefreshLinkedESIData.js");
 const { jobFromDocument, toDocument } =
-  await import("../Functions/JobDocuments/jobDocument.js");
+  await import("../Functions/Job/jobDocument.js");
 
 function jobWithOrder(overrides = {}) {
   return jobFromDocument({

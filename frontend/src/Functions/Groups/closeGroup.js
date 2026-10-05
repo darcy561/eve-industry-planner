@@ -3,7 +3,7 @@ import {
   keepOnlyChildJobs,
   keepOnlyParentJobs,
 } from "../../Components/Edit Job/Edit Job Hooks/jobCommands";
-import { saveJobsViaApi } from "../JobDocuments/saveJobsViaApi.js";
+import { saveJobsViaApi } from "../Job/sync/saveJobsViaApi.js";
 import { flushPendingGroupSave } from "../Debounce/jobGroupsPersistSchedule.js";
 import normaliseParentChildRelationships from "../Shared/normaliseParentChildRelationships.js";
 import { canPersistGroupClose } from "../DocumentLock/canPersistDocumentEditClose.js";

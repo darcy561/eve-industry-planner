@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import { CompactAccordionContents } from "./Compact/CompactContents";
 import { ClassicAccordionContents } from "./Classic/classicContents";
-import { filterJobsForJobPlannerStage } from "../../../Functions/JobPlanner/plannerAccordionJobFilters";
+import { filterJobsForJobPlannerStage } from "../../../Functions/JobPlanner/plannerLists";
 import useUsersStore from "../../../Zustand/usersStore";
 import ContentPanel from "../../../Styled Components/Paper/ContentPanel";
 import { useJobStatuses } from "../../../Hooks/useJobStatuses";

@@ -1,4 +1,4 @@
-import { toDocument } from "../JobDocuments/jobDocument.js";
+import { toDocument } from "../Job/jobDocument.js";
 import { totalBrokersFees } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 import { describe, expect, it, vi } from "vitest";
 import { testQueryClient } from "../../tests/queryClients.js";
@@ -47,7 +47,7 @@ const { default: calcSellingCharges } = await import("./calcSellingCharges.js");
 const client = () => testQueryClient();
 const { default: findBrokersFeeEntry } =
   await import("./findBrokersFeeEntry.js");
-const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../Job/jobDocument.js");
 const { addMarketOrder } =
   await import("../../Components/Edit Job/Edit Job Hooks/jobCommands.js");
 const { esiOrderIDs } =

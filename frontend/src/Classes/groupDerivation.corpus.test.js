@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import Group from "./group.js";
-import { jobFromDocument } from "../Functions/JobDocuments/jobDocument";
+import { jobFromDocument } from "../Functions/Job/jobDocument";
 
 const corpusPath = resolve(
   process.cwd(),

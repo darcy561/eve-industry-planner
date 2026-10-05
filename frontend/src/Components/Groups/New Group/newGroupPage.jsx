@@ -10,7 +10,7 @@ import { useEffect } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import Group from "../../../Classes/group.js";
 import { flushPendingGroupSave } from "../../../Functions/Debounce/jobGroupsPersistSchedule.js";
-import { saveJobsViaApi } from "../../../Functions/JobDocuments/saveJobsViaApi.js";
+import { saveJobsViaApi } from "../../../Functions/Job/sync/saveJobsViaApi.js";
 import useUsersStore from "../../../Zustand/usersStore";
 import { AppEvent } from "../../../analytics/appEventNames";
 import { trackAppEvent } from "../../../analytics/trackAppEvent";

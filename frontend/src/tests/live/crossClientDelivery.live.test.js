@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { lockParticipantID } from "../../Functions/DocumentLock/lockParticipant.js";
 import {
   openClient,
   startWebsocketHarness,
@@ -157,8 +158,8 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     expect(await bob.read("editSession.activeJobID")).toBe("job-doomed");
 
     await alice.call(
-      "/src/Functions/Endpoints/Private/jobDocuments.js",
-      "deleteJobDocumentsFromApi",
+      "/src/Functions/Job/changes/deleteMultipleJobs.js",
+      "default",
       ["job-doomed"],
     );
     await bob.until(
@@ -169,8 +170,8 @@ describe.skipIf(!RUN)("two members of one planner", () => {
 
     await bob.forgetRequests();
     await bob.call(
-      "/src/Functions/JobPlanner/closeActiveJob.js",
-      "default",
+      "/src/Functions/Job/editing/closeActiveJob.js",
+      "closeActiveJob",
       held,
       true,
       {},
@@ -211,7 +212,7 @@ describe.skipIf(!RUN)("two members of one planner", () => {
     expect(JSON.parse(contended.body)).toMatchObject({
       held: true,
       acquired: false,
-      holderSessionID: ALICE.sessionID,
+      holderParticipantID: lockParticipantID(ALICE.sessionID),
     });
   }, 60_000);
 });

@@ -5,7 +5,7 @@ import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import { useQueryClient } from "@tanstack/react-query";
 import { captureException } from "@sentry/react";
 
-import addNewJobsToPlanner from "../../Functions/JobPlanner/addNewJobsToPlanner";
+import addNewJobsToPlanner from "../../Functions/Job/building/addNewJobsToPlanner";
 import { showBlueprintArchiveDialogue } from "../../Events/dialogueEvents";
 import { showSnackbarError } from "../../Events/snackbarEvents";
 

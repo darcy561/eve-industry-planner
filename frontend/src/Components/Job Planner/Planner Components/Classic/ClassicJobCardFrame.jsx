@@ -23,7 +23,7 @@ import {
 } from "../../Hooks/useDnD";
 import { RouterButton } from "../../../../Styled Components/Navigation/routerControls.jsx";
 import GLOBAL_CONFIG from "../../../../global-config-app";
-import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
+import deleteJobsFromPlanner from "../../../../Functions/Job/changes/deleteMultipleJobs";
 import useUsersStore from "../../../../Zustand/usersStore";
 import ContentPanel from "../../../../Styled Components/Paper/ContentPanel";
 import { STANDARD_TEXT_FORMAT } from "../../../../Context/defaultValues";

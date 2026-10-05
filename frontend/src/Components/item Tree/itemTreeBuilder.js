@@ -1,4 +1,4 @@
-import { buildJob } from "../../Functions/JobPlanner/buildJob";
+import { buildJob } from "../../Functions/Job/building/buildJob";
 import buildParentChildRelationships from "../../Functions/Helper/buildParentChildRelationships";
 import checkJobTypeIsBuildable from "../../Functions/Helper/checkJobTypeIsBuildable";
 

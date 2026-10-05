@@ -27,7 +27,7 @@ vi.mock("../../../Functions/Clipboard/clipboardPermissions", () => ({
   checkClipboardReadPermissions,
 }));
 
-vi.mock("../../../Functions/JobPlanner/importFitFromClipboard", () => ({
+vi.mock("../../../Functions/Job/building/importFitFromClipboard", () => ({
   importFromClipboard,
   finalBuildRequests,
 }));

@@ -16,7 +16,7 @@ import { useItemNames } from "../../../../Hooks/Static/useItems";
 import AddShipFittingPanel from "./addFittingJobs";
 import useUsersStore from "../../../../Zustand/usersStore";
 import { useQueryClient } from "@tanstack/react-query";
-import addNewJobsToPlanner from "../../../../Functions/JobPlanner/addNewJobsToPlanner";
+import addNewJobsToPlanner from "../../../../Functions/Job/building/addNewJobsToPlanner";
 import VirtualisedRecipeSearch from "../../../../Styled Components/autocomplete/virtualisedRecipeSearch";
 import toggleRightDrawerColapse from "../../Functions/toggleRightMenuDrawerColapse";
 import {

@@ -17,8 +17,8 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import LibraryAddIcon from "@mui/icons-material/LibraryAdd";
 import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
 import { passBuildCostsToParentJobs } from "../../../../Functions/Shared/passBuildCosts";
-import deleteJobsFromPlanner from "../../../../Functions/JobPlanner/deleteMultipleJobs";
-import buildNextMaterialsTree from "../../../../Functions/JobPlanner/buildNextMaterialsTree";
+import deleteJobsFromPlanner from "../../../../Functions/Job/changes/deleteMultipleJobs";
+import buildNextMaterialsTree from "../../../../Functions/Job/building/buildNextMaterialsTree";
 import { archiveGroupJobs } from "../../../../Functions/Groups/archiveGroupJobs.js";
 import { invalidateArchiveQueries } from "../../../../Hooks/React Query/Backend/archivedJobsList.js";
 import {
@@ -297,8 +297,9 @@ export function useGroupPageSideMenuFunctions(
             throwDialogueError();
             return;
           }
-          await deleteJobsFromPlanner(multiSelect);
-          clearMultiSelect();
+          if (await deleteJobsFromPlanner(multiSelect)) {
+            clearMultiSelect();
+          }
         },
       },
       {

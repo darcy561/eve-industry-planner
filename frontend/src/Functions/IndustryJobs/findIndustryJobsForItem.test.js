@@ -7,7 +7,7 @@ vi.mock("../../Zustand/usersStore", async () => {
 
 const { default: findIndustryJobsForItem } =
   await import("./findIndustryJobsForItem.js");
-const { jobFromDocument } = await import("../JobDocuments/jobDocument.js");
+const { jobFromDocument } = await import("../Job/jobDocument.js");
 
 function run(job_id, overrides = {}) {
   return {

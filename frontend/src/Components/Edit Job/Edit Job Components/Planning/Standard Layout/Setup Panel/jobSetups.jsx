@@ -15,7 +15,7 @@ import { setupToBuildFrom } from "../../../../Edit Job Hooks/jobSelectors";
 import {
   buildSetupContextForJob,
   buildSetupFromQuantity,
-} from "../../../../../../Functions/JobPlanner/setupBuildHelpers";
+} from "../../../../../../Functions/Job/setups/setups";
 import {
   jobDraftNow,
   useJobActions,

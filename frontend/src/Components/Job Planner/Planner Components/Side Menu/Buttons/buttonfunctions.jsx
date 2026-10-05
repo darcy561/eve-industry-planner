@@ -11,9 +11,9 @@ import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import PostAddIcon from "@mui/icons-material/PostAdd";
 import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
-import deleteJobsFromPlanner from "../../../../../Functions/JobPlanner/deleteMultipleJobs";
-import mergeJobs from "../../../../../Functions/JobPlanner/mergeJobs";
-import massBuildMaterials from "../../../../../Functions/JobPlanner/massBuildMaterials";
+import deleteJobsFromPlanner from "../../../../../Functions/Job/changes/deleteMultipleJobs";
+import mergeJobs from "../../../../../Functions/Job/changes/mergeJobs";
+import massBuildMaterials from "../../../../../Functions/Job/building/massBuildMaterials";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { displayNotificationDialogue } from "../../../../../Events/notificationDialogueEvents";
@@ -23,7 +23,7 @@ import { showShoppingList } from "../../../../../Events/shoppingListEvents";
 import { showPriceEntryDialogue } from "../../../../../Events/priceEntryEvents";
 import useUsersStore from "../../../../../Zustand/usersStore";
 import moveItemsOnPlanner from "../../../../../Functions/JobPlanner/moveItemsOnPlanner";
-import { buildJob } from "../../../../../Functions/JobPlanner/buildJob";
+import { buildJob } from "../../../../../Functions/Job/building/buildJob";
 import { openGroupTemplatesApplyDialogue } from "../../../../../Events/groupTemplatesDialogueEvents";
 import { filterUnlockedDocumentIDs } from "../../../../../Functions/DocumentLock/documentLockSelectors";
 import { USER_JOBS_COLLECTION } from "../../../../../Functions/DocumentLock/documentLockCollections";
@@ -164,8 +164,10 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
             throwDialogueError();
             return;
           }
-          await mergeJobs(multiSelect, { buildJob: buildJobWithContext });
-          clearMultiSelect();
+          await mergeJobs(multiSelect, {
+            buildJob: buildJobWithContext,
+            onMerged: clearMultiSelect,
+          });
         },
       },
       {
@@ -203,8 +205,9 @@ export function useJobPlannerSideMenuFunctions(pageState, pageActions) {
             throwDialogueError();
             return;
           }
-          await deleteJobsFromPlanner(multiSelect);
-          clearMultiSelect();
+          if (await deleteJobsFromPlanner(multiSelect)) {
+            clearMultiSelect();
+          }
         },
       },
     ];

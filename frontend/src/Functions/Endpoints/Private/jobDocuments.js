@@ -1,4 +1,4 @@
-import { jobFromDocument } from "../../JobDocuments/jobDocument.js";
+import { jobFromDocument } from "../../Job/jobDocument.js";
 import useUsersStore from "../../../Zustand/usersStore.js";
 import {
   requestWithPrivateHeaders,
@@ -37,9 +37,6 @@ async function parseJsonBodyOrExplainHtml(res, label) {
 
 /** Kept in sync with Go `PutJobDocumentsHandler` (`maxBatchSize`). */
 const MAX_PUT_JOB_DOCUMENTS_BATCH = 100;
-
-/** Kept in sync with Go `DeleteJobDocumentsHandler` (`maxBatchSize`). */
-const MAX_DELETE_JOB_DOCUMENTS_BATCH = 200;
 
 /**
  * Fetches the jobs carrying `displayOnPlanner: true`.
@@ -196,29 +193,33 @@ export async function putJobDocumentsBatch(writes) {
 }
 
 /**
- * The body of a save whose writes land together or not at all.
+ * The body of a save whose writes and removals land together or not at all.
  *
  * @param {Array<object>} writes - Envelopes from `jobWriteEnvelope`
- * @returns {{jobs: Array<object>, oneChange: true}}
+ * @param {Array<{jobID: string, revision: number}>} [deletes] - Jobs removed, at the revision read
+ * @returns {{jobs: Array<object>, deletes?: Array<object>, oneChange: true}}
  */
-export function jobChangeRequestBody(writes) {
-  return { jobs: writes, oneChange: true };
+export function jobChangeRequestBody(writes, deletes = []) {
+  if (deletes.length === 0) return { jobs: writes, oneChange: true };
+  return { jobs: writes, deletes, oneChange: true };
 }
 
 /**
- * Sends writes as one change in a single request, which the server writes whole or refuses whole.
+ * Sends writes and removals as one change in a single request, which the server makes whole or
+ * refuses whole.
  *
  * @param {Array<object>} writes - Envelopes from `jobWriteEnvelope`
+ * @param {Array<{jobID: string, revision: number}>} [deletes]
  */
-export async function putJobDocumentsChange(writes) {
-  if (writes.length === 0) return;
+export async function putJobDocumentsChange(writes, deletes = []) {
+  if (writes.length === 0 && deletes.length === 0) return;
 
   const res = await requestWithPrivateHeaders(
     "/api/v1/job-documents",
     {
       method: "PUT",
       headers: jsonHeaders,
-      body: JSON.stringify(jobChangeRequestBody(writes)),
+      body: JSON.stringify(jobChangeRequestBody(writes, deletes)),
     },
     {
       requestName: "putJobDocumentsChange",
@@ -229,30 +230,4 @@ export async function putJobDocumentsChange(writes) {
     const text = await res.text().catch(() => "");
     throwNonOkPrivateResponse(res, "PUT", "/api/v1/job-documents", text);
   }
-}
-
-/**
- * @param {string[]} jobIDs
- */
-export async function deleteJobDocumentsFromApi(jobIDs) {
-  const ids = [...new Set(jobIDs.filter(Boolean))];
-  if (ids.length === 0) return;
-
-  await requestWithPrivateHeaders(
-    "/api/v1/job-documents",
-    {
-      method: "DELETE",
-      headers: jsonHeaders,
-      body: JSON.stringify({ jobIDs: ids }),
-    },
-    {
-      requestName: "deleteJobDocuments",
-      retry: privateBatchRetryConfig,
-      batch: {
-        size: MAX_DELETE_JOB_DOCUMENTS_BATCH,
-        arrayKey: "jobIDs",
-        errorLabel: "DELETE /api/v1/job-documents",
-      },
-    },
-  );
 }

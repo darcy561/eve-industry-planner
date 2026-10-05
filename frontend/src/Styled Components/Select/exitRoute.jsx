@@ -1,5 +1,5 @@
 import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
-import { EXIT_ROUTE } from "../../Functions/Job/returns.js";
+import { EXIT_ROUTE } from "../../Functions/Job/figures/returns.js";
 
 /**
  * The routes out of a finished build, in the order Returns states them.
