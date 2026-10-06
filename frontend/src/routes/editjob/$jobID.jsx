@@ -1,15 +1,8 @@
-import {
-  createFileRoute,
-  lazyRouteComponent,
-  notFound,
-} from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
 import { ensureGroupJobs } from "../../Functions/Groups/ensureGroupJobs";
 import useUsersStore from "../../Zustand/usersStore";
-
-const EditJob = lazyRouteComponent(
-  () => import("../../Components/Edit Job/editJob"),
-);
+import EditJob from "../../Components/Edit Job/editJob";
 
 export const Route = createFileRoute("/editjob/$jobID")({
   staticData: { audience: "public" },

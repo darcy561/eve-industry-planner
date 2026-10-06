@@ -1,18 +1,11 @@
 import { useState } from "react";
 import { Box, Collapse, Link, Skeleton, Typography } from "@mui/material";
+import { ExpandToggle } from "../IconButton/ExpandToggle";
 
 import {
   formatNumberForLocale,
   formatPercentage,
 } from "../../Functions/Helper/numberParser";
-
-/**
- * The figure atoms of the app-shell design.
- *
- * Every panel showing numbers repeats the same three decisions — line the digits
- * up, say something when there is no figure, and colour a comparison by its
- * direction. They live here so a panel states a figure rather than styling one.
- */
 
 /**
  * How a figure is marked against the figures beside it.
@@ -37,8 +30,7 @@ const TONE_COLOUR = {
 };
 
 /**
- * The theme colour a tone resolves to, for the places a tone has to reach
- * something that is not a Figure — an icon beside one, a border, a chart series.
+ * The theme colour a tone resolves to, for an icon, border or chart series beside a figure.
  *
  * @param {string} tone - One of FIGURE_TONE
  * @returns {string} A theme palette path
@@ -48,16 +40,8 @@ export function figureToneColour(tone) {
 }
 
 /**
- * A number, lined up with the numbers above and below it.
- *
- * Renders an em dash for a value the app does not have, so a column reads as
- * "nothing to say here" rather than as a zero or a gap.
- *
- * A raw number is put through the locale formatter rather than trusted to have
- * been formatted already: `String(n)` loses the separators, and loses them in a
- * way only a reader outside en-GB would notice. `formatOptions` says how many
- * places it wants — a count asks for `{ max: 0 }` — since ISK's two are the
- * formatter's default rather than the right answer for every figure.
+ * A number lined up with those around it, formatted for the locale when raw, and an em dash
+ * for a value the app does not have.
  *
  * @param {object} props
  * @param {React.ReactNode} [props.children] - The value, formatted or raw
@@ -98,11 +82,7 @@ export function Figure({
 }
 
 /**
- * A change, as a percentage, coloured by which way it went.
- *
- * Takes a fraction rather than a percentage because that is what a ratio of two
- * figures gives, and converting at each call site is where a factor of a hundred
- * goes missing.
+ * A change, given as a fraction and shown as a percentage, coloured by which way it went.
  *
  * @param {object} props
  * @param {number|null} props.value - A fraction: -0.083 renders as −8.3%
@@ -131,11 +111,7 @@ export function SignedPercent({
 }
 
 /**
- * How a row that closes a block is drawn: ruled above rather than below, so it
- * reads as the sum of what is over it rather than the start of what is under it.
- *
- * Shared because it is a decision about what a total looks like, and a table
- * cell and a flex row were each making it separately.
+ * How a row that closes a block is drawn: ruled above, so it reads as the sum of what is over it.
  *
  * @type {object}
  */
@@ -146,10 +122,7 @@ export const totalRowSx = {
 };
 
 /**
- * Names a group of rows beneath it.
- *
- * Kept free of any table so a panel laying rows out in a stack can use the same
- * caption a table's band row does.
+ * Names a group of rows beneath it, in a table's band or a stack of rows alike.
  *
  * @param {object} props
  * @param {React.ReactNode} props.children
@@ -172,11 +145,7 @@ export function BandCaption({ children, tone = FIGURE_TONE.PLAIN }) {
 }
 
 /**
- * A label and its figure, on one line.
- *
- * The shape every cost and return breakdown is made of. A row can carry a
- * sub-label under its name, and the closing row of a block is marked as a total
- * rather than being styled by whoever draws it last.
+ * A label and its figure on one line, with an optional sub-label, or ruled as a block's total.
  *
  * @param {object} props
  * @param {React.ReactNode} props.label
@@ -231,8 +200,7 @@ export function FigureRow({
 }
 
 /**
- * A quiet line under a panel, stating what it holds on the left and a total on
- * the right.
+ * A quiet line under a panel, stating what it holds on the left and a total on the right.
  *
  * @param {object} props
  * @param {React.ReactNode} props.children - The left side
@@ -289,9 +257,6 @@ export function FigureCaption({ children }) {
 /**
  * The figure a panel leads with: what it is, then the number, large.
  *
- * Cost Breakdown opens with a cost per unit and Returns with a net return, both
- * this shape — so the panel names its headline rather than laying one out.
- *
  * @param {object} props
  * @param {React.ReactNode} props.caption - What the figure is
  * @param {React.ReactNode} props.value - Already formatted
@@ -325,10 +290,6 @@ export function HeadlineStat({
 /**
  * What a panel opens with: the figure it leads on, and whatever stands beside it.
  *
- * Cost Breakdown puts a range of previous builds next to its cost per unit;
- * Returns puts three normalisations next to its net. Same arrangement, so the
- * panels state their parts rather than each laying out a header.
- *
  * @param {object} props
  * @param {React.ReactNode} props.children - The lead figure
  * @param {React.ReactNode} [props.aside] - What stands beside it
@@ -346,9 +307,6 @@ export function PanelHeadline({ children, aside }) {
     >
       {children}
       {aside ? (
-        // Grows into whatever the headline leaves, so an aside that wants the
-        // width — a range bar, which is unreadable narrow — can take it, while
-        // one made of fixed tiles stays against the right edge as before.
         <Box
           sx={{
             display: "flex",
@@ -367,12 +325,8 @@ export function PanelHeadline({ children, aside }) {
 }
 
 /**
- * A measure on its own card: what it is, what it is now, how that compares, and
- * what it was before.
- *
- * The shape the archive statistics already use and the returns header repeats.
- * A tile states its parts and lets this decide the sizes, the tones and where
- * the comparison sits, so two tiles beside each other cannot disagree.
+ * A measure on its own card: what it is, what it is now, how that compares, and what it was
+ * before.
  *
  * @param {object} props
  * @param {React.ReactNode} props.label - What the measure is
@@ -458,11 +412,7 @@ export function StatTile({
 }
 
 /**
- * A relationship between two figures, stated and left there.
- *
- * Returns uses these for break-even and the range of previous builds. They read
- * as context rather than as a result, which is why they are quiet and carry no
- * colour of their own.
+ * A relationship between two figures, stated quietly as context rather than as a result.
  *
  * @param {object} props
  * @param {React.ReactNode} props.children - What the relationship is
@@ -494,53 +444,75 @@ export function ContextRow({ children, note }) {
 }
 
 /**
- * A section a reader opens when they want the working.
- *
- * The ledger behind Returns and the cost-over-time chart behind Cost Breakdown
- * are both things a panel should not lead with but must be able to show.
+ * A section a reader opens when they want it, under a link or, as a `heading`, under a caption
+ * with a chevron button.
  *
  * @param {object} props
  * @param {React.ReactNode} props.label
  * @param {React.ReactNode} props.children
  * @param {boolean} [props.defaultOpen]
- * @param {() => void} [props.onOpen] - Called the first time it is opened, for a
- *   section whose contents are expensive enough to be fetched on demand
+ * @param {() => void} [props.onOpen] - Called each time it is opened
+ * @param {boolean} [props.heading] - Drawn as a caption with a chevron button rather than a link;
+ *   its label is then a string, since the button is named from it
  */
-export function Disclosure({ label, children, defaultOpen = false, onOpen }) {
+export function Disclosure({
+  label,
+  children,
+  defaultOpen = false,
+  onOpen,
+  heading = false,
+}) {
   const [open, setOpen] = useState(defaultOpen);
+  const toggle = () =>
+    setOpen((was) => {
+      if (!was) onOpen?.();
+      return !was;
+    });
 
   return (
     <Box>
-      <Box
-        sx={{
-          borderTop: 1,
-          borderColor: "divider",
-          pt: 1,
-          display: "flex",
-          justifyContent: "space-between",
-        }}
-      >
-        <Link
-          component="button"
-          type="button"
-          underline="hover"
-          variant="body2"
-          aria-expanded={open}
-          onClick={() =>
-            setOpen((was) => {
-              // Fires on the way open only: a section fetched on demand should
-              // not re-fetch every time it is folded away and back.
-              if (!was) onOpen?.();
-              return !was;
-            })
-          }
+      {heading ? (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+          }}
         >
-          {label}
-        </Link>
-        <Typography component="span" variant="caption" aria-hidden="true">
-          {open ? "\u25be" : "\u25b8"}
-        </Typography>
-      </Box>
+          <FigureCaption>{label}</FigureCaption>
+          <ExpandToggle
+            isOpen={open}
+            onToggle={toggle}
+            showLabel={`Show ${label}`}
+            hideLabel={`Hide ${label}`}
+          />
+        </Box>
+      ) : (
+        <Box
+          sx={{
+            borderTop: 1,
+            borderColor: "divider",
+            pt: 1,
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <Link
+            component="button"
+            type="button"
+            underline="hover"
+            variant="body2"
+            aria-expanded={open}
+            onClick={toggle}
+          >
+            {label}
+          </Link>
+          <Typography component="span" variant="caption" aria-hidden="true">
+            {open ? "\u25be" : "\u25b8"}
+          </Typography>
+        </Box>
+      )}
       <Collapse in={open} timeout="auto" unmountOnExit>
         <Box sx={{ pt: 1 }}>{children}</Box>
       </Collapse>

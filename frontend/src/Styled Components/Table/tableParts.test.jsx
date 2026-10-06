@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   Table,
   TableBody,
@@ -8,7 +9,15 @@ import {
   createTheme,
 } from "@mui/material";
 
-import { ColumnHeaderRow, ScrollingTable } from "./tableParts";
+import {
+  BandRow,
+  ColumnHeaderRow,
+  DrawerRow,
+  ScrollingTable,
+  SummaryRow,
+} from "./tableParts";
+import { ExpandToggle } from "../IconButton/ExpandToggle";
+import { FIGURE_TONE } from "../Typography/figures";
 
 const renderHeader = (columns) =>
   render(
@@ -30,8 +39,6 @@ describe("ColumnHeaderRow", () => {
   });
 
   it("takes the columns rather than fixing them", () => {
-    // A panel shows a column only when it has something to put in it — the cost
-    // table's comparison against a previous build appears only with history.
     renderHeader([{ id: "a", label: "Component" }]);
 
     expect(screen.getAllByRole("columnheader")).toHaveLength(1);
@@ -46,9 +53,6 @@ describe("ColumnHeaderRow", () => {
   });
 });
 
-// A table left to itself squeezes its label column to a word a line and still
-// runs off the side of the panel, because nothing contains it. Reported twice
-// on two different tables before this moved into one place.
 describe("a table in a window too narrow for it", () => {
   const renderScrolling = () =>
     render(
@@ -70,8 +74,6 @@ describe("a table in a window too narrow for it", () => {
     expect(getComputedStyle(scroller).maxWidth).toBe("100%");
   });
 
-  // Named from the theme rather than stated in pixels, so table widths speak the
-  // same vocabulary as every other breakpoint in the app.
   it("takes its floor from the theme's breakpoints", () => {
     renderScrolling();
 
@@ -84,5 +86,146 @@ describe("a table in a window too narrow for it", () => {
     renderScrolling();
 
     expect(screen.getByLabelText("Figures")).toBeInTheDocument();
+  });
+});
+
+const inBody = (rows) =>
+  render(
+    <Table>
+      <TableBody>{rows}</TableBody>
+    </Table>,
+  );
+
+describe("a band across a table", () => {
+  it("spans every column with its caption", () => {
+    inBody(<BandRow colSpan={4}>Minerals</BandRow>);
+
+    expect(screen.getByRole("cell", { name: "Minerals" })).toHaveAttribute(
+      "colspan",
+      "4",
+    );
+  });
+});
+
+describe("a row's drawer toggle", () => {
+  it("says what pressing it will do and whether the drawer is open", () => {
+    const { rerender } = render(
+      <ExpandToggle
+        isOpen={false}
+        onToggle={() => {}}
+        showLabel="Show Veldspar"
+        hideLabel="Hide Veldspar"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Show Veldspar" }),
+    ).toHaveAttribute("aria-expanded", "false");
+
+    rerender(
+      <ExpandToggle
+        isOpen
+        onToggle={() => {}}
+        showLabel="Show Veldspar"
+        hideLabel="Hide Veldspar"
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Hide Veldspar" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("toggles without the click reaching the row beneath it", async () => {
+    const onToggle = vi.fn();
+    const onRowClick = vi.fn();
+    inBody(
+      <TableRow onClick={onRowClick}>
+        <TableCell>
+          <ExpandToggle
+            isOpen={false}
+            onToggle={onToggle}
+            showLabel="Show"
+            hideLabel="Hide"
+          />
+        </TableCell>
+      </TableRow>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Show" }));
+
+    expect(onToggle).toHaveBeenCalledOnce();
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+});
+
+describe("a row's drawer", () => {
+  it("holds nothing while shut and its contents while open", () => {
+    const { rerender } = inBody(
+      <DrawerRow colSpan={3} isOpen={false}>
+        Per batch
+      </DrawerRow>,
+    );
+
+    expect(screen.queryByText("Per batch")).toBeNull();
+
+    rerender(
+      <Table>
+        <TableBody>
+          <DrawerRow colSpan={3} isOpen>
+            Per batch
+          </DrawerRow>
+        </TableBody>
+      </Table>,
+    );
+    expect(screen.getByText("Per batch")).toBeInTheDocument();
+    expect(screen.getByRole("cell")).toHaveAttribute("colspan", "3");
+  });
+});
+
+describe("a summing row", () => {
+  const columns = [
+    { id: "item", label: "Item" },
+    { id: "quantity", label: "Quantity", align: "right" },
+    { id: "value", label: "Value", align: "right" },
+  ];
+
+  it("puts its label first and each value under its column", () => {
+    inBody(
+      <SummaryRow
+        columns={columns}
+        label="Market value"
+        values={{ value: "10,000.00" }}
+      />,
+    );
+
+    expect(screen.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(
+      ["Market value", "", "10,000.00"],
+    );
+  });
+
+  it("aligns each value the way its column asks", () => {
+    inBody(
+      <SummaryRow columns={columns} label="Total" values={{ quantity: 5 }} />,
+    );
+
+    expect(screen.getAllByRole("cell")[1]).toHaveStyle({ textAlign: "right" });
+  });
+
+  it("tones a value given as text as well as a number", () => {
+    inBody(
+      <SummaryRow
+        columns={columns}
+        label="Total"
+        values={{ quantity: 5, value: "+1,000.00" }}
+        tones={{ quantity: FIGURE_TONE.BAD, value: FIGURE_TONE.GOOD }}
+      />,
+    );
+
+    const [, quantity, value] = screen.getAllByRole("cell");
+    expect(quantity.firstChild.tagName).toBe("SPAN");
+    expect(value.firstChild.tagName).toBe("SPAN");
+    expect(getComputedStyle(value.firstChild).color).not.toBe(
+      getComputedStyle(quantity.firstChild).color,
+    );
   });
 });

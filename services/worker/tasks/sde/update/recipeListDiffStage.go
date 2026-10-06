@@ -22,7 +22,6 @@ type recipeListDiffItem struct {
 // and logs the recipe items that are new in the latest update.
 func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistResult, deps *taskrun.Dependencies) error {
 	if persistResult == nil {
-		// Placeholder for "no previous version" behaviour (e.g. first-run warmup checks).
 		logs.DebugCtx(ctx, "SDE recipeList diff skipped (persist result was nil)")
 		return nil
 	}
@@ -73,7 +72,6 @@ func runSDENewRecipeItemsStage(ctx context.Context, persistResult *sdePersistRes
 		"new_items_count", len(newItems),
 	)
 
-	// Keep log noise bounded: list up to 50 new item IDs.
 	limit := min(len(newItems), 50)
 	itemIDs := make([]int, 0, limit)
 	for i := range limit {
@@ -116,7 +114,6 @@ func addRecipeTypeIDs(typeIDs map[int32]struct{}, r *conversion.EVEType) {
 	case conversion.ReactionID:
 		activityKey = "reaction"
 	default:
-		// Try both activity paths if job type is unknown to maximise coverage.
 		addMaterialsTypeIDs(typeIDs, r, "manufacturing")
 		addMaterialsTypeIDs(typeIDs, r, "reaction")
 		addInventionMaterialTypeIDs(typeIDs, r)
@@ -209,7 +206,7 @@ func addReprocessingTypeIDs(typeIDs map[int32]struct{}, reprocessingBytes []byte
 		return 0, nil
 	}
 
-	var reprocessingData map[string]*conversion.ReprocessingItem
+	var reprocessingData conversion.ReprocessingData
 	if err := jsoncodec.Unmarshal(b, &reprocessingData); err != nil {
 		return 0, fmt.Errorf("failed parsing reprocessingData.json: %w", err)
 	}
@@ -226,7 +223,7 @@ func addReprocessingTypeIDs(typeIDs map[int32]struct{}, reprocessingBytes []byte
 		added++
 	}
 
-	for id, item := range reprocessingData {
+	for id, item := range reprocessingData.Items {
 		if itemID, ok := parseTypeID(id); ok {
 			add(itemID)
 		}
@@ -234,6 +231,11 @@ func addReprocessingTypeIDs(typeIDs map[int32]struct{}, reprocessingBytes []byte
 			continue
 		}
 		for materialID := range item.Materials {
+			if typeID, ok := parseTypeID(materialID); ok {
+				add(typeID)
+			}
+		}
+		for materialID := range item.RandomizedMaterials {
 			if typeID, ok := parseTypeID(materialID); ok {
 				add(typeID)
 			}

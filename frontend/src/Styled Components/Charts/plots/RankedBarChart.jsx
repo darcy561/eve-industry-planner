@@ -4,6 +4,7 @@ import {
   BarChart,
   CartesianGrid,
   Rectangle,
+  ReferenceLine,
   Tooltip,
   XAxis,
   YAxis,
@@ -31,6 +32,7 @@ import {
  * @param {Object} [props.style] - CSS sizing overrides
  * @param {string} [props.colour]
  * @param {(row: Object) => string} [props.colourFor] - per-bar colour
+ * @param {boolean} [props.markZero] - rule a line at zero, for bars that run either way
  */
 export function RankedBarChart({
   rows = [],
@@ -45,6 +47,7 @@ export function RankedBarChart({
   width,
   height,
   paletteSeed,
+  markZero = false,
 }) {
   const theme = useTheme();
   const axisProps = chartAxisProps(theme);
@@ -81,6 +84,9 @@ export function RankedBarChart({
         {...chartTooltipProps(theme)}
         formatter={(value) => [formatValue(value), valueLabel ?? valueKey]}
       />
+      {markZero ? (
+        <ReferenceLine x={0} stroke={theme.palette.text.secondary} />
+      ) : null}
       <Bar
         dataKey={valueKey}
         name={valueLabel ?? valueKey}

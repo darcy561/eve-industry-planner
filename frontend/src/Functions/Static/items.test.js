@@ -17,6 +17,7 @@ const {
   primeItems,
   primeItemSearchIndex,
   itemRecord,
+  itemRecordByName,
   readItemRecords,
   searchEntryByName,
   searchEntryByNameIn,
@@ -41,8 +42,6 @@ describe("priming the records", () => {
     expect(itemRecord(34)?.name).toBe("Tritanium");
   });
 
-  // Null rather than an empty map: a lookup against an empty one answers nothing for every type,
-  // which reads as the list disagreeing rather than as data that has not arrived.
   it("answers null before it has loaded", () => {
     expect(readItemRecords()).toBeNull();
     expect(itemRecord(34)).toBeUndefined();
@@ -53,7 +52,6 @@ describe("priming the records", () => {
     expect(getFullItemList).toHaveBeenCalledTimes(1);
   });
 
-  // A failure remembered as the answer would leave every later caller inheriting one outage.
   it("retries after a failure", async () => {
     getFullItemList.mockRejectedValueOnce(new Error("offline"));
     await expect(primeItems()).rejects.toThrow("offline");
@@ -62,10 +60,22 @@ describe("priming the records", () => {
     expect(itemRecord(34)?.name).toBe("Tritanium");
   });
 
-  // Pricing a row should not wait on the file the fit importer reads.
   it("does not read the search index", async () => {
     await primeItems();
     expect(getSearchIndex).not.toHaveBeenCalled();
+  });
+});
+
+describe("matching a name against the records", () => {
+  it("finds the record a name belongs to, whatever its case and spacing", async () => {
+    await primeItems();
+    expect(itemRecordByName("  tritanium ")?.type_id).toBe(34);
+  });
+
+  it("answers nothing for a name no record carries, or before the records load", async () => {
+    expect(itemRecordByName("Tritanium")).toBeUndefined();
+    await primeItems();
+    expect(itemRecordByName("Tritanum")).toBeUndefined();
   });
 });
 
@@ -84,7 +94,6 @@ describe("matching a name against the search index", () => {
     expect(searchEntryByName("Rifter")).toBeUndefined();
   });
 
-  // For a hook that subscribed to the index rather than priming it.
   it("matches against an index the caller holds", () => {
     const entries = [{ itemID: 1, name: "Veldspar" }];
     expect(searchEntryByNameIn(entries, "veldspar")?.itemID).toBe(1);
@@ -93,7 +102,6 @@ describe("matching a name against the search index", () => {
 });
 
 describe("resetItems", () => {
-  // A refresh can bring a new SDE build, and what was primed is the old one.
   it("makes the next prime read the files again", async () => {
     await primeItems();
     resetItems();
@@ -103,8 +111,6 @@ describe("resetItems", () => {
   });
 });
 
-// The market group tree is primed alongside the records but held in a different module, so a
-// caller that drops the records alone must not leave a prime short-circuiting on the tree.
 describe("dropping the records independently", () => {
   it("lets marketGroupData prime them again", async () => {
     const { primeMarketGroupData, marketGroupOf, resetMarketGroupData } =

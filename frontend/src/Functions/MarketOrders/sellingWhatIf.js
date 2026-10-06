@@ -1,18 +1,10 @@
-import { brokerFeeRates, salesTaxRates } from "../../Context/defaultValues";
-import { brokerFeeAmount, salesTaxAmount } from "./sellingRates";
+import { brokerFeeRates } from "../../Context/defaultValues";
+import {
+  brokerFeeAmount,
+  salesTaxAmount,
+  salesTaxRateAt,
+} from "./sellingRates";
 import { SALE_LOCATION_KIND } from "./saleLocations";
-
-/**
- * What training a market skill would be worth on this job.
- *
- * Answers the only question a training decision actually asks — is it worth it
- * for what I build — without needing the build cost. A market skill moves the
- * charges and nothing else, so the net return improves by exactly what the
- * charges fall by, and break-even falls by that over the units sold.
- *
- * Recomputed from the working the rate already came with rather than fetched
- * again: the standings are the same character's whatever level is imagined.
- */
 
 /**
  * @typedef {object} WhatIfCharge
@@ -32,6 +24,9 @@ import { SALE_LOCATION_KIND } from "./saleLocations";
  */
 
 /**
+ * What a market skill at an imagined level would be worth: each charge at that level, and what it
+ * saves against today, re-derived from the working the rates already came with.
+ *
  * @param {object} params
  * @param {import("./sellingRates").BrokerFeeWorking} params.brokerFee - Today's working
  * @param {{base: number, accounting: number, rate: number}} params.salesTax - Today's
@@ -52,7 +47,7 @@ export function sellingWhatIf({
   const feeRate = atStructure
     ? brokerFee.rate
     : rateWithBrokerRelations(brokerFee, proposed?.brokerRelations ?? 0);
-  const taxRate = rateWithAccounting(proposed?.accounting ?? 0);
+  const taxRate = salesTaxRateAt(proposed?.accounting ?? 0);
 
   const feeNow = brokerFeeAmount(brokerFee?.rate ?? 0, listedValue);
   const taxNow = salesTaxAmount(salesTax?.rate ?? 0, listedValue);
@@ -65,8 +60,6 @@ export function sellingWhatIf({
     brokerFee: { rate: feeRate, amount: feeThen, saved: feeNow - feeThen },
     salesTax: { rate: taxRate, amount: taxThen, saved: taxNow - taxThen },
     saved,
-    // A market skill leaves the build cost alone, so the whole saving lands on
-    // the return, and break-even falls by its share of one unit.
     breakEvenPerUnit: quantity > 0 ? saved / quantity : null,
     brokerFeeApplies: !atStructure,
   };
@@ -90,12 +83,4 @@ function rateWithBrokerRelations(working, level) {
     brokerFeeRates.brokerRelations * level -
     standings
   );
-}
-
-/**
- * @param {number} level
- * @returns {number} Percentage
- */
-function rateWithAccounting(level) {
-  return salesTaxRates.base * (1 - salesTaxRates.accounting * level);
 }

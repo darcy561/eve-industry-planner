@@ -92,9 +92,12 @@ removes the seeding with it. If that stage lands, this phase has no `marketLocat
 slips, the alias is still here. The other aliases and defaults below are unaffected.
 
 `Upgrader.Job` currently clamps `SchemaVersion` and fills nothing. The defaults and the legacy field
-aliases in the SPA's `Job` constructor belong in it, as a `v1 → v2` step with a `JobSchemaCurrent`
-bump — which is what [`document_schema.go`](../../../services/shared/models/document_schema.go)
-already instructs. The SPA keeps only what is genuinely a UI default.
+aliases in the SPA's `Job` constructor move server-side, and **the stored documents are changed by the
+release step, not by the upgrader**: a `prepareRelease` step writes the defaults and resolves the
+aliases on every job, converting live straight into v1, since this ships in the shared-planners
+release with the `*SchemaCurrent` constants themselves. The upgrader then fills the same defaults on
+read for anything written without them, and never moves the version. The SPA keeps only what is
+genuinely a UI default.
 
 Done when: a job's defaults are stated once, in Go, and the SPA constructor no longer decides any of
 them.
@@ -147,8 +150,14 @@ collections.
 
 ### Phase B2 — Converge the stored rows
 
-One `JobSchemaCurrent` bump carries B1 and the `""` rows the prerequisite left behind, so the
-`schemamaint` drain rewrites each document once rather than twice.
+**No version bump.** This ships in the shared-planners release, the window every open project rides,
+and the `*SchemaCurrent` constants arrive with that same release — `Public` has no
+`document_schema.go`, so live has never held a v1 job. B1 and the `""` rows the prerequisite left
+behind therefore convert live straight into v1, in one `prepareRelease` step, rather than through a
+bump and a drain. Where the step goes in the list is
+[shared-planners](../shared-planners/plan.md) § Every open project ships in this window: after the
+extras and invention row normalisation, before the rebuild queue, and over `planner_settings` as well
+as `application_settings` and both job collections.
 
 **A row with no category is written the `unassigned` id, not left empty.** `""` is the absence of a
 category and `unassigned` is a category, so the conversion states what the row means rather than leaving

@@ -12,9 +12,6 @@ import (
 
 const settingsTestAccount = "acct-settings"
 
-// The account's own handle needs no membership read, so these reach the handler
-// body with no Mongo behind it — which is also what proves the refusals happen
-// before anything is written.
 func authenticatedSettingsRequest(body string) *http.Request {
 	r := httptest.NewRequest(http.MethodPut,
 		"/api/v1/planners/account:"+settingsTestAccount+"/settings", strings.NewReader(body))
@@ -41,6 +38,15 @@ func TestPutPlannerSettingsRefusesBeforeItWrites(t *testing.T) {
 			`{"extrasCategories":[{"id":"courier","label":"Courier"}]}`,
 			http.StatusBadRequest,
 		},
+		{"an unknown compressed ore choice",
+			`{"reprocessingSettings":{"compressedOre":"always","shipping":{"mode":"perVolume"},"neverChoose":[]}}`,
+			http.StatusBadRequest},
+		{"a negative shipping amount",
+			`{"reprocessingSettings":{"compressedOre":"prefer","shipping":{"mode":"fixed","amount":-5},"neverChoose":[]}}`,
+			http.StatusBadRequest},
+		{"a never-choose list holding a name",
+			`{"reprocessingSettings":{"compressedOre":"prefer","shipping":{"mode":"perVolume"},"neverChoose":["Veldspar"]}}`,
+			http.StatusBadRequest},
 		{
 			"a list repeating an id",
 			`{"extrasCategories":[{"id":"0","label":"Unassigned"},{"id":"5","label":"Other"},{"id":"0","label":"Again"}]}`,
@@ -52,8 +58,6 @@ func TestPutPlannerSettingsRefusesBeforeItWrites(t *testing.T) {
 			h, _ := testHandlers(t)
 
 			rec := httptest.NewRecorder()
-			// A nil Mongo handle: reaching the write would panic rather than
-			// answering, so a clean status is the assertion that it did not.
 			h.PutPlannerSettingsHandler(rec, authenticatedSettingsRequest(tc.body),
 				"account:"+settingsTestAccount)
 
@@ -64,7 +68,6 @@ func TestPutPlannerSettingsRefusesBeforeItWrites(t *testing.T) {
 	}
 }
 
-// Nobody signed in is answered by the guard, before the body is read at all.
 func TestPutPlannerSettingsRefusesWithoutAnAccount(t *testing.T) {
 	t.Parallel()
 	h, _ := testHandlers(t)
@@ -82,8 +85,6 @@ func TestPutPlannerSettingsRefusesWithoutAnAccount(t *testing.T) {
 	}
 }
 
-// A planner the account holds no membership row for is not found, rather than
-// forbidden: a leaked id reveals only that it is not theirs.
 func TestPutPlannerSettingsRefusesAnUnparseableHandle(t *testing.T) {
 	t.Parallel()
 	h, _ := testHandlers(t)

@@ -25,7 +25,6 @@ import { itemNameFrom } from "../../Functions/Static/items";
 import { readMarketPriceForType } from "../../Functions/MarketData/prices/marketPriceForType.js";
 import MineralCard from "./Components/MineralCard";
 import ItemMarketActions from "../../Styled Components/Item/marketActions";
-import ReprocessingSettingsPanel from "./reprocessingSettingsPanel";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import writeTextToClipboard from "../../Functions/Clipboard/writeTextToClipboard";
@@ -38,11 +37,9 @@ export function AdvancedMineralOutput(props) {
   const [clipboardAccessible, setClipboardAccessible] = useState(true);
   const { records: itemRecords, isLoading } = useItemList();
 
-  // Check clipboard permissions
   useEffect(() => {
     const checkClipboard = async () => {
       try {
-        // Test if we can actually write to clipboard
         await navigator.clipboard.writeText("test");
         setClipboardAccessible(true);
       } catch {
@@ -67,7 +64,7 @@ export function AdvancedMineralOutput(props) {
   };
 
   const handleExcludeOre = (itemId) => {
-    pageActions.addOreIDToBeIgnored(itemId);
+    pageActions.neverChoose(itemId);
     handleMenuClose(itemId);
   };
 
@@ -86,15 +83,10 @@ export function AdvancedMineralOutput(props) {
 
   const handleRequestClipboardAccess = async () => {
     try {
-      console.log("Requesting clipboard access...");
-      // Try to copy the data - this will either work or fail
       await handleCopyOreData();
-      console.log("Copy successful, updating state to accessible");
-      // If successful, update the state
       setClipboardAccessible(true);
     } catch (error) {
       console.error("Failed to request clipboard permission:", error);
-      // Permission was denied, keep the button in request state
       setClipboardAccessible(false);
     }
   };
@@ -102,7 +94,6 @@ export function AdvancedMineralOutput(props) {
   const totalValue = useMemo(() => {
     if (isLoading) return 0;
     if (pageState.toMinerals) {
-      // When converting to minerals, calculate value of processed minerals
       return pageState.processedInput.reduce((acc, item) => {
         if (item.quantity === 0) return acc;
         const unitPrice = readMarketPriceForType(
@@ -113,7 +104,6 @@ export function AdvancedMineralOutput(props) {
         return acc + unitPrice * item.quantity;
       }, 0);
     } else {
-      // When converting from minerals, calculate value of minerals that will be produced
       return pageState.reprocessingObjects.reduce((acc, item) => {
         if (item.batchSize > item.totalQuantity) return acc;
         let itemTotal = 0;
@@ -161,12 +151,11 @@ export function AdvancedMineralOutput(props) {
     isLoading,
   ]);
 
-  // Calculate value of excess minerals that will be sold
   const excessMineralsValue = useMemo(() => {
     if (
       isLoading ||
       pageState.toMinerals ||
-      !pageState.reprocessingCalculationSettings.sellExcessMineralTypes
+      !pageState.settings.countLeftoversAsSold
     )
       return 0;
 
@@ -177,7 +166,6 @@ export function AdvancedMineralOutput(props) {
       for (const [mineralId, quantity] of Object.entries(
         item.reprocessedMaterials,
       )) {
-        // Check if this mineral is excess (not requested)
         const isRequestedMineral =
           pageState.requestedMinerals &&
           pageState.requestedMinerals[parseInt(mineralId, 10)];
@@ -199,29 +187,24 @@ export function AdvancedMineralOutput(props) {
   }, [
     pageState.reprocessingObjects,
     pageState.requestedMinerals,
-    pageState.reprocessingCalculationSettings.sellExcessMineralTypes,
+    pageState.settings.countLeftoversAsSold,
     pageState.marketLocation,
     pageState.orderType,
     pageState.toMinerals,
     isLoading,
   ]);
 
-  // Calculate net cost (ore cost minus excess minerals value)
   const netCost = useMemo(() => {
-    if (
-      !pageState.reprocessingCalculationSettings.sellExcessMineralTypes ||
-      pageState.toMinerals
-    )
+    if (!pageState.settings.countLeftoversAsSold || pageState.toMinerals)
       return null;
     return totalUnreprocessedValue - excessMineralsValue;
   }, [
     totalUnreprocessedValue,
     excessMineralsValue,
-    pageState.reprocessingCalculationSettings.sellExcessMineralTypes,
+    pageState.settings.countLeftoversAsSold,
     pageState.toMinerals,
   ]);
 
-  // Calculate reprocessing costs for each mineral within each ore
   const calculateReprocessingCosts = (item) => {
     const oreCost =
       readMarketPriceForType(
@@ -230,7 +213,6 @@ export function AdvancedMineralOutput(props) {
         pageState.orderType,
       ) * item.totalQuantity;
 
-    // Calculate total reprocessed quantity of all minerals
     const reprocessedQuantities = {};
 
     Object.entries(item.reprocessedMaterials).forEach(
@@ -244,7 +226,6 @@ export function AdvancedMineralOutput(props) {
       },
     );
 
-    // Calculate market values for each mineral
     const mineralData = {};
     let totalMarketValue = 0;
 
@@ -265,7 +246,6 @@ export function AdvancedMineralOutput(props) {
       },
     );
 
-    // Allocate ore cost based on market value proportion
     const reprocessingCosts = {};
     Object.entries(mineralData).forEach(([mineralId, data]) => {
       if (totalMarketValue > 0 && data.reprocessedQuantity > 0) {
@@ -363,7 +343,6 @@ export function AdvancedMineralOutput(props) {
           </Box>
         </Grid>
 
-        {/* Net Cost Display - only show when excess minerals are being sold */}
         {netCost !== null && (
           <Grid
             size={{
@@ -402,7 +381,6 @@ export function AdvancedMineralOutput(props) {
         )}
       </Grid>
       <Divider sx={{ marginTop: 2, marginBottom: 2 }} />
-      {/* Copy Ore Data Button - only show in "from minerals" mode, hidden on mobile */}
       {!pageState.toMinerals && (
         <Box
           sx={{
@@ -440,7 +418,6 @@ export function AdvancedMineralOutput(props) {
       )}
       <Box sx={{ overflowX: "auto" }}>
         <Box sx={{ minWidth: { xs: "600px", md: "auto" } }}>
-          {/* Header Row */}
           <Grid
             container
             spacing={isMobile ? 0.5 : 2}
@@ -534,7 +511,6 @@ export function AdvancedMineralOutput(props) {
 
           <Divider sx={{ marginTop: 2, marginBottom: 2 }} />
 
-          {/* Data Rows */}
           <Grid container spacing={isMobile ? 0.5 : 2}>
             {pageState.reprocessingObjects.map((item) => {
               if (item.batchSize > item.totalQuantity) return null;
@@ -699,26 +675,19 @@ export function AdvancedMineralOutput(props) {
                           pageState.orderType,
                         );
 
-                        // Calculate reprocessing cost for this mineral from this specific ore
                         const reprocessingCosts =
                           calculateReprocessingCosts(item);
                         const reprocessingCostPerUnit =
                           reprocessingCosts[key] || 0;
 
-                        // Check if this mineral was in the original request
-                        // In "to minerals" mode, don't highlight anything (all minerals are from input ores)
-                        // In "from minerals" mode, highlight minerals that WERE in the original request in green
                         const isRequestedMineral = pageState.toMinerals
                           ? false
                           : pageState.requestedMinerals &&
                             pageState.requestedMinerals[parseInt(key, 10)];
 
-                        // Check if this mineral is excess and should be sold
-                        // Only applies when sellExcessMineralTypes is enabled and we're in "from minerals" mode
                         const isExcessMineral =
                           !pageState.toMinerals &&
-                          pageState.reprocessingCalculationSettings
-                            .sellExcessMineralTypes &&
+                          pageState.settings.countLeftoversAsSold &&
                           !isRequestedMineral;
                         const totalValue =
                           item.itemType === reprocessingItemTypes.gas
@@ -781,7 +750,6 @@ export function AdvancedMineralOutput(props) {
         </Box>
       </Box>
       <Divider sx={{ marginY: 2 }} />
-      {!pageState.toMinerals && <ReprocessingSettingsPanel {...props} />}
     </Box>
   );
 }

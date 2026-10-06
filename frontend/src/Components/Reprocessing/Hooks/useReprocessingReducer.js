@@ -1,62 +1,37 @@
-import { useReducer } from "react";
+import { useMemo, useReducer } from "react";
 import {
   PRICING_SIDE,
   resolvePricingSide,
 } from "../../../Functions/MarketData/defaults/pricingSide";
 import {
+  emptyPastes,
+  reprocessingDirections,
   reprocessingReducer,
   REPROCESSING_ACTION_TYPES,
 } from "./reprocessingReducer";
+import { usePlannerReprocessingSettings } from "../../../Hooks/React Query/plannerSettings.js";
+import { useGetCharacterSkills } from "../../../Hooks/EveEsi/Character/useGetCharacterSkills";
+import { scheduleDebouncedPlannerSettingsSave } from "../../../Functions/Debounce/plannerSettingsPersistSchedule.js";
 import { structureFromDocument } from "../../../Functions/Custom Structures/customStructure";
+import { resolveSellerCharacter } from "../../../Functions/MarketOrders/sellerCharacter";
 import useUsersStore from "../../../Zustand/usersStore";
-import { jobTypes } from "../../../Context/defaultValues";
+import {
+  defaultPlannerReprocessingSettings,
+  jobTypes,
+} from "../../../Context/defaultValues";
 import GLOBAL_CONFIG from "../../../global-config-app";
 import { useAdvanceWhenFollowingAppDefault } from "../../../Hooks/Planner/useAdvanceWhenFollowingAppDefault.js";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE } = GLOBAL_CONFIG;
 
 /**
- * The Reprocessing page's state, seeded from the reader's settings.
+ * The Reprocessing page's state — the reader's choices only — with the settings and skills in force
+ * and the actions that change them.
  *
- * @returns {Object} Hook return object
- * @returns {Object} returns.state - Current page state
- * @returns {Array} returns.state.reprocessingObjects - Reprocessing calculation results
- * @returns {Array} returns.state.processedInput - Processed input data
- * @returns {string} returns.state.inputText - Raw input text
- * @returns {boolean} returns.state.toMinerals - Whether to output minerals or materials
- * @returns {boolean} returns.state.displayAdvancedView - Whether to show advanced view
- * @returns {boolean} returns.state.isPageLoading - Page loading state
- * @returns {Object} returns.state.currentStructure - Current reprocessing structure
- * @returns {Object} returns.state.activeSkills - Active skill levels by skill ID
- * @returns {string|null} returns.state.selectedUser - Selected user character hash
- * @returns {boolean} returns.state.skillsManuallyModified - Whether skills were manually modified
- * @returns {Array} returns.state.oreIDsToBeIgnored - Array of ore IDs to ignore
- * @returns {string} returns.state.marketLocation - Market location for pricing
- * @returns {string} returns.state.orderType - Market order type (buy/sell)
- * @returns {boolean} returns.state.inputModified - Whether input has been modified
- * @returns {Object} returns.state.requestedMinerals - Requested minerals data
- * @returns {Object} returns.state.reprocessingCalculationSettings - Calculation settings
- * @returns {Object} returns.actions - Action dispatchers
- * @returns {Function} returns.actions.setReprocessingObjects - Set reprocessing results
- * @returns {Function} returns.actions.setProcessedInput - Set processed input data
- * @returns {Function} returns.actions.setInputText - Set raw input text
- * @returns {Function} returns.actions.toggleToMinerals - Toggle output type
- * @returns {Function} returns.actions.setPageLoading - Set loading state
- * @returns {Function} returns.actions.toggleDisplayAdvancedView - Toggle advanced view
- * @returns {Function} returns.actions.setCurrentStructure - Set reprocessing structure
- * @returns {Function} returns.actions.setSingleSkill - Set individual skill level
- * @returns {Function} returns.actions.setAllSkills - Set all skills at once
- * @returns {Function} returns.actions.setSelectedUser - Set selected user
- * @returns {Function} returns.actions.setSkillsManuallyModified - Set manual modification flag
- * @returns {Function} returns.actions.loadCharacterSkills - Load character skills
- * @returns {Function} returns.actions.addOreIDToBeIgnored - Add ore ID to ignore list
- * @returns {Function} returns.actions.removeOreIDToBeIgnored - Remove ore ID from ignore list
- * @returns {Function} returns.actions.clearOreIDsToBeIgnored - Clear all ignored ore IDs
- * @returns {Function} returns.actions.setMarketLocation - Set market location
- * @returns {Function} returns.actions.setMarketOrderType - Set market order type
- * @returns {Function} returns.actions.setInputModified - Set input modification flag
- * @returns {Function} returns.actions.setRequestedMinerals - Set requested minerals
- * @returns {Function} returns.actions.setReprocessingCalculationSettings - Set calculation settings
+ * @returns {{state: Object, settings: ReturnType<typeof defaultPlannerReprocessingSettings>,
+ *   skills: Object<string, number>, trainedSkills: Object<string, number>,
+ *   skillsStatus: {isLoading: boolean, isError: boolean},
+ *   isPlannerHeld: boolean, actions: Object<string, Function>}}
  */
 export default function useReprocessingReducer() {
   const getDefaultReprocessingStructure = useUsersStore(
@@ -72,45 +47,25 @@ export default function useReprocessingReducer() {
       ),
       side: PRICING_SIDE.SELLING,
     });
-
   const characters = useUsersStore((state) => state.account.characters);
 
-  const initialState = {
-    reprocessingObjects: [],
-    processedInput: [],
-    inputText: "",
-    toMinerals: true,
-    displayAdvancedView: false,
-    isPageLoading: false,
+  const [state, dispatch] = useReducer(reprocessingReducer, undefined, () => ({
+    direction: reprocessingDirections.toMinerals,
+    pastes: emptyPastes(),
     currentStructure: structureFromDocument(
       getDefaultReprocessingStructure(jobTypes.reprocessing) ?? undefined,
       jobTypes.reprocessing,
     ),
-    activeSkills: {},
+    skillOverrides: {},
     selectedUser:
       getDefaultReprocessingCharacter(characters)?.CharacterHash ||
       useUsersStore.getState().account.actions.getMainCharacterHash() ||
       null,
-    skillsManuallyModified: false,
-    oreIDsToBeIgnored: [],
     marketLocation: defaultMarketLocation || DEFAULT_MARKET_OPTION,
     orderType: defaultOrderType || DEFAULT_ORDER_TYPE,
-    inputModified: false,
-    requestedMinerals: {},
-    reprocessingCalculationSettings: (() => {
-      const rs =
-        useUsersStore.getState().applicationSettings.reprocessingSettings;
-      return {
-        preferCompressed: rs.preferCompressed,
-        compressionBonusMultiplier: rs.compressionBonusMultiplier,
-        valueMultiplier: rs.valueMultiplier,
-        wastePenaltyMultiplier: rs.wastePenaltyMultiplier,
-        sellExcessMineralTypes: rs.sellExcessMineralTypes,
-      };
-    })(),
-  };
-
-  const [state, dispatch] = useReducer(reprocessingReducer, initialState);
+    sellerHash: resolveSellerCharacter().hash,
+    reprocessingSettings: defaultPlannerReprocessingSettings(),
+  }));
 
   useAdvanceWhenFollowingAppDefault({
     applicationDefault: defaultOrderType,
@@ -128,221 +83,87 @@ export default function useReprocessingReducer() {
     advanceActionType: REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION,
   });
 
-  /** What the page's controls call to change that state. */
-  const actions = {
-    /**
-     * Sets the reprocessing calculation results.
-     *
-     * @param {Array} data - Reprocessing calculation results
-     */
-    setReprocessingObjects: (data) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_REPROCESSING_OBJECTS,
-        payload: data,
-      });
-    },
-    /**
-     * Sets the processed input data.
-     *
-     * @param {Array} data - Processed input data
-     */
-    setProcessedInput: (data) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_PROCESSED_INPUT,
-        payload: data,
-      });
-    },
-    /**
-     * Sets the raw input text.
-     *
-     * @param {string} data - Raw input text
-     */
-    setInputText: (data) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_INPUT_TEXT,
-        payload: data,
-      });
-    },
-    /**
-     * Toggles between minerals and materials output.
-     */
-    toggleToMinerals: () => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.TOGGLE_TO_MINERALS,
-      });
-    },
-    /**
-     * Sets the page loading state.
-     *
-     * @param {boolean} data - Loading state value
-     */
-    setPageLoading: (data) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_PAGE_LOADING,
-        payload: data,
-      });
-    },
-    /**
-     * Toggles the advanced view display.
-     */
-    toggleDisplayAdvancedView: () => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.TOGGLE_DISPLAY_ADVANCED_VIEW,
-      });
-    },
-    /**
-     * Sets the current reprocessing structure.
-     *
-     * @param {Object} data - Reprocessing structure object
-     */
-    setCurrentStructure: (data) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_CURRENT_STRUCTURE,
-        payload: data,
-      });
-    },
-    /**
-     * Sets an individual skill level and marks skills as manually modified.
-     *
-     * @param {number} id - Skill ID
-     * @param {number} level - Skill level (0-5)
-     */
-    setSingleSkill: (id, level) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_SINGLE_SKILL,
-        payload: { id, level },
-      });
-    },
-    /**
-     * Sets all skills at once and resets manual modification flag.
-     *
-     * @param {Object} skills - Skills object with skill IDs as keys and levels as values
-     */
-    setAllSkills: (skills) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_ALL_SKILLS,
-        payload: skills,
-      });
-    },
-    /**
-     * Sets the selected user character and resets manual modification flag.
-     *
-     * @param {string} userHash - User character hash
-     */
-    setSelectedUser: (userHash) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_SELECTED_USER,
-        payload: userHash,
-      });
-    },
-    /**
-     * Sets the manual skill modification flag.
-     *
-     * @param {boolean} modified - Whether skills were manually modified
-     */
-    setSkillsManuallyModified: (modified) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_SKILLS_MANUALLY_MODIFIED,
-        payload: modified,
-      });
-    },
-    /**
-     * Loads character skills and resets manual modification flag.
-     *
-     * @param {Object} skills - Character skills object
-     */
-    loadCharacterSkills: (skills) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.LOAD_CHARACTER_SKILLS,
-        payload: { skills },
-      });
-    },
-    /**
-     * Adds an ore ID to the ignore list.
-     *
-     * @param {number} id - Ore type ID to ignore
-     */
-    addOreIDToBeIgnored: (id) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.ADD_ORE_ID_TO_BE_IGNORED,
-        payload: id,
-      });
-    },
-    /**
-     * Removes an ore ID from the ignore list.
-     *
-     * @param {number} id - Ore type ID to remove from ignore list
-     */
-    removeOreIDToBeIgnored: (id) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.REMOVE_ORE_ID_TO_BE_IGNORED,
-        payload: id,
-      });
-    },
-    /**
-     * Clears all ignored ore IDs.
-     */
-    clearOreIDsToBeIgnored: () => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.CLEAR_ORE_IDS_TO_BE_IGNORED,
-      });
-    },
-    /**
-     * Sets the market location for pricing.
-     *
-     * @param {string} location - Market location (e.g., 'jita', 'amarr')
-     */
-    setMarketLocation: (location) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION,
-        payload: location,
-      });
-    },
-    /**
-     * Sets the market order type (buy/sell).
-     *
-     * @param {string} orderType - Market order type ('buy' or 'sell')
-     */
-    setMarketOrderType: (orderType) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_MARKET_ORDER_TYPE,
-        payload: orderType,
-      });
-    },
-    /**
-     * Sets the input modification flag.
-     *
-     * @param {boolean} modified - Whether input has been modified
-     */
-    setInputModified: (modified) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_INPUT_MODIFIED,
-        payload: modified,
-      });
-    },
-    /**
-     * Sets the requested minerals data.
-     *
-     * @param {Object} minerals - Requested minerals object
-     */
-    setRequestedMinerals: (minerals) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_REQUESTED_MINERALS,
-        payload: minerals,
-      });
-    },
-    /**
-     * Sets the reprocessing calculation settings.
-     *
-     * @param {Object} settings - Calculation settings object
-     */
-    setReprocessingCalculationSettings: (settings) => {
-      dispatch({
-        type: REPROCESSING_ACTION_TYPES.SET_REPROCESSING_CALCULATION_SETTINGS,
-        payload: settings,
-      });
-    },
+  const planner = usePlannerReprocessingSettings();
+  const settings = planner.isHeld
+    ? planner.settings
+    : state.reprocessingSettings;
+
+  const {
+    data: characterSkills,
+    isLoading: skillsLoading,
+    isError: skillsFailed,
+  } = useGetCharacterSkills(state.selectedUser);
+  const trainedSkills = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(characterSkills ?? {}).map(([skillID, skill]) => [
+          skillID,
+          skill?.activeLevel ?? 0,
+        ]),
+      ),
+    [characterSkills],
+  );
+  const skills = useMemo(
+    () => ({ ...trainedSkills, ...state.skillOverrides }),
+    [trainedSkills, state.skillOverrides],
+  );
+
+  const changeSettings = (change) => {
+    if (planner.isHeld) {
+      const { plannerSettings } = useUsersStore.getState();
+      const held =
+        plannerSettings.byOwner[planner.owner]?.reprocessingSettings ??
+        settings;
+      plannerSettings.actions.writePlannerReprocessingSettings(
+        planner.owner,
+        change(held),
+      );
+      scheduleDebouncedPlannerSettingsSave(planner.owner);
+      return;
+    }
+    dispatch({
+      type: REPROCESSING_ACTION_TYPES.CHANGE_REPROCESSING_SETTINGS,
+      payload: change,
+    });
   };
 
-  return { state, actions };
+  const send = (type) => (payload) => dispatch({ type, payload });
+  const actions = {
+    setDirection: send(REPROCESSING_ACTION_TYPES.SET_DIRECTION),
+    setPaste: send(REPROCESSING_ACTION_TYPES.SET_PASTE),
+    commitPaste: send(REPROCESSING_ACTION_TYPES.COMMIT_PASTE),
+    clearPaste: send(REPROCESSING_ACTION_TYPES.CLEAR_PASTE),
+    setSeller: send(REPROCESSING_ACTION_TYPES.SET_SELLER),
+    setCurrentStructure: send(REPROCESSING_ACTION_TYPES.SET_CURRENT_STRUCTURE),
+    setSkillLevel: (id, level) =>
+      dispatch({
+        type: REPROCESSING_ACTION_TYPES.SET_SKILL_LEVEL,
+        payload: { id, level },
+      }),
+    setSelectedUser: send(REPROCESSING_ACTION_TYPES.SET_SELECTED_USER),
+    setMarketLocation: send(REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION),
+    setMarketOrderType: send(REPROCESSING_ACTION_TYPES.SET_MARKET_ORDER_TYPE),
+    changeSettings: (partial) =>
+      changeSettings((held) => ({ ...held, ...partial })),
+    neverChoose: (typeID) =>
+      changeSettings((held) => ({
+        ...held,
+        neverChoose: [...new Set([...held.neverChoose, Number(typeID)])],
+      })),
+    allowAgain: (typeID) =>
+      changeSettings((held) => ({
+        ...held,
+        neverChoose: held.neverChoose.filter((id) => id !== Number(typeID)),
+      })),
+  };
+
+  return {
+    state,
+    settings,
+    skills,
+    trainedSkills,
+    skillsStatus: { isLoading: skillsLoading, isError: skillsFailed },
+    isPlannerHeld: planner.isHeld,
+    actions,
+  };
 }

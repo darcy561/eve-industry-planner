@@ -412,7 +412,7 @@ it is now `predefinedSystemIndexes.js`. The plan's § Stage D says what drops th
 
 **The release moves the list, because seeding alone would lose half of it.** A planner's settings are
 written the first time its account signs in, and the write is insert-only, so a category added at any
-later sign-in never reached the planner. `backfillPlannerExtrasCategories` merges those onto the account
+later sign-in never reached the planner. `backfillPlannerSettings` merges those onto the account
 planner by id, leaving every category the planner already holds exactly as it is — a member's rename and
 a member's deletion both outrank the account's copy, which is what makes the step safe to run again.
 `planner_settings` is copied before the window for it, being the one step that changes such a document
@@ -996,6 +996,45 @@ fetch gap is what stops it trading it for a missing one.
 **Still reader-relative and not resolved:** a setup naming a character the reader cannot resolve is
 shown as "No Matching Character Found" on the setup card, where the SPA's rule elsewhere is that an
 unresolvable identity reads as unreadable rather than as a sentence.
+
+## The release steps, and why each runs where it does
+
+`prepareRelease` in `services/core/commands/prepare_release.go` runs every step of the release in the
+order below, every time. Each reports zero when it has nothing to do, so a run against a current
+environment is safe and a failed run is re-run for the rest. A **required** step is one whose output the
+steps after it read: if it fails they would succeed against documents it never prepared and report
+nothing done, so the release stops instead. Every other failure names itself and the release carries
+on. Only the SDE rebuild asks for NATS, so a broker that is down costs that step alone: the release
+connects to the services the rest read and lets that step report its missing handle.
+
+| Step | Required | Goes where it does because |
+|------|----------|----------------------------|
+| Check the owner-scoped id rewrite has finished | | First and not fatal: the gate it warns about is the last step, and without the warning an operator who skipped the fan-out learns it only after the whole release has run |
+| Copy every collection this release writes to | Yes | Before anything writes: the copies are what `revertRelease` puts back, and one taken after a step ran is a copy of its output |
+| Complete outstanding schema maintenance | Yes | Later steps stamp the current version onto what they touch, so anything owing an upgrade runs it now rather than being recorded current without it. It rewrites a document below the current version whole through its model, dropping any field the model no longer has |
+| Stamp the owner onto every scoped document | Yes | After maintenance and before anything owner-scoped: the steps below filter on the owner, and nothing reads a document that has none |
+| Drop retired change stream resume tokens | | Anywhere: the watcher registry names every group that exists, so a stored token for any other belongs to a watcher that no longer runs, and nothing else ever removes it |
+| Drop unaddressable rebuild queue entries | | A dispatch skips an id it cannot read back, so an entry under an older key would never run or clear; dropped rather than converted because a later step queues every account |
+| Stamp extras category labels onto jobs | | Before the rebuild, which derives each row's category names from the jobs |
+| Reshape every job document | Yes | After the label stamp, which writes into the rows while they are still an array, and before the rebuild, which derives its figures from what the reshape leaves |
+| Store every extras and invention row in the shape its model writes | | After the reshape |
+| Drop retired statistics fields | | After the copy, so the fallback still holds the fields the previous release read. The rebuild upserts with `$set`, so a field removed from the struct stays on a stored document until unset here |
+| Queue every account for rebuild | | It fails on an empty owner list over archived jobs that exist, which means the owner stamp missed them; the queue is idempotent, so a re-run picks up what failed |
+| Rebuild the current SDE version | | The SDE writes its own documents, so a shape change asks for them to be written again rather than reaching into them |
+| Give every account its planner | | After the owner stamp, because a planner's id is the owner key; before the session grants, which are derived from the membership rows this writes |
+| Move each account's planner settings onto its planner | | After the planner exists, because this writes its settings: a planner seeded at an earlier login lacks the categories its account added later, and the account's reprocessing choices — read from the release's copy, so no earlier whole-document write can lose them — become the planner's unless the planner holds its own, and the retired fields are then cleared from the accounts |
+| Give every document a write counter at `_meta.revision` | | After the owner stamp, which decides the collections carrying a `_meta` block |
+| Rewrite session grants as owner keys | | Sessions outlive a deploy, so grants the previous release wrote are rewritten rather than left to lapse at the next refresh |
+| Seed each account's buying and selling pricing defaults | | After maintenance, which stamps the version the seed sits behind, and after the owner stamp, because it writes through the owner-preserving path |
+| Fold custom structures into one array | | After the planner backfill and settings seed, which create planner settings documents this also converts: run before them it reports nothing to do and leaves what they write in the old shape |
+| Give every settings document an empty market lane | | After every step that writes a settings document whole — maintenance and the pricing seed — since such a write stores `null` into a lane not yet seeded; it selects by shape, catching `null` and absence alike. A later whole-document writer belongs above it |
+| Fold rig slots onto every saved structure | | After the structure fold: it reads the structures as one array and skips a document still holding the keyed lists |
+| Move every saved market onto its own lane | | After the structure fold, since it selects by a market row inside the one array, and after the rig fold, so that fold sees the structures as stored |
+| Fold rig slots onto every setup | | After the job reshape, which rewrites the setups this reads |
+| Clear the system left on a setup that moved off The Fulcrum | | After the reshape for the same reason; a setup naming that system is priced as being there, so the leftover comes out first |
+| Drop the market keys this release retires | | Anywhere: Redis-only keys the deployed code no longer reads |
+| Verify every document carries an owner | | Last: the window's gate. A document with no owner is unreachable, so the release fails rather than reporting success over it |
+| Verify every owner-scoped id carries its owner | | The rewrite is a fan-out run before the window; this is the gate that it finished, because a bare id no longer identifies a document |
 
 ## Decisions taken, with their reasons
 

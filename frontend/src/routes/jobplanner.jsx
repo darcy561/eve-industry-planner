@@ -1,8 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-
-const JobPlanner = lazyRouteComponent(
-  () => import("../Components/Job Planner/JobPlanner"),
-);
+import { createFileRoute } from "@tanstack/react-router";
+import JobPlanner from "../Components/Job Planner/JobPlanner";
 
 export const Route = createFileRoute("/jobplanner")({
   staticData: { audience: "public" },

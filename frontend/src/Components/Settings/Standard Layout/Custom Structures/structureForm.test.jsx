@@ -222,7 +222,8 @@ describe("what each kind is asked for", () => {
 
 describe("every field the form offers is one a kind stores", () => {
   it("stores what it asked for, for each kind that asks", async () => {
-    const { STRUCTURE_FIELDS } = await import("./structureFields");
+    const { STRUCTURE_FIELDS } =
+      await import("../../../../Styled Components/Structure/structureFields");
     const {
       fieldsForKind,
       structureFromDocument,

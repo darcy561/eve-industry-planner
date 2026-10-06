@@ -1,23 +1,11 @@
 import { getFullItemList, getSearchIndex } from "../Helper/getCachedData";
 import staticFile, { byName, nameKey } from "./staticFile";
 
-/**
- * The item files, held where a caller that cannot await can read them.
- *
- * A shopping list is priced from a class method and a fit is parsed from clipboard text, neither of
- * which is a place a hook can be called, so these are read without awaiting once primed.
- *
- * The two files prime separately: pricing a row should not wait on the file the fit importer reads.
- */
-
 /** Shown wherever the list carries no record for a type, with the type id beside it. */
 export const UNKNOWN_ITEM_LABEL = "Unknown Item";
 
 /**
- * What a surface shows for a type, whatever the list holds for it.
- *
- * One label for an unnameable item across the app: a row without a name is still a row worth
- * reading, because the figures beside it mean something against the type id.
+ * What a surface shows for a type: its name, or one label for an item the list cannot name.
  *
  * @param {number} typeID
  * @param {Object<string, {name?: string}>} [records]
@@ -32,9 +20,11 @@ const search = staticFile(getSearchIndex, (index) => index || []);
 
 export const primeItems = records.prime;
 export const readItemRecords = records.read;
+export const subscribeItemRecords = records.subscribe;
 export const primeItemSearchIndex = search.prime;
 
 const searchByName = search.view((entries) => byName(entries));
+const recordsByName = records.view((all) => byName(Object.values(all)));
 
 /**
  * One item's record, or undefined where the file has not loaded or does not carry the type.
@@ -44,6 +34,17 @@ const searchByName = search.view((entries) => byName(entries));
  */
 export function itemRecord(typeID) {
   return records.read()?.[typeID];
+}
+
+/**
+ * The item record a name belongs to, or undefined where the file has not loaded or names no such item.
+ *
+ * @param {string} [name]
+ * @returns {Object|undefined}
+ */
+export function itemRecordByName(name) {
+  const key = nameKey(name);
+  return key ? recordsByName()?.get(key) : undefined;
 }
 
 /**

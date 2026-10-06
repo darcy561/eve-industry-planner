@@ -28,7 +28,6 @@ describe("Figure", () => {
   });
 
   it("says there is nothing rather than showing a gap", () => {
-    // A blank cell reads as a missing render; a dash reads as a known absence.
     for (const absent of [null, undefined, ""]) {
       const { unmount } = render(<Figure>{absent}</Figure>);
       expect(screen.getByText("—")).toBeInTheDocument();
@@ -36,7 +35,6 @@ describe("Figure", () => {
     }
   });
 
-  // Zero is a figure the app has, unlike null — it must not read as absent.
   it("does not treat a zero as absent", () => {
     render(<Figure>{0}</Figure>);
 
@@ -208,7 +206,6 @@ describe("StatTile", () => {
   });
 
   it("shows its shape rather than zeroes while the figures load", () => {
-    // A tile of zeroes reads as a real month with no activity.
     const { container } = render(
       <StatTile label="Amount Spent" value="0.00" isLoading />,
     );
@@ -244,7 +241,6 @@ describe("BandCaption", () => {
   });
 
   it("does without a table, so a stacked panel uses the same one", () => {
-    // BandRow wraps this for its table; nothing here requires one.
     const { container } = render(<BandCaption>Required to build</BandCaption>);
 
     expect(container.querySelector("table")).toBeNull();
@@ -254,8 +250,6 @@ describe("BandCaption", () => {
 
 describe("totalRowSx", () => {
   it("rules a total above rather than below", () => {
-    // One decision about what a total looks like, read by a flex row and a
-    // table cell alike.
     expect(totalRowSx).toMatchObject({ borderTop: 1, borderColor: "divider" });
     expect(totalRowSx).not.toHaveProperty("borderBottom");
   });
@@ -284,7 +278,6 @@ describe("PanelHeadline", () => {
   });
 
   it("holds several figures beside the lead one", () => {
-    // Returns stands three normalisations next to its net.
     render(
       <PanelHeadline
         aside={
@@ -361,10 +354,6 @@ describe("Disclosure", () => {
   });
 });
 
-// Every number the app shows goes through the locale formatter. Trusting each
-// call site to remember is a guarantee by convention; a raw number reaching a
-// Figure renders `String(n)`, which loses the separators — and loses them in a
-// way only a reader outside en-GB would notice.
 describe("a raw number given to a Figure", () => {
   it("is formatted rather than stringified", () => {
     render(<Figure>{12000}</Figure>);
@@ -372,8 +361,6 @@ describe("a raw number given to a Figure", () => {
     expect(screen.getByText("12,000.00")).toBeInTheDocument();
   });
 
-  // ISK's two places are the formatter's default, not the right answer for a
-  // count — so the caller says how many it wants rather than the atom guessing.
   it("takes the decimal places it is told to use", () => {
     render(<Figure formatOptions={{ max: 0 }}>{12000}</Figure>);
 
@@ -413,5 +400,23 @@ describe("FoldedList", () => {
     fireEvent.click(screen.getByText("Show the other 3"));
 
     expect(screen.getByText("row 9")).toBeInTheDocument();
+  });
+});
+
+describe("a Disclosure drawn as a heading", () => {
+  it("names its section as a caption with a button that says what it will do", async () => {
+    render(
+      <Disclosure heading label="Skills">
+        Reprocessing
+      </Disclosure>,
+    );
+
+    expect(screen.queryByText("Reprocessing")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Show Skills" }));
+    expect(screen.getByText("Reprocessing")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide Skills" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 });

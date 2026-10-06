@@ -1,6 +1,7 @@
 import { Box, Typography } from "@mui/material";
 
 import InsetSurface from "../../../../../../Styled Components/Paper/InsetSurface";
+import { EvenColumns } from "../../../../../../Styled Components/Paper/EvenColumns";
 import {
   FIGURE_TONE,
   Figure,
@@ -13,28 +14,19 @@ import {
 import { EXIT_ROUTE } from "../../../../../../Functions/Job/figures/returns.js";
 
 /**
- * The ways out of a finished build, side by side.
- *
- * Drawn at equal weight on purpose. Listing returns more and takes as long as it
- * takes; buy orders return less and are done — which of those a player wants is
- * not a thing the app knows, so neither is styled as the answer.
+ * The ways out of a finished build, side by side at equal weight, since which a player wants is not
+ * something the app knows.
  *
  * @param {object} props
  * @param {import("../../../../../../Functions/Job/figures/returns.js").ExitRoute[]} props.routes
  */
 export default function ExitRoutes({ routes }) {
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-        gap: 1.5,
-      }}
-    >
+    <EvenColumns>
       {routes.map((route) => (
         <Route key={route.id} route={route} />
       ))}
-    </Box>
+    </EvenColumns>
   );
 }
 
@@ -45,9 +37,6 @@ export default function ExitRoutes({ routes }) {
 function Route({ route }) {
   const tone = signTone(route.net);
 
-  // Every figure on this route is derived from a price that is not there, so
-  // none of them is stated: a net of minus the whole build cost and a return of
-  // −100% are what a missing price looks like, not what the route is worth.
   if (route.hasNoOrders) {
     return (
       <InsetSurface>

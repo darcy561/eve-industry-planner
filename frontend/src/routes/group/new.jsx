@@ -1,8 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-
-const NewGroup = lazyRouteComponent(
-  () => import("../../Components/Groups/New Group/newGroupPage"),
-);
+import { createFileRoute } from "@tanstack/react-router";
+import NewGroup from "../../Components/Groups/New Group/newGroupPage";
 
 export const Route = createFileRoute("/group/new")({
   staticData: { audience: "public" },

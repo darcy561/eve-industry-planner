@@ -1,160 +1,108 @@
-/**
- * Reprocessing Reducer for EVE Industry Planner.
- */
-
-/**
- * Action types for the reprocessing reducer.
- *
- * @constant {Object} REPROCESSING_ACTION_TYPES
- * @property {string} SET_REPROCESSING_OBJECTS - Set reprocessing calculation results
- * @property {string} SET_PROCESSED_INPUT - Set processed input data
- * @property {string} SET_INPUT_TEXT - Set raw input text
- * @property {string} TOGGLE_TO_MINERALS - Toggle between minerals and materials output
- * @property {string} SET_PAGE_LOADING - Set page loading state
- * @property {string} TOGGLE_DISPLAY_ADVANCED_VIEW - Toggle advanced view display
- * @property {string} SET_CURRENT_STRUCTURE - Set current reprocessing structure
- * @property {string} SET_SINGLE_SKILL - Set individual skill level
- * @property {string} SET_ALL_SKILLS - Set all skills at once
- * @property {string} SET_SELECTED_USER - Set selected user character
- * @property {string} SET_SKILLS_MANUALLY_MODIFIED - Set manual skill modification flag
- * @property {string} LOAD_CHARACTER_SKILLS - Load skills from character data
- * @property {string} ADD_ORE_ID_TO_BE_IGNORED - Add ore ID to ignore list
- * @property {string} REMOVE_ORE_ID_TO_BE_IGNORED - Remove ore ID from ignore list
- * @property {string} CLEAR_ORE_IDS_TO_BE_IGNORED - Clear all ignored ore IDs
- * @property {string} SET_MARKET_LOCATION - Set market location for pricing
- * @property {string} SET_MARKET_ORDER_TYPE - Set market order type (buy/sell)
- * @property {string} SET_INPUT_MODIFIED - Set input modification flag
- * @property {string} SET_REQUESTED_MINERALS - Set requested minerals data
- * @property {string} SET_REPROCESSING_CALCULATION_SETTINGS - Set calculation settings
- */
-export const REPROCESSING_ACTION_TYPES = {
-  SET_REPROCESSING_OBJECTS: "SET_REPROCESSING_OBJECTS",
-  SET_PROCESSED_INPUT: "SET_PROCESSED_INPUT",
-  SET_INPUT_TEXT: "SET_INPUT_TEXT",
-  TOGGLE_TO_MINERALS: "TOGGLE_TO_MINERALS",
-  SET_PAGE_LOADING: "SET_PAGE_LOADING",
-  TOGGLE_DISPLAY_ADVANCED_VIEW: "TOGGLE_DISPLAY_ADVANCED_VIEW",
-  SET_CURRENT_STRUCTURE: "SET_CURRENT_STRUCTURE",
-  SET_SINGLE_SKILL: "SET_SINGLE_SKILL",
-  SET_ALL_SKILLS: "SET_ALL_SKILLS",
-  SET_SELECTED_USER: "SET_SELECTED_USER",
-  SET_SKILLS_MANUALLY_MODIFIED: "SET_SKILLS_MANUALLY_MODIFIED",
-  LOAD_CHARACTER_SKILLS: "LOAD_CHARACTER_SKILLS",
-  ADD_ORE_ID_TO_BE_IGNORED: "ADD_ORE_ID_TO_BE_IGNORED",
-  REMOVE_ORE_ID_TO_BE_IGNORED: "REMOVE_ORE_ID_TO_BE_IGNORED",
-  CLEAR_ORE_IDS_TO_BE_IGNORED: "CLEAR_ORE_IDS_TO_BE_IGNORED",
-  SET_MARKET_LOCATION: "SET_MARKET_LOCATION",
-  SET_MARKET_ORDER_TYPE: "SET_MARKET_ORDER_TYPE",
-  SET_INPUT_MODIFIED: "SET_INPUT_MODIFIED",
-  SET_REQUESTED_MINERALS: "SET_REQUESTED_MINERALS",
-  SET_REPROCESSING_CALCULATION_SETTINGS:
-    "SET_REPROCESSING_CALCULATION_SETTINGS",
+/** The two ways the page reprocesses: what pasted items give, or the ore to buy for pasted minerals. */
+export const reprocessingDirections = {
+  toMinerals: "toMinerals",
+  fromMinerals: "fromMinerals",
 };
 
 /**
- * Reducer function for managing reprocessing page state.
+ * The changes the Reprocessing page's reducer accepts, each a choice the reader made.
  *
- * @param {Object} state - Current state object
- * @param {Array} state.reprocessingObjects - Reprocessing calculation results
- * @param {Array} state.processedInput - Processed input data
- * @param {string} state.inputText - Raw input text
- * @param {boolean} state.toMinerals - Whether to output minerals or materials
- * @param {boolean} state.displayAdvancedView - Whether to show advanced view
- * @param {boolean} state.isPageLoading - Page loading state
- * @param {Object} state.currentStructure - Current reprocessing structure
- * @param {Object} state.activeSkills - Active skill levels by skill ID
- * @param {string|null} state.selectedUser - Selected user character hash
- * @param {boolean} state.skillsManuallyModified - Whether skills were manually modified
- * @param {Array} state.oreIDsToBeIgnored - Array of ore IDs to ignore
- * @param {string} state.marketLocation - Market location for pricing
- * @param {string} state.orderType - Market order type (buy/sell)
- * @param {boolean} state.inputModified - Whether input has been modified
- * @param {Object} state.requestedMinerals - Requested minerals data
- * @param {Object} state.reprocessingCalculationSettings - Calculation settings
- * @param {Object} action - Action object containing type and payload
- * @param {string} action.type - Action type from REPROCESSING_ACTION_TYPES
- * @param {*} [action.payload] - Action payload data
- * @returns {Object} New state object
+ * @constant {Object<string, string>}
+ */
+export const REPROCESSING_ACTION_TYPES = {
+  SET_DIRECTION: "SET_DIRECTION",
+  SET_PASTE: "SET_PASTE",
+  COMMIT_PASTE: "COMMIT_PASTE",
+  CLEAR_PASTE: "CLEAR_PASTE",
+  SET_SELLER: "SET_SELLER",
+  SET_CURRENT_STRUCTURE: "SET_CURRENT_STRUCTURE",
+  SET_SKILL_LEVEL: "SET_SKILL_LEVEL",
+  SET_SELECTED_USER: "SET_SELECTED_USER",
+  SET_MARKET_LOCATION: "SET_MARKET_LOCATION",
+  SET_MARKET_ORDER_TYPE: "SET_MARKET_ORDER_TYPE",
+  CHANGE_REPROCESSING_SETTINGS: "CHANGE_REPROCESSING_SETTINGS",
+};
+
+/**
+ * Each direction's paste as it is being typed and as it was last reprocessed, both empty.
+ *
+ * @returns {Object<string, {text: string, committed: string}>}
+ */
+export function emptyPastes() {
+  return Object.fromEntries(
+    Object.values(reprocessingDirections).map((direction) => [
+      direction,
+      { text: "", committed: "" },
+    ]),
+  );
+}
+
+/**
+ * The Reprocessing page's state after one of the reader's choices; results are never held here,
+ * they are worked out from it while rendering.
+ *
+ * @param {Object} state
+ * @param {{type: string, payload?: *}} action - a type from REPROCESSING_ACTION_TYPES
+ * @returns {Object}
  */
 export function reprocessingReducer(state, action) {
   switch (action.type) {
-    case REPROCESSING_ACTION_TYPES.SET_REPROCESSING_OBJECTS:
-      return { ...state, reprocessingObjects: action.payload };
-    case REPROCESSING_ACTION_TYPES.SET_PROCESSED_INPUT:
-      return { ...state, processedInput: action.payload };
-    case REPROCESSING_ACTION_TYPES.SET_INPUT_TEXT:
-      return { ...state, inputText: action.payload };
-    case REPROCESSING_ACTION_TYPES.TOGGLE_TO_MINERALS:
-      return { ...state, toMinerals: !state.toMinerals };
-    case REPROCESSING_ACTION_TYPES.SET_PAGE_LOADING:
-      return { ...state, isPageLoading: action.payload };
-    case REPROCESSING_ACTION_TYPES.TOGGLE_DISPLAY_ADVANCED_VIEW:
-      return { ...state, displayAdvancedView: !state.displayAdvancedView };
+    case REPROCESSING_ACTION_TYPES.SET_DIRECTION:
+      return { ...state, direction: action.payload };
+    case REPROCESSING_ACTION_TYPES.SET_PASTE:
+      return {
+        ...state,
+        pastes: {
+          ...state.pastes,
+          [state.direction]: {
+            ...state.pastes[state.direction],
+            text: action.payload,
+          },
+        },
+      };
+    case REPROCESSING_ACTION_TYPES.COMMIT_PASTE:
+      return {
+        ...state,
+        pastes: {
+          ...state.pastes,
+          [state.direction]: {
+            ...state.pastes[state.direction],
+            committed: state.pastes[state.direction].text,
+          },
+        },
+      };
+    case REPROCESSING_ACTION_TYPES.CLEAR_PASTE:
+      return {
+        ...state,
+        pastes: {
+          ...state.pastes,
+          [state.direction]: { text: "", committed: "" },
+        },
+      };
+    case REPROCESSING_ACTION_TYPES.SET_SELLER:
+      return { ...state, sellerHash: action.payload };
     case REPROCESSING_ACTION_TYPES.SET_CURRENT_STRUCTURE:
       return { ...state, currentStructure: action.payload };
-    case REPROCESSING_ACTION_TYPES.SET_SINGLE_SKILL:
+    case REPROCESSING_ACTION_TYPES.SET_SKILL_LEVEL: {
+      const { [action.payload.id]: _dropped, ...kept } = state.skillOverrides;
       return {
         ...state,
-        activeSkills: {
-          ...state.activeSkills,
-          [action.payload.id]: action.payload.level,
-        },
-        skillsManuallyModified: true,
+        skillOverrides:
+          action.payload.level === null
+            ? kept
+            : { ...kept, [action.payload.id]: action.payload.level },
       };
-    case REPROCESSING_ACTION_TYPES.SET_ALL_SKILLS:
-      return {
-        ...state,
-        activeSkills: action.payload,
-        skillsManuallyModified: false,
-      };
+    }
     case REPROCESSING_ACTION_TYPES.SET_SELECTED_USER:
-      return {
-        ...state,
-        selectedUser: action.payload,
-        skillsManuallyModified: false,
-      };
-    case REPROCESSING_ACTION_TYPES.SET_SKILLS_MANUALLY_MODIFIED:
-      return {
-        ...state,
-        skillsManuallyModified: action.payload,
-      };
-    case REPROCESSING_ACTION_TYPES.LOAD_CHARACTER_SKILLS:
-      return {
-        ...state,
-        activeSkills: action.payload.skills,
-        skillsManuallyModified: false,
-      };
-    case REPROCESSING_ACTION_TYPES.ADD_ORE_ID_TO_BE_IGNORED:
-      return {
-        ...state,
-        oreIDsToBeIgnored: [
-          ...new Set([...state.oreIDsToBeIgnored, action.payload]),
-        ],
-      };
-    case REPROCESSING_ACTION_TYPES.REMOVE_ORE_ID_TO_BE_IGNORED:
-      return {
-        ...state,
-        oreIDsToBeIgnored: state.oreIDsToBeIgnored.filter(
-          (id) => id !== action.payload,
-        ),
-      };
-    case REPROCESSING_ACTION_TYPES.CLEAR_ORE_IDS_TO_BE_IGNORED:
-      return { ...state, oreIDsToBeIgnored: [] };
+      return { ...state, selectedUser: action.payload, skillOverrides: {} };
     case REPROCESSING_ACTION_TYPES.SET_MARKET_LOCATION:
       return { ...state, marketLocation: action.payload };
     case REPROCESSING_ACTION_TYPES.SET_MARKET_ORDER_TYPE:
       return { ...state, orderType: action.payload };
-    case REPROCESSING_ACTION_TYPES.SET_INPUT_MODIFIED:
-      return { ...state, inputModified: action.payload };
-    case REPROCESSING_ACTION_TYPES.SET_REQUESTED_MINERALS:
-      return { ...state, requestedMinerals: action.payload };
-    case REPROCESSING_ACTION_TYPES.SET_REPROCESSING_CALCULATION_SETTINGS:
+    case REPROCESSING_ACTION_TYPES.CHANGE_REPROCESSING_SETTINGS:
       return {
         ...state,
-        reprocessingCalculationSettings: {
-          ...state.reprocessingCalculationSettings,
-          ...action.payload,
-        },
+        reprocessingSettings: action.payload(state.reprocessingSettings),
       };
     default:
       return state;

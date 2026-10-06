@@ -41,8 +41,8 @@ page neither shows nor reads it.
 ### The engine
 
 The yield formula in
-[`reprocessingFormulas.js`](../../../frontend/src/Functions/Reprocessing/reprocessingFormulas.js) and the
-bonuses in [`reprocessingBonuses.js`](../../../frontend/src/Functions/Reprocessing/reprocessingBonuses.js)
+[`reprocessingFormulas.js`](../../../frontend/src/Functions/Reprocessing/engine/reprocessingFormulas.js) and the
+bonuses in [`reprocessingBonuses.js`](../../../frontend/src/Functions/Reprocessing/engine/reprocessingBonuses.js)
 match the game and are tested. Everything around them is page-shaped:
 
 1. **Text in.** `reprocessIntoMinerals` and `reprocessFromMinerals` in
@@ -101,7 +101,7 @@ data out, no store, no network, no page state.
 
 | Function | Takes | Returns |
 |----------|-------|---------|
-| `reprocessingSetupFrom(structure, skills, tax)` | a structure document, a skills map, a tax rate | the one setup object every function below takes |
+| `reprocessingSetupFrom(structure, skills)` | a structure document (its `tax` included), a skills map | the one setup object every function below takes |
 | `reprocess(items, setup)` | `[{typeID, quantity}]` | per item: batches, kept back, yield, outputs as totals; combined outputs; what could not be reprocessed |
 | `oreToBuy(needs, setup, options, priceOf)` | minerals needed, selection options, a price function | the plan: per candidate the units, batches, what it gives and what it was chosen for; leftovers |
 | `valueReprocessing(result, priceOf, rates)` | a `reprocess` result, a price function, fee and tax rates | every figure the To minerals panels show |
@@ -140,7 +140,7 @@ Taken by James during design; tasks build to them rather than reopening them.
 
 | Surface | Change | Kind |
 |---------|--------|------|
-| `REPROCESSING_DATA` static file | Each entry gains `volume`; output materials gain a volume map | Additive. Older SPA builds ignore it |
+| `REPROCESSING_DATA` static file | The file becomes `{ items, materialVolumes }`: the item map moves under `items`, each entry gains `volume`, and output materials' volumes are one map beside it | **Breaking for its one reader pair**, which moved together in B1 and B3 — the worker's type-id collector and `Functions/Static/reprocessing.js`. The same contained shape as static-data-delivery Stage A's item-list change: every cached copy misses once, and the release's static data rebuild publishes the new file |
 | `REPROCESSING_DATA` static file | Entries with random outputs carry `randomizedMaterials` with each mineral's `quantityMin` and `quantityMax`, and two new item kinds; eight Unrefined minerals join the file and Hiemal Tricarboxyl Vapor may leave it (A4) | Additive for the new field. An older SPA build reads Prismaticite as yielding nothing, which is what it reads today |
 | `ReprocessingSettings` on the account document | `valueMultiplier`, `wastePenaltyMultiplier`, `compressionBonusMultiplier` and `preferCompressed` replaced by `compressedOre`; calculation and shipping fields move to the planner | **Migrate-required** — hard cutover with a `prepareRelease` step |
 | `ReprocessingSettings` on the planner settings document | Gains shipping; becomes the copy the page reads and writes | **Migrate-required** — same step, merging from the account |
@@ -148,8 +148,16 @@ Taken by James during design; tasks build to them rather than reopening them.
 | `defaultReprocessingCharacter` | Stays on the account | Unchanged |
 | Module outputs (Stage M) | A new static output, or a new public lookup endpoint, per delivery Stage E | Additive |
 
-Ships as **one hard cutover** with the release script converting the data, the way EIP ships every
-stored-shape change. The stored-shape version moves once for the build, not once per field.
+Ships in **the shared-planners release** — the one window every open project rides — as a hard
+cutover with the release script converting the data. F3's step goes beside the planner extras
+categories backfill, and Stage B needs no step of its own because the static data rebuild already in
+`prepareRelease` publishes it; both placements are in [shared-planners](../shared-planners/plan.md)
+§ Every open project ships in this window. No schema version moves: the constants arrive with that same
+release.
+
+**Stage M decides whether it is in the window.** Its build waits on static-data-delivery Stage E's
+decision; if that is not taken in time, M is deferred explicitly and the rest of the project ships
+without it, rather than holding the window open.
 
 ## Ordering
 
@@ -211,6 +219,15 @@ gives 87,312 Tritanium one way and 87,276 the other.
 - **Record:** what the game produced, and which method matches.
 - **Done when:** the file names the rule, and Stage C1 builds to it.
 
+**Settled against live, not in game.** Live's figures are known to be correct, so live is the
+reference: each batch is rounded for ore, moon ore and ice and multiplied by the batches, and gas is
+rounded once on the run. `reprocessedQuantity` is that rule, and `liveParity.corpus.test.js` § what a
+run gives holds it to live's own code — copied from `Public` — for ten real items of every kind,
+batch sizes of 1 and 100, every structure shape live can hold, three skill sets and quantities from 0 to
+3,999,999: 145,800 cases, no difference. Rounding the total instead was measured against the same
+corpus and differs from live in 82,150 of them, by up to half a unit per batch. No in-game check is owed
+for rounding.
+
 #### A2 — Gas decompression
 
 `gasDecompressionFormula` is `80 + structure gas bonus + skill level`. The parity corpus covers ore only.
@@ -248,8 +265,11 @@ every figure Stages C2b and D1 show:
   1 in 8 needs weights in the static file, which the SDE does not carry.
 - **Is the quantity uniform across its range,** and is the yield percentage applied to the rolled
   quantity (Erratic Ore Processing and Unrefined Minerals Processing each give 2% a level)?
-- **Which structure rigs and bonuses apply** to each kind — ore's, or none. Until this lands, the engine
-  applies none.
+- **Which structure rigs and bonuses apply** to each kind — ore's, or none. Until this lands, the SPA
+  treats erratic ore exactly as ore — the ore formula with its own skill, the structure's ore bonus and
+  ore rigs — which is what the worked example and the design assume; an unrefined mineral keeps what
+  live gave its kind, the ore formula and ore rigs with no structure bonus. Whatever this records
+  replaces both in `reprocessingFormulas.js`, `structureBonusFor` and the rig tables.
 - **Hiemal Tricarboxyl Vapor**: a Harvestable Cloud that CCP files under the Veldspar market group, with
   materials but no reprocessing skill. Can it be reprocessed at all?
 - **Done when:** `measurements/formula-checks.md` records each answer, and the odds the engine uses are
@@ -272,8 +292,13 @@ already carries `Volume`), [`frontend/static-data/reprocessing.md`](../../fronte
 
 - Add `volume` to each reprocessing entry, from the SDE type's `Volume`.
 - Output materials (minerals, ice products, gas) are not entries, so the file needs their volumes too:
-  one top-level `materialVolumes` map keyed by type id, so each type's volume is stated once rather than
-  in every ore that yields it.
+  one `materialVolumes` map keyed by type id, so each type's volume is stated once rather than in every
+  ore that yields it.
+- **The file becomes `{ items, materialVolumes }`.** The item map was the whole file, keyed by type id,
+  so a volume map beside the entries would have been read as an item by every reader that walks the
+  values. Weighed against a key mixed in among the items and a separate file; a file that says what it
+  holds won, with its one reader pair moved in the same change (B3, and `addReprocessingTypeIDs` in the
+  recipe diff stage).
 - `omitzero` on the field, matching how the conversion types already tag `Volume`.
 - **Tests:** beside the conversion package — an ore carries its volume; a mineral's volume is in the
   map; an entry for a type with no volume omits the field.
@@ -290,16 +315,14 @@ Simple and Erratic Ore Processing.
 | Map | Replaced by |
 |-----|-------------|
 | `marketGroupsToSkills` (39 market groups) | The type's `reprocessingSkillType` dogma attribute (790). Gas has none, being decompressed rather than reprocessed, so compressed gas keeps one named constant: Gas Decompression Efficiency |
-| `parentMarketGroupsToInclude` | A published type with a market group and materials, which either carries attribute 790 or is the compressed form of a Harvestable Cloud in `compressibleTypes` |
+| `parentMarketGroupsToInclude` | A published type with a market group and materials, which either carries attribute 790 or sits in the Gas Clouds Materials branch |
 | `marketGroupsToItemTypes` | The type's **whole** market group ancestry, walked to one of four top-level groups (Standard Ores, Moon Ores, Ice Ores, Gas Clouds Materials). Today's code looks one level up, which is why a deeper group fell through. Erratic ore and unrefined minerals are kinds of their own (B1b) |
 
 The derived file matches today's for 453 of its 457 entries. It corrects the three skills above, adds
 the eight Unrefined minerals, and drops Hiemal Tricarboxyl Vapor, subject to A4.
 
-- `typeDogma` and `compressibleTypes` join the datasets the conversion reads. That widens the set
-  [static-data-build](../static-data-build/plan.md) Stage B's relevance gate watches, and `typeDogma` is
-  27 MB uncompressed, which that project's ranged fetch then pulls; both are noted there. Read only
-  attribute 790 from it, streaming, rather than holding the whole file.
+- **No new dataset.** The conversion already reads `typeDogma` for the industry bonuses, and compressed
+  gas is found by its market branch, so `compressibleTypes` is not needed.
 - **Tests:** beside the conversion package, against fixture types: an ore's skill from attribute 790; a
   compressed gas given the decompression skill; a moon ore three groups deep labelled moon ore; an
   unpublished type and a type with no market group left out; Prismaticite labelled erratic.
@@ -312,8 +335,14 @@ the page reads it as yielding nothing.
 
 - An entry with random outputs carries `randomizedMaterials`, named as the SDE names it, each mineral
   with its `quantityMin` and `quantityMax`, and no `materials`.
-- `ItemTypesForReprocessing` gains `erratic` and `unrefined`. They are kinds because rigs and structure
-  bonuses are chosen by kind, and A4 says what applies to them.
+- `ItemTypesForReprocessing` gains `unrefinedMineral` (5) and `erratic` (6). Kind 5 was already in the
+  SPA as `unrefinedOre`, wired into the ore rig families and ore yield but never written by the server;
+  it is renamed to the game's word and now means the Unrefined minerals. A parity test keeps the two
+  copies of the numbering in step. The kind is read from the outputs: several possible minerals is
+  erratic, one is an unrefined mineral, so neither needs an id typed by hand.
+- An item with random outputs carries `"materials": {}`, so the current page, which reads only fixed
+  materials, sees an item that yields nothing — what Prismaticite already showed — until C2b reads the
+  ranges. Ore selection leaves both kinds out.
 - **Tests:** Prismaticite carries eight ranges and no fixed materials; Unrefined Morphite carries one
   range; an ore with fixed materials is unchanged.
 
@@ -330,13 +359,41 @@ changes the conversion, not the SDE. The forced rebuild on release is what publi
 [static-data-delivery](../static-data-delivery/plan.md) Stage B has landed by then, the content hash
 republishes only the reprocessing file, and clients re-download only that.
 
+**Confirmed — nothing is added.** The step is in every release, unconditionally. It publishes
+`rebuildCurrentSDEVersion` to the worker task stream, and the worker's `RebuildCurrentSDEVersion`
+runs the whole pipeline — download, map build, conversion, blueprint sync, persist — on the build the
+store says is current, then republishes it under a new version label so every client re-downloads it.
+It builds its own "needs update" answer rather than asking the version check, so a relevance gate in
+the check cannot skip it. The trigger waits in JetStream (24-hour retention) while the window has the
+worker stopped, and runs when the worker comes back.
+
+**One thing the operator must watch in this window.** The step is not `required`: if NATS is
+unreachable, `prepareRelease` connects without it and the step reports its own failure while the
+release carries on. For an ordinary release that costs nothing until the next build. For this one it
+leaves the new SPA reading the old flat file as empty, so a failed step is answered with
+`tasks forceSdeRebuild` — recorded in [shared-planners](../shared-planners/plan.md) § Every open
+project ships in this window.
+
 #### B3 — Read it in the SPA
 
-- `Functions/Static/reprocessing.js` exposes `volumeOf(typeID)` from the same file, as a view like
-  `selectableItems`. No second home for volume.
+- `Functions/Static/reprocessing.js` reads the `{ items, materialVolumes }` shape and exposes
+  `volumeOf(typeID)` from the same file: an item's own volume, else the material map. No second home for
+  volume. Landed with B1, since the shape changed under the reader.
 - **Tests:** beside it, against `frontend/src/tests/cachedDataMock.js`.
 
 ---
+
+### Where the reprocessing code lives
+
+`Functions/Reprocessing/` is the subject folder, laid out as `Functions/MarketData/` is: `engine/` holds
+what an item gives — the setup, the yield formulas and bonuses, `reprocess` and the value of random
+outputs, with the live-parity corpus beside them; `valuation/` holds what it is worth, including the
+selling fees; `selection/` holds which ore to buy; the folder itself holds the paste parsers, the reprocessing skill list and the current
+page's calculation runs, which E3 and G retire. Three things stay with their own families on purpose:
+the static file's owner in `Functions/Static/reprocessing.js` with every other static owner, the kind
+numbering and rig tables in `Context/defaultValues.jsx` with the app's other constants (the Go parity
+test reads it there), and page hooks under `Components/Reprocessing/Hooks/`. Shared test fixtures are
+`frontend/src/tests/reprocessingFixtures.js` and, for ore selection, `oreSelectionFixtures.js`. New modules go where their kind already sits.
 
 ### Stage C — The engine core
 
@@ -349,12 +406,20 @@ and [`Classes/reprocessingItem.js`](../../../frontend/src/Classes/reprocessingIt
 
 #### C1 — One setup shape
 
-- `reprocessingSetupFrom(structure, skills, tax)` resolves, once, everything a yield needs: rig value and
+- `reprocessingSetupFrom(structure, skills)` resolves, once, everything a yield needs: rig value and
   rig security per item type, structure bonus per item type, implant value, the skills map, the tax rate.
-  The bonus functions in `reprocessingBonuses.js` stay its inputs.
+  The bonus functions in `reprocessingBonuses.js` stay its inputs. The tax is the structure's own `tax`
+  field (D2), so it is not a separate argument.
 - A setup carries what its calculations need, so it can be passed on its own.
 - `yieldFor(setup, item)` returns the percentage, from `reprocessFromItemType` with Stage A's rulings.
 - **Tests:** the parity corpus (`liveParity.corpus.test.js`) must pass unchanged through the new setup.
+
+**Landed.** `Functions/Reprocessing/engine/reprocessingSetup.js` holds `reprocessingSetupFrom`, `yieldFor`,
+and the two skill ids every yield reads (Reprocessing, Reprocessing Efficiency), which
+`getAllReprocessingSkills` now imports rather than restating. `ReprocessingItem.reprocessMaterials`
+takes a setup, and both calculations in `reprocessingRuns.js` build one per run instead of resolving
+the structure per item. The parity corpus runs through the setup, its implant read from an implant
+id, and fails when the setup's implant read is broken.
 
 #### C2 — `reprocess(items, setup)`
 
@@ -371,6 +436,18 @@ and [`Classes/reprocessingItem.js`](../../../frontend/src/Classes/reprocessingIt
   as golden figures; gas and ore through one path; an item under one batch is all kept back; a pasted
   type that is not reprocessable is returned, not dropped; the input array is deep-equal before and after.
 
+**Landed.** `Functions/Reprocessing/engine/reprocess.js` holds `reprocess(items, setup)` and
+`reprocessedQuantity(base, batches, yieldPercent, itemType)`, the one rounding rule every figure goes
+through: each batch rounded for ore, moon ore and ice, the whole run rounded for gas — live's rule,
+held to live's code by the parity corpus (A1). The worked example's output column predates that and
+assumed a floor of the total, so the tests hold its batches and units kept back exactly and its
+outputs to live's rule.
+
+**`ReprocessingItem` is not retired here.** Its callers are the current page's components, which Stage G
+replaces (C4 was taken logic only). Until then it computes through the same
+`reprocessedQuantity`, and a test holds the class and `reprocess` to the same yield and outputs, so the
+rule exists once.
+
 #### C2a — What ore can produce is read from the data
 
 A material can come from ore when some selectable item (ore, moon ore, ice) lists it in its outputs.
@@ -382,6 +459,15 @@ produce (48927, 76374, 88087). Minerals, moon materials and ice products all fal
 
 - **Tests:** every output of every selectable item is producible; a component, a PI material and
   Construction Blocks are not; no hand-written id list remains.
+
+**Landed.** `producibleByReprocessing(typeID)` and `producibleTypeIDs()` in
+`Functions/Static/reprocessing.js` are a view over the fixed outputs of ore, moon ore and ice — the
+kinds ore selection admits, so gas and the random outputs of erratic ore and unrefined minerals are not
+counted. `parseInputMineralString` reads a pasted list against them (it primed both files itself until G1 moved that to the route); the
+four id sets are gone. Against SDE build 3326071 after Stage B the rule gives 37 materials: the old sets
+named Unrefined Isogen, which is an input rather than anything ore gives, and missed Neo-Jadarite and
+Eleutrium. (Chromodynamic Tricarboxyls, missed by the sets as well, came only from Hiemal Tricarboxyl
+Vapor, which Stage B removed.)
 
 #### C2b — Random outputs
 
@@ -407,6 +493,15 @@ every caller handles both kinds:
   stable across calls; an unrefined mineral's range is its minimum and maximum times batches; mixing
   Prismaticite with Veldspar gives a ranged total.
 
+**Landed.** `reprocess` gives an item with random outputs its expected units per mineral as its
+`outputs`, an `outputRanges` entry per mineral (each batch rounded by live's rule at the least and most
+amounts), and the `randomizedMaterials` it drew from; the combined result adds the expected units and
+carries `outputRanges` for every output a random item touched, fixed contributions counted at both ends.
+The value side is `randomOutputValue(item, priceOf)` in `Functions/Reprocessing/engine/randomOutputValue.js`:
+expected value, likely range, bounds and `shareAbove(value)`, normal from 30 batches and a 20,000-run
+seeded simulation below. It treats each batch's amount as continuous; rounding moves a run by under a
+unit a batch. Erratic ore reprocesses as ore until A4 says otherwise, so it has a yield to range over.
+
 #### C3 — Parsing returns what it could not read
 
 - `parseReprocessingInput` and `parseInputMineralString` return `{ items, unread }`, where `unread` is
@@ -415,13 +510,30 @@ every caller handles both kinds:
 - **Tests:** beside `reprocessingInput.js` — a module line, a misspelt ore, a line with no number, tab
   and space separators, thousands separators.
 
-#### C4 — Move the page onto the core
+**Landed.** Both parsers return `{ items, unread }` — the ore parser's `items` an array of
+`ReprocessingItem`, the material parser's an object keyed by type id, empty input giving
+`{ items: {}, unread: [] }` where it used to give an array — and `reprocessingRuns.js` hands `unread`
+on in both directions' results, ready for G2 to list. The line splitting the two parsers each carried
+is one function. A quantity with no digits still reads as zero, as before; a line with no quantity at
+all is unread. Until G2 separates them, a line naming a real item no ore gives — Construction Blocks in
+From minerals, a module in To minerals before Stage M — is in `unread` with the misspellings.
 
-- `reprocessingRuns.js` is reduced to calling `reprocess` and the old selector, so the current page
-  keeps working through the rewrite. `gatherMaterialTotals` and every gas branch in the views go, since
-  outputs are totals.
+#### C4 — Move the page's logic onto the core
+
+**Logic only, by James's decision.** The current page is old-UI markup that Stage G deletes and rebuilds,
+and the live-parity corpus already holds the engine to live, so C4 consolidates logic and leaves the
+markup alone — the rule for screens not yet on the app-shell.
+
+- `reprocessingRuns.js` takes To minerals' totals from `reprocess`; `gatherMaterialTotals` goes.
 - Remove `console.table` from `oreSelector`, and its `useUsersStore` fallback — settings are passed in.
-- **Done when:** the page behaves as before; the gas branches are gone from all three components.
+- **Not here:** `ReprocessingItem` and the gas branches in `advancedMineralOutput.jsx` and
+  `MineralCard.jsx` retire in Stage G with the page that reads them (§ G1). Meanwhile the class computes
+  through `yieldFor` and `reprocessedQuantity`, so no rule exists twice.
+- **Done when:** the page behaves as before, its totals come from the engine, and the selector logs
+  nothing and reads no store.
+
+**Landed.** As above; a first `oreSelector.test.js` covers a planned batch count, an excluded ore, and
+that choosing logs nothing.
 
 ---
 
@@ -447,6 +559,27 @@ and [`Functions/MarketOrders/sellingRates.js`](../../../frontend/src/Functions/M
   difference against selling as-is is a range when either side is.
 - **Tests:** the worked example's figures to the unit.
 
+**Landed.** `Functions/Reprocessing/valuation/valuation.js` holds both. `valueReprocessing(result, priceOf, rates)`
+gives, per item and in total, the outputs' market value, selling fees, tax, kept-back units sold as they
+are, reprocessed against sold as they are with the difference and its percentage, the difference with
+no tax, the value shared by output, each output's cost as the ore it came from, and hauling volume both
+ways. `valueOrePlan(result, needs, priceOf, options)` takes the planned ore reprocessed — the shape E2's
+plan will hand it — and gives each ore's cost, volume and shipping, ore delivered, the minerals bought
+outright delivered, the leftovers at market and after fees, and net of leftovers. Both hold the
+worked example to the unit; its "difference with no tax" was summed from rounded figures and is
+corrected to 76,852.
+
+- **Tax is the stand-in until D2**: the structure's rate on the outputs' market value, passed as
+  `taxPercent`.
+- **A price of 0 is no price.** A market with no orders reads 0, so both functions count it as 0 and
+  name it in `unpriced` rather than presenting the figure as whole; a type with no volume is named in
+  `withoutVolume` the same way.
+- **Cost as the ore uses the units reprocessed**, not the whole paste — the kept-back units are valued
+  separately as ore.
+- **Ranged items** are valued through `randomOutputValue`, carried through fees and tax, and the totals
+  carry a range: exact for one ranged item, the normal approximation over the summed spreads for several
+  (`combinedValueRange`).
+
 #### D2 — Reprocessing tax
 
 - `reprocessingSetupFrom` reads the structure's existing `tax` — a percentage, already settled by
@@ -466,6 +599,21 @@ and [`Functions/MarketOrders/sellingRates.js`](../../../frontend/src/Functions/M
 - Signed out there is no character: the rates are typed, defaulting to trained-skill values (G8).
 - **Tests:** a seller with different skills from the reprocessing character changes the fees and not the
   yield; with no account, typed rates are used and nothing requests a character.
+
+**Landed.** `useReprocessingSellingFees(marketID, sellerHash, typedRates)` in
+`Components/Reprocessing/Hooks/` quotes the seller through `useSellingRates` at the sale location
+`resolveSaleLocation` makes of the page's market. The hook takes the seller from its caller; G1 hands
+it the account's default market character through `resolveSellerCharacter`, as the Selling stage reads
+it, and the reader's own choice when they change it. With no seller
+there is no character query at all: the rates are the reader's typed figures, or by default every
+market skill at its highest with no standings — `signedOutSellingFees` in
+`Functions/Reprocessing/valuation/sellingFees.js`, worked out through `sellingWhatIf` rather than a formula of
+its own. That default is the worked example's 4.875% at a station. While a seller's rates load, the
+hook says so and stands in with that default — including while the seller's skills and standings are
+still arriving, when `useSellingRates` holds its query back — so the page shows its loading state rather
+than a figure with no fees. Two copies were folded on the way: the sales tax formula is `salesTaxRateAt` in
+`sellingRates.js`, which `sellingWhatIf` now reads, and the highest skill level is `maxSkillLevel`,
+which the Planning skills panel's level marks now read too.
 
 ---
 
@@ -491,6 +639,10 @@ mineral being covered.
 
 **Recommendation:** `yalps`. Check its current release and changelog before adding it, per the
 dependency rule.
+
+**Landed.** `yalps` 0.6.4 (December 2025, MIT, ~240 kB, one dependency — `heap` 0.2.7) added to the
+frontend, chosen by James after the check: native ESM with types, not deprecated, no advisories against
+it or `heap`. `javascript-lp-solver` is now 1.0.3 but ten times the size; `highs` is ~4 MB of WASM.
 
 #### E2 — `oreToBuy(needs, setup, options, priceOf)`
 
@@ -519,16 +671,59 @@ dependency rule.
   valued after the plan is chosen, at buy-order price after fees.
 - **Whole batches:** round each candidate up to whole batches, then trim — reduce any candidate whose
   batches are no longer needed because others cover its mineral, repeating until nothing reduces.
-- **Chosen for:** the mineral whose covering constraint the candidate is tight on.
+- **Chosen for:** the mineral whose covering constraint the candidate is tight on — of the needs it
+  gives, the one the whole plan covers with the least to spare against the need.
 - **Tests:** the three lists in the benchmark, with and without shipping, each within 2% of the bound
   recorded there and below today's selector; never-choose and Don't use respected; outright chosen when
   ore is dearer delivered; fixed shipping changes nothing about the choice; no input mutated.
+
+**Landed.** `oreToBuy` is in `Functions/Reprocessing/selection/oreToBuy.js`. It solves the fractional
+programme with `yalps`, rounds each choice up to whole batches and trims, and returns the ores (with
+batches, units and the need each was chosen for), what is bought outright, what no ore gives
+(`notProducible`), any need nothing can cover (`uncovered`), the plan's delivered cost and the
+fractional optimum at real prices (`bound`, a true lower bound when compressed ore is not preferred).
+The plan goes to `valueOrePlan` through `reprocess` for its figures and leftovers.
+
+- **The benchmark's original figures do not reproduce** — its per-ore price ratios were not recorded —
+  so `frontend/src/tests/oreSelectionFixtures.js` carries real SDE ores with recorded ratios, and the
+  tests hold each plan to its own fractional optimum; the comparison with the old selector is recorded in
+  the benchmark rather than kept as a test, since E3 deleted it.
+  Every plan lands within 0.5% of the optimum; the figures are in
+  [measurements/ore-selection-benchmark.md](./measurements/ore-selection-benchmark.md) § Reproduced.
+- **"0 is no price" is one rule**, `isPriced` in `Functions/MarketData/prices/isPriced.js`, a module with
+  no imports so anything can read it without pulling in the price cache. `oreToBuy`, `valuation` and
+  Planning's `returns.js` (its "no orders" flags) all read it; it was three inline checks.
+- **Compressed ore is told apart by its name** ("Compressed" in it), as the old selector did. The file
+  carries no compressed flag, and giving it one would mean the conversion reading `compressibleTypes`,
+  which B1a avoided.
+- **Prefer compressed** makes compressed ore look 5% cheaper to the solver (`PREFER_COMPRESSED_BIAS`):
+  compressed ore trades at about a 2% premium in the benchmark, so 5% swings every close choice and is
+  still small enough not to buy a clearly dearer ore. Reported figures use real prices.
 
 #### E3 — Remove what the solver replaces
 
 `valueMultiplier`, `wastePenaltyMultiplier` and `compressionBonusMultiplier` have no meaning to a
 solver. Their controls go with Stage G; their stored fields go with Stage F. `oreSelector.js` is deleted
 once `reprocessingRuns.js` calls `oreToBuy`.
+
+**Landed.** `reprocessFromMinerals` calls `oreToBuy` and hands the page each chosen ore as a
+`ReprocessingItem` holding its planned units, its price, and its run's outputs from `reprocess` divided
+by its batches — the shape the current page draws until Stage G replaces it, since the page multiplies
+back by the batch count. `oreSelector.js` and its test are deleted.
+
+- **The three sliders went now, not in G.** Once the solver chose the ore they changed nothing, and a
+  control that does nothing is dead UI. Their stored fields stay for F3 to drop. The panel keeps Prefer
+  compressed (read as `prefer` or `allow`) and Sell excess; its helper text no longer claims compressed
+  ore yields more.
+- **The page plans with what Stage F has not yet given it:** no shipping, no buying outright and the
+  page's own exempt list as never-choose. Needs nothing can cover and what ore cannot give are not shown
+  until G4 draws them.
+- **Prices are asked for every ore the solver may choose**, `choosableOre()` in `oreToBuy.js` — the pool
+  `oreCandidates` reads — so unrefined minerals are priced beside ore rather than from a second list.
+- **Outputs are read from the whole run, not from one batch scaled up.** An unrefined mineral's
+  expected output is rounded once over the run, so one batch times the batch count misses it — 15,309
+  against 15,214 Morphite in the test that holds this.
+- **Parsed minerals lose `remaining`**, a counter only the old selector decremented.
 
 ---
 
@@ -541,7 +736,7 @@ the account and § Every other planner setting is in the same insert-only trap;
 [`services/shared/models/planner/settings.go`](../../../services/shared/models/planner/settings.go);
 [`services/shared/mongo/planner_put.go`](../../../services/shared/mongo/planner_put.go);
 [`services/api/v1endpoints/planners/putSettings.go`](../../../services/api/v1endpoints/planners/putSettings.go);
-[`services/core/commands/release_planner_extras_categories.go`](../../../services/core/commands/release_planner_extras_categories.go)
+[`services/core/commands/release_planner_settings.go`](../../../services/core/commands/release_planner_settings.go)
 (the backfill pattern); [`services/core/commands/prepare_release.go`](../../../services/core/commands/prepare_release.go);
 [`frontend/src/Zustand/plannerSettings/core.js`](../../../frontend/src/Zustand/plannerSettings/core.js);
 [`frontend/src/Zustand/applicationSettings/core.js`](../../../frontend/src/Zustand/applicationSettings/core.js)
@@ -568,6 +763,46 @@ Fields whose zero means "not set" are omitted when zero. Empty collections are w
   reader with no session has no planner, and reads and writes the browser copy described in G8.
 - **Tests:** Go beside the model and endpoint; SPA beside the slice.
 
+**F1 and F2 landed together.** They could not land apart: the account's settings are saved whole, so
+the moment the account model lost the old fields the page had nowhere to keep them until the planner
+could be written.
+
+- **Go.** `planner.ReprocessingSettings` (`services/shared/models/planner/reprocessing.go`) holds
+  `compressedOre`, `countLeftoversAsSold`, `buyOutright`, `shipping` and `neverChoose`, with its
+  defaults (`prefer`, per m³ at zero, an empty list) and `Validate`. The switches and the amount are
+  omitted when zero; `neverChoose` is always a list. `SettingsUpdate` carries it as
+  `reprocessingSettings`. The account's `models.ReprocessingSettings` keeps
+  `defaultReprocessingCharacter` alone, and a planner seeded from an account starts on the planner
+  defaults. A parity test holds the choice and mode names to the SPA's `compressedOreChoices` and
+  `shippingModes`.
+- **Wire.** The planner settings PUT gains a field — additive. The planner settings GET and the
+  account settings document change shape — migrate-required, converted by F3; the session surface
+  fixture is regenerated.
+- **SPA.** `defaultPlannerReprocessingSettings()` in `defaultValues.jsx`; the planner slice reads stored
+  settings onto it (an unknown choice or mode reads as the default) and writes them with
+  `writePlannerReprocessingSettings`. `usePlannerSetting(field, fallback)` is the one hook for reading
+  an active planner's setting; `usePlannerExtrasCategories` and `usePlannerReprocessingSettings` are
+  built on it.
+- **The current page** seeds its settings and exempt ores from the active planner's copy, and reseeds
+  once if the copy arrives after it opened. Save as default and Revert write the planner copy and are
+  shown only once it is held. Prefer compressed became a three-way Compressed ore select, and Sell
+  excess became Count leftovers as sold. Shipping and buying outright have no control until G2, and
+  the page does not pass them to `oreToBuy` until G4 can show what they change. Signed out, the page
+  runs on the defaults until G8.
+- **Ore ids on the page are numbers**, as the planner stores them; the reducer turned the strings the
+  output view adds into numbers so a saved list and an added id compare alike.
+- **Tests:** Go beside the model (validation, defaults, seeding, and parity with the SPA's names and
+  starting values) and the endpoint (refusals, and a live round-trip of exactly what Save sends, run
+  with `scripts/testing/live-mongo.sh`); SPA beside the slice, the account settings, the page's state
+  hook, the panel and the settings page's character picker.
+- **Promotion owes two live docs:** `frontend/reprocessing/settings.md` § Calculation knobs and
+  `testing/frontend/reprocessing.md` still describe the multipliers and the account's settings; the
+  overlay's § Reprocessing settings is what replaces them.
+- **Fixed in passing:** the settings page's default reprocessing character read the wrong path and
+  always showed the main character; `updateExemptTypeIDs`, unused and adding its argument to the
+  document as a stray field, is deleted; the solver and valuation read the choice and mode names from
+  `defaultValues` rather than as literals.
+
 #### F3 — The release step
 
 - One `prepareRelease` step, written **against the shape live data is in** — compare with the `Public`
@@ -575,8 +810,9 @@ Fields whose zero means "not set" are omitted when zero. Empty collections are w
 - Account documents: convert `preferCompressed` (true → `prefer`, false → `allow`), drop the three
   multipliers, keep `defaultReprocessingCharacter`.
 - Planner documents: merge from the owning account what the planner is missing, leave what it holds —
-  the `backfillPlannerExtrasCategories` shape. Only that one copy exists today, so this is the second;
-  shared-planners sets the point at which the copies fold into one step covering every field.
+  the `backfillPlannerExtrasCategories` shape. This would be its second copy, and both ship in the same
+  window, so **write one step that merges every planner setting the account still holds** and retire
+  the extras-only step into it, rather than adding a copy beside it.
 - Dry-run support, a revert path, and a live-parity test, as the existing release steps have.
 - **Run** `go fix -diff` on `./core/commands/`, `./shared/models/`, `./shared/models/planner/`,
   `./shared/mongo/`, `./api/v1endpoints/planners/` after editing. At planning time it reported one
@@ -585,11 +821,41 @@ Fields whose zero means "not set" are omitted when zero. Empty collections are w
 - **Done when:** a rehearsal against a copy of live converts every account and planner, the SPA reads
   only the planner copy, and the revert restores both.
 
+**Landed**, as the extras step widened rather than a second copy: `backfillPlannerSettings`
+(`services/core/commands/release_planner_settings.go`) replaces `backfillPlannerExtrasCategories` in the
+same place in the window, after `backfillAccountPlanners`.
+
+- **Extras categories** merge by id as before.
+- **Reprocessing settings** come from the account's retired fields — `preferCompressed` true or absent →
+  `prefer`, false → `allow`; `sellExcessMineralTypes` → `countLeftoversAsSold` — read from the release's
+  copy of `application_settings` (in a dry run, which copies nothing, from the collection itself; a real
+  run with no copy refuses). The copy is the one source no earlier step can have rewritten.
+- **A planner's own choice stands.** The planner is written only while its reprocessing settings are
+  missing, in the retired shape, or still the seeded defaults, so a re-run in the window never undoes a
+  member's change away from the defaults. A member who sets them back to exactly the defaults reads the
+  same as the seed, so a re-run while the copy is held would give that planner its account's choice
+  again — accepted, since only the window's re-runs can reach it.
+- **The five retired fields are then unset** from every account still holding them.
+- **Revert** is the release's existing one: both settings collections are in the copied set.
+- **Tests:** unit tests for the conversion and the own-choice rule; live tests for the move, a re-run
+  after a member's edit, the copy lookup and its refusal, and a dry run that writes nothing — run with
+  `scripts/testing/live-mongo.sh`. What it will meet on live is in
+  [measurements/reprocessing-settings-on-live.md](./measurements/reprocessing-settings-on-live.md):
+  4,822 accounts cleared, 2 planners taking a reprocessing write.
+- **Still owed to the window:** the full release rehearsal against a copy of live — the release's own,
+  run once with every project's steps in — is where "converts every account and planner and the revert
+  restores both" is checked end to end.
+- **Comments in `prepare_release.go`** came down to the rule with this edit; the reason each step runs
+  where it does is now the table in shared-planners' overlay § The release steps, and why each runs
+  where it does.
+
 ---
 
 ### Stage G — The page on the app-shell
 
-**SPA.** Builds to the canvas. Old components are deleted as their replacements land.
+**SPA.** Builds to the canvas. Old components are deleted as their replacements land, and
+`ReprocessingItem` goes with the last of them — the new panels read `reprocess` results, and no
+forwarding wrapper is left (C4 left the class for this stage).
 
 **Read first:** the canvas (§ Design reference) — every board; [`../../frontend/components/contents.md`](../../frontend/components/contents.md)
 and each topic it lists; [`Components/Reprocessing`](../../../frontend/src/Components/Reprocessing) as
@@ -604,6 +870,40 @@ it stands; the Watchlist and Purchasing implementations for how app-shell panels
   expanded rows. Results are derived during render from the engine; `useAutoRecalculation` is deleted.
 - **Tests:** an end-to-end test through the real reducer, in the area's existing structure — paste,
   switch direction, switch back, the paste survives; change the rig, the figures change with no button.
+
+**Landed.**
+
+- **The route loads what the page reads.** `routes/reprocessing.jsx` primes the reprocessing file and
+  the item list in a loader, so the page waits on the router's pending screen and every read after is
+  synchronous. Parsing a mineral paste no longer primes anything itself.
+- **The reducer holds choices only:** the direction, each direction's paste as typed and as last
+  reprocessed (`pastes[direction].text` / `.committed`), the view, the structure, character and skills,
+  prices and the From minerals settings; the setup is derived from them. Results, the loading flag and "modified" are gone from it; "modified" is the typed
+  paste differing from the committed one. The unused `setAllSkills`, `setSkillsManuallyModified` and
+  `clearOreIDsToBeIgnored` went with it.
+- **Results are worked out while rendering** by `useReprocessingAnswers`: the setup from the structure
+  and skills, the committed paste's answer from `toMineralsAnswer` or `fromMineralsAnswer` (both now
+  synchronous in `reprocessingRuns.js`), and the prices it reads asked for through
+  `useMarketPricesQuery`. The From minerals plan is recomputed when prices land. A change to the setup,
+  market or settings moves the figures with no button; only a changed paste waits for Reprocess.
+  `useAutoRecalculation` and `calculateReprocessing` are deleted.
+- **The frame** is the two flex columns, the direction two `SelectableCard`s in a radio group
+  (`directionPanel.jsx`), and the paste a `SectionPanel` titled for its direction. The settings, output
+  and structure panels are the old ones, given the page state with the answers beside it, until G2–G4
+  replace them; the old direction toggle is gone from the options panel.
+- **The loader primes the industry bonuses too.** Published rigs are read from that file, and the
+  setup is derived once per structure or skills change, so a saved structure's rigs would give nothing
+  if the file arrived after the page drew.
+- **The From minerals plan waits for its prices** rather than solving against none first. A paste whose
+  prices cannot be read shows the empty state for now; saying so is G4's answer panel.
+- **Errors reach Sentry through the page's own `ContentErrorBoundary`**, since a calculation now fails
+  while rendering rather than inside a caught call. The Reprocess event counts the items or minerals
+  read, and a paste that read none records nothing.
+- **Tests:** `reprocessingPage.e2e.test.jsx` renders the page over the real reducer and engine with only
+  the files, prices and store faked, its files loaded by the route's own loader — the paste survives a
+  switch there and back, fitting an ore rig raises the minerals with no button pressed, a changed paste
+  waits for Reprocess, and From minerals plans its ore once the prices are in. The rig picker's virtualised list is replaced by a
+  plain one in that test, since jsdom lays nothing out to virtualise.
 
 #### G2 — Inputs
 
@@ -630,6 +930,88 @@ it stands; the Watchlist and Purchasing implementations for how app-shell panels
   itself when the never-choose list is not empty and never shuts itself, as today's panel does, because
   a list the reader came to see is the reason to open it.
 
+**Landed.**
+
+- **The paste panel** names its direction ("Items to reprocess" / "Minerals you need"), shows a chip for
+  what was read and one for what was not, lists the unread lines as pasted, and in From minerals lists
+  each real item no ore yields under "No ore yields this; buy it as it is" — read by
+  `parseInputMineralString` against the item list's new `itemRecordByName`. The button is Reprocess or
+  Find ore, with Clear beside the title; the warning state is gone.
+- **The skill list has one source:** `reprocessingSkills.js` builds it from the reprocessing file's
+  `reprocessingSkill` plus Reprocessing and Reprocessing Efficiency, and `getAllReprocessingSkills` is
+  deleted. The setup lists the skills the read input uses; "Show all reprocessing skills" lists the rest.
+  Skill names come from the item list, which names the two the bundled skill list lacks.
+- **Skills are worked out while rendering:** the page holds the character and the reader's per-skill
+  changes, and the levels in force are the character's trained ones with those changes over them;
+  choosing another character drops the changes. The effect that copied trained levels into state is
+  gone with the old structure panel.
+- **The setup panel** (`reprocessingSetupPanel.jsx`) composes the saved structure, structure, security,
+  two rigs, implant, tax and character, the skills in a `Disclosure`, and a yield row for each processing
+  skill the input uses — its kind from `reprocessingItemTypeLabels`, the skill and level beneath. From
+  minerals opens on a two-line summary with the controls in a `Disclosure`. The tax field sets the
+  structure's rate; charging it waits on D2.
+- **The page reads the planner's reprocessing settings directly** once held, and its own copy only with
+  no planner; every change goes through one change function to whichever is in force, and a held
+  planner's is saved. G1's seeding from the planner is gone.
+- **Ore selection** (`oreSelectionPanel.jsx`) sits in the side column in From minerals, as the canvas
+  draws it: shipping mode and amount, buy outright, a three-way compressed ore choice, count leftovers,
+  and the never-choose chips. Save as default and Revert are gone. The canvas draws it open, so it has no
+  `Disclosure`. Shipping and buying outright now reach `oreToBuy` and change the plan, but the old output
+  panel draws neither: minerals bought outright are missing from its rows and totals, and its ore costs
+  leave out shipping, so with either on it under-reports the plan until G4 draws them. Both start off.
+- **Reading the paste does not wait for prices.** The From minerals plan waits for its prices; what the
+  paste read, what no ore yields and what was not read are shown at once.
+- **The setup shows when a character's skills are still being read or could not be**, as the old panel
+  did, rather than showing level-0 yields silently. Tax uses the shared `TaxPercentageTextField` and says
+  it is not yet counted — charging it is D2. Label-and-value rows are `FigureRow`s.
+- **Promotion owes the reprocessing topic docs:** `frontend/reprocessing/settings.md` and
+  `frontend/reprocessing/structure-panel.md` describe the deleted settings and structure panels, and
+  `testing/frontend/reprocessing.md` their tests; the overlay's § The page and § Reprocessing settings
+  replace them.
+- **Tests:** the page test lists Simple Ore Processing and Ice Processing for pasted Veldspar and Clear
+  Icicle and nothing else beyond the two always shown, the rest once asked; a mixed From minerals paste
+  shows what was read, what no ore yields and what was not read; From minerals folds the setup to a
+  summary. Unit tests cover the ore selection panel, the settings source and its writes, skill
+  overrides, the name lookup and the parser's three outcomes, the skill module, the setup panel (rig
+  fields, structure type on a fresh copy, saved structures only signed in, tax, yield rows, skills
+  status, the From summary), and From minerals reading its paste before its prices arrive.
+- **Reuse review.** The input panels were rebuilt on the shared components they had hand-rolled —
+  `SwitchField` for the two switches, `FormField` for labelled controls, `FigureCaption` for captions, and
+  `InsetSurface`'s own padding — and two repeated patterns became shared components: `SegmentedChoice`,
+  now also behind Planning's pricing model, the Accounts token storage choice and the Reprocessing view;
+  and `EvenColumns`, now also behind Planning's exit routes. The wrapping chip row the paste and ore selection panels
+  each wrote became `ChipRow`. Considered and left: a removable chip list — its other copies (blueprint
+  exemptions, extras categories, the planner search, Add New Job) are all on screens not yet on the
+  app-shell design; the Groups page's view toggle, a segmented choice on a screen not yet migrated and
+  under other work; the add-a-row form grids of the extras and invention editors (their columns differ);
+  and a captioned inset list (only these panels have it, and a caption plus `InsetSurface` plus
+  `FigureRow` already composes it). Promotion owes the three new components their entries in
+  `frontend/components/forms.md` and `surfaces.md`, and a chip row's in `figures.md`.
+- **Crossover review against the redesigned screens.** The setup now renders Settings' structure field
+  registry, moved to `Styled Components/Structure/` with a `useStructureFieldContext` hook both screens
+  use, so it gains the app-shell field styling, the descriptions and the place constraints; the rig
+  fields there now pass `appShellStyled`, which fixes Settings' rigs too. Skills use Planning's skill row,
+  extracted as `SkillLevelRow` with `SkillLevelPips` moved beside it; the reducer clears a skill override
+  given `null`. The saved structure and character pickers take the app-shell styling props; the market
+  and order type pickers, the paste and the shipping amount carry the app-shell styling; the summary
+  reads rigs through `rigSlotLabel`; `PanelFallBack` replaces the page's own loading box. Considered and
+  left: a shared ISK amount field (its other candidates — the extras cost, the custom transaction — are a
+  standard-variant row and an old-UI dialogue); an app-shell character picker with avatars (no drop-in
+  exists; `assetScopePicker` mixes owners) and `PricingOrderTypeSelect` (needs a total per order type,
+  which G3's answers can supply) — both for G3/G4; and the old Edit Job setup editor, which is not on the
+  app-shell design.
+  The review of this pass caught that the page's structure change skipped the place rules — an NPC
+  station locked the tax field but kept the old tax and rigs, so the yield was wrong. Settings' rules
+  (`blankStructure`, the release and fixing of place-forced fields) moved into
+  `Functions/Custom Structures/structureChanges.js` as `changeStructure`, which both screens now call.
+- **Open question for the A3 tax check:** the NPC station place rule applies to every kind of job, so a
+  reprocessing structure at an NPC station is fixed at the 0.25% industry facility tax, on this page and in
+  Settings alike. NPC reprocessing tax is not that figure. Charging tax waits on D2 and A3, so the rule is
+  left shared until A3 says what the reprocessing figure is.
+- **Promotion owes** `frontend/settings/custom-structures.md` and `testing/frontend/settings.md` the
+  new paths of the structure field registry and its hook, and the Planning skills docs the new home of
+  `SkillLevelPips` and `SkillLevelRow`.
+
 #### G3 — Answers, To minerals
 
 - **Headline**: `PanelHeadline` with the reprocessed figure, as-is, difference, haul volume; price and
@@ -646,10 +1028,175 @@ it stands; the Watchlist and Purchasing implementations for how app-shell panels
   The row's drawer lists each mineral with what a batch gives if it picks that mineral, the expected
   units, a **spread bar** — the likely span shaded and the expected units marked, on an axis that ends
   at 15 batches' worth so the span is readable (every mineral is expected from 5 of 40 at equal odds) —
-  the likely units, and the *at most* figure if every batch picked it. In What you get, an erratic item's minerals show expected units with a ~ mark
-  and their own column for the range.
+  the likely units, and the *at most* figure if every batch picked it. In What you get, an erratic
+  item's minerals show expected units with a ~ mark and their own column for the range.
 - From minerals never shows erratic ore (E2); an unrefined mineral chosen by the solver shows the
   guaranteed units it was planned at, and the expected extra in the leftovers.
+
+
+**Landed (G3a — fixed outputs).**
+
+- **Headline** (`reprocessingHeadline.jsx`): "Reprocessed, after fees and tax" leads, with what was
+  kept back beneath; beside it, sold as they are, the difference (signed and toned, with its percent)
+  and the volume to haul each way. The tax effect is the `ContextRow`; a `StatusChip` counts unpriced
+  types; the footer names the fee and seller and how old the prices are. The panel's header holds the
+  market, the order side and the seller.
+- **The order side shows what each comes to.** The header uses `PricingOrderTypeSelect`, its options
+  built by `orderTypeOptions` (`Functions/MarketData/defaults/orderTypeOptions.js`), now shared with
+  Planning's `materialCostByOrderType`. Each option is the reprocessed total on that side; the picker
+  takes `higherIsBetter`, so a higher total reads as the better one here, and `totalsCaption`, its
+  caption, which still defaults to Planning's.
+- **What you get** (`whatYouGetPanel.jsx`): the top five outputs and "Everything else" as a
+  `ProportionBar`, then a table banded by market group, ending with market value, selling fees,
+  reprocessing tax, units kept back sold as they are, and after fees and tax — the headline's
+  reprocessed figure. "Copy as list" copies the outputs as EVE reads a paste.
+- **Item by item** (`itemByItemPanel.jsx`): a `RankedBarChart` of each item's difference, with a line
+  at zero, above a table of quantity, batches, kept back, yield, as is, reprocessed and difference. An
+  item under one batch carries a `StatusChip`. A row opens a drawer: for each output, base → per batch,
+  total, market value, what it costs as this ore and the market price.
+- **Shared parts added:** `ItemName` (`Styled Components/Item/`); `BandRow`, `ExpandRowToggle` (now
+  `IconButton/ExpandToggle`),
+  `DrawerRow` and `SummaryRow` in `tableParts`, with Settings' markets table moved onto
+  `ExpandRowToggle`; `RankedBarChart`'s `markZero`; and `itemListText`
+  (`Functions/Clipboard/`).
+- **Left for Planning's own pass:** its materials table's expand control and item cell, its material
+  drawer, its cost table's bands and subtotal rows, its output header's item name, and its resource
+  list text could adopt the parts above, as could `Classes/shoppingList.js`'s list text, but those
+  files are under other work. From minerals' `advancedMineralOutput.jsx` still copies its ore list and
+  names its items by hand; G4 replaces it with `itemListText` and `ItemName`. That pass should also fix `useMaterialsSourcing`, which hands
+  `readPriceRefreshedAt` to `priceAge` without a market, so its price age reads no market.
+- **Review.** It caught "Copy as list" importing the clipboard writer by a name it does not export,
+  the net in What you get leaving out units kept back, the headline calling those units extra, and the
+  Total row's difference dropping its tone because `SummaryRow` toned only numbers; it now tones text
+  as well.
+- **Tests:** the page test covers the headline figures, the What you get totals with and without units
+  kept back, copying the list, an item's drawer, an item under one batch, and choosing the order side
+  from its totals. Unit tests cover `ItemName`,
+  `itemListText`, the table parts, `markZero`, `orderTypeOptions` and the picker's new props.
+
+
+**Landed (G3b — ranges).** G3 is complete.
+
+- **Each mineral's spread** is `mineralSpreads(item)` in
+  `Functions/Reprocessing/engine/mineralSpreads.js`. For each mineral it gives what one batch gives if
+  it picks that mineral, and the expected, likely and possible units. The likely units are not the
+  value range's normal approximation. For one mineral of eight, the number of batches picking it is
+  lumpy (5 of 40 expected), so the normal figure sits 7% off. Instead each count of batches is weighted
+  by its odds, and the percentiles are read from that mixture; it lands within 0.7% of the canvas's
+  simulated figures. `likelyOutputUnits(result)` combines those spreads with any fixed units for What
+  you get. `normalCumulative` is now exported from `randomOutputValue.js` for it. The per-batch
+  amounts follow the engine's rounding, so Tritanium's top is 450,250 where the worked example and
+  canvas truncate to 450,249.
+- **The headline**, when any item varies:
+  - the reprocessed value is marked expected (~), with its likely range beneath;
+  - the difference shows its likely range;
+  - a "Comes out ahead" figure gives the runs in 100 that beat selling as they are, and the haul
+    volume is marked expected;
+  - a `SpreadBar` shows the possible track, the likely span, the expected value and the as-is figure,
+    with a `ChartLegend` key;
+  - an inset line names the erratic ore and unrefined minerals and the odds assumed.
+- **Item by item:** a varying item's row carries "One mineral per batch" or "Amount varies". Its
+  reprocessed figure and difference are expected figures with their likely ranges, and the difference
+  adds its runs in 100 ahead; the total is marked expected. The footnote explains the ~ and states
+  each unrefined mineral's possible units. The row's drawer lists each mineral with what a batch gives,
+  the expected units, a compact `SpreadBar` and its likely and most units, and its price. For erratic
+  ore the bar ends at three times the expected batch count ("None to 15 batches" for 40 batches of
+  eight, and never under one batch); for an unrefined mineral it spans the possible units.
+- **What you get:** a Likely column appears when an output varies, and that output's quantity and
+  value are marked expected.
+- **Shared parts added:** `SpreadBar` and `spreadTrackColour` (`Styled Components/Charts/bars/`), and
+  `ChartLegend` (`Styled Components/Charts/`), which `ProportionBar`'s legend now uses. `RangeBar` was
+  considered and left alone: it places one figure in a padded span between two ends, while a spread
+  bar draws how a figure could fall. Its only user is Cost Breakdown, which is under other work.
+- **Review.** It caught a single batch of erratic ore reading "None to 0 batches", now at least one
+  batch. It also caught the line under a figure, the "8 in 10" wording, the spread legend's keys and
+  the span text each written in more than one place. They are now `FigureNote`
+  (`Styled Components/Typography/FigureNote.jsx`), `LIKELY_SHARE`, `spreadLegendKeys` and
+  `spanText`/`differenceSpanText`, and `ChartLegend`'s line swatch is `RangeBar`'s `rangeMarkSx`.
+- **Tests:** the engine's spreads against the canvas's Prismaticite and Unrefined Morphite figures,
+  the spread bar, the chart key and the range wording. The page test covers the headline's odds and
+  odds line, both row chips, the erratic drawer and its reach, the Likely column, and its absence when
+  nothing varies.
+
+
+**Rechecked against the canvas.** The page was rendered headless at 1440px and 390px from the working
+tree, against the local stack, and compared with the To minerals, first visit, signed out, phone and
+erratic boards. Fixed:
+
+- **A first visit read nothing.** The build check on load drops every static file when the browser
+  has not seen the build, after the route loader has primed them, and nothing loaded the reprocessing
+  file again or redrew the page. `staticFile` now takes subscribers, and the page reads the reprocessing
+  file and the item list through `useHeldStaticFile`, which redraws when a file arrives or is dropped and
+  loads a dropped one again.
+- **The setup** is the canvas's compact grid: `StructureField`'s `compact` form drops Settings'
+  descriptions and the controls' helper captions and takes short names, in the canvas's order. Yield
+  rows are per kind (ore, moon ore and ice always, with tax), by `yieldKindsFor`, not one per skill.
+  The skills open under a caption once something is read, through `Disclosure`'s new `heading` form,
+  which also draws the From minerals summary's toggle. `ExpandRowToggle` moved out of `tableParts` as
+  `IconButton/ExpandToggle` so `Disclosure` can use it.
+- **The direction cards** use `SelectableCard`'s new `stacked` form, so the body runs the card's width.
+- **The paste** has its label above the box and disables its button while empty. To minerals lists a
+  real item that does not reprocess apart from unreadable lines, as From minerals already did.
+- **The headline** keeps Planning's market select and order side picker, sized to sit on one line; the
+  canvas's combined field was not built, since the other redesigned panels use these two. The footer
+  names the market and order side. Signed out, the seller is no character, so fees are at every skill V;
+  the store's placeholder character had been priced as a seller with no skills.
+- **What you get** leaves out outputs that came to no units, and its legend gives each part's share;
+  the unpriced chip no longer stretches.
+- **Item by item** keeps paste order (the parser had keyed items by numeric id). Its drawer no longer
+  widens the table, and the table, its ranged cells and the item caption wrap so it fits its panel at
+  1440px.
+- **Left, as decided:** ISK stays at full precision rather than the canvas's compact figures, as every
+  other panel states it; compact figures are for G7's phone cards. The chart colours, legends and labels
+  are G5, the first-visit panels G6, the phone layout G7, and the signed-out controls G8.
+- **Review.** It caught the To minerals answer not following the item list when a new build drops
+  both files, the skills toggle reopening on every market change in From minerals (now keyed on the
+  committed paste), and comment-rule misses in `items.js` and the Settings markets table, now trimmed.
+- **Promotion owes** `frontend/static-data/staticFile.md` the `subscribe` member and a section on
+  `useHeldStaticFile` as how a reader that renders from a held file stays current, and the component
+  docs the `Disclosure` `heading`, `SelectableCard` `stacked`, `StructureField` `compact` forms and
+  `IconButton/ExpandToggle`.
+- **The "called use() to suspend" warning** came from every route wrapping its page in
+  `lazyRouteComponent` inside the chunk the router's `autoCodeSplitting` already makes, so the inner
+  layer was never preloaded and suspended on first render. Every route file now imports its page
+  directly; `frontend/navigation/spa.md` says so. Measured on `/reprocessing`: 2 of 6 fresh loads warned
+  before, 0 of 12 after, and the production build still splits each page into its own chunk. A route's
+  chunk now carries its page, so a test that navigates the real route tree was still loading it when
+  the test ended; `tests/routerHarness.jsx` now waits for every router it built to settle after each test.
+- **Tests:** a page reading its paste after the reprocessing file is dropped (checked to fail without
+  the reload), what does not reprocess, paste order, legend shares, the signed-out footer and the empty
+  button; unit tests for the hook, `staticFile` subscribers, `yieldKindsFor`, the compact field, the
+  heading `Disclosure` and the stacked card.
+
+
+**Units, not batches (James's correction).** "Batch" is not the player's word for raw ore: it has to
+reach a full 100 before it reprocesses, and counting batches against it reads as
+nonsense. The page now counts none. The Batches column is gone from Item by item (for compressed ore
+and ice it only repeated the quantity); captions say "reprocessed 100 at a time" where that applies;
+"Under one batch" is "Under 100 units"; the drawer reads "Per 100 units" and "From 64,200 units"; and
+erratic ore's odds are worded per 100 units, its spread bars ending at three times the expected units
+rather than at a batch count. The engine's result gains each item's `batchSize` (additive), and the
+words come from `Components/Reprocessing/portionWording.js`. Internal names (`batches`, `batchSize`)
+are unchanged. G4's From minerals answers follow the same rule.
+
+The SDE bears the wording out. Raw ore and "Compressed X" both reprocess 100 units at a time and give the
+same materials per 100, so compressed ore is one-for-one by count at a hundredth of the volume. Only the
+legacy "Batch Compressed X" items, which predate regular compressed ore and are still in the game, give
+from a single unit what 100 raw units give. They read as one unit reprocessed alone, with no "at a
+time" note, and ore selection counts them as compressed ore because its name rule matches them.
+
+
+**The paste box scrolls.** A long paste stretched the side column and the page with it. The box now
+grows from five rows to twelve and scrolls past that.
+
+
+**Trained skills no longer depend on the reprocessing file.** The page built a character's trained
+levels only for the skills the reprocessing file names, in a memo that recomputed when the skills
+changed but not when the file arrived. When the skills came first — likelier now the file is dropped
+and reloaded on a new build — only Reprocessing and Reprocessing Efficiency were read and every
+processing skill showed 0. The levels are now every skill the character's read returned, which already
+carries all seventeen reprocessing skills; a test reads them with the file absent and fails on the old
+code.
 
 #### G4 — Answers, From minerals
 
@@ -840,6 +1387,10 @@ the delivery mechanism beneath it is the one recipes use.
 
 - Sweep the whole project together against the rules, duplication, dead code, comments, patterns and
   missing tests.
+- The engine moved into `Functions/Reprocessing/engine/` and `valuation/` (§ Where the reprocessing code
+  lives) while live docs still name the old paths: `frontend/reprocessing/structure-panel.md` and
+  `testing/frontend/reprocessing.md` cite `Functions/Reprocessing/reprocessingBonuses.js`. Promotion
+  rewrites them with everything else.
 - Fill [`../../testing/frontend/reprocessing.md`](../../testing/frontend/reprocessing.md)'s replacement
   draft here, then promote: the engine topic `frontend/reprocessing` has never had, the page topics, the
   static file's new fields, the settings shape.
@@ -953,13 +1504,13 @@ The canvas is private until shared from its Share menu.
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | **Complete.** This folder, the section row, the overlay scaffold, two measurements |
-| A — formula questions | Not started. Needs a player |
-| B — the reprocessing static file | Not started |
-| C — engine core | Not started |
-| D — valuation | Not started |
-| E — solver | Not started |
-| F — settings on the planner | Not started |
-| G — page on the app-shell | Not started |
+| A — formula questions | **A1 settled** against live by a parity corpus — no in-game check owed for rounding. A2, A3 and A4 not started; they need a player |
+| B — the reprocessing static file | **Complete.** Volumes, the file reshaped to `{ items, materialVolumes }`, skills and kinds read from the SDE, random outputs written, `volumeOf` in the SPA; B2 confirmed the release's rebuild step publishes it, with one operator check owed to the window |
+| C — engine core | **Complete.** One setup shape and `yieldFor`; what ore can produce read from the file; parsing hands back what it could not read; `reprocess` with every output a total and live's rounding; ranges for random outputs and `randomOutputValue`; the page's logic on the core (C4 logic only — the class retires in G) |
+| D — valuation | **D1 and D3 landed** — every figure from a result, prices and rates; selling fees for a chosen seller, typed when signed out. D2 waits on A3 |
+| E — solver | **Complete.** `yalps` added; `oreToBuy` within 0.5% of the optimum on every benchmark list, and the page chooses ore with it; the old selector and its three sliders are gone |
+| F — settings on the planner | **Complete.** The planner holds the reprocessing settings and the account the default character; the release moves them across in `backfillPlannerSettings`. The full release rehearsal is owed to the window |
+| G — page on the app-shell | **G1–G3 landed** — the frame, a reducer of choices, results worked out while rendering, the inputs (paste, setup, skills from the file, ore selection on the planner) and the To minerals answers with their ranges, rechecked against the canvas. G4 next |
 | H — setup comparison | Not started |
 | I — where these sell | Not started |
 | J — assets | Not started |
@@ -969,9 +1520,11 @@ The canvas is private until shared from its Share menu.
 
 ## Handoff
 
-**Start here:** Stage A's preparation and Stage B1 can run at once — one needs a player, the other is
-Go only. Stage C1–C3 can start alongside both; C2's rounding waits on A1, so write C2 against a single
-rounding function and fill in the rule when A1 lands.
+**Start here:** Stages B and C are complete, with the rounding settled against live (A1). D1 and D3
+have landed and D2 waits on A3. Stage E is complete: the page chooses ore with the solver. Stage F is
+complete, and G1 to G3 have landed — the page's frame, its inputs and the To minerals answers — so next
+is G4, the From minerals answers, worded in units like G3. The in-game checks left in Stage A (A2 gas, A3 tax, A4 erratic ore) need a player
+and can be prepared at any time; D2 waits on A3.
 
 **Recommended pickup order:** A (prepare) ∥ B1 → B1a → B1b ∥ C1 → C2a → C3 → C2 → C2b → C4 → D1 → D3 → D2 → E1 → E2 → E3 →
 F1 → F2 → F3 → G1 → G2 → G3 ∥ G4 → G5 → G6 → G7 → G8 → H ∥ I ∥ J ∥ K → M3 → M4 → M5 → L.

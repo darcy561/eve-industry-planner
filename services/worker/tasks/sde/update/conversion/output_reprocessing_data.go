@@ -1,148 +1,168 @@
 package conversion
 
 import (
-	"fmt"
 	"strconv"
 )
 
-var marketGroupsToSkills = map[int]int{
-	452: 60379, 453: 60379, 457: 60378, 458: 60377, 460: 60377,
-	512: 60380, 514: 60380, 515: 60377, 516: 60377, 517: 60380,
-	518: 60377, 519: 60377, 521: 60379, 522: 60379, 523: 60378,
-	525: 60379, 526: 60378, 527: 60378, 528: 60378, 529: 60378,
-	530: 12189, 1855: 18025, 2538: 60381, 2539: 60381, 2540: 60381,
-	3487: 60377, 3488: 60378, 3489: 60380, 3490: 60380,
-	3636: 60379, 3637: 60378, 3638: 60380, 3639: 60380, 3640: 60378,
-	2396: 46152, 2397: 46153, 2398: 46154, 2400: 46155, 2401: 46156,
-	1032: 62452,
+// ItemTypesForReprocessing names each kind of reprocessable item by the number the SPA reads it as;
+// the kind decides which yield formula, structure bonus and rigs apply.
+var ItemTypesForReprocessing = map[string]int{
+	"ore":              0,
+	"moonOre":          1,
+	"ice":              2,
+	"gas":              3,
+	"scrap":            4,
+	"unrefinedMineral": 5,
+	"erratic":          6,
 }
 
-var (
-	parentMarketGroupsToInclude = map[string]bool{
-		"54": true, "1855": true, "2395": true, "1032": true,
-	}
-	ItemTypesForReprocessing = map[string]int{
-		"ore":     0,
-		"moonOre": 1,
-		"ice":     2,
-		"gas":     3,
-		"scrap":   4,
-	}
+// reprocessingRootMarketGroups are the top-level market groups whose branches hold each kind:
+// Standard Ores, Moon Ores, Ice Ores and Gas Clouds Materials.
+var reprocessingRootMarketGroups = map[int]int{
+	54:   ItemTypesForReprocessing["ore"],
+	2395: ItemTypesForReprocessing["moonOre"],
+	1855: ItemTypesForReprocessing["ice"],
+	1032: ItemTypesForReprocessing["gas"],
+}
 
-	marketGroupsToItemTypes = map[string]int{
-		"54":   ItemTypesForReprocessing["ore"],
-		"2395": ItemTypesForReprocessing["moonOre"],
-		"1855": ItemTypesForReprocessing["ice"],
-		"1032": ItemTypesForReprocessing["gas"],
-	}
+const (
+	reprocessingSkillTypeAttribute  = 790
+	gasDecompressionEfficiencySkill = 62452
 )
 
-func GenerateReprocessingDataOutput(reprocessingMap map[string]any, typeIDMap map[string]*EVEType, marketGroupsMap map[string]any) map[string]*ReprocessingItem {
-	reprocessingObjects := make(map[string]*ReprocessingItem)
-	for key, value := range typeIDMap {
-		reprocessingItemData, exists := reprocessingMap[key]
-		if !exists {
+// GenerateReprocessingDataOutput builds the reprocessing static file from the SDE's type materials,
+// the published types, the market groups and each type's reprocessing skill attribute.
+func GenerateReprocessingDataOutput(typeMaterials map[string]any, typeIDMap map[string]*EVEType, marketGroups map[string]any, typeDogma map[string]any) *ReprocessingData {
+	items := make(map[string]*ReprocessingItem)
+	for key, eveType := range typeIDMap {
+		row, ok := typeMaterials[key].(map[string]any)
+		if !ok || eveType.MarketSectionID == 0 {
 			continue
 		}
-		parentGroup := findParentGroupFromMarketGroup(value, marketGroupsMap)
-		if parentGroup == "" {
+		dogma, _ := typeDogma[key].(map[string]any)
+		skill, hasSkill := dogmaAttributeIfHeld(dogma, reprocessingSkillTypeAttribute)
+		root, hasRoot := reprocessingRootOf(eveType.MarketSectionID, marketGroups)
+		isGas := hasRoot && root == ItemTypesForReprocessing["gas"]
+		if !hasSkill && !isGas {
 			continue
 		}
-		marketSectionStr := fmt.Sprintf("%d", value.MarketSectionID)
-		if !parentMarketGroupsToInclude[parentGroup] && !parentMarketGroupsToInclude[marketSectionStr] {
+
+		item := &ReprocessingItem{
+			ID:                  key,
+			Name:                eveType.Name,
+			Materials:           materialsOf(row["materials"]),
+			RandomizedMaterials: randomizedMaterialsOf(row["randomizedMaterials"]),
+			BatchSize:           eveType.PortionSize,
+			ReprocessingSkill:   int(skill),
+			Volume:              eveType.Volume,
+		}
+		if isGas {
+			item.ReprocessingSkill = gasDecompressionEfficiencySkill
+		}
+		if len(item.Materials) == 0 && len(item.RandomizedMaterials) == 0 {
 			continue
 		}
-		newItem := createReprocessingItem(key, reprocessingItemData, value, marketGroupsMap)
-		reprocessingObjects[newItem.ID] = newItem
+		item.ItemType = reprocessingKindOf(item, root, hasRoot)
+		items[key] = item
 	}
-	return reprocessingObjects
+	return &ReprocessingData{
+		Items:           items,
+		MaterialVolumes: materialVolumesOf(items, typeIDMap),
+	}
 }
 
-func createReprocessingItem(key string, reprocessingData any, mainItem *EVEType, marketGroupsMap map[string]any) *ReprocessingItem {
-	item := &ReprocessingItem{
-		ID:        key,
-		Name:      mainItem.Name,
-		Materials: make(map[string]int),
-		BatchSize: mainItem.PortionSize,
-		ItemType:  assignReprocessingItemType(mainItem, marketGroupsMap),
+// reprocessingKindOf names an item's kind: one random mineral of several is erratic ore, one mineral
+// in a varying amount is an unrefined mineral, and anything else takes its market branch's kind.
+func reprocessingKindOf(item *ReprocessingItem, root int, hasRoot bool) int {
+	switch {
+	case len(item.RandomizedMaterials) > 1:
+		return ItemTypesForReprocessing["erratic"]
+	case len(item.RandomizedMaterials) == 1:
+		return ItemTypesForReprocessing["unrefinedMineral"]
+	case hasRoot:
+		return root
+	default:
+		return ItemTypesForReprocessing["ore"]
 	}
-	parentGroupID := findParentGroupFromMarketGroup(mainItem, marketGroupsMap)
-	if skill, exists := marketGroupsToSkills[mainItem.MarketSectionID]; exists {
-		item.ReprocessingSkill = skill
-	} else if parentGroupID != "" {
-		if pg, err := strconv.Atoi(parentGroupID); err == nil {
-			if skill, ok := marketGroupsToSkills[pg]; ok {
-				item.ReprocessingSkill = skill
-			} else {
-				item.ReprocessingSkill = 12196
-			}
-		} else {
-			item.ReprocessingSkill = 12196
-		}
-	} else {
-		item.ReprocessingSkill = 12196
-	}
-
-	if reprocessingM, ok := reprocessingData.(map[string]any); ok {
-		for _, value := range reprocessingM {
-			materialArray, ok := value.([]any)
-			if !ok {
-				continue
-			}
-			for _, materialItem := range materialArray {
-				material, ok := materialItem.(map[string]any)
-				if !ok {
-					continue
-				}
-				materialID, ok := material["materialTypeID"].(float64)
-				if !ok {
-					continue
-				}
-				qty := 0
-				if q, ok := material["quantity"].(float64); ok {
-					qty = int(q)
-				}
-				item.Materials[fmt.Sprintf("%.0f", materialID)] = qty
-			}
-		}
-	}
-	return item
 }
 
-func assignReprocessingItemType(item *EVEType, marketGroupsMap map[string]any) int {
-	if parentGroupID := findParentGroupFromMarketGroup(item, marketGroupsMap); parentGroupID != "" {
-		if itemType, exists := marketGroupsToItemTypes[parentGroupID]; exists {
-			return itemType
+// reprocessingRootOf walks a market group's ancestry to the first of the reprocessing root groups,
+// answering its kind.
+func reprocessingRootOf(marketGroupID int, marketGroups map[string]any) (int, bool) {
+	seen := make(map[int]bool)
+	for id := marketGroupID; id != 0 && !seen[id]; {
+		if kind, ok := reprocessingRootMarketGroups[id]; ok {
+			return kind, true
 		}
+		seen[id] = true
+		group, ok := marketGroups[strconv.Itoa(id)].(map[string]any)
+		if !ok {
+			return 0, false
+		}
+		parent, _ := float64FromJSON(group["parentGroupID"])
+		id = int(parent)
 	}
-
-	marketSectionStr := fmt.Sprintf("%d", item.MarketSectionID)
-	if itemType, exists := marketGroupsToItemTypes[marketSectionStr]; exists {
-		return itemType
-	}
-	return ItemTypesForReprocessing["scrap"]
+	return 0, false
 }
 
-func findParentGroupFromMarketGroup(item *EVEType, marketGroupsMap map[string]any) string {
-	if item.MarketSectionID == 0 {
-		return ""
+// materialsOf reads a fixed materials list as quantities keyed by material type id.
+func materialsOf(raw any) map[string]int {
+	materials := make(map[string]int)
+	for _, entry := range sliceFromJSON(raw) {
+		material, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, ok := float64FromJSON(material["materialTypeID"])
+		if !ok {
+			continue
+		}
+		quantity, _ := float64FromJSON(material["quantity"])
+		materials[strconv.Itoa(int(id))] = int(quantity)
 	}
-	keyToFind := fmt.Sprintf("%d", item.MarketSectionID)
-	matchedGroupData, exists := marketGroupsMap[keyToFind]
-	if !exists {
-		return ""
+	return materials
+}
+
+// randomizedMaterialsOf reads a randomised materials list as each mineral's range per batch, nil when
+// the type has none.
+func randomizedMaterialsOf(raw any) map[string]QuantityRange {
+	entries := sliceFromJSON(raw)
+	if len(entries) == 0 {
+		return nil
 	}
-	matchedGroup, ok := matchedGroupData.(map[string]any)
-	if !ok {
-		return ""
+	ranges := make(map[string]QuantityRange, len(entries))
+	for _, entry := range entries {
+		material, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, ok := float64FromJSON(material["materialTypeID"])
+		if !ok {
+			continue
+		}
+		low, _ := float64FromJSON(material["quantityMin"])
+		high, _ := float64FromJSON(material["quantityMax"])
+		ranges[strconv.Itoa(int(id))] = QuantityRange{QuantityMin: int(low), QuantityMax: int(high)}
 	}
-	parentGroupID, ok := matchedGroup["parentGroupID"].(float64)
-	if !ok || parentGroupID == 0 {
-		return ""
+	return ranges
+}
+
+// materialVolumesOf states once the volume of every material the items give, fixed or random,
+// leaving out any type the SDE gives no volume.
+func materialVolumesOf(items map[string]*ReprocessingItem, typeIDMap map[string]*EVEType) map[string]float64 {
+	volumes := make(map[string]float64)
+	add := func(materialID string) {
+		if material, ok := typeIDMap[materialID]; ok && material.Volume > 0 {
+			volumes[materialID] = material.Volume
+		}
 	}
-	parentKey := fmt.Sprintf("%.0f", parentGroupID)
-	if _, parentExists := marketGroupsMap[parentKey]; !parentExists {
-		return ""
+	for _, item := range items {
+		for materialID := range item.Materials {
+			add(materialID)
+		}
+		for materialID := range item.RandomizedMaterials {
+			add(materialID)
+		}
 	}
-	return parentKey
+	return volumes
 }

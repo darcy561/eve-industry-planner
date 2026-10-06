@@ -323,8 +323,10 @@ response boundary does this restore on every read. Two gaps remain around that:
 
 ### Where it should run
 
-As a `prepareRelease` step, sequenced after the owner stamp (the work filter reads the owner) and
-paired with its verify gate. That puts it inside the backup window, gives it a manifest to revert
+As a `prepareRelease` step in the shared-planners release — the one window every open project ships
+in — sequenced after the owner stamp (the work filter reads the owner) and paired with its verify gate
+beside the two already at the end of the list
+([shared-planners](../shared-planners/plan.md) § Every open project ships in this window). That puts it inside the backup window, gives it a manifest to revert
 from, and records the data work where every other release's data work is written down.
 
 ## Stored format

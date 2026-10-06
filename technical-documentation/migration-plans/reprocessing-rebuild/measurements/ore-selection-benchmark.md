@@ -46,4 +46,27 @@ subject to  Σ_i yield_ij × units_i ≥ need_j      for every needed mineral j
 ## Stage E's tests
 
 These six rows are Stage E2's benchmark tests: the solver, rounded and trimmed, within 2% of each
-optimum, and below greedy. Fixtures carry the prices above so the figures reproduce.
+optimum. Fixtures carry the prices above so the figures reproduce. Greedy's figures are kept here
+only; the old selector was deleted with Stage E3.
+
+## Reproduced
+
+The figures above cannot be rerun: the per-ore price ratios were not recorded. The engine's tests
+therefore use `frontend/src/tests/oreSelectionFixtures.js` — SDE build 3326071's sixteen standard ores
+and their compressed forms, the worked example's setup (90.63% yield), the mineral prices above with
+Morphite at 9,800, and each ore priced at its minerals' value at that yield times a recorded ratio
+(compressed ×1.02). Compressed Spodumain is excluded, as before. `oreToBuy`'s plans against that
+fixture:
+
+| List | Shipping | Plan | Fractional optimum | Over optimum | Old selector | Plan uses |
+|------|----------|------|--------------------|--------------|--------------|-----------|
+| Worked example | none | 19,194,118 | 19,188,956 | +0.03% | 23,828,013 | Veldspar, Scordite, Plagioclase, Jaspet |
+| | 1,000/m³ | 21,338,010 | 21,332,421 | +0.03% | 25,816,763 | the same four, compressed |
+| Capital mix | none | 293,026,501 | 292,777,184 | +0.09% | 364,596,759 | Veldspar, Scordite, Plagioclase, Kernite, Jaspet, Bistot, Arkonor |
+| | 1,000/m³ | 319,946,239 | 319,674,366 | +0.09% | 725,412,109 | six compressed ores; Zydrine outright |
+| High-end heavy | none | 83,769,746 | 83,421,561 | +0.42% | 103,775,944 | Kernite, Jaspet, Hemorphite, Arkonor; Zydrine outright |
+| | 1,000/m³ | 87,709,288 | 87,649,719 | +0.07% | 361,882,344 | compressed Dark Ochre and Arkonor; Zydrine and Megacyte outright |
+
+The shape matches the original run: compressed ore whenever shipping is charged, minerals bought
+outright where no ore beats them delivered, and the old selector furthest off on the high-end list and
+with shipping.

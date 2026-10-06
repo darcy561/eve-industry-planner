@@ -1,8 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-
-const ItemTree = lazyRouteComponent(
-  () => import("../Components/item Tree/ItemTree"),
-);
+import { createFileRoute } from "@tanstack/react-router";
+import ItemTree from "../Components/item Tree/ItemTree";
 
 export const Route = createFileRoute("/itemtrees")({
   staticData: { audience: "public" },

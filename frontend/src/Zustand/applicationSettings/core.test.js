@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mergeApplicationSettingsState, stateDefault } from "./core.js";
+import { create } from "zustand";
+import {
+  coreActions,
+  mergeApplicationSettingsState,
+  stateDefault,
+} from "./core.js";
 
 const merge = (incoming, prev = stateDefault()) =>
   mergeApplicationSettingsState(prev, incoming, null);
@@ -8,9 +13,6 @@ describe("pricing defaults", () => {
   it("starts both sides on the global default", () => {
     expect(stateDefault().defaultPricing).toEqual({
       buying: { market: "jita", orderType: "sell" },
-      // No route: one seeded here could not be told from one the player chose,
-      // and the merge has to keep a choice while still letting a legacy
-      // account's stored order type answer on first load.
       selling: { market: "jita" },
     });
   });
@@ -33,8 +35,6 @@ describe("pricing defaults", () => {
     });
   });
 
-  // A side the server says nothing about keeps what is held rather than
-  // following the side it did send.
   it("keeps the held side when the server sends only the other", () => {
     const merged = merge({
       defaultPricing: { selling: { market: "hek", orderType: "buy" } },
@@ -50,14 +50,6 @@ describe("pricing defaults", () => {
     });
   });
 
-  // Go serialises DefaultPricing whether or not the stored document holds it, so
-  // an account written before the split arrives with the key present and each
-  // side empty, not with the key missing. Taking that as an answer would
-  // overwrite a real default.
-  //
-  // Both empty shapes are covered: PricingSide's fields are omitempty, so Go
-  // sends `{}`, and a document written by anything else may still carry the
-  // empty strings.
   it.each([
     ["omitted by Go", {}],
     ["written out in full", { market: "", orderType: "" }],
@@ -72,8 +64,6 @@ describe("pricing defaults", () => {
     });
   });
 
-  // Nothing held and nothing sent still has to come out usable, because every
-  // priced surface reads these while rendering.
   it("falls back to the blank state when neither is held nor sent", () => {
     const prev = { ...stateDefault() };
     delete prev.defaultPricing;
@@ -84,8 +74,6 @@ describe("pricing defaults", () => {
     });
   });
 
-  // What is persisted is the merged copy, so a side's group defaults have to
-  // survive a merge that is not about them.
   it("keeps a side's market group defaults when the server sends them", () => {
     const groups = { 1857: { market: "hek" } };
 
@@ -115,8 +103,6 @@ describe("pricing defaults", () => {
     expect(merged.defaultPricing.buying.groups).toEqual(groups);
   });
 
-  // A side the upgrader has not filled can still carry groups: losing them
-  // because the market is empty is the bug this guards.
   it("keeps groups on a side that names no market of its own", () => {
     const groups = { 1857: { market: "hek" } };
 
@@ -132,9 +118,6 @@ describe("pricing defaults", () => {
   });
 });
 
-// A merge that says nothing about pricing arrives on every unrelated save, and a
-// route derived again each time would quietly undo the player's choice — the
-// setting would appear to save and then revert.
 describe("a chosen route out survives later merges", () => {
   const chosen = () => ({
     ...stateDefault(),
@@ -150,8 +133,6 @@ describe("a chosen route out survives later merges", () => {
     expect(merged.defaultPricing.selling.exit).toBe("immediate");
   });
 
-  // A route the server sends is the account's own answer and outranks the one
-  // this client happens to hold.
   it("takes a route the server sends over the one held", () => {
     const merged = merge(
       { defaultPricing: { selling: { market: "jita", exit: "listed" } } },
@@ -161,8 +142,6 @@ describe("a chosen route out survives later merges", () => {
     expect(merged.defaultPricing.selling.exit).toBe("listed");
   });
 
-  // A document stored before the route existed answers with its order type, and that
-  // is the server answering — so it outranks a held route too.
   it("reads a route from a side the server sent without one", () => {
     const merged = merge(
       { defaultPricing: { selling: { market: "hek", orderType: "sell" } } },
@@ -173,10 +152,6 @@ describe("a chosen route out survives later merges", () => {
   });
 });
 
-// The settings endpoint replaces the whole document with what it is sent, so a
-// field this client does not carry is not left alone — it is dropped, and with
-// it every market the reader saved. Nothing reads the lane yet; carrying it
-// through is the whole of what this stage owes.
 describe("a market lane this client does not yet use", () => {
   const saved = [
     { id: "market-1", name: "Perimeter Azbel", regionID: 10000002 },
@@ -198,13 +173,52 @@ describe("a market lane this client does not yet use", () => {
     );
   });
 
-  // A server that sent null, or a field that arrived as something else, must not
-  // replace a list the client is holding on the reader's behalf.
   it("keeps what it holds when the answer is not a list", () => {
     const held = merge({ marketLocations: saved });
 
     expect(merge({ marketLocations: null }, held).marketLocations).toEqual(
       saved,
     );
+  });
+});
+
+describe("the account's reprocessing settings", () => {
+  it("keep only the default character from a stored document carrying more", () => {
+    const merged = merge({
+      reprocessingSettings: {
+        defaultReprocessingCharacter: "alt-hash",
+        preferCompressed: true,
+        valueMultiplier: 2,
+      },
+    });
+
+    expect(merged.reprocessingSettings).toEqual({
+      defaultReprocessingCharacter: "alt-hash",
+    });
+  });
+
+  it("keep the held character when the server says nothing about it", () => {
+    const prev = merge({
+      reprocessingSettings: { defaultReprocessingCharacter: "alt-hash" },
+    });
+
+    expect(
+      merge({ displayHelpCards: true }, prev).reprocessingSettings,
+    ).toEqual({ defaultReprocessingCharacter: "alt-hash" });
+  });
+
+  it("are saved as the default character alone", () => {
+    const store = create((set, get) => ({
+      applicationSettings: {
+        ...stateDefault(),
+        reprocessingSettings: { defaultReprocessingCharacter: "alt-hash" },
+        actions: coreActions(set, get),
+      },
+    }));
+
+    expect(
+      store.getState().applicationSettings.actions.toPersistPayload()
+        .reprocessingSettings,
+    ).toEqual({ defaultReprocessingCharacter: "alt-hash" });
   });
 });

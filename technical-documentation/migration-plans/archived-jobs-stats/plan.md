@@ -2686,9 +2686,9 @@ first would document behaviour production is not yet on.
 
 ## Handoff status
 
-**Stage B is committed on `feature/archived-jobs-stats`.** The transformation, the worker rebuild,
-the drain, its task and asynq handler, the archived-jobs producer and its schedule are all
-reachable from a clone.
+**Stage B is committed, and carried by `feature/shared-planners`**, the branch the shared-planners
+release ships from. The transformation, the worker rebuild, the drain, its task and asynq handler, the
+archived-jobs producer and its schedule are all reachable from a clone.
 
 `services` builds, vets and tests clean, and `go fix -diff` reports nothing on any package this
 stage touched. The one outstanding `go fix` suggestion in scope is `shared/tasks/queue_scale.go`

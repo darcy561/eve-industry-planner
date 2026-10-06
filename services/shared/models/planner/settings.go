@@ -13,16 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// Settings is the settings a planner's work is done under, as opposed to the
-// settings that decide how one account sees its own screen.
-//
-// A setting belongs here when a job or a setup stores a reference to it, or when
-// it decides how work is done in the planner. `CustomStructureID` on every setup
-// is the case that forced the split: it is a key into a settings document, so a
-// member opening another's job resolves it against their own and finds nothing.
-//
-// Its _id is the owner key, as the planner document's is, so the owner is stored
-// once rather than beside a copy of itself.
+// Settings is the settings a planner's work is done under, as opposed to how one account sees its
+// own screen; its _id is the owner key.
 type Settings struct {
 	ID            string `bson:"_id" json:"-"`
 	SchemaVersion int    `bson:"schemaVersion,omitempty" json:"schemaVersion,omitempty"`
@@ -33,7 +25,7 @@ type Settings struct {
 	PredefinedSystemIndexes        map[string]map[string]float64 `bson:"predefinedSystemIndexes" json:"predefinedSystemIndexes,omitempty"`
 	ExtrasCategories               []models.ExtraCategory        `bson:"extrasCategories" json:"extrasCategories,omitempty"`
 	DefaultCitadelBrokersFee       float64                       `bson:"defaultCitadelBrokersFee" json:"defaultCitadelBrokersFee"`
-	ReprocessingSettings           models.ReprocessingSettings   `bson:"reprocessingSettings" json:"reprocessingSettings"`
+	ReprocessingSettings           ReprocessingSettings          `bson:"reprocessingSettings" json:"reprocessingSettings"`
 	ExemptTypeIDs                  []int                         `bson:"exemptTypeIDs" json:"exemptTypeIDs,omitempty"`
 
 	MetaData models.MetaData `bson:"_meta" json:"_meta"`
@@ -42,8 +34,7 @@ type Settings struct {
 // Owner reads the settings' owner back out of its id.
 func (s Settings) Owner() (models.Owner, error) { return models.ParseOwnerKey(s.ID) }
 
-// DefaultSettings returns the settings a planner starts with when nothing seeds
-// it from an account.
+// DefaultSettings returns the settings a planner starts with when nothing seeds it from an account.
 func DefaultSettings(owner models.Owner, now time.Time) Settings {
 	return Settings{
 		ID:                             owner.Key(),
@@ -54,7 +45,7 @@ func DefaultSettings(owner models.Owner, now time.Time) Settings {
 		PredefinedSystemIndexes:        make(map[string]map[string]float64),
 		ExtrasCategories:               models.DefaultExtrasCategories(),
 		DefaultCitadelBrokersFee:       1,
-		ReprocessingSettings:           models.DefaultReprocessingSettings(),
+		ReprocessingSettings:           DefaultReprocessingSettings(),
 		ExemptTypeIDs:                  []int{},
 		MetaData: models.MetaData{
 			LastModified: now,
@@ -63,19 +54,12 @@ func DefaultSettings(owner models.Owner, now time.Time) Settings {
 	}
 }
 
-// SettingsFromAccount seeds a planner's settings from an account's, so a planner
-// behaves as the account that created it expects.
-//
-// The account-side fields are not read: they stay on the account document and
-// keep deciding how that person sees their own screen, wherever they are working.
+// SettingsFromAccount seeds a planner's settings from the planner-side fields of an account's, each
+// copied so an edit to one does not show in the other.
 func SettingsFromAccount(owner models.Owner, settings models.ApplicationSettings, now time.Time) Settings {
 	seeded := DefaultSettings(owner, now)
 	seeded.DefaultMaterialEfficiencyValue = settings.DefaultMaterialEfficiencyValue
 	seeded.DefaultCitadelBrokersFee = settings.DefaultCitadelBrokersFee
-	seeded.ReprocessingSettings = settings.ReprocessingSettings
-	// Copied rather than assigned: the account's own settings are live in the
-	// caller, and a shared slice or map would make an edit to one show up in the
-	// other.
 	seeded.CustomStructures = slices.Clone(settings.CustomStructures)
 	if settings.PredefinedSystemIndexes != nil {
 		indexes := make(map[string]map[string]float64, len(settings.PredefinedSystemIndexes))
@@ -95,22 +79,23 @@ func SettingsFromAccount(owner models.Owner, settings models.ApplicationSettings
 
 // Settings field names, as SettingsUpdate writes them.
 const (
-	fieldExtrasCategories = "extrasCategories"
-	fieldMarketLocations  = "marketLocations"
+	fieldExtrasCategories     = "extrasCategories"
+	fieldMarketLocations      = "marketLocations"
+	fieldReprocessingSettings = "reprocessingSettings"
 )
 
-// A list long enough to be a mistake rather than a preference, and a label
-// longer than anything a picker can show.
+// The most extras categories a list may hold, and the longest label a picker can show.
 const (
 	maxExtrasCategories    = 200
 	maxExtrasCategoryLabel = 120
 )
 
-// SettingsUpdate is the part of a planner's settings a member may change. A nil
-// field is left as it is stored, so a client sends only what it edited.
+// SettingsUpdate is the part of a planner's settings a member may change; a nil field is left as
+// it is stored, so a client sends only what it edited.
 type SettingsUpdate struct {
-	ExtrasCategories *[]models.ExtraCategory `json:"extrasCategories"`
-	MarketLocations  *models.MarketLocations `json:"marketLocations"`
+	ExtrasCategories     *[]models.ExtraCategory `json:"extrasCategories"`
+	MarketLocations      *models.MarketLocations `json:"marketLocations"`
+	ReprocessingSettings *ReprocessingSettings   `json:"reprocessingSettings"`
 }
 
 // Validate refuses an update that would leave the planner's settings unusable.
@@ -120,11 +105,16 @@ func (u SettingsUpdate) Validate() error {
 			return err
 		}
 	}
+	if u.ReprocessingSettings != nil {
+		if err := u.ReprocessingSettings.Validate(); err != nil {
+			return err
+		}
+	}
 	return u.validateExtrasCategories()
 }
 
-// validateExtrasCategories holds the list to what a picker can show and what the
-// costs filed under it need to still resolve.
+// validateExtrasCategories holds the list to what a picker can show and what the costs filed under
+// it need to still resolve.
 func (u SettingsUpdate) validateExtrasCategories() error {
 	if u.ExtrasCategories == nil {
 		return nil
@@ -161,8 +151,7 @@ func (u SettingsUpdate) validateExtrasCategories() error {
 	return nil
 }
 
-// Fields is what the update sets, as stored. An empty result means the update
-// carried nothing.
+// Fields is what the update sets, as stored; an empty result means the update carried nothing.
 func (u SettingsUpdate) Fields() bson.M {
 	fields := bson.M{}
 	if u.ExtrasCategories != nil {
@@ -170,6 +159,9 @@ func (u SettingsUpdate) Fields() bson.M {
 	}
 	if u.MarketLocations != nil {
 		fields[fieldMarketLocations] = *u.MarketLocations
+	}
+	if u.ReprocessingSettings != nil {
+		fields[fieldReprocessingSettings] = *u.ReprocessingSettings
 	}
 	return fields
 }

@@ -76,11 +76,22 @@ describe("SelectableCard", () => {
   it("hides its inner input, because the card already carries the state", () => {
     const { container } = render(card({ selected: true }));
 
-    // Two things announcing the same state is what makes a card like this
-    // read twice to a screen reader.
     expect(container.querySelector("input")).toHaveAttribute(
       "aria-hidden",
       "true",
     );
+  });
+});
+
+describe("a stacked SelectableCard", () => {
+  it("sets its input beside the title, with the body beneath both", () => {
+    render(card({ stacked: true }));
+
+    const title = screen.getByText("Local");
+    const body = screen.getByText("Stores tokens in the browser.");
+    expect(title.parentElement).toContainElement(
+      title.parentElement.querySelector("input"),
+    );
+    expect(title.parentElement).not.toContainElement(body);
   });
 });

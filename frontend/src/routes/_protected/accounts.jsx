@@ -1,8 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-
-const Accounts = lazyRouteComponent(
-  () => import("../../Components/Accounts/Accounts"),
-);
+import { createFileRoute } from "@tanstack/react-router";
+import Accounts from "../../Components/Accounts/Accounts";
 
 export const Route = createFileRoute("/_protected/accounts")({
   staticData: { audience: "private" },

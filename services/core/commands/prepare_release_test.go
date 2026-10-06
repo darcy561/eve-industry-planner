@@ -42,8 +42,6 @@ func TestRetiredResumeTokenGroupsPicksGroupsThatNoLongerRun(t *testing.T) {
 	}
 }
 
-// Running the release against an environment that is already current has to be
-// safe, so a store holding only live groups reports nothing to do.
 func TestRetiredResumeTokenGroupsReportsNothingWhenCurrent(t *testing.T) {
 	t.Parallel()
 
@@ -77,17 +75,14 @@ func TestRetiredResumeTokenGroupsOrderIsStable(t *testing.T) {
 	}
 }
 
-// The queue is keyed by owner, and a dispatch skips an id it cannot read back —
-// so an entry left under an older key would never be dispatched and never
-// cleared. The release drops them before re-queueing.
 func TestUnaddressableQueueEntriesAreThoseThatNameNoOwner(t *testing.T) {
 	t.Parallel()
 
 	stored := []string{
 		models.AccountOwner("acct-1").Key(),
-		"acct-2", // an older key: a bare account id with no kind
+		"acct-2",
 		models.Owner{Kind: models.OwnerCorporation, ID: "corp_56_JxK"}.Key(),
-		"character:xyz", // a kind nothing can rebuild
+		"character:xyz",
 	}
 
 	var unaddressable []string
@@ -103,10 +98,6 @@ func TestUnaddressableQueueEntriesAreThoseThatNameNoOwner(t *testing.T) {
 	}
 }
 
-// The release catalogue is what a deploy runs, so a malformed entry is a
-// production problem rather than a compile error. Each is checked for the two
-// things that would make it useless: a version to report it under, and a step
-// with something to run.
 func TestReleasesCatalogIsValid(t *testing.T) {
 	t.Parallel()
 
@@ -139,9 +130,6 @@ func TestReleasesCatalogIsValid(t *testing.T) {
 	}
 }
 
-// The snapshot's name is derived from the live collection rather than written
-// out, so a collection rename carries its snapshot with it rather than leaving
-// one named after a collection that no longer exists.
 func TestSnapshotNamesFollowTheirCollections(t *testing.T) {
 	t.Parallel()
 
@@ -165,8 +153,6 @@ func TestSnapshotNamesFollowTheirCollections(t *testing.T) {
 	}
 }
 
-// A snapshot must not be one of the collections being emptied, or the step would
-// set a collection aside into one it is about to clear.
 func TestNoCollectionIsItsOwnSnapshotTarget(t *testing.T) {
 	t.Parallel()
 
@@ -181,8 +167,6 @@ func TestNoCollectionIsItsOwnSnapshotTarget(t *testing.T) {
 	}
 }
 
-// stepIndex is the position of a named step, so an ordering test names what it
-// means rather than a number that moves when a step is inserted.
 func stepIndex(t *testing.T, version, name string) int {
 	t.Helper()
 	for _, rel := range releases {
@@ -199,9 +183,6 @@ func stepIndex(t *testing.T, version, name string) int {
 	return -1
 }
 
-// The owner stamp writes the field every step after it filters on. Those steps
-// do not fail without it — they match nothing, report zero, and let the release
-// finish green having migrated nothing.
 func TestOwnerStampRunsBeforeTheStepsThatFilterOnIt(t *testing.T) {
 	t.Parallel()
 
@@ -216,16 +197,10 @@ func TestOwnerStampRunsBeforeTheStepsThatFilterOnIt(t *testing.T) {
 	}
 }
 
-// The lane has no `omitempty`, so a step that writes a settings document whole
-// writes `null` into an unseeded one. The seed's selector catches that, but only
-// for what ran before it — a whole-document write afterwards would leave a
-// `null` nothing else looks at again.
 func TestTheMarketLaneSeedRunsAfterEveryWholeSettingsWrite(t *testing.T) {
 	t.Parallel()
 
 	seed := stepIndex(t, currentRelease, "give every settings document an empty market lane")
-	// Each step that writes a settings document whole rather than by field. A new
-	// one belongs here and above the seed, which is the pairing this locks in.
 	for _, wholeWrite := range []string{
 		"complete outstanding schema maintenance",
 		"seed each account's buying and selling pricing defaults",
@@ -237,8 +212,6 @@ func TestTheMarketLaneSeedRunsAfterEveryWholeSettingsWrite(t *testing.T) {
 	}
 }
 
-// The move selects a document by a market row inside the structures array, and a
-// document still holding the four keyed lists has no such array to match.
 func TestTheMarketMoveRunsAfterTheStructureFold(t *testing.T) {
 	t.Parallel()
 
@@ -253,16 +226,10 @@ func TestTheMarketMoveRunsAfterTheStructureFold(t *testing.T) {
 	}
 }
 
-// The copy is first and required: every step after it writes, and a copy taken
-// after a step ran is a copy of that step's output rather than of the state an
-// operator would revert to.
 func TestTheBackupRunsBeforeAnythingWrites(t *testing.T) {
 	t.Parallel()
 
 	backup := stepIndex(t, currentRelease, "copy every collection this release writes to")
-	// Only a step that writes nothing may precede it, and each one has to say so
-	// here — the default is that a new step writes, so an unlisted step ahead of
-	// the copy fails rather than being assumed harmless.
 	readOnlyBefore := map[string]bool{
 		"check the owner-scoped id rewrite has finished": true,
 	}
@@ -278,8 +245,6 @@ func TestTheBackupRunsBeforeAnythingWrites(t *testing.T) {
 	}
 }
 
-// Schema maintenance precedes every step that stamps the current version onto
-// documents it touches.
 func TestSchemaMaintenanceRunsBeforeTheStamps(t *testing.T) {
 	t.Parallel()
 
@@ -289,10 +254,6 @@ func TestSchemaMaintenanceRunsBeforeTheStamps(t *testing.T) {
 	}
 }
 
-// The reshape sits between the two steps that care what shape a job is in: the
-// label stamp writes into the extras rows while they are still an array, and the
-// rebuild derives its figures from what the reshape leaves behind — which for a
-// market order's broker fees is one entry where several were stored.
 func TestTheReshapeRunsAfterTheLabelStampAndBeforeTheRebuild(t *testing.T) {
 	t.Parallel()
 
@@ -308,8 +269,6 @@ func TestTheReshapeRunsAfterTheLabelStampAndBeforeTheRebuild(t *testing.T) {
 	}
 }
 
-// Every collection any step or fan-out writes to is in the copy, and the copy
-// is built from the lists those steps iterate rather than written out again.
 func TestTheBackupCoversEveryCollectionAStepWritesTo(t *testing.T) {
 	t.Parallel()
 
@@ -323,9 +282,6 @@ func TestTheBackupCoversEveryCollectionAStepWritesTo(t *testing.T) {
 	}
 }
 
-// A step the rest read the output of must stop the release when it fails.
-// Carrying on is what turns one failed step into a green release that did
-// nothing.
 func TestStepsOthersDependOnAreRequired(t *testing.T) {
 	t.Parallel()
 
@@ -344,9 +300,6 @@ func TestStepsOthersDependOnAreRequired(t *testing.T) {
 	}
 }
 
-// The pre-release copy is what an operator falls back to, so it is taken while
-// the documents still hold everything the previous release read. Dropping the
-// retired fields first would copy documents already stripped of them.
 func TestRetiredFieldsAreDroppedAfterTheSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -357,8 +310,6 @@ func TestRetiredFieldsAreDroppedAfterTheSnapshot(t *testing.T) {
 	}
 }
 
-// An operator reads the step's line to decide whether the window is safe to
-// close, so a dry run must say what it would do rather than reporting nothing.
 func TestRepairSessionGrantsReportsWhatItWouldRewrite(t *testing.T) {
 	ctx := context.Background()
 	rdb := redisfake.New(t)
@@ -388,7 +339,6 @@ func TestRepairSessionGrantsReportsWhatItWouldRewrite(t *testing.T) {
 		t.Fatalf("repair: %v", err)
 	}
 
-	// Re-running a release must report no work rather than rewriting again.
 	again, err := repairSessionGrants(ctx, clients, false)
 	if err != nil {
 		t.Fatalf("second pass: %v", err)
@@ -398,8 +348,6 @@ func TestRepairSessionGrantsReportsWhatItWouldRewrite(t *testing.T) {
 	}
 }
 
-// The step reads and deletes real keys, so it is worth driving end to end: a
-// group id the scan returns has to name the key the drop removes.
 func TestDropRetiredResumeTokensRemovesOnlyRetiredGroups(t *testing.T) {
 	ctx := context.Background()
 	fake := redisfake.New(t)
@@ -422,12 +370,6 @@ func TestDropRetiredResumeTokensRemovesOnlyRetiredGroups(t *testing.T) {
 	}
 }
 
-// The planner steps insert documents into three collections, and a revert has to
-// be able to take all three back out.
-//
-// Named here rather than derived: the collections come from what EnsurePlanner
-// writes, which no exported list describes, so a fourth one added there has to be
-// added here too — and this test is what says so.
 func TestTheBackupCoversWhatThePlannerStepsCreate(t *testing.T) {
 	t.Parallel()
 
@@ -443,16 +385,13 @@ func TestTheBackupCoversWhatThePlannerStepsCreate(t *testing.T) {
 	}
 }
 
-// The planner settings documents the fold converts are created by the planner
-// backfill and its extras seed, so a fold that ran first would report nothing to
-// do and leave what they wrote in the old shape.
 func TestTheStructureFoldRunsAfterThePlannerDocumentsExist(t *testing.T) {
 	t.Parallel()
 
 	fold := stepIndex(t, currentRelease, "fold custom structures into one array")
 	for _, earlier := range []string{
 		"give every account its planner",
-		"move each account's extras categories onto its planner",
+		"move each account's planner settings onto its planner",
 	} {
 		if at := stepIndex(t, currentRelease, earlier); at > fold {
 			t.Errorf("%q runs at %d, after the structure fold at %d", earlier, at, fold)
@@ -460,8 +399,6 @@ func TestTheStructureFoldRunsAfterThePlannerDocumentsExist(t *testing.T) {
 	}
 }
 
-// Both settings collections embed the same type, so a fold that converted only
-// one would leave the other storing a shape nothing ever rewrites.
 func TestTheStructureFoldCoversBothSettingsCollections(t *testing.T) {
 	t.Parallel()
 
@@ -472,9 +409,6 @@ func TestTheStructureFoldCoversBothSettingsCollections(t *testing.T) {
 	}
 }
 
-// The fold writes to both settings collections, so both have to be in the copy
-// the release takes before anything writes — revertRelease puts back only what
-// was copied.
 func TestTheStructureFoldsCollectionsAreBackedUp(t *testing.T) {
 	t.Parallel()
 
@@ -486,9 +420,6 @@ func TestTheStructureFoldsCollectionsAreBackedUp(t *testing.T) {
 	}
 }
 
-// The SDE rebuild publishes, so the release has to hold a NATS handle for it.
-// It failed on every run for want of one: the connect asked for Mongo and Redis
-// only, and the step refuses before doing anything without a broker.
 func TestTheReleaseAsksForWhatItsStepsPublishOn(t *testing.T) {
 	t.Parallel()
 
@@ -505,9 +436,6 @@ func TestTheReleaseAsksForWhatItsStepsPublishOn(t *testing.T) {
 	}
 }
 
-// A broker that is down costs the step that publishes, not the release. Connect
-// fails the whole call when any requested service is unreachable, so asking for
-// NATS outright would lose every Mongo step to it.
 func TestTheReleaseStillRunsWithoutABroker(t *testing.T) {
 	t.Parallel()
 
@@ -520,10 +448,6 @@ func TestTheReleaseStillRunsWithoutABroker(t *testing.T) {
 	}
 }
 
-// The warning is only worth having if it lands before the work. Its whole point
-// is that the gate refusing at the end tells an operator at the end what they
-// needed at the beginning, so a warning that drifted after the steps it precedes
-// would report the same thing twice and help with neither.
 func TestTheOwnerScopedIDWarningComesFirst(t *testing.T) {
 	t.Parallel()
 
@@ -536,9 +460,6 @@ func TestTheOwnerScopedIDWarningComesFirst(t *testing.T) {
 	}
 }
 
-// Warning, not gate: it reports a count the operator can still act on, and the
-// release goes on to do its work. Failing here would stop a release over the
-// same condition twice, and stop it before the backup that makes it reversible.
 func TestTheOwnerScopedIDWarningDoesNotStopTheRelease(t *testing.T) {
 	t.Parallel()
 
@@ -551,8 +472,6 @@ func TestTheOwnerScopedIDWarningDoesNotStopTheRelease(t *testing.T) {
 	}
 }
 
-// The reshape rewrites the setups the rig fold reads, so a fold running before
-// it would convert setups the reshape then writes over.
 func TestTheRigFoldRunsAfterTheJobReshape(t *testing.T) {
 	t.Parallel()
 
@@ -562,8 +481,6 @@ func TestTheRigFoldRunsAfterTheJobReshape(t *testing.T) {
 	}
 }
 
-// The fold writes to every collection holding a setup, so each has to be in the
-// copy the release takes before anything writes.
 func TestTheRigFoldsCollectionsAreBackedUp(t *testing.T) {
 	t.Parallel()
 
@@ -575,8 +492,6 @@ func TestTheRigFoldsCollectionsAreBackedUp(t *testing.T) {
 	}
 }
 
-// Group templates store a setup of their own, and a template left naming a
-// combined id would point at a rig the tables no longer hold.
 func TestTheRigFoldCoversGroupTemplates(t *testing.T) {
 	t.Parallel()
 
@@ -585,19 +500,12 @@ func TestTheRigFoldCoversGroupTemplates(t *testing.T) {
 	}
 }
 
-// The sweep removes Redis keys and reads no document, so it has no ordering to
-// respect — but it must be in the release at all, or the keys it exists for are
-// held for ever: both retired shapes were written without a lifetime.
 func TestTheRetiredMarketKeysAreSweptByTheRelease(t *testing.T) {
 	t.Parallel()
 
 	stepIndex(t, currentRelease, "drop the market keys this release retires")
 }
 
-// The leftover a setup carries is a system id, and the rules that read it are the
-// ones this release introduces — but the sweep also has to see the setups the
-// reshape rewrites, and the fold has to have run so a converted setup is not
-// touched twice in one release.
 func TestTheZarzakhSweepRunsAfterTheStepsThatRewriteASetup(t *testing.T) {
 	t.Parallel()
 

@@ -7,6 +7,12 @@ export { useChartKeys } from "./useChartKeys";
 export { ProportionBar } from "./bars/ProportionBar";
 export { RangeBar, rangeMarkSx } from "./bars/RangeBar";
 export {
+  SpreadBar,
+  spreadLegendKeys,
+  spreadTrackColour,
+} from "./bars/SpreadBar";
+export { ChartLegend } from "./ChartLegend";
+export {
   chartBaseColours,
   chartSeriesColours,
   resolveSeriesColour,

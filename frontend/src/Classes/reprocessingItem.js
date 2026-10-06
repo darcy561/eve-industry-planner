@@ -1,20 +1,11 @@
-import { jobTypes, reprocessingItemTypes } from "../Context/defaultValues";
-import { getImplantFromID } from "../Functions/Industry Facilities/getStructureInfo";
-import { reprocessFromItemType } from "../Functions/Reprocessing/reprocessingFormulas";
+import { reprocessingItemTypes } from "../Context/defaultValues";
 import {
-  rigBonusFor,
-  rigSecurityFor,
-  structureBonusFor,
-} from "../Functions/Reprocessing/reprocessingBonuses";
-import { structureFromDocument } from "../Functions/Custom Structures/customStructure";
+  reprocessingSetupFrom,
+  yieldFor,
+} from "../Functions/Reprocessing/engine/reprocessingSetup";
+import { reprocessedQuantity } from "../Functions/Reprocessing/engine/reprocess";
 
-const reprocessingSkillTypeID = 3385;
-const reprocessingEffSkillTypeID = 3389;
-
-/**
- * ReprocessingItem class for EVE Online reprocessing calculations and management.
- *
- */
+/** One reprocessable item held in some quantity, and what it reprocesses into in a given setup. */
 class ReprocessingItem {
   /**
    * @param {Object} ore - Ore/item data object
@@ -81,53 +72,21 @@ class ReprocessingItem {
   }
 
   /**
-   * Reprocesses materials based on skills and structure bonuses.
+   * Works out the yield and what the held batches give, in a setup resolved once by the caller.
    *
-   * @param {Object} [reprocessingSkillsMap={}] - Map of skill type IDs to levels
-   * @param {Object} [reprocessingStructure] - Structure configuration; an NPC station when absent
-   *
+   * @param {ReturnType<typeof reprocessingSetupFrom>} [setup] - an NPC station with no skills when absent
    */
-  reprocessMaterials(
-    reprocessingSkillsMap = {},
-    reprocessingStructure = structureFromDocument(
-      undefined,
-      jobTypes.reprocessing,
-    ),
-  ) {
-    const reprocessingLvl = reprocessingSkillsMap[reprocessingSkillTypeID] ?? 0;
-    const reprocessingEffLvl =
-      reprocessingSkillsMap[reprocessingEffSkillTypeID] ?? 0;
-    const oreLvl = reprocessingSkillsMap[this.reprocessingSkill] ?? 0;
+  reprocessMaterials(setup = reprocessingSetupFrom()) {
+    this.percentageYield = yieldFor(setup, this);
 
-    const structureValue = structureBonusFor(
-      reprocessingStructure,
-      this.itemType,
-    );
-
-    const rigValue = rigBonusFor(reprocessingStructure, this.itemType);
-    const rigSecurity = rigSecurityFor(reprocessingStructure, this.itemType);
-    const implantValue =
-      getImplantFromID(
-        reprocessingStructure.jobType,
-        reprocessingStructure.implant,
-      )?.value ?? 0;
-
-    this.percentageYield = reprocessFromItemType(
-      this.itemType,
-      rigValue,
-      rigSecurity,
-      structureValue,
-      reprocessingLvl,
-      reprocessingEffLvl,
-      oreLvl,
-      implantValue,
-    );
-
+    const batches =
+      this.itemType === reprocessingItemTypes.gas ? this.batchCount : 1;
     for (let [id, value] of Object.entries(this.materials)) {
-      this.reprocessedMaterials[id] = Math.round(
-        this.itemType === reprocessingItemTypes.gas
-          ? this.reprocessableQuantity * (this.percentageYield / 100)
-          : value * (this.percentageYield / 100),
+      this.reprocessedMaterials[id] = reprocessedQuantity(
+        value,
+        batches,
+        this.percentageYield,
+        this.itemType,
       );
     }
   }

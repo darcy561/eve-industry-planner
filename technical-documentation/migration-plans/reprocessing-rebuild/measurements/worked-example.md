@@ -27,7 +27,11 @@ Selling fees: 4.875% (broker 1.5% + sales tax 3.375%), for a separate seller cha
 Paste: Veldspar 128,450 · Scordite 64,220 · Pyroxeres 31,075 · Plagioclase 22,000 · Kernite 8,040 ·
 Clear Icicle 12 · Hedbergite 45 · Small Shield Booster I 3 (not reprocessable).
 
-Outputs are `floor(base × batches × yield)` — the rounding Stage A1 must confirm.
+**The output column assumes a floor of the total, and live does not do that.** Live rounds each batch
+for ore and rounds the run for gas (plan § A1), so by live's rule the outputs are a little higher — Veldspar
+gives 466,092 Tritanium (363 a batch × 1,284) against 465,475 here. Batches and units kept back are
+unaffected. The design canvas was drawn from this table, so its output figures carry the same small
+difference; they are illustrations, and the engine's tests hold live's rule.
 
 | Item | Batches | Kept back | Gives |
 |------|---------|-----------|-------|
@@ -52,7 +56,7 @@ Pyroxeres 24.9 · Plagioclase 34.5 · Kernite 149 · Clear Icicle 251,000 · Hed
 | **Reprocessed, after fees and tax** | **8,333,227** |
 | **Sold as they are, after fees** | **8,434,835** |
 | Difference | −101,608 (−1.2%) |
-| Difference with no tax | +76,851 |
+| Difference with no tax | +76,852 |
 | Hauling: as they are / reprocessed | 61,284 m³ / 7,946 m³ |
 | Under the pinned setup | 6,576,077 |
 
@@ -127,6 +131,9 @@ One batch: expected 2,153,168, standard deviation 997,184.
 | Likely range, 10th – 90th percentile (normal) | 78,043,993 – 94,209,449 |
 | Likely range, 100,000 simulated runs | 78,176,412 – 94,356,476 |
 | **Expected** | **86,126,721** |
+
+The normal figures use z = 1.2816; the engine uses the exact value, 1.28155…, and lands within a few
+hundred ISK of them.
 
 Expected units over the 40 batches, each mineral expected from 5 of them; any one mineral can come out
 anywhere from none to all 40 batches' worth:

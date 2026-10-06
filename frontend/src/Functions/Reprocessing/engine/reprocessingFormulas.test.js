@@ -1,0 +1,94 @@
+import { describe, expect, it } from "vitest";
+
+import { reprocessFromItemType } from "./reprocessingFormulas";
+import { reprocessingItemTypes } from "../../../Context/defaultValues";
+
+function yieldFor(
+  itemType,
+  {
+    rig = 0,
+    rigSecurity = 1,
+    struct = 0,
+    repro = 0,
+    eff = 0,
+    ore = 0,
+    implant = 0,
+  } = {},
+) {
+  return reprocessFromItemType(
+    itemType,
+    rig,
+    rigSecurity,
+    struct,
+    repro,
+    eff,
+    ore,
+    implant,
+  );
+}
+
+describe("what reprocessing an ore yields", () => {
+  it("starts at half the ore with no skills and no structure", () => {
+    expect(yieldFor(reprocessingItemTypes.ore)).toBe(50);
+  });
+
+  it("compounds the three skills", () => {
+    expect(
+      yieldFor(reprocessingItemTypes.ore, { repro: 5, eff: 5, ore: 5 }),
+    ).toBeCloseTo(50 * 1.15 * 1.1 * 1.1, 10);
+  });
+
+  it("adds a rig to the base rather than multiplying it", () => {
+    expect(yieldFor(reprocessingItemTypes.ore, { rig: 2 })).toBe(52);
+  });
+
+  it("counts the rig's band multiplier only alongside a rig", () => {
+    expect(yieldFor(reprocessingItemTypes.ore, { rigSecurity: 1.1 })).toBe(50);
+    expect(
+      yieldFor(reprocessingItemTypes.ore, { rig: 2, rigSecurity: 1.1 }),
+    ).toBeCloseTo(52 * 1.1, 10);
+  });
+
+  it("multiplies the structure and the implant", () => {
+    expect(
+      yieldFor(reprocessingItemTypes.ore, { struct: 0.02, implant: 0.04 }),
+    ).toBeCloseTo(50 * 1.02 * 1.04, 10);
+  });
+
+  it("treats moon ore and ice like ore", () => {
+    const modifiers = { repro: 5, eff: 4 };
+    const oreYield = yieldFor(reprocessingItemTypes.ore, modifiers);
+
+    expect(yieldFor(reprocessingItemTypes.moonOre, modifiers)).toBe(oreYield);
+    expect(yieldFor(reprocessingItemTypes.ice, modifiers)).toBe(oreYield);
+    expect(yieldFor(reprocessingItemTypes.unrefinedMineral, modifiers)).toBe(
+      oreYield,
+    );
+  });
+
+  it("treats erratic ore like ore", () => {
+    const modifiers = { repro: 5, eff: 4, ore: 3 };
+
+    expect(yieldFor(reprocessingItemTypes.erratic, modifiers)).toBe(
+      yieldFor(reprocessingItemTypes.ore, modifiers),
+    );
+  });
+});
+
+describe("what reprocessing scrap yields", () => {
+  it("rises with the scrap skill alone", () => {
+    expect(yieldFor(reprocessingItemTypes.scrap)).toBe(50);
+    expect(yieldFor(reprocessingItemTypes.scrap, { ore: 5 })).toBeCloseTo(
+      55,
+      10,
+    );
+    expect(
+      yieldFor(reprocessingItemTypes.scrap, {
+        ore: 5,
+        rig: 2,
+        struct: 0.02,
+        repro: 5,
+      }),
+    ).toBeCloseTo(55, 10);
+  });
+});

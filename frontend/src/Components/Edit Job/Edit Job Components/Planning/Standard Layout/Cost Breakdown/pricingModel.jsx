@@ -1,12 +1,8 @@
-import { ToggleButton, ToggleButtonGroup, Tooltip } from "@mui/material";
+import { SegmentedChoice } from "../../../../../../Styled Components/Select/SegmentedChoice";
 
 /**
- * Which pricing model the components are drawn from.
- *
- * It belongs on this panel rather than on Returns because it changes what the
- * components *are* — the materials line grows and the child-builds line
- * disappears — so the panel that draws them owns the switch, and Returns has
- * one meaning at a time.
+ * Which pricing model the components are drawn from: linked child builds where cheaper, or every
+ * material bought at market.
  *
  * @enum {string}
  */
@@ -15,46 +11,34 @@ export const PRICING_MODEL = {
   BUY_ALL: "buyAll",
 };
 
+const PRICING_MODEL_OPTIONS = [
+  {
+    value: PRICING_MODEL.CHEAPEST,
+    label: "Build where cheaper",
+    tooltip:
+      "Linked child builds price their material; everything else is bought",
+  },
+  {
+    value: PRICING_MODEL.BUY_ALL,
+    label: "Buy everything",
+    tooltip: "Every material priced at market, as if nothing were built",
+  },
+];
+
 /**
+ * The choice of pricing model, one always in force.
+ *
  * @param {object} props
  * @param {string} props.value - One of PRICING_MODEL
  * @param {(value: string) => void} props.onChange
  */
 export default function PricingModelToggle({ value, onChange }) {
   return (
-    <ToggleButtonGroup
-      size="small"
-      exclusive
+    <SegmentedChoice
+      label="How the materials are priced"
+      options={PRICING_MODEL_OPTIONS}
       value={value}
-      onChange={(_event, next) => {
-        // A group with nothing selected has no meaning here — the cost is drawn
-        // from one model or the other.
-        if (next) onChange(next);
-      }}
-      aria-label="How the materials are priced"
-    >
-      <Tooltip
-        title="Linked child builds price their material; everything else is bought"
-        arrow
-      >
-        <ToggleButton
-          value={PRICING_MODEL.CHEAPEST}
-          sx={{ textTransform: "none" }}
-        >
-          Build where cheaper
-        </ToggleButton>
-      </Tooltip>
-      <Tooltip
-        title="Every material priced at market, as if nothing were built"
-        arrow
-      >
-        <ToggleButton
-          value={PRICING_MODEL.BUY_ALL}
-          sx={{ textTransform: "none" }}
-        >
-          Buy everything
-        </ToggleButton>
-      </Tooltip>
-    </ToggleButtonGroup>
+      onChange={onChange}
+    />
   );
 }

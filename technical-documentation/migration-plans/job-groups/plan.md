@@ -221,7 +221,7 @@ to whichever of them touches `atomic.go` first.
 
 | Surface | Owes |
 |---------|------|
-| `models.Group` | fields removed, `OutputTypeIDs` added, schema version bumped |
+| `models.Group` | fields removed, `OutputTypeIDs` added; the version stays 1 — see § Schema versioning |
 | `services/api/v1endpoints/groups` | `POST` for creation; `PUT` accepting only authored fields and rejecting the rest |
 | `services/shared/mongo/groups_put.go` | the membership delta goes; upsert writes authored fields only |
 | `services/shared/models/group_shape.go` | `RebuildFrom` stays for the archive; nothing on the live path calls it |
@@ -233,8 +233,12 @@ to whichever of them touches `atomic.go` first.
 
 ## Schema versioning
 
-`GroupSchemaCurrent` is **1** in `models/document_schema.go`, and **Stage B is what moves it** — the
-step to write is `1 → 2`.
+`GroupSchemaCurrent` is **1** in `models/document_schema.go`, and **it stays 1.** This project ships in
+the shared-planners release, the window every open project rides, and the constant arrives with that
+same release — `Public` has no `document_schema.go`, so live has never held a v1 group. Stage B's
+change is therefore written into v1 and made by a `prepareRelease` step that converts live straight
+into it, placed after Stage A's membership step
+([shared-planners](../shared-planners/plan.md) § Every open project ships in this window).
 
 Nothing scheduled ahead of this project bumps it. [shared-planners](../shared-planners/plan.md)
 § Schema versioning looks like it does, but its landed account says otherwise: *"there is no
@@ -253,7 +257,7 @@ version; the added `outputTypeIDs` and the ordering constraint do.
 
 | Change | Verdict |
 |--------|---------|
-| Group document fields removed, `outputTypeIDs` added | **migrate-required** — one `SchemaVersion` step, with a backfill that must precede it; see § Schema versioning for the number |
+| Group document fields removed, `outputTypeIDs` added | **migrate-required** — a `prepareRelease` step converting live into v1, with the membership backfill before it; see § Schema versioning |
 | `PUT /api/v1/groups` body | **breaking** — the accepted shape narrows to authored fields; a client sending the old shape has the rest ignored rather than stored |
 | `POST /api/v1/groups` | **additive** |
 | Job document | **additive — nothing changes.** `groupID` is already stored and already served by group |
@@ -282,15 +286,15 @@ on its own.
 Needs `{_meta.owner.id, groupID}` on `jobs` and `job_documents`, confirmed by `explain` against the
 restored snapshot rather than by reading the index spec list.
 
-### Stage B — The group document stops carrying derived data
-
-The fields come off, `outputTypeIDs` arrives, `areComplete` moves to the job, the schema steps once,
-and `PUT` narrows to authored fields. The SPA's `Group` class and the persist queue shrink to match.
 Once membership is read from `job.groupID`, a close's group write no longer decides who is in the
 group, so the Edit Job page stops taking the group's lock and the group page takes it only while the
 group's own name or ordering is being edited — two members can then work in one group at once. Handed
 over from [document-write-granularity](../document-write-granularity/plan.md) § Stage F, by decision.
 
+### Stage B — The group document stops carrying derived data
+
+The fields come off, `outputTypeIDs` arrives, `areComplete` moves to the job, the schema steps once,
+and `PUT` narrows to authored fields. The SPA's `Group` class and the persist queue shrink to match.
 
 ### Stage C — Creation is one request
 
@@ -325,6 +329,6 @@ timeout are deleted.
 | Stage | Status |
 |-------|--------|
 | Phase 1 — project docs | Complete |
-| A — membership becomes the job's, and the damage is repaired | **Not started, and blocked.** Waits on shared-planners § Stage H and document-write-granularity §§ Stage A, Stage D — see § What this project waits on |
+| A — membership becomes the job's, and the damage is repaired | **Not started, and no longer blocked.** Everything § What this project waits on names has landed — shared-planners § Stage H, and document-write-granularity §§ Stage A and Stage D, which removed the group lease and deleted the cascade |
 | B — the group document stops carrying derived data | Not started. Rests on Stage A's backfill; must not precede it |
 | C — creation is one request | Not started |

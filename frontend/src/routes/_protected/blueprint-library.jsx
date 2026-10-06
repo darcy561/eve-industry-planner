@@ -1,8 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-
-const BlueprintLibrary = lazyRouteComponent(
-  () => import("../../Components/Blueprint Library/BlueprintLibrary"),
-);
+import { createFileRoute } from "@tanstack/react-router";
+import BlueprintLibrary from "../../Components/Blueprint Library/BlueprintLibrary";
 
 export const Route = createFileRoute("/_protected/blueprint-library")({
   staticData: { audience: "private" },

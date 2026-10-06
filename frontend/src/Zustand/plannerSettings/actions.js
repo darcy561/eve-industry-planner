@@ -1,8 +1,3 @@
-/**
- * Planner settings actions: reading a planner's settings and holding them per
- * owner.
- */
-
 import {
   fetchPlannerSettingsFromApi,
   savePlannerSettingsToApi,
@@ -41,8 +36,6 @@ export const plannerSettingsActions = (set, get) => ({
    * @param {{id: string, label: string}} category
    */
   addPlannerExtrasCategory: (ownerHandle, category) => {
-    // The same rule the server holds the list to: a category with no id or no
-    // label cannot be shown, and would have the whole write refused.
     if (!category?.id || !category.label?.trim()) return;
     get().plannerSettings.actions.writePlannerSetting(
       ownerHandle,
@@ -55,10 +48,8 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
-   * Marks a category deleted, or brings it back.
-   *
-   * A category is marked rather than removed because costs already filed under
-   * it name it by id, and the two permanent categories cannot be marked at all.
+   * Marks a category deleted, or brings it back; a filed cost names it by id, and the two
+   * permanent categories cannot be marked at all.
    *
    * @param {string} ownerHandle
    * @param {string} categoryID
@@ -83,11 +74,8 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
-   * Changes the markets an organisation has saved.
-   *
-   * The same transforms the account's own markets go through, so a market
-   * behaves the same whoever saved it — what differs is only which document it
-   * lands on and that an organisation's may be shared with its members.
+   * Changes the markets an organisation has saved, through the same transforms the account's own
+   * markets go through.
    *
    * @param {string} ownerHandle
    * @param {(lane: object[]) => object[]} change - from `marketWriter`
@@ -101,12 +89,22 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
-   * Applies a change to one of a planner's settings. The caller schedules the
-   * write, as the account's own settings do.
+   * Replaces a planner's reprocessing settings.
    *
-   * The field is named rather than one action per setting, because the save is
-   * field-scoped: what is recorded here is what the save sends, and a setting
-   * this member never touched is left for whoever did touch it.
+   * @param {string} ownerHandle
+   * @param {ReturnType<typeof import("../../Context/defaultValues").defaultPlannerReprocessingSettings>} settings
+   */
+  writePlannerReprocessingSettings: (ownerHandle, settings) => {
+    get().plannerSettings.actions.writePlannerSetting(
+      ownerHandle,
+      "reprocessingSettings",
+      () => settings,
+    );
+  },
+
+  /**
+   * Applies a change to one of a held planner's settings and records the field for the save, which
+   * the caller schedules.
    *
    * @param {string} ownerHandle
    * @param {string} field - a key of `planner.SettingsUpdate`
@@ -114,8 +112,6 @@ export const plannerSettingsActions = (set, get) => ({
    */
   writePlannerSetting: (ownerHandle, field, change) => {
     if (!ownerHandle || !field) return;
-    // Only a planner whose settings have arrived: editing the fallback defaults
-    // and saving them would replace the planner's stored ones with them.
     const settings = get().plannerSettings.byOwner[ownerHandle];
     if (!settings) return;
     const next = change(settings[field]);
@@ -142,20 +138,14 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
-   * Writes one planner's edited settings to the API and holds what came back.
-   *
-   * Only the settings this session edited: the endpoint leaves a field it is not
-   * sent as it is stored, so a member who changed the markets does not carry
-   * their copy of another member's categories back over it.
+   * Writes the fields this session edited on one planner to the API and holds what came back,
+   * leaving every other field as another member stored it.
    *
    * @param {string} ownerHandle
    * @returns {Promise<void>}
    */
   savePlannerSettings: async (ownerHandle) => {
     if (!ownerHandle || !get().account.isLoggedIn) return;
-    // Held settings only, for the reason writePlannerSetting refuses the same
-    // case: the fallback defaults are not this planner's, and sending them
-    // would replace what it has stored.
     const settings = get().plannerSettings.byOwner[ownerHandle];
     if (!settings) return;
 
@@ -166,17 +156,12 @@ export const plannerSettingsActions = (set, get) => ({
     );
 
     const response = await savePlannerSettingsToApi(ownerHandle, update);
-    // Marked saved only once the server has it: a failed write leaves the edit
-    // held and still ahead of the stored settings, which is what stops a later
-    // read replacing it with what was never changed.
     get().plannerSettings.actions.markPlannerSettingsSaved(ownerHandle);
     get().plannerSettings.actions.setPlannerSettings(
       ownerHandle,
       response?.settings,
       response?.seeded,
     );
-    // The composed markets are derived from this document too, and an
-    // organisation's are shared with every member rather than only this reader.
     await refreshMarketLocationsAfterWrite();
   },
 
@@ -237,11 +222,8 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
-   * Drops one planner's settings, so it falls back to the defaults again.
-   *
-   * For a settings document that no longer exists. An edit still on its way to
-   * the server is left alone for the same reason a read is: it is ahead of what
-   * the server holds, and the save that follows will recreate the document.
+   * Drops one planner's settings so it falls back to the defaults, unless it holds an edit still on
+   * its way to the server.
    *
    * @param {string} ownerHandle
    */
@@ -270,19 +252,16 @@ export const plannerSettingsActions = (set, get) => ({
   },
 
   /**
-   * Reads one planner's settings from the API and holds them.
+   * Reads one planner's settings from the API and holds them, unless an unsaved edit is ahead of
+   * what the read returned.
    *
    * @param {string} ownerHandle
    * @returns {Promise<object|null>} the merged settings, or null with nobody signed in
    */
   loadPlannerSettings: async (ownerHandle) => {
     if (!ownerHandle) return null;
-    // The planner works signed out on default settings, and a private request
-    // from a signed-out user can redirect the page into a login flow.
     if (!get().account.isLoggedIn) return null;
     const response = await fetchPlannerSettingsFromApi(ownerHandle);
-    // An edit still on its way to the server is ahead of what this read
-    // returned, so the read is dropped rather than applied over it.
     if (!get().plannerSettings.actions.hasUnsavedPlannerSettings(ownerHandle)) {
       get().plannerSettings.actions.setPlannerSettings(
         ownerHandle,

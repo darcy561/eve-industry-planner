@@ -1,15 +1,8 @@
-import {
-  createFileRoute,
-  redirect,
-  lazyRouteComponent,
-} from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import useUsersStore from "../Zustand/usersStore";
 import { getRedirectPathAfterAuth } from "../utils/routeUtils";
 import { startLogin } from "../Functions/Auth/loginProgress.js";
-
-const AuthMainUser = lazyRouteComponent(
-  () => import("../Components/Auth/MainUserAuth"),
-);
+import AuthMainUser from "../Components/Auth/MainUserAuth";
 
 export const Route = createFileRoute("/auth")({
   staticData: { audience: "transient" },

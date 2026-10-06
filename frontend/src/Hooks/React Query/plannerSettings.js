@@ -1,7 +1,10 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import useUsersStore from "../../Zustand/usersStore.js";
-import { extrasCategoriesDefault } from "../../Context/defaultValues";
+import {
+  defaultPlannerReprocessingSettings,
+  extrasCategoriesDefault,
+} from "../../Context/defaultValues";
 import {
   PLANNER_SETTINGS_QUERY_KEY_ROOT,
   plannerOwnerQueryScope,
@@ -9,15 +12,8 @@ import {
 } from "./Backend/plannerQueryScope.js";
 
 /**
- * Reads the settings of planners the reader is not working in.
- *
- * The markets an organisation shares are edited from the settings page, and a
- * write needs that organisation's own lane to apply a change to — which means
- * holding its settings whether or not it is the planner currently open.
- *
- * One entry per owner, so a planner read for one surface is not read again for
- * the next, and an owner whose read fails is a failure against that owner rather
- * than a hole in the set.
+ * Reads and holds the settings of each named planner, one query per owner, whether or not it is
+ * the planner open.
  *
  * @param {Array<string>} ownerHandles
  * @returns {{isLoading: boolean}}
@@ -36,7 +32,6 @@ export function usePlannerSettingsForOwners(ownerHandles) {
         const settings = await useUsersStore
           .getState()
           .plannerSettings.actions.loadPlannerSettings(owner);
-        // A resolved query must carry something; the settings live in the store.
         return settings ?? null;
       },
       enabled: isLoggedIn,
@@ -50,16 +45,15 @@ export function usePlannerSettingsForOwners(ownerHandles) {
 }
 
 /**
- * The extras categories the active planner offers, deleted ones included.
+ * One of the active planner's settings once read, else the fallback; `isHeld` says which, since the
+ * fallback is not the planner's and cannot be edited.
  *
- * A planner whose settings have not been read yet answers the defaults, so a
- * picker has a usable list from the first frame. `isHeld` says which of the two
- * it answered: the defaults cannot be edited, because saving them would replace
- * the planner's stored list with them.
- *
- * @returns {{categories: {id: string, label: string, deleted?: boolean, deletedAt?: string|null}[], isHeld: boolean}}
+ * @template T
+ * @param {string} field - a key of the planner's settings
+ * @param {T} fallback
+ * @returns {{value: T, isHeld: boolean, owner: string|null}}
  */
-export function usePlannerExtrasCategories() {
+export function usePlannerSetting(field, fallback) {
   const owner = useUsersStore((state) =>
     state.activePlanner.actions.getActivePlannerOwner(),
   );
@@ -71,7 +65,6 @@ export function usePlannerExtrasCategories() {
       const settings = await useUsersStore
         .getState()
         .plannerSettings.actions.loadPlannerSettings(owner);
-      // A resolved query must carry something; the settings live in the store.
       return settings ?? null;
     },
     enabled: Boolean(owner) && isLoggedIn,
@@ -79,14 +72,38 @@ export function usePlannerExtrasCategories() {
     refetchOnWindowFocus: false,
   });
 
-  // Selected straight off the held entry rather than through the accessor: the
-  // accessor builds a fresh defaults object per call, and a selector answering a
-  // new reference every time re-renders on every store change.
   const held = useUsersStore(
-    (state) => state.plannerSettings.byOwner[owner ?? ""]?.extrasCategories,
+    (state) => state.plannerSettings.byOwner[owner ?? ""]?.[field],
   );
-  return {
-    categories: held ?? extrasCategoriesDefault,
-    isHeld: Boolean(held),
-  };
+  return { value: held ?? fallback, isHeld: Boolean(held), owner };
+}
+
+/**
+ * The extras categories the active planner offers, deleted ones included, or the defaults until its
+ * settings are read.
+ *
+ * @returns {{categories: {id: string, label: string, deleted?: boolean, deletedAt?: string|null}[], isHeld: boolean}}
+ */
+export function usePlannerExtrasCategories() {
+  const { value, isHeld } = usePlannerSetting(
+    "extrasCategories",
+    extrasCategoriesDefault,
+  );
+  return { categories: value, isHeld };
+}
+
+const reprocessingSettingsDefault = defaultPlannerReprocessingSettings();
+
+/**
+ * The active planner's reprocessing settings, or the defaults until its settings are read.
+ *
+ * @returns {{settings: ReturnType<typeof defaultPlannerReprocessingSettings>, isHeld: boolean,
+ *   owner: string|null}}
+ */
+export function usePlannerReprocessingSettings() {
+  const { value, isHeld, owner } = usePlannerSetting(
+    "reprocessingSettings",
+    reprocessingSettingsDefault,
+  );
+  return { settings: value, isHeld, owner };
 }

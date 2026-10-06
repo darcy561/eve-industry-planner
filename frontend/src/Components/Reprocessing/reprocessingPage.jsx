@@ -1,144 +1,165 @@
-import { Box, Fade } from "@mui/material";
+import { Box } from "@mui/material";
 import TextInputFrame from "./textInputFrame";
-import ReprocessingStructurePanel from "./reprocessingStructurePanel";
-import BasicMineralOutput from "./basicMineralOutput";
+import ReprocessingSetupPanel from "./reprocessingSetupPanel";
+import OreSelectionPanel from "./oreSelectionPanel";
 import PriceHistoryDialogue from "../Dialogues/Price History/dialogueFrame";
 import MarketDataDialogue from "../Dialogues/Market Data/dialogueFrame";
-import DisplayLoadingPanel from "./loadingPanel";
-import OptionsPanel from "./optionsPanel";
+import PanelFallBack from "../../Styled Components/Paper/panelStates";
+import AppShellPanel from "../../Styled Components/Paper/AppShellPanel";
+import PricingControls from "./pricingControls";
+import ReprocessingHeadline from "./reprocessingHeadline";
+import WhatYouGetPanel from "./whatYouGetPanel";
+import ItemByItemPanel from "./itemByItemPanel";
+import { useReprocessingSellingFees } from "./Hooks/useReprocessingSellingFees";
+import useUsersStore from "../../Zustand/usersStore";
 import PlaceholderPanel from "./placeholderPanel";
 import AdvancedMineralOutput from "./advancedMineralOutput";
+import DirectionPanel from "./directionPanel";
 import useReprocessingReducer from "./Hooks/useReprocessingReducer";
-import useAutoRecalculation from "./Hooks/useAutoRecalculation";
+import { useReprocessingAnswers } from "./Hooks/useReprocessingAnswers";
 import AssetsDialogue from "../Dialogues/Assets/dialogueFrame";
-import ContentPanel from "../../Styled Components/Paper/ContentPanel";
+import ContentErrorBoundary from "../../Styled Components/Paper/ContentErrorBoundary";
 
-function ReprocessingPage() {
-  const { state: pageState, actions: pageActions } = useReprocessingReducer();
-
-  useAutoRecalculation(pageState, pageActions);
+/** The Reprocessing page's columns: the reader's choices at the side, and what they come to in the main one. */
+function ReprocessingColumns() {
+  const {
+    state,
+    settings,
+    skills,
+    trainedSkills,
+    skillsStatus,
+    isPlannerHeld,
+    actions,
+  } = useReprocessingReducer();
+  const isLoggedIn = useUsersStore((store) => store.account.isLoggedIn);
+  const sellerHash = isLoggedIn ? state.sellerHash : null;
+  const fees = useReprocessingSellingFees(state.marketLocation, sellerHash);
+  const answers = useReprocessingAnswers(state, settings, skills, fees);
+  const characters = useUsersStore((store) => store.account.characters);
+  const sellerName = sellerHash
+    ? characters?.find((character) => character.CharacterHash === sellerHash)
+        ?.CharacterName
+    : null;
+  const { toMinerals } = answers;
+  const view = {
+    ...state,
+    settings,
+    toMinerals: false,
+    reprocessingObjects: answers.reprocessingObjects,
+    processedInput: [],
+    requestedMinerals: answers.requestedMinerals,
+  };
 
   return (
-    <>
-      <ContentPanel
-        componentName="Reprocessing Page"
-        paperSx={{
-          overflow: "hidden",
+    <Box
+      sx={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 2,
+        alignItems: "flex-start",
+        width: "100%",
+      }}
+    >
+      <Box
+        sx={{
+          flex: "1 1 360px",
+          maxWidth: { xs: "none", md: 400 },
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
         }}
       >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", md: "row" },
-            flexGrow: 1,
-            gap: 2,
-            width: "100%",
-          }}
-        >
-          {/* Left Column - Options Panel and Main Content */}
-          <Box
-            sx={{
-              flexGrow: 1,
-              display: "flex",
-              flexDirection: "column",
-              gap: { xs: 0.5, md: 2 },
-              order: { xs: 1, md: 1 },
-            }}
+        <DirectionPanel pageState={state} pageActions={actions} />
+        <TextInputFrame
+          pageState={state}
+          pageActions={actions}
+          answers={answers}
+        />
+        {toMinerals ? null : (
+          <OreSelectionPanel
+            settings={settings}
+            isPlannerHeld={isPlannerHeld}
+            actions={actions}
+          />
+        )}
+        <ReprocessingSetupPanel
+          pageState={state}
+          pageActions={actions}
+          skills={skills}
+          trainedSkills={trainedSkills}
+          skillsStatus={skillsStatus}
+          answers={answers}
+        />
+      </Box>
+      <Box
+        sx={{
+          flex: "999 1 640px",
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        {answers.isPricing ? (
+          <PanelFallBack isLoading loadingMessage="Gathering market data..." />
+        ) : toMinerals ? (
+          answers.valuation && answers.result.items.length > 0 ? (
+            <>
+              <ReprocessingHeadline
+                pageState={state}
+                pageActions={actions}
+                result={answers.result}
+                valuation={answers.valuation}
+                orderTypeOptions={answers.orderTypeOptions}
+                fees={fees}
+                setup={answers.setup}
+                sellerName={sellerName}
+              />
+              <WhatYouGetPanel
+                result={answers.result}
+                likelyOutputs={answers.likelyOutputs}
+                valuation={answers.valuation}
+                fees={fees}
+                setup={answers.setup}
+                marketLocation={state.marketLocation}
+              />
+              <ItemByItemPanel
+                result={answers.result}
+                valuation={answers.valuation}
+                marketLocation={state.marketLocation}
+                orderType={state.orderType}
+              />
+            </>
+          ) : (
+            <PlaceholderPanel />
+          )
+        ) : (
+          <AppShellPanel
+            title="Buying ore for these minerals"
+            componentName="FromMineralsOutput"
+            paperSx={{ height: "auto" }}
+            action={<PricingControls pageState={state} pageActions={actions} />}
           >
-            {/* Options Panel */}
-            <Box
-              sx={{
-                height: { xs: "auto", sm: "100px" },
-                display: "flex",
-                flexShrink: 0,
-              }}
-            >
-              <OptionsPanel pageState={pageState} pageActions={pageActions} />
-            </Box>
+            {answers.reprocessingObjects.length > 0 ? (
+              <AdvancedMineralOutput pageState={view} pageActions={actions} />
+            ) : (
+              <PlaceholderPanel />
+            )}
+          </AppShellPanel>
+        )}
+      </Box>
+    </Box>
+  );
+}
 
-            {/* Main Content Area */}
-            <Box
-              sx={{
-                flexGrow: 1,
-                position: "relative",
-                minHeight: { xs: "300px", md: "auto" },
-              }}
-            >
-              <Fade in={pageState.isPageLoading} timeout={500} unmountOnExit>
-                <Box
-                  sx={{
-                    position: "absolute",
-                    width: "100%",
-                    height: "100%",
-                  }}
-                >
-                  <DisplayLoadingPanel />
-                </Box>
-              </Fade>
-
-              <Fade in={!pageState.isPageLoading} timeout={500} unmountOnExit>
-                <Box sx={{ width: "100%", height: "100%" }}>
-                  {pageState.reprocessingObjects.length === 0 &&
-                  pageState.processedInput.length === 0 ? (
-                    <PlaceholderPanel />
-                  ) : (
-                    <>
-                      <Fade
-                        in={
-                          !pageState.displayAdvancedView && pageState.toMinerals
-                        }
-                        timeout={500}
-                        unmountOnExit
-                      >
-                        <Box>
-                          <BasicMineralOutput
-                            pageState={pageState}
-                            pageActions={pageActions}
-                          />
-                        </Box>
-                      </Fade>
-
-                      <Fade
-                        in={
-                          pageState.displayAdvancedView || !pageState.toMinerals
-                        }
-                        timeout={500}
-                        unmountOnExit
-                      >
-                        <Box>
-                          <AdvancedMineralOutput
-                            pageState={pageState}
-                            pageActions={pageActions}
-                          />
-                        </Box>
-                      </Fade>
-                    </>
-                  )}
-                </Box>
-              </Fade>
-            </Box>
-          </Box>
-
-          {/* Right Column - Input Controls */}
-          <Box
-            sx={{
-              width: { xs: "100%", md: "30%" },
-              display: "flex",
-              flexDirection: "column",
-              flexShrink: 0,
-              gap: 2,
-              order: { xs: 2, md: 2 },
-            }}
-          >
-            <TextInputFrame pageState={pageState} pageActions={pageActions} />
-
-            <ReprocessingStructurePanel
-              pageState={pageState}
-              pageActions={pageActions}
-            />
-          </Box>
-        </Box>
-      </ContentPanel>
+/** The Reprocessing page, its columns behind an error boundary that reports what broke them. */
+function ReprocessingPage() {
+  return (
+    <>
+      <ContentErrorBoundary componentName="Reprocessing Page">
+        <ReprocessingColumns />
+      </ContentErrorBoundary>
       <PriceHistoryDialogue />
       <MarketDataDialogue />
       <AssetsDialogue />

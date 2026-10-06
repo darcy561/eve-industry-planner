@@ -1,33 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("../Zustand/usersStore", async () => {
-  const { usersStoreMock } = await import("../tests/usersStoreHarness.js");
-  return usersStoreMock();
-});
+import { describe, expect, it } from "vitest";
+import { VELDSPAR } from "../tests/reprocessingFixtures.js";
 
 const { default: ReprocessingItem } = await import("./reprocessingItem.js");
 const { structureFromDocument } =
   await import("../Functions/Custom Structures/customStructure.js");
-const { jobTypes, reprocessingItemTypes } =
-  await import("../Context/defaultValues");
+const { reprocessingSetupFrom } =
+  await import("../Functions/Reprocessing/engine/reprocessingSetup.js");
+const { jobTypes } = await import("../Context/defaultValues");
 
-// Veldspar: 100 units reprocess into 400 Tritanium.
 function veldspar() {
-  return new ReprocessingItem({
-    id: 1230,
-    name: "Veldspar",
-    materials: { 34: 400 },
-    batchSize: 100,
-    itemType: reprocessingItemTypes.ore,
-    reprocessingSkill: 12196,
-  });
+  return new ReprocessingItem(VELDSPAR);
 }
 
 const NO_SKILLS = {};
-const ALL_SKILLS = { 3385: 5, 3389: 5, 12196: 5 };
+const ALL_SKILLS = { 3385: 5, 3389: 5, 60377: 5 };
 
 describe("how much of an ore can be reprocessed", () => {
-  // Reprocessing runs in whole batches; the rest stays in the hangar.
   it("rounds down to whole batches and keeps the remainder", () => {
     const ore = veldspar();
 
@@ -64,22 +52,25 @@ describe("what an ore reprocesses into", () => {
     ore.setTotalQuantity(100);
 
     ore.reprocessMaterials(
-      NO_SKILLS,
-      structureFromDocument(undefined, jobTypes.reprocessing),
+      reprocessingSetupFrom(
+        structureFromDocument(undefined, jobTypes.reprocessing),
+        NO_SKILLS,
+      ),
     );
 
     expect(ore.percentageYield).toBe(50);
     expect(ore.reprocessedMaterials[34]).toBe(200);
   });
 
-  // 50 × 1.15 × 1.10 × 1.10 = 69.575%
   it("yields more with the three reprocessing skills trained", () => {
     const ore = veldspar();
     ore.setTotalQuantity(100);
 
     ore.reprocessMaterials(
-      ALL_SKILLS,
-      structureFromDocument(undefined, jobTypes.reprocessing),
+      reprocessingSetupFrom(
+        structureFromDocument(undefined, jobTypes.reprocessing),
+        ALL_SKILLS,
+      ),
     );
 
     expect(ore.percentageYield).toBeCloseTo(69.575, 3);
@@ -89,25 +80,25 @@ describe("what an ore reprocesses into", () => {
   it("takes the structure's ore bonus", () => {
     const ore = veldspar();
     ore.setTotalQuantity(100);
-    // Large Refinery: a 5.5% bonus to ore.
     const structure = structureFromDocument({
       jobType: jobTypes.reprocessing,
       structureType: 3,
     });
 
-    ore.reprocessMaterials(NO_SKILLS, structure);
+    ore.reprocessMaterials(reprocessingSetupFrom(structure, NO_SKILLS));
 
     expect(ore.percentageYield).toBeCloseTo(50 * 1.055, 6);
   });
 
-  // Reprocessing does not change what the ore is, only what comes out of it.
   it("leaves the ore's own materials alone", () => {
     const ore = veldspar();
     ore.setTotalQuantity(100);
 
     ore.reprocessMaterials(
-      ALL_SKILLS,
-      structureFromDocument(undefined, jobTypes.reprocessing),
+      reprocessingSetupFrom(
+        structureFromDocument(undefined, jobTypes.reprocessing),
+        ALL_SKILLS,
+      ),
     );
 
     expect(ore.materials).toEqual({ 34: 400 });

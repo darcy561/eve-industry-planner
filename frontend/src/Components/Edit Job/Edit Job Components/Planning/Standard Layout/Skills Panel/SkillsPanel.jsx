@@ -5,7 +5,6 @@ import { alpha } from "@mui/material/styles";
 import AppShellPanel from "../../../../../../Styled Components/Paper/AppShellPanel";
 import {
   FIGURE_TONE,
-  Figure,
   FigureCaption,
 } from "../../../../../../Styled Components/Typography/figures";
 import { useGetCharacterSkills } from "../../../../../../Hooks/EveEsi/Character/useGetCharacterSkills";
@@ -17,20 +16,15 @@ import { useSellingRates } from "../../../../../../Hooks/React Query/Character/u
 import { readMarketPriceForType } from "../../../../../../Functions/MarketData/prices/marketPriceForType.js";
 import { useMarketPricesQuery } from "../../../../../../Hooks/React Query/World/marketPrices";
 import SkillsWhatIf from "./skillsWhatIf";
-import SkillLevelPips from "./skillLevelPips";
+import { SkillLevelRow } from "../../../../../../Styled Components/Skills/SkillLevelRow";
 import SkillsTimeEffect from "./skillsTimeEffect";
 import { useJobCommitment } from "../../../../../../Hooks/Planner/useJobCommitment";
 import { useJobDraft } from "../../../../Edit Job Hooks/useJobDraft";
 import { useSelectedSetup } from "../../../../Edit Job Hooks/useSelectedSetup";
 
 /**
- * What this job asks of a character, what would make it quicker, and what makes
- * selling it cost what it does.
- *
- * The three are read from different characters — the build character runs the
- * job, the seller lists the order — so each group says whose levels it is
- * quoting.
- *
+ * What this job asks of a character, what would make it quicker, and what selling it costs, each
+ * group saying whose levels it quotes.
  */
 export function SkillsPanel() {
   const selectedSetup = useSelectedSetup();
@@ -47,15 +41,9 @@ export function SkillsPanel() {
     ? findCharacterByHash(buildCharacterHash)
     : null;
 
-  // A level being tried is a question, not a plan: it lives here and reaches no
-  // store, no document and no other panel.
   const [proposed, setProposed] = useState({});
 
-  // A job whose output is owed to its parents never lists anything, so what
-  // selling would cost is not a question it has.
   const { surplus } = useJobCommitment();
-  // The listed value below is read out of the cache as this renders, so the
-  // query is what tells it the figure has moved.
   const soldAtID = saleLocation?.id;
   const wants = useMemo(
     () =>
@@ -80,8 +68,6 @@ export function SkillsPanel() {
     proposed,
   });
 
-  // Selling is the seller's skills, not the builder's, so that group is quoted
-  // from a different read.
   const sellingSkills = sell.data ?? null;
   const quotedFor = {
     required: buildCharacter?.CharacterName,
@@ -202,10 +188,8 @@ function SkillGroup({ group, characterName, sellingSkills, onPropose }) {
 }
 
 /**
- * What a shortfall actually stops.
- *
- * A red row saying "2 / 4" leaves the reader to work out the consequence for
- * themselves; this is the consequence.
+ * What a shortfall actually stops, so a red row states its consequence rather than leaving it to
+ * the reader.
  *
  * @param {object} props
  */
@@ -254,7 +238,7 @@ function shortfallText(short) {
 }
 
 /**
- * One skill: what it is, what it does here, and where the character stands.
+ * One skill with its state stripe: what it is, what it does here, and where the character stands.
  *
  * @param {object} props
  */
@@ -267,50 +251,27 @@ function SkillRow({ row, onPropose }) {
         : FIGURE_TONE.BAD;
 
   return (
-    <Box
+    <SkillLevelRow
+      name={row.name}
+      caption={row.effect}
+      level={row.level}
+      required={row.required}
+      proposed={row.proposed}
+      onPropose={
+        onPropose && row.level !== null
+          ? (level) => onPropose(row.typeID, level)
+          : undefined
+      }
+      value={levelText(row)}
+      tone={tone}
       sx={{
-        display: "flex",
-        alignItems: "baseline",
-        justifyContent: "space-between",
-        gap: 2,
-        py: 0.5,
-        borderBottom: 1,
-        borderColor: "divider",
-        "&:last-of-type": { borderBottom: 0 },
         opacity: row.applies === false ? 0.6 : 1,
         px: 1,
         borderLeft: 3,
         borderLeftColor: rowAccent(row),
         bgcolor: (theme) => rowWash(theme, row),
       }}
-    >
-      <Box sx={{ minWidth: 0 }}>
-        <Typography variant="body2">{row.name}</Typography>
-        {row.effect ? (
-          <Typography variant="caption" color="text.secondary">
-            {row.effect}
-          </Typography>
-        ) : null}
-      </Box>
-      <Box
-        sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}
-      >
-        <SkillLevelPips
-          level={row.level}
-          required={row.required}
-          proposed={row.proposed}
-          name={row.name}
-          onPropose={
-            onPropose && row.level !== null
-              ? (level) => onPropose(row.typeID, level)
-              : undefined
-          }
-        />
-        <Figure tone={tone} sx={{ minWidth: 44, textAlign: "right" }}>
-          {levelText(row)}
-        </Figure>
-      </Box>
-    </Box>
+    />
   );
 }
 
@@ -323,8 +284,6 @@ function SkillRow({ row, onPropose }) {
 function levelText(row) {
   if (row.level === null)
     return row.required === null ? null : `needs ${row.required}`;
-  // A level being tried is stated as a move from the real one, so the figure it
-  // replaces stays visible beside it.
   if (row.proposed !== null) return `${row.level} → ${row.proposed}`;
   return row.required === null
     ? String(row.level)
@@ -332,11 +291,8 @@ function levelText(row) {
 }
 
 /**
- * The stripe down a row, saying which of three states it is in.
- *
- * A level being tried is drawn in the primary colour rather than success: it is
- * not a state the character is in, and colouring a hypothetical green would read
- * as achieved.
+ * The stripe down a row, saying which of three states it is in; a level being tried is primary
+ * rather than success, since it is not a state the character is in.
  *
  * @param {import("../../../../../../Functions/Skills/jobSkillGroups").SkillRow} row
  */

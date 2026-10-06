@@ -47,7 +47,10 @@ loads the same way:
 | `defaultPendingMinMs` | 300 | Minimum time it stays once shown |
 | `defaultNotFoundComponent` | `Components/routeNotFound.jsx` | Shown when a loader's `notFound()` or an unmatched path is reached |
 
-Routes are lazy chunks (`lazyRouteComponent`). Without preloading, a chunk's download starts on
+Routes are lazy chunks: the router's Vite plugin (`autoCodeSplitting`) splits each route file's
+`component` into its own chunk and preloads it with the route, so a route file imports its page
+directly. A page wrapped in `lazyRouteComponent` as well would be a second lazy layer the router does
+not preload, which suspends on first render. Without preloading, a chunk's download starts on
 click, and the router — which wraps navigation in a React transition — holds the current page on
 screen, unresponsive, until it lands. Preloading on intent means the chunk, and anything its loader
 needs, is usually present before the click. The pending timings cover the case where it is not: a

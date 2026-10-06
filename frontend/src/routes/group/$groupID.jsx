@@ -1,14 +1,7 @@
-import {
-  createFileRoute,
-  lazyRouteComponent,
-  notFound,
-} from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { parseGroupPageViewSearchParam } from "../../Functions/Groups/groupPageViewSearch";
 import { prepareGroupPage } from "../../Functions/Groups/prepareGroupPage";
-
-const GroupFrame = lazyRouteComponent(
-  () => import("../../Components/Groups/groupFrame"),
-);
+import GroupFrame from "../../Components/Groups/groupFrame";
 
 export const Route = createFileRoute("/group/$groupID")({
   staticData: { audience: "public" },

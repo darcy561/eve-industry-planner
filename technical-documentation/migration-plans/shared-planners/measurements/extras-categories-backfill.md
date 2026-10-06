@@ -17,7 +17,7 @@ Raw figures taken from the local dev database and from the restored copy of live
 The step moved nothing, and the `planner_settings_pre_0_9_0` copy holds the same category ids as the
 live collection for all 16 documents. Dev's planners were already current, so **this run is not
 evidence that the merge does its job** — the divergent case is covered by
-`TestLive_backfillPlannerExtrasCategories_movesWhatTheAccountAddedLater` and by nothing else.
+`TestLive_backfillPlannerSettings_extras_movesWhatTheAccountAddedLater` (the extras step has since widened into `backfillPlannerSettings`) and by nothing else.
 
 ## Live, before the release
 

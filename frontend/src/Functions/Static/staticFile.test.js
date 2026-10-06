@@ -1,6 +1,32 @@
 import { describe, it, expect, vi } from "vitest";
 import staticFile, { byName, nameKey } from "./staticFile";
 
+describe("hearing a file change", () => {
+  it("tells a subscriber when the file arrives and when it is dropped", async () => {
+    const file = staticFile(async () => ({ a: 1 }));
+    const listener = vi.fn();
+    file.subscribe(listener);
+
+    await file.prime();
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    file.reset();
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(file.read()).toBeNull();
+  });
+
+  it("stops telling a subscriber that has left", async () => {
+    const file = staticFile(async () => ({ a: 1 }));
+    const listener = vi.fn();
+    const leave = file.subscribe(listener);
+
+    leave();
+    await file.prime();
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
+
 describe("priming a file", () => {
   it("reads what was loaded", async () => {
     const file = staticFile(async () => ({ a: 1 }));
@@ -9,7 +35,6 @@ describe("priming a file", () => {
     expect(file.read()).toEqual({ a: 1 });
   });
 
-  // Null rather than an empty value: a caller can tell "has not arrived" from "carries nothing".
   it("reads null before it has loaded", () => {
     expect(staticFile(async () => ({})).read()).toBeNull();
   });
@@ -33,7 +58,6 @@ describe("priming a file", () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  // A failure remembered as the answer would leave every later caller inheriting one outage.
   it("retries after a failure", async () => {
     const load = vi
       .fn()
@@ -76,7 +100,6 @@ describe("views of a file", () => {
     expect(file.view(() => "built")()).toBeNull();
   });
 
-  // The trap this exists to stop: a derived value outliving the contents it was derived from.
   it("rebuilds from the file that replaced the one it was built from", async () => {
     const load = vi
       .fn()
@@ -124,7 +147,6 @@ describe("matching by name", () => {
     expect(map.get("veldspar")).toEqual({ label: "Veldspar" });
   });
 
-  // A player pastes what the game gave them, spacing and all.
   it("looks a name up however it was cased or spaced", () => {
     expect(nameKey("  Glacial Mass ")).toBe("glacial mass");
   });

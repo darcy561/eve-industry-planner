@@ -15,19 +15,11 @@ import BottomSheet from "../Dialogue/BottomSheet";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 /**
- * Chooses which of the four server-served price modes a panel's figures are
- * quoted on, showing what each does to the total it governs.
- *
- * Built for an `AppShellPanel` `action`, so it reads as a header control rather
- * than a form field: the panel already says what the figure is, and this says
- * what it is measured on.
- *
- * The effect is the point. A mode named alone is jargon — the trimmed percentile
- * figures especially — so each option carries its own total and how far that sits
- * from the one in effect.
+ * A panel header's choice of the order type its figures are quoted on, each option showing its own
+ * total and how far that sits from the one in effect.
  *
  * @param {object} props
- * @param {import("../../Functions/MarketData/defaults/materialPricing.js").OrderTypeOption[]} props.options
+ * @param {import("../../Functions/MarketData/defaults/orderTypeOptions.js").OrderTypeOption[]} props.options
  * @param {(orderTypeID: string) => void} props.onChange
  * @param {(value: number) => string} props.formatValue - Renders a total as ISK
  * @param {string} [props.label] - What the totals are of, e.g. "Materials"
@@ -36,6 +28,8 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
  * @param {() => void} [props.onReset] - Puts every row back on this order type
  * @param {number|null} [props.age] - How old the figures are, in milliseconds
  * @param {boolean} [props.disabled]
+ * @param {boolean} [props.higherIsBetter] - A larger total is the better one, as with a sale
+ * @param {string} [props.totalsCaption] - What the totals are, above the options
  */
 export default function PricingOrderTypeSelect({
   options = [],
@@ -46,12 +40,10 @@ export default function PricingOrderTypeSelect({
   onReset,
   age = null,
   disabled = false,
+  higherIsBetter = false,
+  totalsCaption = "Figures are this job's total under each",
 }) {
   const [anchor, setAnchor] = useState(null);
-  // An anchored menu at 360px opens against the edge of the screen. A sheet
-  // comes up under the thumb and gives each option a full-width row, which is
-  // where this picker gains most: the figure beside each mode is the reason to
-  // prefer one.
   const theme = useTheme();
   const asSheet = useMediaQuery(theme.breakpoints.down("sm"));
   const current = options.find((option) => option.isCurrent) ?? options[0];
@@ -92,7 +84,7 @@ export default function PricingOrderTypeSelect({
         ) : null}
         <MenuItem disabled sx={{ opacity: "1 !important" }}>
           <Typography variant="caption" color="text.secondary">
-            Figures are this job's total under each
+            {totalsCaption}
           </Typography>
         </MenuItem>
         {options.map((option) => (
@@ -133,7 +125,11 @@ export default function PricingOrderTypeSelect({
               <Typography variant="body2">
                 {formatValue(option.total)}
               </Typography>
-              <OrderTypeDelta delta={option.delta} formatValue={formatValue} />
+              <OrderTypeDelta
+                delta={option.delta}
+                formatValue={formatValue}
+                higherIsBetter={higherIsBetter}
+              />
             </Box>
           </MenuItem>
         ))}
@@ -145,10 +141,7 @@ export default function PricingOrderTypeSelect({
 }
 
 /**
- * How many rows are not on this order type.
- *
- * An override is invisible on the row itself, so saying how many there are is
- * what makes one discoverable without opening anything.
+ * How many rows are not on this order type, with a reset where some were overridden.
  *
  * @param {object} props
  * @param {{overridden: number, purchased: number}} [props.usage]
@@ -183,14 +176,15 @@ function OrderTypeUsage({ usage, onReset }) {
 }
 
 /**
- * How far an option sits from the order type in effect. Colour marks sign only, and
- * the option in effect shows nothing rather than a zero.
+ * How far an option sits from the order type in effect, coloured by whether that is better; the
+ * option in effect shows nothing.
  *
  * @param {object} props
  * @param {number} props.delta
  * @param {(value: number) => string} props.formatValue
+ * @param {boolean} props.higherIsBetter
  */
-function OrderTypeDelta({ delta, formatValue }) {
+function OrderTypeDelta({ delta, formatValue, higherIsBetter }) {
   if (!delta) return null;
 
   return (
@@ -198,7 +192,7 @@ function OrderTypeDelta({ delta, formatValue }) {
       variant="caption"
       sx={{
         display: "block",
-        color: delta < 0 ? "success.main" : "error.main",
+        color: delta < 0 !== higherIsBetter ? "success.main" : "error.main",
       }}
     >
       {delta < 0 ? "−" : "+"}
@@ -209,10 +203,6 @@ function OrderTypeDelta({ delta, formatValue }) {
 
 /**
  * How old the figures behind these totals are.
- *
- * The server refreshes on a period measured in hours, and a price from this
- * morning looks exactly as authoritative as one from a minute ago. Stating the
- * age is the only thing that tells them apart.
  *
  * @param {object} props
  * @param {number|null} props.age - Milliseconds

@@ -1,136 +1,110 @@
-import { fetchPrices } from "../MarketData/prices/priceCache.js";
-import { readMarketPriceForType } from "../MarketData/prices/marketPriceForType.js";
 import ReprocessingItem from "../../Classes/reprocessingItem";
-import { reprocessingItemTypes } from "../../Context/defaultValues";
-import { primeReprocessing, selectableItems } from "../Static/reprocessing";
-import {
-  parseInputMineralString,
-  parseReprocessingInput,
-} from "./reprocessingInput";
-import oreSelector from "./oreSelector";
+import { readReprocessingItems } from "../Static/reprocessing";
+import { parseReprocessingInput } from "./reprocessingInput";
+import { reprocess } from "./engine/reprocess";
+import { choosableOre, oreToBuy } from "./selection/oreToBuy";
 
 /**
- * What a pasted list of ore yields once reprocessed, and what those materials are
- * worth.
+ * What a pasted list of ore gives in a setup, as the engine's result, with each line it could not
+ * read.
  *
  * @param {string} inputString - ore names and quantities, one per line
- * @param {Object} skillsMap - the player's reprocessing skills by level
- * @param {Object} reprocessingStructure - the structure the reprocessing is done in
- * @param {string} marketLocation - the market the page prices against
- * @returns {Promise<{reprocessingObjects: Array<Object>, mineralTotals: Object}>}
- *   Prices resolve into the cache rather than being returned
+ * @param {ReturnType<typeof import("./engine/reprocessingSetup").reprocessingSetupFrom>} setup
+ * @returns {{result: ReturnType<typeof reprocess>,
+ *   notReprocessable: Array<{name: string, id: number, quantity: number}>, unread: Array<string>}}
  */
-export async function reprocessIntoMinerals(
-  inputString,
-  skillsMap,
-  reprocessingStructure,
-  marketLocation,
-) {
-  const priceRequest = new Set();
-  await primeReprocessing();
-  const reprocessingObjects = parseReprocessingInput(inputString);
-  for (let material of reprocessingObjects) {
-    material.reprocessMaterials(skillsMap, reprocessingStructure);
-    priceRequest.add(material.id);
-    Object.keys(material.materials).forEach((id) => priceRequest.add(id));
-  }
-  const pricesSettled = fetchPrices({
-    wants: [...priceRequest].map((typeID) => ({
-      typeID,
-      marketLocation,
-    })),
-  });
-  const mineralTotals = gatherMaterialTotals(reprocessingObjects);
-  await pricesSettled;
-
-  return { reprocessingObjects, mineralTotals };
-}
-
-/**
- * Which ore to buy to produce the minerals a player asked for, costed against the
- * market so the choice weighs price rather than yield alone.
- *
- * @param {string} inputString - mineral names and quantities, one per line
- * @param {Object} skillsMap - the player's reprocessing skills by level
- * @param {Object} chosenStructure - the structure the reprocessing is done in
- * @param {string} marketLocation - which market's prices to cost against
- * @param {string} orderType - buy or sell orders
- * @param {Array<number>} oreIDsToBeIgnored - ores the player has excluded
- * @param {Object} reprocessingCalculationSettings - how selection weighs its options
- * @returns {Promise<{oreSelection: Object, requestedMinerals: Object}>} Prices
- *   resolve into the cache rather than being returned
- */
-export async function reprocessFromMinerals(
-  inputString,
-  skillsMap,
-  chosenStructure,
-  marketLocation,
-  orderType,
-  oreIDsToBeIgnored,
-  reprocessingCalculationSettings,
-) {
-  const priceRequest = new Set();
-
-  const reprocessingObjects = {};
-  await primeReprocessing();
-  for (const item of selectableItems()) {
-    const obj = new ReprocessingItem(item);
-    obj.addToTotalQuantity(obj.batchSize);
-
-    priceRequest.add(obj.id);
-    Object.keys(obj.materials).forEach((id) => priceRequest.add(id));
-
-    obj.reprocessMaterials(skillsMap, chosenStructure);
-
-    reprocessingObjects[obj.id] = obj;
-  }
-  const pricesSettled = fetchPrices({
-    wants: [...priceRequest].map((typeID) => ({
-      typeID,
-      marketLocation,
-    })),
-  });
-  const mineralRequestObjects = await parseInputMineralString(inputString);
-  await pricesSettled;
-
-  Object.values(reprocessingObjects).forEach((item) => {
-    item.unitPrice = readMarketPriceForType(item.id, marketLocation, orderType);
-  });
-
-  const oreSelection = oreSelector(
-    mineralRequestObjects,
-    reprocessingObjects,
-    oreIDsToBeIgnored,
-    reprocessingCalculationSettings,
+export function toMineralsAnswer(inputString, setup) {
+  const { items, notReprocessable, unread } =
+    parseReprocessingInput(inputString);
+  const result = reprocess(
+    items.map((item) => ({ typeID: item.id, quantity: item.totalQuantity })),
+    setup,
   );
-  return {
-    oreSelection,
-    requestedMinerals: mineralRequestObjects,
-  };
+  return { result, notReprocessable, unread };
 }
 
 /**
- * The minerals a set of reprocessed items comes to in total, counting a gas
- * cloud by what it holds rather than by its batch.
+ * The types a To minerals answer is priced on: the items pasted and everything they give.
  *
- * @param {Array<Object>} objectArray - Reprocessing objects carrying materials
- * @returns {Array<Object>} Combined minerals with their total quantities
+ * @param {ReturnType<typeof reprocess>} result
+ * @returns {Array<string>}
  */
-function gatherMaterialTotals(objectArray) {
-  const outputObj = {};
-  for (const obj of objectArray) {
-    for (const [key, quantity] of Object.entries(obj.reprocessedMaterials)) {
-      if (!outputObj[key]) {
-        outputObj[key] = { id: key, quantity: 0 };
-      }
+export function typesPricedByToMinerals(result) {
+  const types = new Set();
+  for (const item of result.items) {
+    types.add(String(item.typeID));
+    for (const typeID of Object.keys(item.outputs)) types.add(typeID);
+  }
+  return [...types];
+}
 
-      if (obj.itemType === reprocessingItemTypes.gas) {
-        outputObj[key].quantity += quantity;
-      } else {
-        outputObj[key].quantity +=
-          quantity * (obj.reprocessableQuantity / obj.batchSize);
-      }
+/**
+ * The types a From minerals answer is priced on whatever was pasted: every ore the solver may
+ * choose and everything each gives.
+ *
+ * @returns {Array<string>}
+ */
+export function typesPricedByFromMinerals() {
+  const types = new Set();
+  for (const entry of choosableOre()) {
+    types.add(String(entry.id));
+    for (const id of Object.keys({
+      ...entry.materials,
+      ...entry.randomizedMaterials,
+    })) {
+      types.add(id);
     }
   }
-  return Object.values(outputObj);
+  return [...types];
+}
+
+/**
+ * Which ore to buy for the minerals a player asked for under a planner's reprocessing settings, the
+ * cheapest the prices offer in whole batches, each as a reprocessing item holding its run's outputs.
+ *
+ * @param {Object<string, {id: number, quantity: number}>} requestedMinerals - as parseInputMineralString reads them
+ * @param {ReturnType<typeof import("./engine/reprocessingSetup").reprocessingSetupFrom>} setup
+ * @param {(typeID: string) => number} priceOf - one unit's price
+ * @param {ReturnType<typeof import("../../Context/defaultValues").defaultPlannerReprocessingSettings>} settings
+ * @returns {{oreSelection: Array<ReprocessingItem>, outright: Array<{typeID: string, quantity: number}>}}
+ */
+export function fromMineralsAnswer(
+  requestedMinerals,
+  setup,
+  priceOf,
+  settings,
+) {
+  const plan = oreToBuy(
+    Object.fromEntries(
+      Object.values(requestedMinerals).map(({ id, quantity }) => [
+        id,
+        quantity,
+      ]),
+    ),
+    setup,
+    {
+      compressedOre: settings.compressedOre,
+      buyOutright: settings.buyOutright,
+      neverChoose: settings.neverChoose,
+      shipping: settings.shipping,
+    },
+    priceOf,
+  );
+  const entries = readReprocessingItems();
+  const oreSelection = plan.ores.map(({ typeID, quantity }) => {
+    const item = new ReprocessingItem(entries[typeID]);
+    const [run] = reprocess([{ typeID, quantity }], setup).items;
+    item.setTotalQuantity(quantity);
+    item.percentageYield = run.yield;
+    item.reprocessedMaterials = Object.fromEntries(
+      Object.entries(run.outputs).map(([id, given]) => [
+        id,
+        given / run.batches,
+      ]),
+    );
+    item.unitPrice = priceOf(typeID);
+    return item;
+  });
+
+  return { oreSelection, outright: plan.outright };
 }

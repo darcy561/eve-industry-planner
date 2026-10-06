@@ -1,15 +1,11 @@
-import { Box, Tooltip, Typography, useTheme } from "@mui/material";
+import { Box, Tooltip, useTheme } from "@mui/material";
 
 import { resolveSeriesColour } from "../chartTheme";
+import { ChartLegend } from "../ChartLegend";
 
 /**
- * What a total is made of, as one bar.
- *
- * Carries no figures of its own: a part too small to see is still counted in the
- * total, and the total belongs to whatever is stating it.
- *
- * Parts take the same shape a chart series does, so a part that means the same
- * thing here and in a chart is the same colour in both.
+ * What a total is made of, as one bar with no figures of its own, each part coloured as a chart
+ * series of the same meaning.
  *
  * @param {object} props
  * @param {Array<{id: string, label: React.ReactNode, value: number, role?: string, colour?: string}>} props.parts
@@ -37,8 +33,6 @@ export function ProportionBar({
 
   const colourOf = (part, index) => resolveSeriesColour(theme, part, index);
 
-  // Only a bar with somewhere to send the answer takes focus: a bar nothing
-  // listens to would add a tab stop per segment and do nothing with it.
   const interactive = Boolean(onActivePart);
   const activate = (id) => () => onActivePart?.(id);
 
@@ -65,8 +59,6 @@ export function ProportionBar({
                 width: `${(part.value / total) * 100}%`,
                 bgcolor: colourOf(part, index),
                 cursor: interactive ? "default" : undefined,
-                // The others recede rather than this one brightening: a segment
-                // drawn in a colour that means something must keep it.
                 opacity: activeId && activeId !== part.id ? 0.35 : 1,
                 transition: theme.transitions.create("opacity", {
                   duration: theme.transitions.duration.shortest,
@@ -77,26 +69,14 @@ export function ProportionBar({
         ))}
       </Box>
       {showLegend ? (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 1 }}>
-          {present.map((part, index) => (
-            <Box
-              key={part.id}
-              sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}
-            >
-              <Box
-                sx={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: "2px",
-                  bgcolor: colourOf(part, index),
-                }}
-              />
-              <Typography variant="caption" color="text.secondary">
-                {part.label}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
+        <ChartLegend
+          sx={{ mt: 1 }}
+          keys={present.map((part, index) => ({
+            id: part.id,
+            label: part.label,
+            colour: colourOf(part, index),
+          }))}
+        />
       ) : null}
     </Box>
   );

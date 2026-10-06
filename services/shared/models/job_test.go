@@ -316,8 +316,8 @@ func TestJobSetupRigSlotsSurviveBSON(t *testing.T) {
 func TestKeyedCollectionsSurviveTheWritePath(t *testing.T) {
 	t.Parallel()
 
-	job := Job{JobID: "job-1"}
-	job.Skills = map[string]Skill{"22242": {TypeID: 22242, Level: 4}}
+	job := Job{JobID: "job-1",
+		Skills: map[string]Skill{"22242": {TypeID: 22242, Level: 4}}}
 	job.Build.Materials = map[string]JobMaterial{
 		"34": {TypeID: 34, Purchasing: map[string]Purchase{
 			"p1": {ID: "p1", ItemCount: 60, ItemCost: 5},

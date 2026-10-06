@@ -1,13 +1,3 @@
-/**
- * User Preferences Management for EVE Industry Planner.
- *
- * Handles all user preference settings including toggles, updates, and
- * management of various application settings like cloud accounts, tutorials,
- * market preferences, job settings, and reprocessing configurations.
- *
- * @fileoverview User preferences and settings management actions
- * @author EVE Industry Planner Team
- */
 import { asIDList } from "../../Functions/Helper/ids";
 import { setGroupPricing } from "../../Functions/MarketData/defaults/pricingSide";
 
@@ -17,10 +7,7 @@ import {
 } from "../../Functions/Helper/localeDetection";
 
 /**
- * User preferences management actions for application settings.
- *
- * Provides methods for managing user preferences including toggle operations,
- * update methods, and preference-specific functionality.
+ * The actions that change the account's own application settings.
  *
  * @param {Function} set - Zustand set function for updating state
  * @param {Function} get - Zustand get function for accessing current state
@@ -31,9 +18,6 @@ export const preferencesActions = (set, get) => ({
    * Toggles the cloud accounts setting.
    *
    * Switches between enabled and disabled states for cloud account storage.
-   *
-   * @example
-   * store.getState().applicationSettings.actions.toggleCloudAccounts();
    */
   toggleCloudAccounts: () =>
     set(
@@ -48,11 +32,8 @@ export const preferencesActions = (set, get) => ({
     ),
 
   /**
-   * Sets cloud accounts mode to an explicit value.
-   *
-   * Prefer this over `toggleCloudAccounts` when the target state is known — the storage choice on
-   * the Accounts page and in first login both name the mode they are switching to — to avoid
-   * stale-toggle drift.
+   * Sets cloud accounts mode to an explicit value, for a caller that names the mode it is
+   * switching to rather than toggling.
    *
    * @param {boolean} enabled
    */
@@ -72,9 +53,6 @@ export const preferencesActions = (set, get) => ({
    * Toggles the hide tutorials setting.
    *
    * Switches between showing and hiding tutorial elements.
-   *
-   * @example
-   * store.getState().applicationSettings.actions.toggleHideTutorials();
    */
   toggleHideTutorials: () =>
     set(
@@ -92,9 +70,6 @@ export const preferencesActions = (set, get) => ({
    * Toggles the enable compact view setting.
    *
    * Switches between compact and expanded view modes for the interface.
-   *
-   * @example
-   * store.getState().applicationSettings.actions.toggleEnableCompactView();
    */
   toggleEnableCompactView: () =>
     set(
@@ -130,10 +105,6 @@ export const preferencesActions = (set, get) => ({
    * Updates the ESI job tab setting.
    *
    * @param {string|null} newValue - New ESI job tab value
-   *
-   * @example
-   * store.getState().applicationSettings.actions.updateEsiJobTab('active');
-   * store.getState().applicationSettings.actions.updateEsiJobTab(null);
    */
   updateEsiJobTab: (newValue) =>
     set(
@@ -172,9 +143,6 @@ export const preferencesActions = (set, get) => ({
    * Updates the default material efficiency value.
    *
    * @param {number} newValue - New default ME value (typically 0-10)
-   *
-   * @example
-   * store.getState().applicationSettings.actions.updateDefaultMaterialEfficiencyValue(5);
    */
   updateDefaultMaterialEfficiencyValue: (newValue) =>
     set(
@@ -189,21 +157,13 @@ export const preferencesActions = (set, get) => ({
     ),
 
   /**
-   * Sets one field of one market group's pricing, on one side.
-   *
-   * Separate from {@link updatePricingDefault} because that one spreads a side
-   * and assigns a top-level key: it cannot reach inside `groups`, and handing it
-   * "groups" would replace the whole table with whatever the caller had built.
-   * A side's other answers have to survive a change to one group.
+   * Sets one field of one market group's pricing on one side, leaving the side's other groups and
+   * answers as they are.
    *
    * @param {string} side - One of PRICING_SIDE
    * @param {number|string} groupID - A market group id
    * @param {"market"|"orderType"} key
-   * @param {string|null|undefined} value - Empty clears the field, and clearing
-   *   the last field drops the group
-   *
-   * @example
-   * actions.updateGroupPricingDefault("buying", 1857, "market", "jita");
+   * @param {string|null|undefined} value - empty clears the field
    */
   updateGroupPricingDefault: (side, groupID, key, value) =>
     set(
@@ -227,20 +187,12 @@ export const preferencesActions = (set, get) => ({
     ),
 
   /**
-   * Sets one field of one side of the account's pricing defaults.
-   *
-   * The side is which half of a job is being priced, and the key is the market
-   * or the order type it is priced on. Both axes are called buy and sell and they
-   * do not agree: buying materials normally uses the "sell" order type, because
-   * the ask is what buying costs.
+   * Sets one field of one side of the account's pricing defaults: the market, the order type, or
+   * on the selling side the route out.
    *
    * @param {string} side - One of PRICING_SIDE
-   * @param {"market"|"orderType"|"exit"} key - The selling side takes `exit` in place
-   *   of `orderType`: its route decides which side of the book it reads.
+   * @param {"market"|"orderType"|"exit"} key - the selling side takes `exit` for `orderType`
    * @param {string} value
-   *
-   * @example
-   * actions.updatePricingDefault("buying", "market", "jita");
    */
   updatePricingDefault: (side, key, value) =>
     set(
@@ -264,9 +216,6 @@ export const preferencesActions = (set, get) => ({
    * Toggles the hide complete materials setting.
    *
    * Switches between showing and hiding materials that are already complete.
-   *
-   * @example
-   * store.getState().applicationSettings.actions.toggleHideCompleteMaterials();
    */
   toggleHideCompleteMaterials: () =>
     set(
@@ -285,9 +234,6 @@ export const preferencesActions = (set, get) => ({
    * Updates the default asset location station ID.
    *
    * @param {number} newValue - New default asset location station ID
-   *
-   * @example
-   * store.getState().applicationSettings.actions.updateDefaultAssetLocation(60003760);
    */
   updateDefaultAssetLocation: (newValue) =>
     set(
@@ -305,9 +251,6 @@ export const preferencesActions = (set, get) => ({
    * Updates the citadel broker's fee percentage.
    *
    * @param {number} newValue - New citadel broker's fee percentage (0-100)
-   *
-   * @example
-   * store.getState().applicationSettings.actions.updateCitadelBrokersFee(2.5);
    */
   updateCitadelBrokersFee: (newValue) =>
     set(
@@ -322,41 +265,10 @@ export const preferencesActions = (set, get) => ({
     ),
 
   /**
-   * Updates exempt type IDs (legacy method with bug).
-   *
-   * ⚠️ **Warning**: This method has a bug where it adds the inputValue twice.
-   * Use `addExemptTypeID` instead for proper functionality.
-   *
-   * @param {number|string} inputValue - Type ID to add to exempt list
-   *
-   * @example
-   * // This method has a bug - use addExemptTypeID instead
-   * store.getState().applicationSettings.actions.updateExemptTypeIDs(34);
-   */
-  updateExemptTypeIDs: (inputValue) =>
-    set(
-      (state) => ({
-        applicationSettings: {
-          ...state.applicationSettings,
-          exemptTypeIDs: new Set(
-            state.applicationSettings.exemptTypeIDs || [],
-          ).add(inputValue),
-          inputValue,
-        },
-      }),
-      false,
-      "updateExemptTypeIDs",
-    ),
-
-  /**
    * Checks if a type ID is exempt from certain calculations.
    *
    * @param {number|string} inputTypeID - Type ID to check
    * @returns {boolean} True if the type ID is exempt, false otherwise
-   *
-   * @example
-   * const isExempt = store.getState().applicationSettings.actions.checkTypeIDisExempt(34);
-   * if (isExempt) console.log('Type ID 34 is exempt from calculations');
    */
   checkTypeIDisExempt: (inputTypeID) => {
     const state = get().applicationSettings;
@@ -364,17 +276,9 @@ export const preferencesActions = (set, get) => ({
   },
 
   /**
-   * Adds type ID(s) to the exempt list.
-   *
-   * Adds one or more type IDs to the exempt type IDs set. Handles single values,
-   * arrays, and Sets. Prevents duplicates automatically.
+   * Adds one type id, or an array or Set of them, to the exempt list.
    *
    * @param {number|string|Array|Set} inputValue - Type ID(s) to add to exempt list
-   *
-   * @example
-   * store.getState().applicationSettings.actions.addExemptTypeID(34);
-   * store.getState().applicationSettings.actions.addExemptTypeID([34, 35, 36]);
-   * store.getState().applicationSettings.actions.addExemptTypeID(new Set([34, 35]));
    */
   addExemptTypeID: (inputValue) => {
     if (!inputValue) return;
@@ -396,17 +300,9 @@ export const preferencesActions = (set, get) => ({
   },
 
   /**
-   * Removes type ID(s) from the exempt list.
-   *
-   * Removes one or more type IDs from the exempt type IDs set. Handles single values,
-   * arrays, and Sets.
+   * Removes one type id, or an array or Set of them, from the exempt list.
    *
    * @param {number|string|Array|Set} inputValue - Type ID(s) to remove from exempt list
-   *
-   * @example
-   * store.getState().applicationSettings.actions.removeExemptTypeID(34);
-   * store.getState().applicationSettings.actions.removeExemptTypeID([34, 35, 36]);
-   * store.getState().applicationSettings.actions.removeExemptTypeID(new Set([34, 35]));
    */
   removeExemptTypeID: (inputValue) => {
     if (!inputValue) return;
@@ -432,9 +328,6 @@ export const preferencesActions = (set, get) => ({
    * Toggles the automatic job recalculation setting.
    *
    * Switches between enabled and disabled states for automatic job recalculation.
-   *
-   * @example
-   * store.getState().applicationSettings.actions.toggleAutomaticJobRecalculation();
    */
   toggleAutomaticJobRecalculation: () =>
     set(
@@ -453,9 +346,6 @@ export const preferencesActions = (set, get) => ({
    * Toggles the ignore items without blueprints setting.
    *
    * Switches between enabled and disabled states for ignoring items without blueprints.
-   *
-   * @example
-   * store.getState().applicationSettings.actions.toggleIgnoreItemsWithoutBlueprints();
    */
   toggleIgnoreItemsWithoutBlueprints: () =>
     set(
@@ -514,10 +404,6 @@ export const preferencesActions = (set, get) => ({
    *
    * @param {Array} users - Array of user objects to search in
    * @returns {Object|null} User object or null if not found
-   *
-   * @example
-   * const defaultCharacter = store.getState().applicationSettings.actions.getDefaultReprocessingCharacter(characters);
-   * if (defaultCharacter) console.log(defaultCharacter.CharacterName);
    */
   getDefaultReprocessingCharacter: (users) => {
     if (!users) return null;
@@ -530,45 +416,9 @@ export const preferencesActions = (set, get) => ({
   },
 
   /**
-   * Updates reprocessing calculation settings.
-   *
-   * Merges new settings with existing reprocessing calculation settings.
-   *
-   * @param {Object} newSettings - New reprocessing calculation settings to merge
-   * @param {number} [newSettings.efficiency] - Reprocessing efficiency percentage
-   * @param {number} [newSettings.refineYield] - Refine yield percentage
-   * @param {boolean} [newSettings.useStationBonuses] - Whether to use station bonuses
-   *
-   * @example
-   * const newSettings = {
-   *   efficiency: 0.5,
-   *   refineYield: 0.8,
-   *   useStationBonuses: true
-   * };
-   * store.getState().applicationSettings.actions.updateReprocessingCalculationSettings(newSettings);
-   */
-  updateReprocessingCalculationSettings: (newSettings) =>
-    set(
-      (state) => ({
-        applicationSettings: {
-          ...state.applicationSettings,
-          reprocessingSettings: {
-            ...state.applicationSettings.reprocessingSettings,
-            ...newSettings,
-          },
-        },
-      }),
-      false,
-      "updateReprocessingCalculationSettings",
-    ),
-
-  /**
    * Updates the locale setting.
    *
    * @param {string} newLocale - New locale code (e.g., 'en', 'fr', 'de')
-   *
-   * @example
-   * store.getState().applicationSettings.actions.updateLocale('fr');
    */
   updateLocale: (newLocale) =>
     set(
@@ -586,10 +436,6 @@ export const preferencesActions = (set, get) => ({
    * Gets the current locale setting.
    *
    * @returns {string} Current locale code
-   *
-   * @example
-   * const currentLocale = store.getState().applicationSettings.actions.getCurrentLocale();
-   * console.log('Current locale:', currentLocale);
    */
   getCurrentLocale: () => {
     const state = get().applicationSettings;
@@ -600,9 +446,6 @@ export const preferencesActions = (set, get) => ({
    * Resets the locale to the detected user locale.
    *
    * Resets the locale setting to the automatically detected user locale.
-   *
-   * @example
-   * store.getState().applicationSettings.actions.resetLocale();
    */
   resetLocale: () =>
     set(

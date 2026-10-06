@@ -1,12 +1,8 @@
 import { useState } from "react";
-import {
-  Stack,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from "@mui/material";
+import { Stack, Typography } from "@mui/material";
 
 import useUsersStore from "../../Zustand/usersStore";
+import { SegmentedChoice } from "../../Styled Components/Select/SegmentedChoice";
 import {
   showSnackbarError,
   showSnackbarInfo,
@@ -22,6 +18,11 @@ import {
 } from "../../Functions/Auth/linkedCharacterTokens.js";
 import { FigureCaption } from "../../Styled Components/Typography/figures";
 
+const TOKEN_STORAGE_OPTIONS = [
+  { value: "cloud", label: "Cloud" },
+  { value: "local", label: "This browser" },
+];
+
 /** What the chosen mode means for the reader, rather than what the other one would mean. */
 const WHAT_IT_MEANS = {
   cloud:
@@ -31,12 +32,8 @@ const WHAT_IT_MEANS = {
 };
 
 /**
- * Where the account's linked-character refresh tokens are kept.
- *
- * An account-wide choice made once, which is why it sits with the account rather than at the head
- * of the roster it governs. Changing it moves what is already held: to the cloud, whatever the
- * browser was storing; back, whatever the roster holds in memory — the server's copies cannot be
- * read back, so a reader switching to local is told the linked characters need adding again.
+ * Where the account's linked-character refresh tokens are kept, moving what is already held when it
+ * changes; switching to this browser means linking the characters again.
  */
 export function TokenStorageChoice() {
   const cloudAccounts = useUsersStore(
@@ -87,8 +84,6 @@ export function TokenStorageChoice() {
           localStorage.removeItem(localStorageKey);
         }
       } else {
-        // The server holds the OAuth refresh secrets in cloud mode and does not hand them back, so
-        // what the browser can keep is only what the roster is already carrying.
         updateLocalRefreshTokens(useUsersStore.getState().account.characters);
         showSnackbarInfo(
           "Switched to local storage. Link additional accounts again if you want OAuth refresh tokens saved only in this browser.",
@@ -112,31 +107,15 @@ export function TokenStorageChoice() {
   return (
     <Stack spacing={0.5}>
       <FigureCaption>Token storage</FigureCaption>
-      <ToggleButtonGroup
-        exclusive
-        size="small"
-        disabled={isChanging}
-        sx={{ width: { xs: "100%", sm: "auto" } }}
+      <SegmentedChoice
+        label="Where linked character tokens are kept"
+        options={TOKEN_STORAGE_OPTIONS}
         value={cloudAccounts ? "cloud" : "local"}
-        aria-label="Where linked character tokens are kept"
-        onChange={(_event, next) => {
-          if (next === null) return;
-          void setCloudMode(next === "cloud");
-        }}
-      >
-        <ToggleButton
-          value="cloud"
-          sx={{ textTransform: "none", px: 2, flex: 1 }}
-        >
-          Cloud
-        </ToggleButton>
-        <ToggleButton
-          value="local"
-          sx={{ textTransform: "none", px: 2, flex: 1 }}
-        >
-          This browser
-        </ToggleButton>
-      </ToggleButtonGroup>
+        onChange={(next) => void setCloudMode(next === "cloud")}
+        disabled={isChanging}
+        stretch
+        sx={{ width: { xs: "100%", sm: "auto" } }}
+      />
       <Typography variant="body2" color="text.secondary">
         {cloudAccounts ? WHAT_IT_MEANS.cloud : WHAT_IT_MEANS.local}
       </Typography>

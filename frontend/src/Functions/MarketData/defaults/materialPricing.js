@@ -3,9 +3,9 @@ import {
   purchasedCost,
   quantityPurchased,
 } from "../../../Components/Edit Job/Edit Job Hooks/materialSelectors";
-import { ORDER_TYPES } from "../../../Context/defaultValues";
 import { MATERIAL_PLAN } from "../../Job/figures/materialSourcingRow.js";
 import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
+import { orderTypeOptions } from "./orderTypeOptions";
 
 /**
  * What answering the market-group rung takes: the tree, the account's table
@@ -29,8 +29,7 @@ import { PRICING_RUNG, resolveGroupDefault } from "./pricingSide";
  * @param {number} materialTypeID
  * @param {string} defaultMarketLocation
  * @param {string} defaultOrderType
- * @param {GroupRungContext} [groupPricing] - Absent until the tree has loaded, which
- *   is a normal early state: the ladder then reads as it did before rung 3
+ * @param {GroupRungContext} [groupPricing] - Absent until the tree has loaded
  * @returns {{marketLocation: string, orderType: string}}
  */
 export function getEffectiveMaterialPriceHub(
@@ -84,15 +83,6 @@ function beneathTheJob(chosen, rung) {
 }
 
 /**
- * @typedef {object} OrderTypeOption
- * @property {string} id - One of the ORDER_TYPES ids
- * @property {string} label - Display name
- * @property {number} total - What the job's materials cost on this orderType
- * @property {number} delta - That total less the current orderType's total
- * @property {boolean} isCurrent - Whether this is the orderType in effect
- */
-
-/**
  * What the job's materials cost on each of the four bases, a material carrying
  * its own override keeping it on every one.
  *
@@ -104,7 +94,7 @@ function beneathTheJob(chosen, rung) {
  * @param {string} params.orderType - The order type in effect
  * @param {(typeID: number, hub: string, orderType: string) => number} params.getPrice
  * @param {GroupRungContext} [params.groupPricing]
- * @returns {OrderTypeOption[]}
+ * @returns {import("./orderTypeOptions.js").OrderTypeOption[]}
  */
 export function materialCostByOrderType({
   rows: materialRows,
@@ -138,23 +128,7 @@ export function materialCostByOrderType({
       return total + price * material.quantity;
     }, 0);
 
-  const totalsById = new Map(
-    ORDER_TYPES.map((entry) => [entry.id, totalOn(entry.id)]),
-  );
-  const current = totalsById.get(orderType) ?? 0;
-
-  return ORDER_TYPES.map((entry) => {
-    const total = totalsById.get(entry.id) ?? 0;
-    return {
-      id: entry.id,
-      label: entry.name,
-      caption: entry.caption,
-      description: entry.description,
-      total,
-      delta: total - current,
-      isCurrent: entry.id === orderType,
-    };
-  });
+  return orderTypeOptions(totalOn, orderType);
 }
 
 /**
@@ -215,8 +189,7 @@ export function materialPurchaseState(material, requirement = 0) {
  *
  * @param {Array<{typeID: number}>} materials
  * @param {(typeID: number) => number|undefined} refreshedAt - When a type's
- *   figures were last refreshed. Passed in rather than imported, so this module
- *   stays free of the store and testable without one
+ *   figures were last refreshed
  * @returns {number|null} Milliseconds since the oldest was refreshed, or null
  *   where nothing has a timestamp
  */

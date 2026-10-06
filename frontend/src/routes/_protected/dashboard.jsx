@@ -1,8 +1,5 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-
-const Dashboard = lazyRouteComponent(
-  () => import("../../Components/Dashboard/Dashboard"),
-);
+import { createFileRoute } from "@tanstack/react-router";
+import Dashboard from "../../Components/Dashboard/Dashboard";
 
 export const Route = createFileRoute("/_protected/dashboard")({
   staticData: { audience: "private" },

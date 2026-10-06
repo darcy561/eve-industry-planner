@@ -5,9 +5,6 @@ import { TimeSeriesChart } from "./TimeSeriesChart";
 import { RankedBarChart } from "./RankedBarChart";
 import { PieChart } from "./PieChart";
 
-// jsdom performs no layout, so a ResponsiveContainer measures a zero-sized
-// parent and draws nothing. Explicit dimensions are passed to test what the
-// chart draws; the sizing itself is asserted on the style object instead.
 function sized(ui) {
   return render(cloneElement(ui, { width: 600, height: 400 }));
 }
@@ -18,8 +15,6 @@ const months = [
 ];
 
 describe("chart primitives", () => {
-  // The same component draws whatever series it is handed, which is what makes
-  // one primitive serve several charts.
   it("draws a series list of mixed mark types", () => {
     const { container } = sized(
       <TimeSeriesChart
@@ -31,14 +26,10 @@ describe("chart primitives", () => {
         ]}
       />,
     );
-    // Each series must actually draw. A series pointing at an axis id that does
-    // not exist silently renders nothing, leaving an empty chart area.
     expect(container.querySelector(".recharts-bar")).not.toBeNull();
     expect(container.querySelector(".recharts-line")).not.toBeNull();
   });
 
-  // Price history puts volume on a second axis while the rest use the default
-  // one, so a right-hand series must not stop the left-hand ones drawing.
   it("draws both axes' series when one uses the right axis", () => {
     const { container } = sized(
       <TimeSeriesChart
@@ -55,8 +46,6 @@ describe("chart primitives", () => {
     expect(container.querySelector(".recharts-bar")).not.toBeNull();
   });
 
-  // A second value axis is what price history needs and the statistics charts
-  // do not, so the primitive must support it without requiring it.
   it("draws a right-hand axis only when a series asks for one", () => {
     const { container } = sized(
       <TimeSeriesChart
@@ -72,8 +61,6 @@ describe("chart primitives", () => {
     expect(container.querySelector("svg")).not.toBeNull();
   });
 
-  // Empty rows draw nothing rather than throwing: deciding whether that means
-  // loading, or no data, belongs to the panel.
   it("renders with no rows", () => {
     const { container } = sized(
       <TimeSeriesChart
@@ -100,8 +87,6 @@ describe("chart primitives", () => {
     expect(container.querySelector("svg")).not.toBeNull();
   });
 
-  // Per-bar colouring goes through the shape render prop; Cell is deprecated in
-  // recharts 3 and removed in 4.
   it("colours bars individually when asked", () => {
     const { container } = sized(
       <RankedBarChart
@@ -117,8 +102,6 @@ describe("chart primitives", () => {
     expect(container.querySelector("svg")).not.toBeNull();
   });
 
-  // Charts size themselves through CSS rather than a fixed pixel height, so a
-  // chart follows the width of whatever page it is placed on.
   it("fills its container width at an aspect ratio by default", () => {
     const { container } = render(
       <div data-testid="parent" style={{ width: 600 }}>
@@ -136,8 +119,6 @@ describe("chart primitives", () => {
     expect(chart.style.aspectRatio).not.toBe("");
   });
 
-  // A caller that needs to fill a sized container overrides the default rather
-  // than the primitive guessing which layout it is in.
   it("accepts a style override", () => {
     const { container } = render(
       <div data-testid="parent" style={{ height: 400 }}>
@@ -155,8 +136,6 @@ describe("chart primitives", () => {
     expect(chart.style.height).toBe("100%");
   });
 
-  // The app-shell chrome is a default, not a requirement: a caller with its own
-  // look overrides it rather than being forced into the panel design.
   it("lets a caller turn the grid off", () => {
     const withGrid = sized(
       <TimeSeriesChart
@@ -197,9 +176,6 @@ describe("chart primitives", () => {
   });
 });
 
-// A month nothing sold in has no average price, which is not a price of zero.
-// The series therefore carries nulls, and how the line handles them decides
-// whether a sparse history is readable or a scatter of fragments.
 describe("a sparse line series", () => {
   const sparseMonths = [
     { month: "2026-05", price: 1000 },
@@ -228,16 +204,11 @@ describe("a sparse line series", () => {
 
     const curve = container.querySelector(".recharts-line-curve");
     expect(curve).not.toBeNull();
-    // One unbroken path rather than a fragment per run of readings. A break is
-    // written into the path data as a second move command.
     const d = curve.getAttribute("d") ?? "";
     expect(d.match(/M/g)?.length ?? 0).toBe(1);
-    // The dots are what separate an observed value from the bridge drawn
-    // between two of them.
     expect(container.querySelectorAll(".recharts-line-dot").length).toBe(2);
   });
 
-  // A dense series gains nothing from either, and dots on one would be noise.
   it("leaves a series that declares no gaps alone", () => {
     const container = draw({ key: "price", label: "Price", type: "line" });
 
@@ -245,8 +216,6 @@ describe("a sparse line series", () => {
     expect(container.querySelectorAll(".recharts-line-dot").length).toBe(0);
   });
 
-  // The case that draws nothing at all without dots: a single reading has no
-  // neighbour to draw a segment to.
   it("still shows a lone reading surrounded by gaps", () => {
     const { container } = sized(
       <TimeSeriesChart
@@ -263,9 +232,6 @@ describe("a sparse line series", () => {
   });
 });
 
-// Running profit crosses the axis, and one colour across the whole area reads a
-// loss as a gain. SVG can only paint a mark two colours through a gradient, so
-// what the chart must produce is a two-stop gradient the area is filled with.
 describe("an area split at zero", () => {
   const series = {
     key: "cumulativeProfit",
@@ -298,12 +264,10 @@ describe("an area split at zero", () => {
     expect(above.offset).toBe("0.75");
     expect(below.offset).toBe("0.75");
     expect(below.colour).not.toBe(above.colour);
-    // The gradient is only worth defining if the area actually takes it.
     const area = container.querySelector(".recharts-area-area");
     expect(area.getAttribute("fill")).toMatch(/^url\(#/);
   });
 
-  // Every other caller of the primitive draws a flat colour, and must keep it.
   it("leaves an ordinary area on its series colour", () => {
     const { container } = sized(
       <TimeSeriesChart
@@ -320,10 +284,6 @@ describe("an area split at zero", () => {
   });
 });
 
-// A stack of shares is only readable while what is on it is worth comparing, so
-// a caller can set a series aside. The control that does it sits beside the
-// chart, in [ChartKeys]; what the chart owes is not drawing what it was told to
-// leave out.
 describe("series a reader has set aside", () => {
   const series = [
     { key: "jobCostTotal", label: "Cost", type: "bar", stackId: "c" },
@@ -350,8 +310,6 @@ describe("series a reader has set aside", () => {
     expect(one).toBe(1);
   });
 
-  // The keys are drawn beside the chart, so its own legend would be a second
-  // set of them saying something different.
   it("leaves its own legend out when asked", () => {
     const { container } = draw(null);
 
@@ -359,8 +317,6 @@ describe("series a reader has set aside", () => {
   });
 });
 
-// A pinned domain is a statement about the axis, not a starting point: shares
-// that sum to 100.00000000000003 must not put that on the axis.
 describe("a pinned axis", () => {
   it("holds the domain it was given", () => {
     const { container } = sized(
@@ -372,8 +328,6 @@ describe("a pinned axis", () => {
         formatAxisTick={(value) => `${value}%`}
       />,
     );
-    // Ticks are drawn into the chart's own portal layer rather than inside the
-    // axis element, so they are found by what they are, not by where they sit.
     const ticks = [
       ...container.querySelectorAll(".recharts-cartesian-axis-tick-value"),
     ]
@@ -382,5 +336,31 @@ describe("a pinned axis", () => {
 
     expect(ticks).toContain("100%");
     expect(ticks.some((tick) => tick.includes("100.0000"))).toBe(false);
+  });
+
+  it("rules a line at zero only when asked", () => {
+    const rows = [
+      { name: "Veldspar", difference: 500 },
+      { name: "Scordite", difference: -300 },
+    ];
+    const plain = sized(
+      <RankedBarChart rows={rows} categoryKey="name" valueKey="difference" />,
+    );
+    expect(
+      plain.container.querySelector(".recharts-reference-line"),
+    ).toBeNull();
+    plain.unmount();
+
+    const marked = sized(
+      <RankedBarChart
+        rows={rows}
+        categoryKey="name"
+        valueKey="difference"
+        markZero
+      />,
+    );
+    expect(
+      marked.container.querySelector(".recharts-reference-line"),
+    ).not.toBeNull();
   });
 });

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { reprocessingItemTypes } from "../../Context/defaultValues";
+import {
+  VELDSPAR,
+  reprocessingFile,
+} from "../../tests/reprocessingFixtures.js";
 
 const getReprocessingData = vi.fn();
 
@@ -16,64 +20,15 @@ const {
   selectableItems,
   reprocessableByName,
   resetReprocessing,
+  volumeOf,
+  producibleByReprocessing,
+  producibleTypeIDs,
 } = await import("./reprocessing.js");
-
-const VELDSPAR = {
-  id: "1230",
-  name: "Veldspar",
-  materials: { 34: 415 },
-  batchSize: 100,
-  itemType: reprocessingItemTypes.ore,
-};
-const MERCOXIT = {
-  id: "11396",
-  name: "Mercoxit",
-  materials: { 11399: 140 },
-  batchSize: 100,
-  itemType: reprocessingItemTypes.ore,
-};
-const GLACIAL_MASS = {
-  id: "16264",
-  name: "Glacial Mass",
-  materials: { 16273: 69 },
-  batchSize: 100,
-  itemType: reprocessingItemTypes.ice,
-};
-const BITUMENS = {
-  id: "45492",
-  name: "Bitumens",
-  materials: { 34: 1 },
-  batchSize: 100,
-  itemType: reprocessingItemTypes.moonOre,
-};
-const COMPRESSED = {
-  id: "28430",
-  name: "Compressed Veldspar",
-  materials: { 34: 415 },
-  batchSize: 1,
-  itemType: reprocessingItemTypes.unrefinedOre,
-};
-const FULLERITE = {
-  id: "30370",
-  name: "Fullerite-C50",
-  materials: { 30370: 1 },
-  batchSize: 1,
-  itemType: reprocessingItemTypes.gas,
-};
-
-const FILE = {
-  1230: VELDSPAR,
-  11396: MERCOXIT,
-  16264: GLACIAL_MASS,
-  45492: BITUMENS,
-  28430: COMPRESSED,
-  30370: FULLERITE,
-};
 
 beforeEach(() => {
   vi.clearAllMocks();
   resetReprocessing();
-  getReprocessingData.mockResolvedValue(FILE);
+  getReprocessingData.mockResolvedValue(reprocessingFile());
 });
 
 describe("priming", () => {
@@ -82,8 +37,6 @@ describe("priming", () => {
     expect(readReprocessingItems()?.[1230]?.name).toBe("Veldspar");
   });
 
-  // Null rather than an empty map: a walk over an empty one answers nothing for every item, which
-  // reads as the file disagreeing rather than as data that has not arrived.
   it("answers null before it has loaded", () => {
     expect(readReprocessingItems()).toBeNull();
     expect(selectableItems()).toEqual([]);
@@ -95,7 +48,6 @@ describe("priming", () => {
     expect(getReprocessingData).toHaveBeenCalledTimes(1);
   });
 
-  // A failure remembered as the answer would leave every later caller inheriting one outage.
   it("retries after a failure", async () => {
     getReprocessingData.mockRejectedValueOnce(new Error("offline"));
     await expect(primeReprocessing()).rejects.toThrow("offline");
@@ -106,9 +58,7 @@ describe("priming", () => {
 });
 
 describe("what ore selection may choose from", () => {
-  // The figures the page recommends come from this set, so what it admits is the behaviour that
-  // matters most here.
-  it("admits ore, unrefined ore, moon ore and ice", async () => {
+  it("admits ore, compressed ore, moon ore and ice", async () => {
     await primeReprocessing();
 
     expect(
@@ -116,15 +66,16 @@ describe("what ore selection may choose from", () => {
         .map((item) => item.name)
         .sort(),
     ).toEqual([
+      "Batch Compressed Veldspar II-Grade",
       "Bitumens",
-      "Compressed Veldspar",
-      "Glacial Mass",
+      "Clear Icicle",
+      "Hedbergite",
       "Mercoxit",
+      "Scordite",
       "Veldspar",
     ]);
   });
 
-  // Gas reprocesses into gas rather than minerals, so it is never a source for producing them.
   it("leaves gas out", async () => {
     await primeReprocessing();
 
@@ -133,6 +84,13 @@ describe("what ore selection may choose from", () => {
         (item) => item.itemType === reprocessingItemTypes.gas,
       ),
     ).toBe(false);
+  });
+
+  it("leaves out erratic ore and unrefined minerals, whose minerals are not fixed", async () => {
+    await primeReprocessing();
+    const ids = selectableItems().map((item) => item.id);
+    expect(ids).not.toContain("90041");
+    expect(ids).not.toContain("90298");
   });
 
   it("hands back the same set each time", async () => {
@@ -144,19 +102,25 @@ describe("what ore selection may choose from", () => {
 describe("matching a pasted name", () => {
   it("finds an item by the name it is pasted under", async () => {
     await primeReprocessing();
-    expect(reprocessableByName("Glacial Mass")?.id).toBe("16264");
+    expect(reprocessableByName("Clear Icicle")?.id).toBe("16262");
   });
 
   it("ignores case and surrounding space", async () => {
     await primeReprocessing();
-    expect(reprocessableByName("  glacial mass ")?.id).toBe("16264");
+    expect(reprocessableByName("  clear icicle ")?.id).toBe("16262");
   });
 
-  // Gas is matched here even though selection will not choose it: a player pasting gas is telling
-  // the page what they hold, which is a different question from what it should buy.
   it("matches gas, which selection would not choose", async () => {
     await primeReprocessing();
-    expect(reprocessableByName("Fullerite-C50")?.id).toBe("30370");
+    expect(reprocessableByName("Compressed Amber Cytoserocin")?.id).toBe(
+      "62396",
+    );
+  });
+
+  it("matches erratic ore and unrefined minerals, which a player may hold", async () => {
+    await primeReprocessing();
+    expect(reprocessableByName("Prismaticite")?.id).toBe("90041");
+    expect(reprocessableByName("Unrefined Morphite")?.id).toBe("90298");
   });
 
   it("answers nothing for a name the file does not carry", async () => {
@@ -166,7 +130,6 @@ describe("matching a pasted name", () => {
 });
 
 describe("resetReprocessing", () => {
-  // A refresh can bring a new SDE build, and what was primed is the old one.
   it("makes the next prime read the file again", async () => {
     await primeReprocessing();
     resetReprocessing();
@@ -181,10 +144,75 @@ describe("resetReprocessing", () => {
     reprocessableByName("Veldspar");
 
     resetReprocessing();
-    getReprocessingData.mockResolvedValue({ 1230: VELDSPAR });
+    getReprocessingData.mockResolvedValue(reprocessingFile([VELDSPAR], {}));
     await primeReprocessing();
 
     expect(selectableItems()).toHaveLength(1);
-    expect(reprocessableByName("Glacial Mass")).toBeUndefined();
+    expect(reprocessableByName("Clear Icicle")).toBeUndefined();
+  });
+});
+
+describe("volumeOf", () => {
+  it("gives a reprocessable item's own volume", async () => {
+    await primeReprocessing();
+    expect(volumeOf(1230)).toBe(0.1);
+  });
+
+  it("gives the volume of a material an item yields", async () => {
+    await primeReprocessing();
+    expect(volumeOf(34)).toBe(0.01);
+    expect(volumeOf("16273")).toBe(0.4);
+  });
+
+  it("answers nothing for a type the file holds no volume for", async () => {
+    await primeReprocessing();
+    expect(volumeOf(16633)).toBeUndefined();
+    expect(volumeOf(587)).toBeUndefined();
+  });
+
+  it("answers nothing before the file arrives", () => {
+    expect(volumeOf(1230)).toBeUndefined();
+  });
+});
+
+describe("a file with nothing in it", () => {
+  it("reads as empty rather than failing", async () => {
+    getReprocessingData.mockResolvedValue(undefined);
+    await primeReprocessing();
+    expect(readReprocessingItems()).toEqual({});
+    expect(selectableItems()).toEqual([]);
+    expect(volumeOf(34)).toBeUndefined();
+  });
+});
+
+describe("what ore can produce", () => {
+  it("counts every material an ore, moon ore or ice item gives", async () => {
+    await primeReprocessing();
+    expect(producibleTypeIDs().sort((a, b) => a - b)).toEqual([
+      34, 35, 36, 38, 11399, 16272, 16273, 16274, 16275, 16633,
+    ]);
+  });
+
+  it("does not count gas, or a mineral only erratic ore gives at random", async () => {
+    await primeReprocessing();
+    expect(producibleByReprocessing(25268)).toBe(false);
+    expect(producibleByReprocessing(40)).toBe(false);
+  });
+
+  it("does not count a component, a PI material or Construction Blocks", async () => {
+    await primeReprocessing();
+    for (const typeID of [11530, 2393, 3828]) {
+      expect(producibleByReprocessing(typeID)).toBe(false);
+    }
+  });
+
+  it("reads a type id given as a string", async () => {
+    await primeReprocessing();
+    expect(producibleByReprocessing("34")).toBe(true);
+  });
+
+  it("answers no before the file arrives", () => {
+    expect(producibleByReprocessing(34)).toBe(false);
+    expect(producibleTypeIDs()).toEqual([]);
   });
 });

@@ -21,8 +21,12 @@ vi.mock("../../Functions/Endpoints/Private/planners.js", () => ({
 }));
 
 const { default: useUsersStore } = await import("../usersStore.js");
-const { extrasCategoriesDefault } =
-  await import("../../Context/defaultValues.jsx");
+const {
+  extrasCategoriesDefault,
+  defaultPlannerReprocessingSettings,
+  compressedOreChoices,
+  shippingModes,
+} = await import("../../Context/defaultValues.jsx");
 
 const OWNER = "corporation:98000001";
 
@@ -56,8 +60,6 @@ describe("planner settings slice", () => {
     nextResponse = null;
     nextError = null;
     actions().resetPlannerSettingsStore();
-    // The reads under test are a signed-in user's; the signed-out case is its
-    // own test below.
     useUsersStore.getState().account.actions.setLoggedIn(true);
   });
 
@@ -202,8 +204,6 @@ describe("planner settings slice", () => {
     ]);
   });
 
-  // Editing the fallback defaults and saving them would replace the planner's
-  // stored list with them.
   it("refuses an edit to a planner whose settings have not arrived", () => {
     actions().addPlannerExtrasCategory(OWNER, { id: "a", label: "Freight" });
 
@@ -214,8 +214,6 @@ describe("planner settings slice", () => {
     ).toBe(false);
   });
 
-  // Stripping markup from what a reader typed can leave nothing behind, and the
-  // server refuses a list holding a category with no label.
   it("refuses a category with no label to show", () => {
     hold(OWNER);
     const before = actions().getPlannerSettings(OWNER).extrasCategories.length;
@@ -235,10 +233,6 @@ describe("planner settings slice", () => {
     expect(saved).toEqual([]);
   });
 
-  // The switch-away-and-back race: the query entry for the planner being left is
-  // dropped, so coming back re-reads it. That read arrives while the edit is
-  // still inside its debounce window, and applying it would discard the edit and
-  // then save the server's own copy back over it.
   it("does not let a read overwrite an edit the server has not taken", async () => {
     hold(OWNER);
     actions().addPlannerExtrasCategory(OWNER, { id: "a", label: "Freight" });
@@ -282,8 +276,6 @@ describe("planner settings slice", () => {
     ]);
   });
 
-  // A write that never landed leaves the edit held, so the reader keeps what
-  // they typed and the next flush tries again.
   it("keeps an edit held when the write fails", async () => {
     hold(OWNER);
     actions().addPlannerExtrasCategory(OWNER, { id: "a", label: "Freight" });
@@ -310,9 +302,6 @@ describe("planner settings slice", () => {
     expect(saved).toEqual([]);
   });
 
-  // The endpoint leaves a field it is not sent as it is stored, which is what
-  // lets two members edit one planner at once. A save that carried a field this
-  // member never touched would put their stale copy over the other's edit.
   it("sends only the settings this session edited", async () => {
     hold(OWNER);
     actions().writePlannerMarketLocations(OWNER, () => [aSharedMarket()]);
@@ -345,8 +334,6 @@ describe("planner settings slice", () => {
     expect(saved).toEqual([]);
   });
 
-  // An organisation's markets go through the same transforms an account's own
-  // do, so a market behaves the same whoever saved it.
   it("changes an organisation's markets", () => {
     hold(OWNER);
 
@@ -358,8 +345,6 @@ describe("planner settings slice", () => {
     expect(actions().hasUnsavedPlannerSettings(OWNER)).toBe(true);
   });
 
-  // Editing the fallback defaults and saving them would replace what the
-  // planner has stored, markets included.
   it("refuses a market edit to a planner whose settings have not arrived", () => {
     actions().writePlannerMarketLocations(OWNER, () => [aSharedMarket()]);
 
@@ -422,8 +407,6 @@ describe("planner settings slice", () => {
     expect(structures[1].implant).toBe(0);
   });
 
-  // Documents written before a row carried its own kind stored four lists, and
-  // a planner still holding one has to read back the same way.
   it("reads a document still storing the four lists", async () => {
     nextResponse = {
       owner: OWNER,
@@ -472,5 +455,90 @@ describe("planner settings slice", () => {
 
     expect(settings.extrasCategories).toEqual(extrasCategoriesDefault);
     expect(settings.defaultCitadelBrokersFee).toBe(1);
+  });
+});
+
+describe("a planner's reprocessing settings", () => {
+  beforeEach(() => {
+    saved.length = 0;
+    nextResponse = null;
+    nextError = null;
+    actions().resetPlannerSettingsStore();
+    useUsersStore.getState().account.actions.setLoggedIn(true);
+  });
+
+  it("read as the defaults for a planner that stores none", () => {
+    actions().setPlannerSettings(OWNER, {}, true);
+
+    expect(actions().getPlannerSettings(OWNER).reprocessingSettings).toEqual(
+      defaultPlannerReprocessingSettings(),
+    );
+  });
+
+  it("read what the planner stores, with an omitted switch or amount as off or zero", () => {
+    actions().setPlannerSettings(
+      OWNER,
+      {
+        reprocessingSettings: {
+          compressedOre: compressedOreChoices.avoid,
+          buyOutright: true,
+          shipping: { mode: shippingModes.fixed, amount: 30000000 },
+          neverChoose: [1230],
+        },
+      },
+      true,
+    );
+
+    expect(actions().getPlannerSettings(OWNER).reprocessingSettings).toEqual({
+      compressedOre: compressedOreChoices.avoid,
+      countLeftoversAsSold: false,
+      buyOutright: true,
+      shipping: { mode: shippingModes.fixed, amount: 30000000 },
+      neverChoose: [1230],
+    });
+  });
+
+  it("read a choice or mode the SPA does not know as the default", () => {
+    actions().setPlannerSettings(
+      OWNER,
+      {
+        reprocessingSettings: {
+          compressedOre: "always",
+          shipping: { mode: "byJump" },
+        },
+      },
+      true,
+    );
+
+    const { compressedOre, shipping, neverChoose } =
+      actions().getPlannerSettings(OWNER).reprocessingSettings;
+    expect(compressedOre).toBe(compressedOreChoices.prefer);
+    expect(shipping).toEqual({ mode: shippingModes.perVolume, amount: 0 });
+    expect(neverChoose).toEqual([]);
+  });
+
+  it("are written whole and sent alone", async () => {
+    hold(OWNER);
+    const settings = {
+      ...defaultPlannerReprocessingSettings(),
+      compressedOre: compressedOreChoices.allow,
+      neverChoose: [1230],
+    };
+
+    actions().writePlannerReprocessingSettings(OWNER, settings);
+    await actions().savePlannerSettings(OWNER);
+
+    expect(saved).toEqual([
+      { handle: OWNER, update: { reprocessingSettings: settings } },
+    ]);
+  });
+
+  it("are not written for a planner whose settings have not been read", () => {
+    actions().writePlannerReprocessingSettings(
+      OWNER,
+      defaultPlannerReprocessingSettings(),
+    );
+
+    expect(actions().hasUnsavedPlannerSettings(OWNER)).toBe(false);
   });
 });

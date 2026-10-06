@@ -890,16 +890,16 @@ the others, and the SPA still edits and reads every one of them from the account
 nothing reads the planner's copies and nothing can go stale. It becomes a defect the moment one of them
 moves, which § Settings split says they all eventually must.
 
-**So a slice moving one of these owes a release step, not just a reader and a writer.** The shape is
-`backfillPlannerExtrasCategories`: merge what the planner is missing, leave what it holds. A fourth copy
-of that pattern is the point at which it should become one step covering every field rather than one per
-field.
+**So a slice moving one of these owes a release step, not just a reader and a writer.** It adds its
+field to `backfillPlannerSettings`, the one step that moves account-held settings onto the planner: merge
+what the planner is missing, leave what it holds. Extras categories and reprocessing settings are in it.
 
-**`ReprocessingSettings` is the next to move**, in
+**`ReprocessingSettings` has moved**, in
 [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage F. It reshapes the fields as it moves
 them — the compressed-ore choice, buying minerals outright, the never-choose list and shipping join the
 planner copy, and the three yield multipliers go — and keeps the default reprocessing character on the
-account. Its release step is the **second** copy of the backfill pattern.
+account. Its release step is the extras backfill widened into `backfillPlannerSettings` rather than a
+second copy of it.
 
 For `JobStatuses` only the **set of ids** must be the planner's. Labels could stay personal without
 harming anything, since they name a column rather than identify it; whether that is worth the
@@ -1787,7 +1787,7 @@ in what is missing rather than refreshing what is there. Every category added af
 account document alone. With the picker reading the planner's list, those categories would disappear
 from it, which is the regression this stage's done-when forbids.
 
-`backfillPlannerExtrasCategories` is the step that closes it: for each account it merges the categories
+`backfillPlannerSettings` is the step that closes it: for each account it merges the categories
 its planner's settings do not hold onto that planner. **Merged by id, never replaced** — a category the
 planner already carries is left as it is, a member's rename and a member's deletion included — so the
 step is safe to run again after a failed window, once members are editing the planner's own list. It
@@ -2666,8 +2666,8 @@ until `eip cli -- dropReleaseBackups`.
 **Rehearsal is the substitute for reversibility, and it has been done.** The rename path was proven by
 putting dev back to live's exact collection names and running `eip ensure-mongo` once, with every count
 matching afterwards. The owner backfill and the statistics reshape have since had the same treatment
-against a restored copy of live. `prepareRelease` carries every step this release owes, so the database
-is ready for the window.
+against a restored copy of live. `prepareRelease` carries every step written so far; the steps the
+other open projects still owe, and where each goes, are in § Every open project ships in this window.
 
 ## Wire compatibility
 
@@ -2879,3 +2879,50 @@ To prove it: stop the worker **and** user traffic, drop `planners`, `planner_mem
 `planner_settings`, run `prepareRelease`, check the copy step reports 0 for each, then revert and check
 all three are dropped rather than restored. Figures from the run that prompted this are in
 [measurements/extras-categories-backfill.md](./measurements/extras-categories-backfill.md).
+
+### Every open project ships in this window
+
+**There is one release, and it carries all of the in-flight work**, not only this project's. Every
+open migration project lands its remaining stages on this branch, and the window opens once the last
+of them is in or explicitly deferred. So a project's release step is written into `prepareRelease`
+here, beside the steps already in it, rather than saved for a later release with a migration of its
+own.
+
+**The steps already in.** `prepareRelease` in
+[`core/commands/prepare_release.go`](../../../services/core/commands/prepare_release.go) holds, in
+order: the backup and schema maintenance; the owner stamp; the job reshape and the extras and
+invention row normalisation ([job-document-drafts](../job-document-drafts/plan.md)); the statistics
+field drop and the rebuild queue ([archived-jobs-stats](../archived-jobs-stats/plan.md)); the static
+data rebuild; account planners and the planner extras categories; the write counter
+([document-write-granularity](../document-write-granularity/plan.md)); the session grants rewrite;
+the pricing defaults, structure, rig and market folds; and the two verify gates last.
+
+**The steps owed, and where each goes:**
+
+| Step | Project | Goes |
+|------|---------|------|
+| Convert stored documents to refs, with a verify gate | [entity-id-encryption](../entity-id-encryption/plan.md) § Converting stored documents | After the owner stamp, which its work filter reads; its gate beside the two at the end. Its two defects are fixed first, or the step reports "0 accounts" and does nothing |
+| Extras category ids to slugs, and `""` rows to `unassigned` | [document-defaults](../document-defaults/plan.md) § Track B | After the extras and invention row normalisation and **before the rebuild queue**, so the statistics rows are rebuilt from the new ids. Covers `application_settings`, both job collections and `planner_settings` |
+| Group membership onto `job.groupID`, with the orphan repair | [job-groups](../job-groups/plan.md) § Stage A | After the job reshape |
+| The group document loses its derived fields, `outputTypeIDs` arrives, `areComplete` moves to the job | [job-groups](../job-groups/plan.md) § Stage B | After the membership step, which is the last moment the stored list can be read |
+| Reprocessing settings onto the planner, and the account's reshaped | [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § F3 | Beside the planner extras categories backfill, after account planners. The second copy of that backfill — write it as one step merging every planner setting the account still holds, rather than a second copy beside the first |
+| The reprocessing static file's volumes, SDE-read skills and random outputs | [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage B | **No new step.** The static data rebuild already in the list publishes it |
+
+**No schema version moves in this build.** The `*SchemaCurrent` constants arrive with this release —
+`Public` has no `document_schema.go` — so live has never held a v1 document, and a stored-shape change
+written before the window converts live straight into v1. A project whose plan says "bump" (job-groups
+Stage B, document-defaults Phase B2) folds its change into the version this build introduces instead.
+A version moves once per shipped build, and this build's has not shipped.
+
+**One step to confirm after the window, because this release changes a static file's shape.** "Rebuild
+the current SDE version" is not required, and fails on its own if NATS is unreachable while the rest
+of the release carries on. The reprocessing file changes shape in this release
+([reprocessing-rebuild](../reprocessing-rebuild/plan.md) § B2), so the new SPA reads the old file as
+empty until it is rebuilt: confirm the step reported asking for the rebuild and the worker logged
+"SDE rebuild current version completed", and if either is missing, run `tasks forceSdeRebuild`.
+
+**The rehearsal runs the whole sequence.** Once the owed steps are in: restore a copy of live, drop
+the three planner collections so the copy step records the zeros, run `prepareRelease` end to end with
+every gate passing, revert, and check the planner collections are dropped and everything else
+restored. That covers the empty-collection proof above and every step added since the last rehearsal
+in one pass.

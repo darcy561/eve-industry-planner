@@ -12,29 +12,16 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// accountPlannerCollections is everything the planner steps write: EnsurePlanner
-// inserts the planner, its membership row and its settings, and
-// backfillPlannerExtrasCategories changes the settings afterwards.
-//
-// They are copied before the release like every other collection it writes to.
-// A collection that holds nothing when the copy is taken is recorded as empty,
-// and that record is what makes revertRelease drop it rather than leave the
-// documents the release created standing.
+// accountPlannerCollections is everything the planner steps write, copied before the release so a
+// revert drops what the release created.
 var accountPlannerCollections = []string{
 	eipmongo.CollectionPlanners,
 	eipmongo.CollectionPlannerMemberships,
 	eipmongo.CollectionPlannerSettings,
 }
 
-// backfillAccountPlanners gives every existing account the planner it works in,
-// and every planner the settings its work is done under.
-//
-// The write itself is Mongo.EnsureAccountPlanner, which first login also calls:
-// one implementation, so an account created after this step runs gets the same
-// documents rather than a second version of them.
-//
-// Only new documents are written, which is what lets this run either side of
-// traffic returning, and a repeat run adds nothing.
+// backfillAccountPlanners gives every existing account the planner it works in and that planner's
+// settings, through the same insert-only write first login uses.
 func backfillAccountPlanners(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	mongo := clients.Mongo
 
@@ -46,9 +33,6 @@ func backfillAccountPlanners(ctx context.Context, clients *stackservices.Clients
 		return "no accounts", nil
 	}
 
-	// One read of the planner ids that exist, rather than a count per account: the
-	// step runs against every account in the database, and the report below is the
-	// only reason it needs to know which are missing at all.
 	existingIDs, err := mongo.Planners.DistinctStrings(ctx, "_id", bson.M{})
 	if err != nil {
 		return "", fmt.Errorf("list planners: %w", err)
@@ -62,8 +46,6 @@ func backfillAccountPlanners(ctx context.Context, clients *stackservices.Clients
 	for _, accountID := range accountIDs {
 		owner := models.AccountOwner(accountID)
 		if owner.IsZero() {
-			// Named rather than skipped: an account whose id yields no owner holds
-			// documents nothing can address either.
 			return "", fmt.Errorf("account id %q yields no owner", accountID)
 		}
 		if _, held := existing[owner.Key()]; !held {
@@ -71,10 +53,6 @@ func backfillAccountPlanners(ctx context.Context, clients *stackservices.Clients
 		}
 	}
 
-	// Every account is visited, not only those missing a planner: an account whose
-	// planner predates its settings document has one and needs the other, and each
-	// write is insert-only, so visiting one that is already complete costs a no-op
-	// rather than an overwrite. `missing` is only what the report names.
 	if dryRun {
 		return fmt.Sprintf("%d account(s) would be ensured, %d of which have no planner",
 			len(accountIDs), len(missing)), nil

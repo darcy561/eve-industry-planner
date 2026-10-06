@@ -2,32 +2,47 @@ import { getReprocessingData } from "../Helper/getCachedData";
 import { reprocessingItemTypes } from "../../Context/defaultValues";
 import staticFile, { byName, nameKey } from "./staticFile";
 
-/**
- * What can be reprocessed, held where the calculation can read it without awaiting twice.
- *
- * Both directions of the calculation want it — turning pasted ore into minerals, and choosing ore to
- * produce wanted minerals — and each wants a different view, so the views are built once rather than
- * walked again per call.
- */
-
-/** The types ore selection may choose from. Gas reprocesses into gas, so it is never a source. */
+/** The kinds ore selection may choose from: each gives fixed minerals, which gas and random outputs do not. */
 const SELECTABLE_TYPES = new Set([
   reprocessingItemTypes.ore,
-  reprocessingItemTypes.unrefinedOre,
   reprocessingItemTypes.moonOre,
   reprocessingItemTypes.ice,
 ]);
 
-const reprocessing = staticFile(getReprocessingData, (data) => data || {});
+const reprocessing = staticFile(getReprocessingData, (data) => ({
+  items: data?.items ?? {},
+  materialVolumes: data?.materialVolumes ?? {},
+}));
 
 export const primeReprocessing = reprocessing.prime;
-export const readReprocessingItems = reprocessing.read;
 export const resetReprocessing = reprocessing.reset;
+export const subscribeReprocessing = reprocessing.subscribe;
 
-const selectable = reprocessing.view((items) =>
+/**
+ * Every reprocessable item, keyed by type id, or null before the file arrives.
+ *
+ * @returns {Object<string, Object>|null}
+ */
+export function readReprocessingItems() {
+  return reprocessing.read()?.items ?? null;
+}
+
+const selectable = reprocessing.view(({ items }) =>
   Object.values(items).filter((item) => SELECTABLE_TYPES.has(item.itemType)),
 );
-const itemsByName = reprocessing.view((items) => byName(Object.values(items)));
+const producible = reprocessing.view(({ items }) => {
+  const typeIDs = new Set();
+  for (const item of Object.values(items)) {
+    if (!SELECTABLE_TYPES.has(item.itemType)) continue;
+    for (const typeID of Object.keys(item.materials ?? {})) {
+      typeIDs.add(Number(typeID));
+    }
+  }
+  return typeIDs;
+});
+const itemsByName = reprocessing.view(({ items }) =>
+  byName(Object.values(items)),
+);
 
 /**
  * The items ore selection may choose from.
@@ -39,6 +54,25 @@ export function selectableItems() {
 }
 
 /**
+ * Whether ore, moon ore or ice gives a material, so it can be planned as bought as ore.
+ *
+ * @param {number|string} typeID
+ * @returns {boolean} false before the file arrives
+ */
+export function producibleByReprocessing(typeID) {
+  return producible()?.has(Number(typeID)) ?? false;
+}
+
+/**
+ * Every material ore, moon ore or ice gives, by type id.
+ *
+ * @returns {Array<number>}
+ */
+export function producibleTypeIDs() {
+  return [...(producible() ?? [])];
+}
+
+/**
  * The item a pasted line names.
  *
  * @param {string} [name]
@@ -47,4 +81,16 @@ export function selectableItems() {
 export function reprocessableByName(name) {
   const key = nameKey(name);
   return key ? itemsByName()?.get(key) : undefined;
+}
+
+/**
+ * The volume of one unit of a reprocessable item or of a material one gives, in m³.
+ *
+ * @param {number|string} typeID
+ * @returns {number|undefined} undefined when the file has not arrived or holds no volume for the type
+ */
+export function volumeOf(typeID) {
+  const file = reprocessing.read();
+  if (!file) return undefined;
+  return file.items[typeID]?.volume ?? file.materialVolumes[typeID];
 }

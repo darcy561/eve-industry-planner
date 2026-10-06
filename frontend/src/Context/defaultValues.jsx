@@ -1,7 +1,6 @@
 /**
- * Fixed planner workflow stages (ids and default labels). Custom names come from
- * `application_settings.jobStatuses` on the server; display rows are built in
- * {@link ../../Functions/Helper/jobStatuses.js}.
+ * Fixed planner workflow stages, ids and default labels; custom names come from
+ * `application_settings.jobStatuses` on the server.
  *
  * @type {ReadonlyArray<{ id: number, order: number, defaultName: string }>}
  */
@@ -45,13 +44,8 @@ export const extrasCategoriesDefault = [
 export const permanentExtrasCategories = new Set(["0", "5"]);
 
 /**
- * The order types a figure may be read on, named as ESI names them.
- *
- * Buy and sell orders report the best price available at a trade hub. The percentile variants
- * report the same orders with outlying quotes excluded: the 95th percentile of buy prices
- * and the 5th percentile of sell prices. Percentiles are computed over order prices without
- * volume weighting, and fall back to the best price when a side holds too few orders to be
- * meaningful.
+ * The order types a figure may be read on, named as ESI names them, with the percentile forms
+ * that exclude outlying quotes.
  *
  * @type {Array<Object>}
  * @property {string} id - `buy` and `sell` are ESI's own; the percentile forms
@@ -110,21 +104,8 @@ export let jobTypes = {
 };
 
 /**
- * The kinds of thing a saved structure can be.
- *
- * A structure row names its kind here, and that is what decides which fields it
- * carries — {@link Structure}'s field map is keyed on these. The four job types
- * are places a job is performed and share their values with {@link jobTypes},
- * because a build structure's kind has always been the job it is for.
- *
- * A market is a place a price is asked for, not work anybody does. It takes a
- * value of its own beyond the job types so that a row is unambiguous, and it is
- * deliberately **not** in `jobTypes`: nothing that asks what job a character is
- * running should be offered a market as an answer.
- *
- * The market kind is not one a reader can create: a market is saved as a market
- * and stored on its own lane. The value stays here because the server still
- * means it by a stored `jobType`, and the two must agree about what it is worth.
+ * The kinds of thing a saved structure can be: the four job types it is a place for, and a market,
+ * which is deliberately not a job type.
  *
  * @type {Object<string, number>}
  */
@@ -169,14 +150,16 @@ export const jobTypeMapping = {
 };
 
 /**
- * Reprocessing item type enumeration.
+ * The kinds of reprocessable item, numbered as the reprocessing static file writes them.
  *
  * @type {Object}
- * @property {number} ore - Regular asteroid ore
- * @property {number} moonOre - Moon mining ore
- * @property {number} ice - Ice mining materials
- * @property {number} gas - Gas cloud materials
- * @property {number} scrap - Scrap materials
+ * @property {number} ore - Asteroid ore
+ * @property {number} moonOre - Moon ore
+ * @property {number} ice - Ice
+ * @property {number} gas - Compressed gas, which is decompressed rather than reprocessed
+ * @property {number} scrap - Modules and other scrap metal
+ * @property {number} unrefinedMineral - An unrefined mineral, giving one mineral in a varying amount
+ * @property {number} erratic - Erratic ore, giving one of several minerals at random each batch
  */
 export const reprocessingItemTypes = {
   ore: 0,
@@ -184,7 +167,8 @@ export const reprocessingItemTypes = {
   ice: 2,
   gas: 3,
   scrap: 4,
-  unrefinedOre: 5,
+  unrefinedMineral: 5,
+  erratic: 6,
 };
 
 /**
@@ -196,7 +180,8 @@ export const reprocessingItemTypes = {
  * @property {string} 2 - "ice"
  * @property {string} 3 - "gas"
  * @property {string} 4 - "scrap"
- * @property {string} 5 - "unrefinedOre"
+ * @property {string} 5 - "unrefinedMineral"
+ * @property {string} 6 - "erratic"
  */
 export const reprocessingItemTypesByValue = {
   [reprocessingItemTypes.ore]: "ore",
@@ -204,7 +189,19 @@ export const reprocessingItemTypesByValue = {
   [reprocessingItemTypes.ice]: "ice",
   [reprocessingItemTypes.gas]: "gas",
   [reprocessingItemTypes.scrap]: "scrap",
-  [reprocessingItemTypes.unrefinedOre]: "unrefinedOre",
+  [reprocessingItemTypes.unrefinedMineral]: "unrefinedMineral",
+  [reprocessingItemTypes.erratic]: "erratic",
+};
+
+/** What each reprocessing kind is called on the page, keyed by its value. */
+export const reprocessingItemTypeLabels = {
+  [reprocessingItemTypes.ore]: "Ore",
+  [reprocessingItemTypes.moonOre]: "Moon ore",
+  [reprocessingItemTypes.ice]: "Ice",
+  [reprocessingItemTypes.gas]: "Gas",
+  [reprocessingItemTypes.scrap]: "Scrap metal",
+  [reprocessingItemTypes.unrefinedMineral]: "Unrefined minerals",
+  [reprocessingItemTypes.erratic]: "Erratic ore",
 };
 
 /**
@@ -244,13 +241,8 @@ export const blueprintOptions = {
 };
 
 /**
- * What an NPC station charges to list an order, before the seller reduces it.
- * A citadel uses none of these: its owner sets the rate, and Broker Relations does
- * not reduce it.
- *
- * With the coefficients below, maximum skill and standings reach exactly 1%, so
- * the published NPC floor needs no clamp of its own. Negative standings raise the
- * rate above base, which is correct.
+ * What an NPC station charges to list an order, before the seller reduces it; a citadel's owner
+ * sets its own rate.
  *
  * @type {Object}
  * @property {number} base - Percentage charged before any reduction
@@ -268,15 +260,8 @@ export const brokerFeeRates = {
 };
 
 /**
- * What every sale is taxed, before the seller reduces it.
- *
- * Accounting reduces this **multiplicatively** — `base × (1 − accounting × level)`
- * — where the broker fee above subtracts its coefficients. The two read alike and
- * do not behave alike, so applying one form to the other is the easy mistake:
- * subtracting here would give 6.95% at Accounting V instead of 3.375%.
- *
- * Tax is charged at NPC stations and citadels alike, since it has no station or
- * structure component.
+ * What every sale is taxed, before Accounting reduces it multiplicatively, at NPC stations and
+ * citadels alike.
  *
  * @type {Object}
  * @property {number} base - Percentage charged before any reduction
@@ -286,6 +271,9 @@ export const salesTaxRates = {
   base: 7.5,
   accounting: 0.11,
 };
+
+/** The highest level a skill trains to. */
+export const maxSkillLevel = 5;
 
 /**
  * Type IDs of the skills that change what selling costs.
@@ -300,10 +288,8 @@ export const marketSkillIDs = {
 };
 
 /**
- * Skills that shorten a job rather than a blueprint's own requirements.
- *
- * They are applied once as a modifier over the whole job, so the per-skill 1%
- * reduction every other required skill gives must not also be applied to them.
+ * Skills that shorten a whole job as one modifier, so the per-skill reduction other required skills
+ * give is not applied to them.
  *
  * @type {Object}
  */
@@ -348,18 +334,24 @@ export const pirateFactions = {
  * @type {Object<number, Array<number>>}
  */
 export const reprocessingRigFamilies = {
-  1941: [reprocessingItemTypes.ore, reprocessingItemTypes.unrefinedOre],
+  1941: [
+    reprocessingItemTypes.ore,
+    reprocessingItemTypes.unrefinedMineral,
+    reprocessingItemTypes.erratic,
+  ],
   1942: [reprocessingItemTypes.ice],
   1943: [reprocessingItemTypes.moonOre],
   1944: [
     reprocessingItemTypes.ore,
-    reprocessingItemTypes.unrefinedOre,
+    reprocessingItemTypes.unrefinedMineral,
+    reprocessingItemTypes.erratic,
     reprocessingItemTypes.moonOre,
     reprocessingItemTypes.ice,
   ],
   1945: [
     reprocessingItemTypes.ore,
-    reprocessingItemTypes.unrefinedOre,
+    reprocessingItemTypes.unrefinedMineral,
+    reprocessingItemTypes.erratic,
     reprocessingItemTypes.moonOre,
     reprocessingItemTypes.ice,
   ],
@@ -580,7 +572,8 @@ export const structureOptions = {
       relatedTo: [4, 7, 8],
       appliesTo: [
         reprocessingItemTypes.ore,
-        reprocessingItemTypes.unrefinedOre,
+        reprocessingItemTypes.unrefinedMineral,
+        reprocessingItemTypes.erratic,
       ],
     },
     2: {
@@ -607,7 +600,8 @@ export const structureOptions = {
       relatedTo: [1, 7, 8],
       appliesTo: [
         reprocessingItemTypes.ore,
-        reprocessingItemTypes.unrefinedOre,
+        reprocessingItemTypes.unrefinedMineral,
+        reprocessingItemTypes.erratic,
       ],
     },
     5: {
@@ -634,7 +628,8 @@ export const structureOptions = {
       relatedTo: [1, 2, 3, 4, 5, 6, 7, 8],
       appliesTo: [
         reprocessingItemTypes.ore,
-        reprocessingItemTypes.unrefinedOre,
+        reprocessingItemTypes.unrefinedMineral,
+        reprocessingItemTypes.erratic,
         reprocessingItemTypes.moonOre,
         reprocessingItemTypes.ice,
       ],
@@ -647,7 +642,8 @@ export const structureOptions = {
       relatedTo: [1, 2, 3, 4, 5, 6, 7, 8],
       appliesTo: [
         reprocessingItemTypes.ore,
-        reprocessingItemTypes.unrefinedOre,
+        reprocessingItemTypes.unrefinedMineral,
+        reprocessingItemTypes.erratic,
         reprocessingItemTypes.moonOre,
         reprocessingItemTypes.ice,
       ],
@@ -801,11 +797,8 @@ export const customStructureMap = {
 };
 
 /**
- * What a saved row's id is prefixed with, by the kind the row is.
- *
- * The prefix is part of every id already minted, so it is fixed: changing one
- * would not rename the rows a reader holds, it would mint ids in a second shape
- * beside them.
+ * What a saved row's id is prefixed with, by the kind the row is; fixed, because every minted id
+ * already carries it.
  *
  * @type {Object<number, string>}
  */
@@ -842,8 +835,7 @@ export const zarzakhSecurityBandID = 3;
 export const nullSecurityBandID = 2;
 
 /**
- * Where a job may be run, and what that place fixes about the setup that runs
- * there.
+ * Where a job may be run, and what that place fixes about the setup that runs there.
  *
  * @type {Array<{id: string, label: string, jobTypes: Array<number>|null,
  * when: Array<Object>, forces: Object, enlistedValues?: Object}>}
@@ -1003,10 +995,8 @@ export const Implants = {
 export const STATIC_DATA_CACHE = "static-data-cache-v2";
 
 /**
- * The static data files the server publishes, by the key its metadata names them
- * under. A key that does not match one the server serves throws on first use, so
- * this list answers to `staticDataFileDefs` in `shared/core/sde/files.go`, and a
- * test there fails if the two ever disagree.
+ * The static data files the server publishes, by the key its metadata names them under; a test in
+ * `shared/core/sde/files.go` keeps the two lists in step.
  *
  * @type {Object<string, string>}
  */
@@ -1021,23 +1011,34 @@ export const CACHED_DATA_FILES = {
   INDUSTRY_BONUSES: "INDUSTRY_BONUSES",
 };
 
-/**
- * Default reprocessing calculation settings for EVE Online.
- *
- * @type {Object}
- * @property {boolean} preferCompressed - Whether to prefer compressed ores
- * @property {number} compressionBonusMultiplier - Bonus multiplier for compressed ores
- * @property {number} valueMultiplier - Cost-effectiveness prioritisation multiplier
- * @property {number} wastePenaltyMultiplier - Penalty multiplier for excess minerals
- * @property {boolean} sellExcessMineralTypes - Whether to sell excess mineral types
- */
-export const DEFAULT_REPROCESSING_CALCULATION_SETTINGS = {
-  preferCompressed: true, // Whether to prefer compressed ores
-  compressionBonusMultiplier: 0.25, // How much bonus to give compressed ores (higher = prefer compressed more)
-  valueMultiplier: 2, // How much to prioritize cost-effectiveness (higher = prefer cheaper ores)
-  wastePenaltyMultiplier: 0.1, // How much to penalize excess minerals (higher = avoid wasteful ores)
-  sellExcessMineralTypes: false, // Whether to sell excess mineral types instead of keeping them
+/** The compressed-ore choices a planner's ore selection takes. */
+export const compressedOreChoices = {
+  prefer: "prefer",
+  allow: "allow",
+  avoid: "avoid",
 };
+
+/** The ways shipping is charged on ore bought: per m³, or one amount for the whole purchase. */
+export const shippingModes = {
+  perVolume: "perVolume",
+  fixed: "fixed",
+};
+
+/**
+ * The reprocessing settings a planner starts with, built fresh so no caller shares the list.
+ *
+ * @returns {{compressedOre: string, countLeftoversAsSold: boolean, buyOutright: boolean,
+ *   shipping: {mode: string, amount: number}, neverChoose: Array<number>}}
+ */
+export function defaultPlannerReprocessingSettings() {
+  return {
+    compressedOre: compressedOreChoices.prefer,
+    countLeftoversAsSold: false,
+    buyOutright: false,
+    shipping: { mode: shippingModes.perVolume, amount: 0 },
+    neverChoose: [],
+  };
+}
 
 /**
  * ESI Rate Limit Groups configuration for EVE Online API.
@@ -1062,127 +1063,120 @@ export const DEFAULT_REPROCESSING_CALCULATION_SETTINGS = {
  * @property {Object} contracts - Contract and trading endpoints
  */
 export const ESI_RATE_LIMIT_GROUPS = {
-  // 13 October 2025 rollout
   status: {
     name: "status",
-    disabled: false, // Disabled until 13 October 2025
+    disabled: false,
     maxTokens: 600,
     windowSize: 15 * 60 * 1000,
     description: "Server status and health endpoints",
   },
 
-  // 27 October 2025 rollout
   fw: {
     name: "fw",
-    disabled: true, // Disabled until 27 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Factional warfare data endpoints",
   },
   incursions: {
     name: "incursions",
-    disabled: true, // Disabled until 27 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Incursion data endpoints",
   },
   insurance: {
     name: "insurance",
-    disabled: true, // Disabled until 27 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Insurance calculation endpoints",
   },
   routes: {
     name: "routes",
-    disabled: true, // Disabled until 27 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Route calculation endpoints",
   },
   sovereignty: {
     name: "sovereignty",
-    disabled: true, // Disabled until 27 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Sovereignty data endpoints",
   },
 
-  // 30 October 2025 rollout
   fitting: {
     name: "fitting",
-    disabled: true, // Disabled until 30 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Ship fitting endpoints",
   },
   fleets: {
     name: "fleets",
-    disabled: true, // Disabled until 30 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Fleet management endpoints",
   },
   industry: {
     name: "industry",
-    disabled: true, // Disabled until 30 October 2025
+    disabled: true,
     maxTokens: 600,
     windowSize: 15 * 60 * 1000,
     description: "Industry and manufacturing endpoints",
   },
   notifications: {
     name: "notifications",
-    disabled: true, // Disabled until 30 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Notification endpoints",
   },
   ui: {
     name: "ui",
-    disabled: true, // Disabled until 30 October 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "User interface data endpoints",
   },
 
-  // 3 November 2025 rollout
   location: {
     name: "location",
-    disabled: true, // Disabled until 3 November 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Location and positioning endpoints",
   },
 
-  // 6 November 2025 rollout
   killmails: {
     name: "killmails",
-    disabled: true, // Disabled until 6 November 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Killmail and combat data endpoints",
   },
   wars: {
     name: "wars",
-    disabled: true, // Disabled until 6 November 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "War data endpoints",
   },
 
-  // 24 November 2025 rollout
   assets: {
     name: "assets",
-    disabled: true, // Disabled until 24 November 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Asset and inventory endpoints",
   },
 
-  // 27 November 2025 rollout
   contracts: {
     name: "contracts",
-    disabled: true, // Disabled until 27 November 2025
+    disabled: true,
     maxTokens: 150,
     windowSize: 15 * 60 * 1000,
     description: "Contract and trading endpoints",
@@ -1197,12 +1191,8 @@ export const ESI_RATE_LIMIT_GROUPS = {
 };
 
 /**
- * System index types for EVE Online industry activities.
- *
- * Based on the EVE Online ESI API GetIndustrySystems endpoint, these represent
- * the different types of industry activities that have system cost indices.
- * Each activity type affects the cost of performing that specific industry
- * operation in a given solar system.
+ * The industry activities that carry a system cost index, as ESI's industry systems endpoint
+ * reports them.
  *
  * @type {Object}
  * @property {Object} [jobTypes.manufacturing] - Manufacturing activity configuration

@@ -17,13 +17,8 @@ const PLANNERS_ROOT = "/api/v1/planners";
  */
 
 /**
- * Every planner the account may work in.
- *
- * A planner is listed whether or not anything has named it: membership is what
- * grants access, so an account reaches every corporation it is in before any of
- * them has a document. `named` says which, and an unnamed one carries the owner
- * handle alone — the client shows what it knows about the entity until the
- * planner is opened and the server names it.
+ * Every planner the account may work in, named or not; an unnamed one carries its owner handle
+ * alone until the planner is opened and the server names it.
  *
  * @returns {Promise<PlannerSummary[]>}
  */
@@ -45,12 +40,8 @@ export async function fetchPlannersFromApi() {
 }
 
 /**
- * Names a planner the account can already reach, so it has a document from then
- * on.
- *
- * Insert-only on the server: one that is already named keeps its name and is
- * returned unchanged, so this is safe to call whenever a listing shows one
- * unnamed. It grants nothing — the account must already hold a membership.
+ * Names a planner the account can already reach, so it has a document from then on; one already
+ * named keeps its name and is returned unchanged.
  *
  * @param {string} ownerHandle - `kind:id`, from a {@link PlannerSummary}
  * @returns {Promise<PlannerSummary>}
@@ -59,7 +50,6 @@ export async function ensurePlannerViaApi(ownerHandle) {
   if (!ownerHandle) {
     throw new Error("ensurePlannerViaApi: an owner handle is required");
   }
-  // The colon separates the halves, so only the id is escaped.
   const { kind, id } = splitOwnerHandle(ownerHandle);
   const path = `${PLANNERS_ROOT}/${kind}:${encodeURIComponent(id)}`;
 
@@ -85,7 +75,8 @@ export async function ensurePlannerViaApi(ownerHandle) {
  * @property {Object<string, Object<string, number>>} [predefinedSystemIndexes]
  * @property {{id: string, label: string, deleted: boolean, deletedAt: string|null}[]} [extrasCategories]
  * @property {number} defaultCitadelBrokersFee
- * @property {object} reprocessingSettings
+ * @property {{compressedOre: string, countLeftoversAsSold?: boolean, buyOutright?: boolean,
+ *   shipping: {mode: string, amount?: number}, neverChoose: number[]}} reprocessingSettings
  * @property {number[]} [exemptTypeIDs] - an array on the wire; held as a Set
  */
 
@@ -94,15 +85,13 @@ export async function ensurePlannerViaApi(ownerHandle) {
  * @returns {string}
  */
 function plannerSettingsPath(ownerHandle) {
-  // The colon separates the halves, so only the id is escaped.
   const { kind, id } = splitOwnerHandle(ownerHandle);
   return `${PLANNERS_ROOT}/${kind}:${encodeURIComponent(id)}/settings`;
 }
 
 /**
- * The collection a planner's settings are stored in, as a change delivery names
- * it. Its documents are keyed by owner key rather than by an id inside a planner,
- * so a delivery's `owner` handle is what identifies one and `docID` is not.
+ * The collection a planner's settings are stored in, as a change delivery names it; a delivery's
+ * `owner` handle identifies the document, not its `docID`.
  */
 export const PLANNER_SETTINGS_COLLECTION = "planner_settings";
 
@@ -114,10 +103,8 @@ export const PLANNER_SETTINGS_COLLECTION = "planner_settings";
  */
 
 /**
- * The settings a planner's work is done under.
- *
- * A planner with none answers defaults with `seeded: false`, so the caller always
- * has a usable list and can tell a stored value from a fallback.
+ * The settings a planner's work is done under; a planner with none answers the defaults with
+ * `seeded: false`.
  *
  * @param {string} ownerHandle - `kind:id`, from a {@link PlannerSummary}
  * @returns {Promise<PlannerSettingsResponse>}
@@ -144,10 +131,8 @@ export async function fetchPlannerSettingsFromApi(ownerHandle) {
 }
 
 /**
- * Changes part of the settings a planner's work is done under.
- *
- * The body names only what changed, so a member editing one setting does not
- * send back a copy of the rest that another member may have moved on from.
+ * Changes part of the settings a planner's work is done under, sending only the fields that
+ * changed.
  *
  * @param {string} ownerHandle - `kind:id`, from a {@link PlannerSummary}
  * @param {object} update - the settings to change

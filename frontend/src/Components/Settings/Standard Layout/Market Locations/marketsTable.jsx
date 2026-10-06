@@ -1,8 +1,6 @@
 import { Fragment } from "react";
 
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
-  IconButton,
   Stack,
   TableBody,
   TableCell,
@@ -14,19 +12,11 @@ import {
   ColumnHeaderRow,
   ScrollingTable,
 } from "../../../../Styled Components/Table/tableParts";
+import { ExpandToggle } from "../../../../Styled Components/IconButton/ExpandToggle";
 import StatusChip, {
   STATUS_TONE,
 } from "../../../../Styled Components/Chip/statusChip";
 import ExplainerTooltip from "../../../../Styled Components/Tooltip/ExplainerTooltip";
-
-/**
- * Every market a reader may price against, and what is true of each right now.
- *
- * A real table rather than a list of boxes: this is tabular data with column
- * headers, and the semantics are what let a screen reader say which figure
- * belongs to which market. Editing opens beneath the row it belongs to, so a
- * reader changing one keeps sight of the others.
- */
 
 /** @type {Array<{id: string, label: string, align?: string}>} */
 const COLUMNS = [
@@ -39,6 +29,8 @@ const COLUMNS = [
 ];
 
 /**
+ * Every market a reader may price against and what is true of each now, each editable beneath its row.
+ *
  * @param {object} props
  * @param {Array<object>} props.rows - One summarised market each
  * @param {Set<string>} props.open - Ids whose editor is showing
@@ -64,11 +56,6 @@ export default function MarketsTable({
             />
             {renderEditor && row.editable && open.has(row.id) ? (
               <TableRow>
-                {/* The editor belongs to its row, so it spans the table rather
-                    than floating over it: more than one can be open, and each
-                    stays with its market as the list scrolls. Drawn only while
-                    it is open, so a closed one holds no field state and asks
-                    nothing of the store. */}
                 <TableCell colSpan={COLUMNS.length} sx={{ p: 0, border: 0 }}>
                   {renderEditor(row)}
                 </TableCell>
@@ -108,22 +95,20 @@ function MarketRow({ row, isOpen, onToggleRow }) {
         )}
       </TableCell>
       <TableCell align="right" sx={{ width: 0 }}>
-        <ExpandAffordance
-          expandable={row.editable}
-          isOpen={isOpen}
-          name={row.name}
-          onToggle={() => onToggleRow(row.id)}
-        />
+        {row.editable ? (
+          <ExpandToggle
+            isOpen={isOpen}
+            onToggle={() => onToggleRow(row.id)}
+            showLabel={`Show the settings for ${row.name}`}
+            hideLabel={`Hide the settings for ${row.name}`}
+          />
+        ) : null}
       </TableCell>
     </TableRow>
   );
 }
 
-/**
- * A station's fee is worked out from the seller's skills and standings rather
- * than stored, so there is no figure to show. Said in words on the dash, which
- * on its own reads as "missing" rather than "does not apply here".
- */
+/** A market's broker fee, or for a station, a dash saying why it is worked out per sale. */
 function BrokerFee({ fee }) {
   if (fee !== undefined) {
     return <Typography variant="body2">{`${fee}%`}</Typography>;
@@ -139,20 +124,8 @@ function BrokerFee({ fee }) {
 }
 
 /**
- * When these figures were current for this reader, and why they have stopped
- * arriving where that is something the reader can fix.
- *
- * An absent moment is two different sentences. A market the reader reads
- * themselves has not been read *on this device*, where another of their
- * machines may have read it. One the server prices has not been walked yet —
- * saving a market asks for it to be, and the first walk follows rather than
- * arriving with the save — so there are no figures at it, for anybody, until
- * that happens.
- *
- * A market that was readable and is not any more keeps its moment **and** says
- * so: the figures on screen are still the ones from that moment, and dropping
- * the date would hide how old the prices a job is being costed against have
- * become.
+ * When this reader's figures for a market were current, and why they stopped arriving where the
+ * reader can fix it.
  */
 function LastRead({ row }) {
   return (
@@ -169,41 +142,10 @@ function LastRead({ row }) {
         </Typography>
       )}
       {row.readProblem ? (
-        // Focusable because the chip takes no focus of its own and the tooltip
-        // is the only place the fix is described.
         <ExplainerTooltip title={row.readProblem.explain} focusable>
           <StatusChip tone={STATUS_TONE.WARN} label={row.readProblem.label} />
         </ExplainerTooltip>
       ) : null}
     </Stack>
-  );
-}
-
-/**
- * A market the reader did not save has nothing to open, so the chevron is
- * absent rather than present and inert — an affordance that can be operated and
- * does nothing is worse than none.
- */
-function ExpandAffordance({ expandable, isOpen, name, onToggle }) {
-  if (!expandable) return null;
-
-  return (
-    <IconButton
-      size="small"
-      aria-label={`${isOpen ? "Hide" : "Show"} the settings for ${name}`}
-      aria-expanded={isOpen}
-      onClick={onToggle}
-      sx={{
-        p: 0.25,
-        color: "text.secondary",
-        transform: isOpen ? "rotate(180deg)" : "none",
-        transition: (theme) =>
-          theme.transitions.create("transform", {
-            duration: theme.transitions.duration.shortest,
-          }),
-      }}
-    >
-      <ExpandMoreIcon fontSize="small" />
-    </IconButton>
   );
 }

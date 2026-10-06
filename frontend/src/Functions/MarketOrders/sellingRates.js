@@ -11,12 +11,6 @@ import { getCachedCharacterStandings } from "../../Hooks/EveEsi/Character/useGet
 import { SALE_LOCATION_KIND } from "./saleLocations";
 
 /**
- * What it costs to list an item and to sell it. Each charge is a rate and an
- * amount rather than one figure, so a planned sale and a real order read the same
- * formula.
- */
-
-/**
  * @typedef {object} SellerSkills
  * @property {number} brokerRelations - Active level, 0 when untrained or signed out
  * @property {number} accounting - Active level, 0 when untrained or signed out
@@ -25,19 +19,14 @@ import { SALE_LOCATION_KIND } from "./saleLocations";
  */
 
 /**
- * A character's market skill levels, defaulting to untrained.
- *
- * A skill absent from `bpSkills.json` never reaches this map, so it reads as
- * untrained rather than as missing.
+ * A character's market skill levels, defaulting to untrained; a skill the character has not
+ * trained reads as untrained rather than missing.
  *
  * @param {import("@tanstack/react-query").QueryClient} queryClient
  * @param {string|null} characterHash
  * @returns {SellerSkills}
  */
 export function getSellerSkills(queryClient, characterHash) {
-  // Signed out is the absence of a character, not of a query client: guarding on
-  // the client would turn a wiring mistake into a silently higher fee instead of
-  // a thrown error.
   if (!characterHash) {
     return { brokerRelations: 0, accounting: 0 };
   }
@@ -47,9 +36,6 @@ export function getSellerSkills(queryClient, characterHash) {
     characterHash,
   );
 
-  // Same rule as standings: a level that could not be read is not level zero,
-  // and quoting the untrained rate for it says the seller has not trained
-  // something they may well have.
   if (isLoading || isError || !data) {
     return { brokerRelations: 0, accounting: 0, unknown: true };
   }
@@ -62,12 +48,8 @@ export function getSellerSkills(queryClient, characterHash) {
 }
 
 /**
- * The percentage charged to list an item at a sale location.
- *
- * A citadel's rate is its owner's and is used as given — Broker Relations does not
- * reduce it, and there is no faction or NPC corporation to hold standing with. A
- * station's is derived from the seller instead, so the same station quotes two
- * characters different rates.
+ * The percentage charged to list an item at a sale location: a citadel owner's rate as given, or
+ * a station's derived from the seller's skill and standings.
  *
  * @param {import("./saleLocations").SaleLocation} saleLocation
  * @param {import("@tanstack/react-query").QueryClient} [queryClient]
@@ -105,11 +87,7 @@ export async function brokerFeeRate(saleLocation, queryClient, characterHash) {
  */
 
 /**
- * What an NPC station's broker fee is reduced by, and in what order it is read.
- *
- * Named here rather than at the row that draws them: the panel states these
- * three while the rates are still being worked out, so the list it reserves room
- * for and the list it fills in are the same list.
+ * What an NPC station's broker fee is reduced by, in the order the working lists them.
  *
  * @type {Record<string, {id: string, label: string}>}
  */
@@ -120,12 +98,8 @@ export const BROKER_FEE_TERMS = {
 };
 
 /**
- * The broker fee and what it is made of.
- *
- * A station's rate is worth showing as working: it is derived from the seller's
- * own skill and standings, and seeing the subtractions is what makes the figure
- * checkable against the client. A structure's is a number its owner set, so
- * there is nothing to show but the number.
+ * The broker fee and what it is made of: a station's rate with each subtraction, or a citadel
+ * owner's rate with nothing to show but the number.
  *
  * @param {import("./saleLocations").SaleLocation} saleLocation
  * @param {import("@tanstack/react-query").QueryClient} [queryClient]
@@ -189,6 +163,16 @@ export async function brokerFeeWorking(
 }
 
 /**
+ * The sales tax at an Accounting level: Accounting takes a share of the base rather than subtracting.
+ *
+ * @param {number} accounting - Skill level
+ * @returns {number} Percentage
+ */
+export function salesTaxRateAt(accounting) {
+  return salesTaxRates.base * (1 - salesTaxRates.accounting * accounting);
+}
+
+/**
  * The sales tax and what it is made of. Accounting is the only thing that moves
  * it, and it takes a share of the base rather than subtracting from it.
  *
@@ -203,7 +187,7 @@ export function salesTaxWorking(queryClient, characterHash) {
     base: salesTaxRates.base,
     accounting,
     unknown,
-    rate: salesTaxRates.base * (1 - salesTaxRates.accounting * accounting),
+    rate: salesTaxRateAt(accounting),
   };
 }
 
@@ -239,8 +223,6 @@ export function salesTaxAmount(rate, value) {
  * @returns {Promise<{faction: number, corporation: number, unknown: boolean}>}
  */
 async function getStationStandings(stationID, queryClient, characterHash) {
-  // No character and no station both mean the standings are unknown rather than
-  // absent: nobody has said the seller holds none.
   if (!stationID || !characterHash) {
     return { faction: 0, corporation: 0, unknown: true };
   }
@@ -251,29 +233,14 @@ async function getStationStandings(stationID, queryClient, characterHash) {
     isError,
   } = getCachedCharacterStandings(queryClient, characterHash);
 
-  // Absent is not empty. A read still in flight, one that failed, and one the
-  // token is not allowed to make all leave the fee quoted as though the seller
-  // had ground no standing anywhere — which is a claim, and usually the wrong
-  // one. The accessor hands back an empty list for the first two, so the state
-  // has to be read rather than the list inspected.
   if (isLoading || isError || !Array.isArray(standings)) {
     return { faction: 0, corporation: 0, unknown: true };
   }
   const station = await getStationData(stationID);
 
-  // Read through the station rather than guarding it: getStationData swallows its
-  // own errors and resolves to null, so this is what turns a failed lookup into a
-  // rejected promise. Defaulting to no standings instead would quote a plausible
-  // fee the seller does not owe, and the Selling stage stores the fee it links.
-  //
-  // The station names the race that built it; the standing is held against that
-  // race's faction, so the two are not the same id and looking the standing up by
-  // the race finds nothing.
   const raceFactions = await queryClient.query(raceFactionsQuery());
   const factionID = raceFactions.get(station.race_id) ?? null;
 
-  // Named so a reader can check the answer. Cosmetic, so a failure here does not
-  // take the fee down with it — the figures are still right without them.
   const names = await fetchNames(queryClient, [factionID, station.owner]).catch(
     () => ({}),
   );
@@ -292,9 +259,8 @@ async function getStationStandings(stationID, queryClient, characterHash) {
 }
 
 /**
- * The categories ESI reports a standing against. A faction and an NPC
- * corporation can hold the same id in different categories, so the kind is part
- * of the match rather than the id alone.
+ * The categories ESI reports a standing against; a faction and an NPC corporation can share an
+ * id, so the category is part of the match.
  *
  * @enum {string}
  */

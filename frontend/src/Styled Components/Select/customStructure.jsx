@@ -3,24 +3,27 @@ import { FormControl, FormHelperText, MenuItem, Select } from "@mui/material";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * A select component for choosing custom structures based on job type.
- * Displays structures available for the specified job type from user settings.
- * Includes a "Clear" option when a value is selected.
+ * The reader's saved structures of one kind to choose from, with Clear once one is chosen and a
+ * marker for a chosen structure that no longer exists.
  *
- * @param {Object} props - Component props
- * @param {string} props.value - Currently selected structure ID
- * @param {number} props.jobType - Job type to determine which structures to show
- * @param {Function} props.onChange - Callback function called when selection changes. Receives the structure ID.
- * @returns {JSX.Element} Custom structure select component
- *
- * @example
- * <CustomStructureSelect
- *   value={selectedStructureId}
- *   jobType={1}
- *   onChange={(structureId) => setStructure(structureId)}
- * />
+ * @param {Object} props
+ * @param {string} props.value - The chosen structure's id
+ * @param {number} props.jobType - Which kind of structure is offered
+ * @param {Function} props.onChange - Receives the chosen structure's id
+ * @param {"standard"|"outlined"} [props.selectVariant]
+ * @param {object} [props.menuProps]
+ * @param {object} [props.customFormStyling]
+ * @param {object} [props.customHelperTextStyling]
  */
-function CustomStructureSelect({ value, jobType, onChange }) {
+function CustomStructureSelect({
+  value,
+  jobType,
+  onChange,
+  selectVariant = "standard",
+  menuProps = {},
+  customFormStyling = {},
+  customHelperTextStyling = {},
+}) {
   const allStructures = useUsersStore(
     (state) => state.applicationSettings.customStructures,
   );
@@ -48,14 +51,16 @@ function CustomStructureSelect({ value, jobType, onChange }) {
           {
             display: "none",
           },
+        ...customFormStyling,
       }}
       fullWidth
     >
       <Select
         id="custom-structure-select"
         aria-describedby="custom-structure-helper"
-        variant="standard"
+        variant={selectVariant}
         size="small"
+        MenuProps={menuProps}
         value={validValue}
         onChange={(e) => {
           if (onChange) {
@@ -85,7 +90,11 @@ function CustomStructureSelect({ value, jobType, onChange }) {
           );
         })}
       </Select>
-      <FormHelperText id="custom-structure-helper" variant="standard">
+      <FormHelperText
+        id="custom-structure-helper"
+        variant="standard"
+        sx={customHelperTextStyling}
+      >
         Custom Structure Used
       </FormHelperText>
     </FormControl>

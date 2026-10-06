@@ -20,13 +20,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// releaseStep is one piece of cutover work. Steps report what they did so a
-// dry-run and a real run print the same shape.
-//
-// Most steps are independent, so a failure names itself and the release carries
-// on. A step marked required is one the steps after it read the output of: if it
-// fails they do not fail, they succeed against documents it never prepared and
-// report having done nothing. That is worse than stopping, so it stops.
+// releaseStep is one piece of cutover work, reporting what it did; a required step stops the release
+// when it fails, because the steps after it read its output.
 type releaseStep struct {
 	name     string
 	required bool
@@ -34,126 +29,47 @@ type releaseStep struct {
 }
 
 // release groups the steps one app version owes the database.
-//
-// Grouping by version rather than keeping one flat list is what lets an operator
-// read what a deploy is about to do, and what lets a reader tell which release
-// introduced a step long after it became a no-op.
 type release struct {
 	version string
 	steps   []releaseStep
 }
 
-// releases is every version's cutover work, oldest first, in the order it has to
-// happen.
-//
-// Add to this rather than adding a sibling command: an operator running a release
-// should not have to know which steps their version needs. Every release's steps
-// run every time, because a step that has become a no-op reports zero rather than
-// being removed — which is what makes running this against an environment that is
-// already current safe, and what lets an environment several versions behind
-// catch up in one command.
+// releases is every version's cutover work in the order it runs; every step runs every time and
+// reports zero once it has nothing to do.
 var releases = []release{{
 	version: currentRelease,
 	steps: []releaseStep{
-		// First and not fatal: the gate this warns about is the last step, so an
-		// operator who has not run the fan-out otherwise learns it after the whole
-		// release has run. Reading the count costs three counts.
 		{name: "check the owner-scoped id rewrite has finished", run: warnOwnerScopedIDsOutstanding},
-		// Before anything writes: the copies are what revertRelease puts back, and
-		// a copy taken after a step ran is a copy of that step's output.
 		{name: "copy every collection this release writes to", required: true, run: backupReleaseCollections},
-		// Next: later steps stamp the current schema version onto documents they
-		// touch, so anything still owing an earlier upgrade has to run it now or
-		// be recorded as current without ever having done so.
 		{name: "complete outstanding schema maintenance", required: true, run: completeSchemaMaintenance},
-		// After maintenance, before anything owner-scoped: the steps below filter
-		// on the owner, and nothing reads a document that has not got one.
 		{name: "stamp the owner onto every scoped document", required: true, run: stampMetaOwner},
 		{name: "drop retired change stream resume tokens", run: dropRetiredResumeTokens},
 		{name: "drop unaddressable rebuild queue entries", run: dropUnaddressableQueueEntries},
-		// Before the rebuild: it derives each row's category names from the jobs.
 		{name: "stamp extras category labels onto jobs", run: stampExtrasCategoryLabels},
-		// After the label stamp, which writes into the rows while they are still
-		// an array, and before the rebuild, which derives its figures from what
-		// this leaves behind — consolidating a market order's broker fees to the
-		// one the listing was charged moves those figures.
 		{name: "reshape every job document", required: true, run: reshapeJobDocumentsStep},
 		{name: "store every extras and invention row in the shape its model writes", run: normaliseExtrasAndInventionRows},
-		// After the release's copy, never before: the copy is what an operator
-		// falls back to, and one missing the fields the previous release read is
-		// not a fallback.
 		{name: "drop retired statistics fields", run: dropRetiredStatisticsFields},
 		{name: "queue every account for rebuild", run: queueEveryAccountForRebuild},
-		// The SDE writes its own documents, so a release that changes their shape
-		// asks for them to be written again rather than reaching into them.
 		{name: "rebuild the current SDE version", run: rebuildCurrentSDEVersion},
-		// After the owner stamp, because a planner's id is the owner key those
-		// documents now carry; before the grants below, which are derived from the
-		// membership rows this writes.
 		{name: "give every account its planner", run: backfillAccountPlanners},
-		// After the planner exists, because this writes its settings document: a
-		// planner seeded at an earlier login does not hold the categories its
-		// account added afterwards, and the picker reads the planner's list.
-		{name: "move each account's extras categories onto its planner", run: backfillPlannerExtrasCategories},
-		// After the owner stamp, which is what decides the collections carrying a
-		// `_meta` block at all.
+		{name: "move each account's planner settings onto its planner", run: backfillPlannerSettings},
 		{name: "give every document a write counter at _meta.revision", run: ensureMetaRevision},
-		// Sessions outlive a deploy, so grants written by the previous release are
-		// rewritten rather than left to lapse at the next token refresh.
 		{name: "rewrite session grants as owner keys", run: repairSessionGrants},
-		// After maintenance, which stamps the schema version the seed sits behind,
-		// and after the owner stamp, because the settings written here are upserted
-		// through the owner-preserving path.
 		{name: "seed each account's buying and selling pricing defaults", run: seedPricingDefaults},
-		// After the planner backfill and its settings seed, which create the
-		// planner settings documents this also converts: a fold that runs before
-		// them reports nothing to do and leaves what they write in the old shape.
 		{name: "fold custom structures into one array", run: foldCustomStructures},
-		// After every step that writes a settings document whole — the schema
-		// maintenance and the pricing seed above both do, and a step that writes
-		// only its own field with $set does not. The lane has no `omitempty`, so a
-		// whole-document write of one not yet seeded stores `null` into it.
-		// Selecting by shape rather than by absence is what makes that survivable:
-		// this catches the `null` as readily as the missing field. A later step
-		// that writes a settings document whole belongs above this line.
 		{name: "give every settings document an empty market lane", run: seedMarketLocationLane},
-		// After the fold above, never before: this reads the structures as one
-		// array and skips a document still holding the four keyed lists, so run
-		// early it would report nothing to do and leave every rig unconverted.
 		{name: "fold rig slots onto every saved structure", run: foldStructureRigSlots},
-		// After the fold, never before: it selects a document by a market row
-		// inside the structures array, which a document still holding the four
-		// keyed lists does not have. After the rig fold as well, so that fold
-		// sees the structures as they were stored rather than a set a market has
-		// already left.
 		{name: "move every saved market onto its own lane", run: moveMarketsToTheirOwnLane},
-		// After the job reshape, which rewrites the setups this reads: a fold run
-		// before it would convert setups that reshape then writes over.
 		{name: "fold rig slots onto every setup", run: foldRigSlots},
-		// After the reshape that rewrites setups, for the same reason the fold is.
-		// A setup is read as being at The Fulcrum whenever it names that system,
-		// so a leftover left behind by the old removal has to come out before the
-		// declared rules are what price a job.
 		{name: "clear the system left on a setup that moved off The Fulcrum", run: clearZarzakhLeftovers},
-		// Anywhere in the window: it reads no document and depends on no other
-		// step. The keys it removes are Redis-only and already unread by the
-		// deployed code.
 		{name: "drop the market keys this release retires", run: dropRetiredMarketKeys},
-		// Last: the window's gate. A document with no owner is unreachable, so the
-		// release fails rather than reporting success over it.
 		{name: "verify every document carries an owner", run: verifyMetaOwner},
-		// The rewrite itself is a fan-out command run before the window; this is
-		// the gate that it finished, because a bare id no longer identifies a
-		// document the writers can find.
 		{name: "verify every owner-scoped id carries its owner", run: verifyOwnerScopedIDs},
 	},
 }}
 
-// runPrepareRelease brings stored documents to the shape the deployed code
-// reads, and queues the work that refills what it changed.
-//
-// This is the release migration: a deploy runs it once, and it is the only place
-// a version's data work is written down.
+// runPrepareRelease brings stored documents to the shape the deployed code reads, and queues the work
+// that refills what it changed.
 func runPrepareRelease(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("prepareRelease", flag.ContinueOnError)
 	fs.Usage = func() {
@@ -177,12 +93,6 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 
 	clients, stopDeps, err := stackservices.Connect(ctx, stackservices.Services{Mongo: true, Redis: true, NATS: true})
 	if err != nil {
-		// Only the SDE rebuild asks for NATS, and it is the one step a release does
-		// not wait on. Connect fails the whole call when any requested service is
-		// unreachable, so a broker that is down would cost every Mongo step here
-		// rather than the one that needs it. Fall back to the services the rest of
-		// the release actually reads, and let that step report its own missing
-		// handle.
 		clients, stopDeps, err = stackservices.Connect(ctx, stackservices.Services{Mongo: true, Redis: true})
 		if err != nil {
 			return err
@@ -219,8 +129,6 @@ func runPrepareRelease(ctx context.Context, args []string) error {
 	}
 
 	if len(failures) > 0 {
-		// Every step is idempotent and reports zero when it has nothing to do, so
-		// the ones that succeeded stand and the release can be re-run for the rest.
 		return fmt.Errorf("prepareRelease: %d/%d step(s) failed", len(failures), total)
 	}
 
@@ -246,11 +154,8 @@ func repairSessionGrants(ctx context.Context, clients *stackservices.Clients, dr
 	return out, nil
 }
 
-// retiredStatisticsFields are fields the statistics documents no longer carry.
-//
-// Removing a field from its struct stops it being written, but the rebuild
-// upserts with $set and never replaces, so a document that already holds one
-// keeps it. They are listed here to be unset.
+// retiredStatisticsFields are fields the statistics documents no longer carry, unset because the
+// rebuild's $set never removes one.
 var retiredStatisticsFields = []string{"dataSnapshots", "buildRows"}
 
 func dropRetiredStatisticsFields(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
@@ -282,12 +187,8 @@ func dropRetiredStatisticsFields(ctx context.Context, clients *stackservices.Cli
 	return fmt.Sprintf("%d document(s) cleared of %s", res.ModifiedCount, strings.Join(retiredStatisticsFields, ", ")), nil
 }
 
-// dropRetiredResumeTokens removes the stored change stream position of any group
-// that is no longer watched.
-//
-// Tokens are written without an expiry, so a group removed from the registry
-// leaves its key behind indefinitely. The registry is the source of truth for
-// which groups exist, so anything else under the prefix is retired by definition.
+// dropRetiredResumeTokens removes the stored change stream position of any group that is no longer
+// watched.
 func dropRetiredResumeTokens(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	tokens := primaryhandoff.NewResumeTokens(clients.Redis)
 	stored, err := tokens.Stored(ctx)
@@ -310,11 +211,6 @@ func dropRetiredResumeTokens(ctx context.Context, clients *stackservices.Clients
 }
 
 // dropUnaddressableQueueEntries removes queue entries whose id names no owner.
-//
-// The queue is keyed by owner, and a dispatch skips an id it cannot read back
-// rather than failing the whole pass — so an entry left under an older key would
-// never be dispatched and never cleared. They are dropped rather than converted
-// because the step that follows queues every account anyway.
 func dropUnaddressableQueueEntries(ctx context.Context, clients *stackservices.Clients, dryRun bool) (string, error) {
 	coll := clients.Mongo.StatisticsRebuildQueue.Collection()
 
@@ -350,10 +246,6 @@ func queueEveryAccountForRebuild(ctx context.Context, clients *stackservices.Cli
 		return "", fmt.Errorf("distinct archived job accounts: %w", err)
 	}
 	if len(accounts) == 0 {
-		// An empty owner list has two causes that read identically here and could
-		// not be more different: there are no archived jobs, or there are and the
-		// owner stamp did not reach them. The second one queues nothing, rebuilds
-		// nothing, and would otherwise end the release on a green line.
 		held, countErr := mongo.ArchivedJobs.Collection().CountDocuments(ctx, bson.M{})
 		if countErr != nil {
 			return "", fmt.Errorf("count archived jobs: %w", countErr)
@@ -378,8 +270,6 @@ func queueEveryAccountForRebuild(ctx context.Context, clients *stackservices.Cli
 		queued++
 	}
 	if len(queueErrs) > 0 {
-		// The queue is idempotent, so re-running picks up what failed without
-		// undoing what did not.
 		for _, qerr := range queueErrs {
 			fmt.Fprintf(os.Stderr, "  %v\n", qerr)
 		}
@@ -388,10 +278,7 @@ func queueEveryAccountForRebuild(ctx context.Context, clients *stackservices.Cli
 	return fmt.Sprintf("%d/%d account(s) queued", queued, len(accounts)), nil
 }
 
-// retiredResumeTokenGroups picks the stored groups the registry no longer lists.
-//
-// The registry is the source of truth for which groups exist, so a stored group
-// it does not name belongs to a watcher that no longer runs. Sorted so a run
+// retiredResumeTokenGroups picks the stored groups the registry no longer lists, sorted so a run
 // reports them in the same order twice.
 func retiredResumeTokenGroups(stored []string, groups []changestream.CollectionGroup) []string {
 	live := make(map[string]bool, len(groups))

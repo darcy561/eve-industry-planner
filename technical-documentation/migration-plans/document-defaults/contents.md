@@ -13,7 +13,8 @@ is born with, and the normalisation every read applies before a caller sees it.
   drain, so a job is handed to a caller exactly as stored.
 - **The extras category id space** — what a category is identified by, and what an extra filed under
   none carries.
-- **The schema version bump** that converges both, and the release step that carries it.
+- **The release step** that converts live into the shape both tracks settle, inside the shared-planners
+  release — with no version bump, because the version constants ship in that same release.
 
 **Not live SoT** until this project is complete and promotion is approved.
 

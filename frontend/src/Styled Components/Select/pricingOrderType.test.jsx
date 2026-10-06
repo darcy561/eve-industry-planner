@@ -80,6 +80,30 @@ describe("PricingOrderTypeSelect", () => {
     expect(within(buyP95).getByText("−30 ISK")).toBeInTheDocument();
   });
 
+  it("marks a lower total as the better one by default", async () => {
+    await open();
+
+    expect(
+      within(screen.getAllByRole("option")[2]).getByText("−30 ISK"),
+    ).toHaveStyle({ color: "rgb(46, 125, 50)" });
+  });
+
+  it("marks a higher total as the better one when asked", async () => {
+    await open({ higherIsBetter: true });
+
+    expect(
+      within(screen.getAllByRole("option")[2]).getByText("−30 ISK"),
+    ).toHaveStyle({ color: "rgb(211, 47, 47)" });
+  });
+
+  it("says what the totals are", async () => {
+    await open({ totalsCaption: "What reprocessing comes to under each" });
+
+    expect(
+      screen.getByText("What reprocessing comes to under each"),
+    ).toBeInTheDocument();
+  });
+
   it("shows no delta against the order type already in effect", async () => {
     await open();
 

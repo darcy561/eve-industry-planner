@@ -1,10 +1,7 @@
 import GLOBAL_CONFIG from "../../global-config-app";
 import { EXIT_ROUTE } from "../../Functions/Job/figures/returns";
 import { PRICING_SIDE } from "../../Functions/MarketData/defaults/pricingSide";
-import {
-  DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
-  extrasCategoriesDefault,
-} from "../../Context/defaultValues";
+import { extrasCategoriesDefault } from "../../Context/defaultValues";
 import { structureToDocument } from "../../Functions/Custom Structures/customStructure";
 import customStructuresFromServer from "../../Functions/Custom Structures/customStructuresFromServer";
 import { detectUserLocale } from "../../Functions/Helper/localeDetection";
@@ -12,13 +9,6 @@ import { jobStatusesForPersist } from "../../Functions/Helper/jobStatuses";
 
 const { DEFAULT_MARKET_OPTION, DEFAULT_ORDER_TYPE, DEFAULT_ASSET_LOCATION } =
   GLOBAL_CONFIG;
-
-function defaultReprocessingSettings() {
-  return {
-    defaultReprocessingCharacter: null,
-    ...DEFAULT_REPROCESSING_CALCULATION_SETTINGS,
-  };
-}
 
 /**
  * One side's default. The buying side names an order type; the selling side names the
@@ -29,12 +19,8 @@ function defaultReprocessingSettings() {
  */
 
 /**
- * The route an account priced on an order type was already being shown.
- *
- * Returns led with the listing for everyone before the route was stored, so an
- * account that named the bid side was reading a listing's fee against a bid's
- * price. Taking its order type at its word repairs that, and leaves everyone else on
- * the route they already had.
+ * The route out an account priced on an order type was already being shown: selling into bids for
+ * the bid side, and a listing for every other.
  *
  * @param {string|null|undefined} orderType
  * @returns {string}
@@ -96,9 +82,8 @@ function mergePricingDefaults(incoming, prev) {
 }
 
 /**
- * Go `json` omits empty optional fields; Mongo full documents may also omit keys.
- * For authoritative GET / change-stream payloads, missing key means "empty / default",
- * not "preserve local Zustand". Without this, reverts that clear optional state never apply on other sessions.
+ * A full settings document from the server with every omitted optional key read as its empty
+ * default, so a cleared setting clears here too rather than keeping the held value.
  *
  * @param {object} incoming
  * @returns {object}
@@ -133,7 +118,7 @@ export const stateDefault = () => ({
   exemptTypeIDs: new Set(),
   enableAutomaticJobRecalculation: true,
   enableSkipMissingBlueprints: false,
-  reprocessingSettings: defaultReprocessingSettings(),
+  reprocessingSettings: { defaultReprocessingCharacter: null },
   locale: detectUserLocale(),
   extrasCategories: extrasCategoriesDefault,
   predefinedSystemIndexes: {},
@@ -173,19 +158,13 @@ export function mergeApplicationSettingsState(
     );
   }
 
-  let mergedRs = prev.reprocessingSettings;
-  if (rsIn && typeof rsIn === "object") {
-    mergedRs = {
-      ...prev.reprocessingSettings,
-      ...rsIn,
-    };
-  }
-  mergedRs = {
-    ...mergedRs,
+  const heldCharacter =
+    rsIn && typeof rsIn === "object" && "defaultReprocessingCharacter" in rsIn
+      ? rsIn.defaultReprocessingCharacter
+      : prev.reprocessingSettings.defaultReprocessingCharacter;
+  const mergedRs = {
     defaultReprocessingCharacter:
-      mergedRs.defaultReprocessingCharacter ??
-      mainCharacterHashFallback ??
-      null,
+      heldCharacter ?? mainCharacterHashFallback ?? null,
   };
 
   const defaultPricing = mergePricingDefaults(incoming, prev);
@@ -286,7 +265,6 @@ export const coreActions = (set, get) => ({
     const state = get().applicationSettings;
     const jobStatuses = jobStatusesForPersist(state.jobStatuses);
     const cs = state.customStructures;
-    const rs = state.reprocessingSettings;
 
     return {
       displayHelpCards: state.displayHelpCards,
@@ -306,12 +284,8 @@ export const coreActions = (set, get) => ({
       marketLocations: state.marketLocations ?? [],
       exemptTypeIDs: [...(state.exemptTypeIDs || [])],
       reprocessingSettings: {
-        defaultReprocessingCharacter: rs.defaultReprocessingCharacter ?? null,
-        preferCompressed: rs.preferCompressed,
-        compressionBonusMultiplier: rs.compressionBonusMultiplier,
-        valueMultiplier: rs.valueMultiplier,
-        wastePenaltyMultiplier: rs.wastePenaltyMultiplier,
-        sellExcessMineralTypes: rs.sellExcessMineralTypes,
+        defaultReprocessingCharacter:
+          state.reprocessingSettings.defaultReprocessingCharacter ?? null,
       },
       extrasCategories: state.extrasCategories,
       predefinedSystemIndexes: state.predefinedSystemIndexes,

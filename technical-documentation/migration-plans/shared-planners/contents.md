@@ -27,6 +27,7 @@ The planner as a first-class thing a user works in, and the ownership model unde
 
 | I need to… | Read |
 |------------|------|
+| Know what the release carries from every open project, where each project's `prepareRelease` step goes, and why no schema version moves | [plan.md](./plan.md) § Every open project ships in this window |
 | Understand the goal and why this is one primitive rather than four scopes | [plan.md](./plan.md) § Goal, § One planner, four membership providers |
 | See what already exists and what has to be built | [plan.md](./plan.md) § Starting position |
 | Know what identifies a planner and why the ids were chosen that way | [plan.md](./plan.md) § The owner key is the identity |
@@ -57,8 +58,8 @@ The planner as a first-class thing a user works in, and the ownership model unde
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See what other projects must change before they close | [plan.md](./plan.md) § What the other projects owe |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
-| Understand why the websocket cursor and document load do not survive a second writer | [plan.md](./plan.md) § Stage G |
 | Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |
+| Understand why the websocket cursor and document load do not survive a second writer | [plan.md](./plan.md) § Stage G |
 | Find what the retired websocket-realtime project left behind | [plan.md](./plan.md) § Stage G — Absorbed from the retired websocket-realtime project |
 | Understand why two members take two different locks on one job | [plan.md](./plan.md) § Stage H |
 | Know what happens to same-account force-release once the lock is planner-wide | [plan.md](./plan.md) § Stage H |

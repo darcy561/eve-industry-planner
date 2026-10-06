@@ -1,11 +1,20 @@
-import { Box, Table, TableCell, TableHead, TableRow } from "@mui/material";
+import {
+  Box,
+  Collapse,
+  Table,
+  TableCell,
+  TableHead,
+  TableRow,
+} from "@mui/material";
 
-import { FigureCaption } from "../Typography/figures";
-
-/**
- * The parts a figures table is made of, so a panel describes its columns rather
- * than laying out a header.
- */
+import {
+  FIGURE_TONE,
+  BandCaption,
+  Figure,
+  FigureCaption,
+  totalRowSx,
+} from "../Typography/figures";
+import InsetSurface from "../Paper/InsetSurface";
 
 /**
  * @typedef {object} TableColumn
@@ -15,11 +24,8 @@ import { FigureCaption } from "../Typography/figures";
  */
 
 /**
- * A table's column headings.
- *
- * Takes the columns rather than fixing them, because a panel may show one only
- * when it has something to put in it — the cost table's comparison against a
- * previous build appears only where there is history.
+ * A table's column headings, given as data so a panel can show a column only where it has something
+ * to put in it.
  *
  * @param {object} props
  * @param {TableColumn[]} props.columns
@@ -43,22 +49,8 @@ export function ColumnHeaderRow({ columns }) {
 }
 
 /**
- * A figures table that fits the panel it sits in.
- *
- * A table left to itself does not fit a narrow window — it squeezes its label
- * column to a word a line and still runs off the side of the panel, because
- * nothing contains it. Below its floor this scrolls instead, which keeps every
- * column readable and the overflow inside the panel.
- *
- * The floor is a **theme breakpoint**, named the way the rest of the app names
- * them, so there is one vocabulary for width across the SPA rather than a pixel
- * figure per table drifting on its own. Pick the breakpoint a table's columns
- * need room beyond: `sm` for a handful of columns, `md` for a wide one.
- *
- * A breakpoint is a viewport measure and a table's need is a content one, so a
- * table scrolls somewhat before its columns would actually collide. That is the
- * cost of one vocabulary, and it errs toward scrolling rather than toward
- * squeezing a column.
+ * A figures table that scrolls inside its panel below a theme breakpoint rather than squeezing its
+ * columns: `sm` for a handful of columns, `md` for a wide one.
  *
  * @param {object} props
  * @param {'xs'|'sm'|'md'|'lg'|'xl'} props.minWidth - The breakpoint below which it scrolls
@@ -80,5 +72,95 @@ export function ScrollingTable({ minWidth, children, sx, ...rest }) {
         {children}
       </Table>
     </Box>
+  );
+}
+
+/**
+ * A caption across a table naming the group of rows beneath it.
+ *
+ * @param {object} props
+ * @param {number} props.colSpan - How many columns the table has
+ * @param {React.ReactNode} props.children
+ * @param {string} [props.tone] - One of FIGURE_TONE
+ */
+export function BandRow({ colSpan, children, tone = FIGURE_TONE.PLAIN }) {
+  return (
+    <TableRow>
+      <TableCell colSpan={colSpan} sx={{ borderBottom: 0, pt: 2 }}>
+        <BandCaption tone={tone}>{children}</BandCaption>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * A row's drawer: a recessed area spanning the table under the row, mounted only while open so a
+ * shut one holds no state.
+ *
+ * @param {object} props
+ * @param {number} props.colSpan - How many columns the table has
+ * @param {boolean} props.isOpen
+ * @param {React.ReactNode} props.children
+ */
+export function DrawerRow({ colSpan, isOpen, children }) {
+  return (
+    <TableRow>
+      <TableCell colSpan={colSpan} sx={{ p: 0, border: 0 }}>
+        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+          <InsetSurface
+            sx={{ my: 1, contain: "inline-size", overflowX: "auto" }}
+          >
+            {children}
+          </InsetSurface>
+        </Collapse>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * A row summing the figures above it, ruled above, or with `quiet` a lighter row taking something off
+ * them; the label sits in the first column and each value under its column's id.
+ *
+ * @param {object} props
+ * @param {TableColumn[]} props.columns - The table's columns
+ * @param {React.ReactNode} props.label
+ * @param {Object<string, React.ReactNode>} props.values - Keyed by column id; a number or text is a figure
+ * @param {Object<string, string>} [props.tones] - One of FIGURE_TONE for a value, keyed by column id
+ * @param {boolean} [props.quiet]
+ */
+export function SummaryRow({
+  columns,
+  label,
+  values,
+  tones = {},
+  quiet = false,
+}) {
+  const cellSx = quiet ? { color: "text.secondary" } : totalRowSx;
+  return (
+    <TableRow>
+      {columns.map((column, index) => {
+        const value = index === 0 ? label : values[column.id];
+        return (
+          <TableCell
+            key={column.id}
+            align={column.align ?? "left"}
+            sx={{ ...cellSx, whiteSpace: index === 0 ? undefined : "nowrap" }}
+          >
+            {index === 0 ||
+            (typeof value !== "number" && typeof value !== "string") ? (
+              value
+            ) : (
+              <Figure
+                tone={tones[column.id]}
+                sx={quiet ? undefined : { fontWeight: 500 }}
+              >
+                {value}
+              </Figure>
+            )}
+          </TableCell>
+        );
+      })}
+    </TableRow>
   );
 }

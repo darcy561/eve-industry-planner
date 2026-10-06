@@ -162,6 +162,10 @@ would be easy to arrange by accident.
 by work outside this project and its inventory entry says so; converting them first would be work
 thrown away when the page is rebuilt.
 
+2.10 and 3.4 are resolved that way: reprocessing G1 deleted `useAutoRecalculation.js`, and G2 deleted
+`reprocessingStructurePanel.jsx`, whose effect copied trained skill levels into state — the levels are
+now worked out while rendering. 3.2 still waits on G3.
+
 ### Phase 6 — Tier 4: routing (3 sites)
 
 Defaults applied by rendering and then redirecting, and page work done on mount that belongs to the

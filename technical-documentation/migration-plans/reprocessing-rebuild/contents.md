@@ -58,13 +58,14 @@ The Reprocessing page and the engine beneath it — both directions, from the fo
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
 | Find the worked example every figure on the canvas comes from | [measurements/worked-example.md](./measurements/worked-example.md) |
 | See how far the current ore selection is from the cheapest answer | [measurements/ore-selection-benchmark.md](./measurements/ore-selection-benchmark.md) |
+| See what the reprocessing settings move will find on live | [measurements/reprocessing-settings-on-live.md](./measurements/reprocessing-settings-on-live.md) |
 | See the visual design the page builds to | [plan.md](./plan.md) § Design reference |
 | Find what was considered and deliberately left out | [plan.md](./plan.md) § Not in the sequence |
 | See how the page lays out on a phone | [plan.md](./plan.md) § G7 — Phone layout |
 | Know which skills the setup lists | [plan.md](./plan.md) § G2 |
 | Know what changes for a reader who is not signed in | [plan.md](./plan.md) § G8 — Signed-out readers |
 | See how buying minerals as ore looks on Planning, Purchasing and the Shopping List, and which project holds each | [plan.md](./plan.md) § Not in the sequence, § Design reference |
-| Know how Prismaticite and the unrefined minerals are worked out and shown — one mineral per batch, a likely range | [plan.md](./plan.md) § A4, § C2b, § G3; [measurements/worked-example.md](./measurements/worked-example.md) § Erratic ore |
+| Know how Prismaticite and the unrefined minerals are worked out and shown — one mineral per 100 units, a likely range | [plan.md](./plan.md) § A4, § C2b, § G3; [measurements/worked-example.md](./measurements/worked-example.md) § Erratic ore |
 | Know why the static file's skills and kinds come from the SDE rather than hand-typed maps | [plan.md](./plan.md) § B1a |
 | See how module and scrap reprocessing fits either static data answer | [plan.md](./plan.md) § Stage M |
 | Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |

@@ -3,23 +3,26 @@ import { useMemo } from "react";
 import useUsersStore from "../../Zustand/usersStore";
 
 /**
- * A select component for choosing which character is assigned (from `account.characters`).
- * Automatically selects the main character if no specific character is chosen.
+ * The account's characters to choose from, showing the main character until one is chosen.
  *
- * @param {Object} props - Component props
- * @param {string} props.value - Selected character hash (`CharacterHash`)
- * @param {Function} props.onChange - Called with the selected character hash
- * @param {string} [props.formHelperText] - Custom helper text below the select
- * @returns {JSX.Element} Character assignment select
- *
- * @example
- * <AssignUsersSelect
- *   value={selectedUserHash}
- *   onChange={(hash) => setSelectedUser(hash)}
- *   formHelperText="Choose assigned character"
- * />
+ * @param {Object} props
+ * @param {string} props.value - The chosen character's `CharacterHash`
+ * @param {Function} props.onChange - Receives the chosen character's hash
+ * @param {string} [props.formHelperText] - The line beneath the select
+ * @param {"standard"|"outlined"} [props.selectVariant]
+ * @param {object} [props.menuProps]
+ * @param {object} [props.customFormStyling]
+ * @param {object} [props.customHelperTextStyling]
  */
-function AssignUsersSelect({ value, onChange, formHelperText }) {
+function AssignUsersSelect({
+  value,
+  onChange,
+  formHelperText,
+  selectVariant = "standard",
+  menuProps = {},
+  customFormStyling = {},
+  customHelperTextStyling = {},
+}) {
   const characters = useUsersStore((state) => state.account.characters);
   const mainCharacterHash = useUsersStore(
     (state) => state.account.mainCharacterHash,
@@ -43,14 +46,16 @@ function AssignUsersSelect({ value, onChange, formHelperText }) {
           {
             display: "none",
           },
+        ...customFormStyling,
       }}
       fullWidth
     >
       <Select
         id="characters-select"
         aria-describedby="characters-helper"
-        variant="standard"
+        variant={selectVariant}
         size="small"
+        MenuProps={menuProps}
         value={selectedUserHash}
         onChange={(e) => {
           if (onChange) {
@@ -68,7 +73,11 @@ function AssignUsersSelect({ value, onChange, formHelperText }) {
           );
         })}
       </Select>
-      <FormHelperText id="characters-helper" variant="standard">
+      <FormHelperText
+        id="characters-helper"
+        variant="standard"
+        sx={customHelperTextStyling}
+      >
         {formHelperText ? formHelperText : "Assigned Character"}
       </FormHelperText>
     </FormControl>

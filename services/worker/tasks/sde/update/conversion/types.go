@@ -1,7 +1,7 @@
 package conversion
 
-// RecipeActivities mirrors SDE blueprint activities for static recipe output.
-// Invention uses Option B: each key is the source blueprint type ID (string); the value is that row's invention payload (materials, skills, time, products).
+// RecipeActivities mirrors SDE blueprint activities for static recipe output, with invention keyed
+// by source blueprint type ID.
 type RecipeActivities struct {
 	Manufacturing    map[string]any             `json:"manufacturing,omitempty"`
 	Reaction         map[string]any             `json:"reaction,omitempty"`
@@ -81,7 +81,7 @@ type EVEType struct {
 	Activities         *RecipeActivities `json:"activities,omitempty"`
 	BlueprintTypeID    int               `json:"blueprintTypeID,omitzero"`
 	MaxProductionLimit int               `json:"maxProductionLimit,omitzero"`
-	// ExcludeFromRecipeList: invention was merged onto the manufactured item (same blueprint row); omit duplicate BPC-only recipe row.
+	// ExcludeFromRecipeList omits the BPC-only recipe row once its invention is merged onto the manufactured item.
 	ExcludeFromRecipeList bool `json:"-"`
 }
 
@@ -103,51 +103,50 @@ type FullItem struct {
 	// FactionID is the militia a type belongs to, which a place may scope its own
 	// bonus by. Absent for a type belonging to none.
 	FactionID int `json:"faction_id,omitzero"`
-	// MarketGroupID is where the type sits in the market's own tree — the SDE's
-	// `marketGroupID`, which `EVEType` carries as `MarketSectionID`. It is not
-	// `EVEType.MarketGroupID`, which is the inventory group CategoryID comes from.
-	// Absent for a type with no market group, which is most unpublished ones.
+	// MarketGroupID is the type's node in the market tree — the SDE's marketGroupID, which EVEType
+	// carries as MarketSectionID — and absent for a type with no market group.
 	MarketGroupID int `json:"market_group_id,omitzero"`
 }
 
-// MarketGroup is one node of the market tree: what to call it, and what contains
-// it. A pricing default set on a group applies to everything beneath it, so the
-// parent link is what makes the tree walkable rather than a flat list.
+// MarketGroup is one node of the market tree: its name, its parent and what it holds, so the tree
+// can be walked both ways.
 type MarketGroup struct {
 	Name string `json:"name"`
 	// ParentID is absent at a root, which is the only place the walk can stop.
 	ParentID int `json:"parent_id,omitzero"`
-	// Children names what sits directly inside this group, so a reader can walk
-	// down as well as up. The SPA browses the tree to let a player choose a group
-	// to price against, and deriving this from the parent links there means
-	// inverting the whole map in every session — the same answer, rebuilt from
-	// data this side already holds in order.
+	// Children names the groups directly inside this one, so a reader can walk down as well as up.
 	Children []int `json:"children,omitempty"`
-	// HasTypes says whether items sit in this group directly, as against only in
-	// groups beneath it. Both are choosable — a default set on a container covers
-	// everything under it — but a reader picking one deserves to know which it is.
+	// HasTypes says whether items sit directly in this group rather than only in groups beneath it.
 	HasTypes bool `json:"has_types,omitzero"`
-	// IconTypeID is an item from this group, for a reader to recognise it by.
-	//
-	// A market group has an icon of its own in the SDE, but it names a file inside
-	// the game client rather than anything servable: the image server carries
-	// types, characters and corporations and nothing else. So a group borrows one
-	// of its own items, which is a picture of the thing either way — Minerals
-	// shows Tritanium.
-	//
-	// A group holding nothing directly takes the first from the branch beneath it,
-	// so a container is still recognisable. Absent where a group and everything
-	// under it is obsolete and holds no published type at all.
+	// IconTypeID is an item from this group, or from the branch beneath it, to recognise the group by;
+	// absent where nothing under it is published.
 	IconTypeID int `json:"icon_type_id,omitzero"`
 }
 
+// ReprocessingData is the reprocessing static file: every reprocessable item, and the volume of one
+// unit of each material those items give.
+type ReprocessingData struct {
+	Items           map[string]*ReprocessingItem `json:"items"`
+	MaterialVolumes map[string]float64           `json:"materialVolumes"`
+}
+
+// ReprocessingItem is one reprocessable type: what a batch gives, fixed or at random, the batch size,
+// its kind, the skill that reprocesses it, and the volume of one unit.
 type ReprocessingItem struct {
-	ID                string         `json:"id"`
-	Name              string         `json:"name"`
-	Materials         map[string]int `json:"materials"`
-	BatchSize         int            `json:"batchSize"`
-	ItemType          int            `json:"itemType"`
-	ReprocessingSkill int            `json:"reprocessingSkill"`
+	ID                  string                   `json:"id"`
+	Name                string                   `json:"name"`
+	Materials           map[string]int           `json:"materials"`
+	RandomizedMaterials map[string]QuantityRange `json:"randomizedMaterials,omitzero"`
+	BatchSize           int                      `json:"batchSize"`
+	ItemType            int                      `json:"itemType"`
+	ReprocessingSkill   int                      `json:"reprocessingSkill"`
+	Volume              float64                  `json:"volume,omitzero"`
+}
+
+// QuantityRange is the least and most of one mineral a batch gives when it gives that mineral.
+type QuantityRange struct {
+	QuantityMin int `json:"quantityMin"`
+	QuantityMax int `json:"quantityMax"`
 }
 
 const (

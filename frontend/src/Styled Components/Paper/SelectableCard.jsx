@@ -5,12 +5,8 @@ import { appShellNestedCardSx } from "../../Context/appShell";
 import { activateOnEnterOrSpace } from "./cardActivation";
 
 /**
- * A card a player picks, as one of a set or on its own.
- *
- * The whole card is the control, so the hit area matches what a reader thinks
- * they are clicking. The input inside is decoration — it mirrors the card's
- * state and is hidden from assistive technology, because the card already
- * carries the role and the state.
+ * A card a player picks, as one of a set or on its own; the whole card is the control, and the
+ * input inside only mirrors its state.
  *
  * @param {object} props
  * @param {boolean} props.selected
@@ -19,6 +15,8 @@ import { activateOnEnterOrSpace } from "./cardActivation";
  * @param {React.ReactNode} [props.body]
  * @param {'radio'|'checkbox'} [props.control] - One of a set, or independent
  * @param {boolean} [props.disabled]
+ * @param {boolean} [props.stacked] - The input beside the title and the body beneath both, for a
+ *   narrow card
  * @param {object} [props.sx]
  */
 export default function SelectableCard({
@@ -28,6 +26,7 @@ export default function SelectableCard({
   body,
   control = "radio",
   disabled = false,
+  stacked = false,
   sx,
   ...rest
 }) {
@@ -80,20 +79,46 @@ export default function SelectableCard({
       ]}
       {...rest}
     >
-      <Control
-        checked={selected}
-        tabIndex={-1}
-        slotProps={{ input: { "aria-hidden": true, tabIndex: -1 } }}
-        sx={{ p: 0, mt: 0.25, pointerEvents: "none" }}
-      />
-      <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="subtitle2">{title}</Typography>
-        {body ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {body}
-          </Typography>
-        ) : null}
-      </Box>
+      {stacked ? (
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Control
+              checked={selected}
+              tabIndex={-1}
+              size="small"
+              slotProps={{ input: { "aria-hidden": true, tabIndex: -1 } }}
+              sx={{ p: 0, pointerEvents: "none" }}
+            />
+            <Typography variant="subtitle2">{title}</Typography>
+          </Box>
+          {body ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {body}
+            </Typography>
+          ) : null}
+        </Box>
+      ) : (
+        <>
+          <Control
+            checked={selected}
+            tabIndex={-1}
+            slotProps={{ input: { "aria-hidden": true, tabIndex: -1 } }}
+            sx={{ p: 0, mt: 0.25, pointerEvents: "none" }}
+          />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="subtitle2">{title}</Typography>
+            {body ? (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
+                {body}
+              </Typography>
+            ) : null}
+          </Box>
+        </>
+      )}
     </Paper>
   );
 }
