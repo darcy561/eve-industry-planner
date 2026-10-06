@@ -38,7 +38,10 @@ fresh as its oldest input.
 ## The child-job drawer
 
 Each buildable row opens an inline drawer under itself — an inset surface, not a dialogue, since more
-than one can stay open while the list scrolls. It states the linked child job's own totals
+than one can stay open while the list scrolls. A press anywhere on the row, or on its chevron
+(`ExpandToggle`), opens it, and a press on its plan chip does not. An open row takes the open-row tint —
+a table row through MUI's `selected`, a phone card through `openRowBackground` — so it is marked the way
+a Setups row is. It states the linked child job's own totals
 (`calculateChildJobTotals`), its own hub and order type, and a shortfall against the requirement it does
 not cover (see below). A build the drawer cannot cost says so rather than drawing an empty
 comparison.
@@ -93,9 +96,12 @@ resize on close.
 
 ## Layout
 
-`MaterialsAndSourcingPanel` and its sibling panels on this stage are stacked rather than laid out in
-a shared grid row, so each sets `AppShellPanel`'s `paperSx={{ height: "auto" }}` — see
-[../technical-rules.md](../technical-rules.md) § Stacked panels. Below `sm`, the
+On the standard layout the stage is two columns side by side, a flex row with a gap of 2 between them:
+Output, the Blueprint Library and Skills in the narrow column, and Setups, Materials & Sourcing, Cost
+Breakdown and Returns, and Build History in the wide one. `MaterialsAndSourcingPanel` and its sibling
+panels are stacked in those columns rather than laid out in a shared grid row, so each sets
+`AppShellPanel`'s `paperSx={{ height: "auto" }}` — see [../technical-rules.md](../technical-rules.md)
+§ Stacked panels. Below `sm`, the
 table becomes cards — name and plan chip on one line, the four figures on the next — and the
 pricing-order type picker opens as a bottom sheet instead of an anchored menu; the child-job drawer stays
 an inline collapse on every layout, since it already opens under its own row.

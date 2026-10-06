@@ -69,6 +69,10 @@ describe("parentCommitment", () => {
       outstanding: 0,
       committed: 0,
       surplus: 100,
+      needed: 0,
+      madeByOthers: 0,
+      shortfall: 0,
+      parents: [],
     });
   });
 
@@ -182,4 +186,89 @@ describe("two children sharing one requirement", () => {
 
     expect(first).toEqual(second);
   });
+});
+
+describe("what each parent is given", () => {
+  const named = (jobID, quantity) => ({
+    ...parent(quantity),
+    jobID,
+    name: jobID,
+    itemID: 1,
+  });
+  const coverageFor = (jobs, produced) =>
+    parentCommitment({
+      produced,
+      jobID: "self",
+      hasParents: true,
+      requirements: walk(jobs, Object.keys(jobs)),
+    });
+
+  it("names every parent with what it asks for, largest first", () => {
+    const { parents } = coverageFor(
+      { small: named("small", 20), large: named("large", 80) },
+      100,
+    );
+
+    expect(
+      parents.map(({ jobID, needs, short }) => [jobID, needs, short]),
+    ).toEqual([
+      ["large", 80, 0],
+      ["small", 20, 0],
+    ]);
+  });
+
+  it("leaves the smallest asks short when the job makes too little", () => {
+    const { parents, shortfall } = coverageFor(
+      { small: named("small", 20), large: named("large", 80) },
+      90,
+    );
+
+    expect(shortfall).toBe(10);
+    expect(parents.map(({ short }) => short)).toEqual([0, 10]);
+  });
+
+  it("counts a sibling's output towards the parents it feeds", () => {
+    const jobs = {
+      only: {
+        ...named("only", 100),
+        build: parent(100, ["self", "sibling"]).build,
+      },
+      sibling: jobMaking(60),
+    };
+    const { parents, shortfall } = parentCommitment({
+      produced: 30,
+      jobID: "self",
+      hasParents: true,
+      requirements: walk(jobs, ["only"]),
+    });
+
+    expect(shortfall).toBe(10);
+    expect(parents[0].short).toBe(10);
+  });
+
+  it.each([
+    ["sorts before this job", "a-sibling"],
+    ["sorts after this job", "z-sibling"],
+  ])(
+    "states the same shortfall on the rows and for the job when a sibling %s",
+    (_order, siblingID) => {
+      const jobs = {
+        only: {
+          ...named("only", 100),
+          build: parent(100, ["self", siblingID]).build,
+        },
+        [siblingID]: jobMaking(30),
+      };
+      const commitment = parentCommitment({
+        produced: 50,
+        jobID: "self",
+        hasParents: true,
+        requirements: walk(jobs, ["only"]),
+      });
+
+      expect(commitment.shortfall).toBe(20);
+      expect(commitment.parents[0].short).toBe(20);
+      expect(commitment).toMatchObject({ needed: 100, madeByOthers: 30 });
+    },
+  );
 });

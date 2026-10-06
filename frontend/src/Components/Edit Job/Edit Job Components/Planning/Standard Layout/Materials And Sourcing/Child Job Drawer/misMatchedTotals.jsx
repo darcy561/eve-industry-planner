@@ -3,7 +3,7 @@ import { Alert, AlertTitle, Typography } from "@mui/material";
 import { shortfallWording } from "../../../../../../../Functions/Groups/childJobCoverage";
 import {
   formatIsk,
-  formatNumberForLocale,
+  formatQuantity,
 } from "../../../../../../../Functions/Helper/numberParser";
 
 /**
@@ -22,8 +22,7 @@ export function DisplayMismatchedChildTotals({ coverage }) {
   if (!coverage?.isShort) return null;
 
   const { required, produced, shortfall } = coverage;
-  const quantity = (value) => formatNumberForLocale(value, { max: 0 });
-  const short = quantity(shortfall);
+  const short = formatQuantity(shortfall);
 
   return (
     <Alert severity="warning" variant="outlined" sx={{ mt: 1 }}>
@@ -31,11 +30,11 @@ export function DisplayMismatchedChildTotals({ coverage }) {
         The child job is {short} short
       </AlertTitle>
       <Typography variant="caption" sx={{ display: "block" }}>
-        It makes {quantity(produced)} of the {quantity(required)} this job
-        needs.
+        It makes {formatQuantity(produced)} of the {formatQuantity(required)}{" "}
+        this job needs.
       </Typography>
       <Typography variant="caption" sx={{ display: "block" }}>
-        {shortfallWording(coverage, quantity, formatIsk)}
+        {shortfallWording(coverage, formatQuantity, formatIsk)}
       </Typography>
     </Alert>
   );

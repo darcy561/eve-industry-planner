@@ -109,6 +109,51 @@ export function formatNumberForLocale(number, options) {
 }
 
 /**
+ * A count of things, in the reader's locale with no decimal places.
+ *
+ * @param {number} value
+ * @returns {string}
+ */
+export function formatQuantity(value) {
+  return formatNumberForLocale(value, { max: 0 });
+}
+
+const NUMBER_WORDS = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+];
+
+/**
+ * A small count as a word, as prose writes it — "three" — and anything past ten as figures.
+ *
+ * @param {number} count
+ * @returns {string}
+ */
+export function numberWord(count) {
+  return NUMBER_WORDS[count] ?? formatQuantity(count);
+}
+
+/**
+ * A count with the word it counts, made plural when it is not one: "1 setup", "3 setups".
+ *
+ * @param {number} count
+ * @param {string} word
+ * @returns {string}
+ */
+export function countOf(count, word) {
+  return `${formatQuantity(count)} ${word}${count === 1 ? "" : "s"}`;
+}
+
+/**
  * Parses a number string and returns both the parsed number and formatted string
  *
  * @param {string} str - The number string to parse

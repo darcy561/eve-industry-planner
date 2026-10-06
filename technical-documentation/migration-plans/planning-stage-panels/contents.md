@@ -33,6 +33,10 @@ answer it.
 - **The Edit Job page frame** — stage navigation as tabs rather than a vertical `Stepper`, the four
   navigation controls reduced to one labelled pair, and the header controls that save, close and delete
   the job.
+- **The Setups panel** — Build Setup and its untitled editor merged into one panel of rows that open in
+  place, with the facility stated once above them and each setup's install cost in a column.
+- **The Blueprint Library** — rows rather than tiles, status in words rather than a colour legend, a
+  named Use control with an undo, and reactions under their own title, Formula Library.
 
 ## Does not own
 
@@ -54,20 +58,17 @@ answer it.
   [shared-planners](../shared-planners/contents.md)' decision. The default market character this
   project adds is account-scoped, and inherits the placement application settings already have — see
   [plan.md](./plan.md) § What this project inherits.
-- **Storing saved citadels.** The `CustomStructures` lane, its schema bump and migration, the settings
-  frame, the store rebuild and the add-a-citadel form all go with the custom-structure work being taken
-  separately. This project stores nothing and reads sale locations through one accessor returning
-  placeholders until that work lands — see [plan.md](./plan.md) § Building against a placeholder, and
-  § Handed to the custom-structure work for what this project worked out and passed on.
+- **Storing saved citadels.** The saved-market lane and its editor are live SoT →
+  [frontend/settings/market-locations.md](../../frontend/settings/market-locations.md). This project
+  stores nothing and reads sale locations through one accessor over that registry — see
+  [plan.md](./plan.md) § One accessor over the sale locations, and § Handed to the custom-structure work
+  for the proposal this project passed on.
 - **The market pricing defaults.** Splitting the account's one market default into separate buying and
   selling defaults, and keying defaults to market groups, are their own work →
   [market-pricing-defaults/contents.md](../market-pricing-defaults/contents.md). This project reads
   the existing single default through the resolver hooks and changes neither.
 - **Document write granularity.** Settings and job writes keep whatever shape
   [document-write-granularity](../document-write-granularity/contents.md) leaves them in.
-- **The two panels still on the old shell.** Build Setup with its untitled setup editor, and the
-  Blueprint Library. A design exists for both — see [plan.md](./plan.md) § Design reference — and the
-  section task map carries a row pointing at it. Neither is scoped here and nothing here waits on them.
 - **Minerals bought as ore.** The engine, the solver and the ore figures are
   [reprocessing-rebuild](../reprocessing-rebuild/contents.md)'s, and putting them on this stage is
   scoped nowhere yet. It is designed on these panels, and [plan.md](./plan.md) § Handed on: minerals
@@ -75,7 +76,7 @@ answer it.
 - **A save that does not close the job.** `saveOpenJob` calls `closeActiveJob`, which persists the draft
   and ends the edit session in one call, applying the parent and child link intents as it goes.
   Splitting it is named in [plan.md](./plan.md) § Stage Q and belongs to whoever takes the edit
-  session's lifetime; this project relabels the control to say what it does.
+  session's lifetime; this project relabels the control "Save & close" and stops there.
 - **What a linked ESI job is worth.** `layout.esiJobTab` and everything else that goes with the Building
   stage's tabs belongs to [building-stage-panels](../building-stage-panels/contents.md); § Stage Q
   changes how a reader moves between stages and touches none of it.
@@ -92,7 +93,7 @@ answer it.
 | Understand why a station and a citadel are priced differently | [plan.md](./plan.md) § Stage A, § Two location kinds, two mechanisms |
 | See how a rate resolves at each location kind | [plan.md](./plan.md) § Stage A, § The resolution order |
 | Know what is stored and what is an SPA constant | [plan.md](./plan.md) § Stage A, § What is stored, and where |
-| Find how consumers read a sale location before the stored list exists | [plan.md](./plan.md) § Stage A, § Building against a placeholder |
+| Find how consumers read a sale location, and the shape it resolves to | [plan.md](./plan.md) § Stage A, § One accessor over the sale locations |
 | Know where buying minerals as ore will sit on this stage | [plan.md](./plan.md) § Handed on: minerals bought as ore |
 | Find what the custom-structure work inherited from here | [plan.md](./plan.md) § Handed to the custom-structure work |
 | Find why the account's single market default is being split | [market-pricing-defaults/plan.md](../market-pricing-defaults/plan.md) |
@@ -118,8 +119,10 @@ answer it.
 | See the stages and their order | [plan.md](./plan.md) § Stages |
 | Know what Output states and where the parent jobs live | [plan.md](./plan.md) § Stage P |
 | Find why the stepper becomes tabs, and what happens to the header controls | [plan.md](./plan.md) § Stage Q |
+| See how the two setup panels become one Setups panel, and why its rows are not grouped | [plan.md](./plan.md) § Stage R |
+| See how the Blueprint Library becomes rows, and what Use does | [plan.md](./plan.md) § Stage S |
 | Check what has landed | [plan.md](./plan.md) § Stage status |
 | See the visual design the stages build to | [plan.md](./plan.md) § Design reference |
-| Find the design for the panels and frame this project never owned | [plan.md](./plan.md) § Design reference, *A second design covers the rest of the stage* |
+| Find the design for Output, the frame, Setups and the Blueprint Library | [plan.md](./plan.md) § Design reference, *A second design covers the rest of the stage* |
 | See how a part works while the project is in flight | [overlay.md](./overlay.md) |
-| Check what has really landed, what each remaining step changes, and what needs a decision | [review.md](./review.md) |
+| Check what has really landed, what each remaining step changes, and what was decided | [review.md](./review.md) |

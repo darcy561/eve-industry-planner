@@ -12,13 +12,8 @@ import {
 import { quantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 
 /**
- * How much of a job's output is owed to the jobs above it, and how much is left
- * to sell.
- *
- * Read through one hook because three panels on the Planning stage act on it and
- * must agree: Returns prices the surplus, Cost Breakdown charges fee and tax on
- * it, and Skills only asks what selling costs when there is something to sell.
- * Two of them deriving it separately is how they come to disagree.
+ * How much of the open job's output is owed to the jobs above it and how much is left to sell, read
+ * by every panel that acts on it so they cannot disagree.
  *
  * @returns {import("../../Functions/Groups/parentRequirements").ParentCommitment}
  */
@@ -46,7 +41,6 @@ export function useJobCommitment() {
           jobID,
         }),
       }),
-    // The ids are a string because the list is rebuilt on every read of it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [setups, itemsProducedPerRun, jobID, itemID, findJobInJobArray, parentKey],
   );

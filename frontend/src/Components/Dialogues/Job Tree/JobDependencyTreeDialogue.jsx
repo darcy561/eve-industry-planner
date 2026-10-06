@@ -9,6 +9,7 @@ import JobDependencyTreeFlow from "../../../Styled Components/JobTreeFlow/JobDep
 import useUsersStore from "../../../Zustand/usersStore";
 import { JOB_DEPENDENCY_TREE_DIALOGUE_EVENT } from "../../../Events/jobDependencyTreeDialogueEvents";
 import { requestEditJobNavigation } from "../../../Events/editJobNavigationEvents";
+import { editJobSearchToCarry } from "../../../Functions/Groups/groupPageViewSearch";
 import { resolveEditJobLinkTreePayload } from "./resolveEditJobLinkTreePayload";
 import { trackAppEvent } from "../../../analytics/trackAppEvent";
 import { AppEvent } from "../../../analytics/appEventNames";
@@ -181,12 +182,10 @@ export default function JobDependencyTreeDialogue() {
 
   const onJobDoubleClick = useCallback(
     async (jobID) => {
-      const navSearch = groupForEdit
-        ? {
-            activeGroup: groupForEdit,
-            ...(editPageView ? { pageView: editPageView } : {}),
-          }
-        : {};
+      const navSearch = editJobSearchToCarry({
+        activeGroup: groupForEdit,
+        pageView: editPageView,
+      });
       const outcome = await requestEditJobNavigation({
         jobID,
         search: navSearch,

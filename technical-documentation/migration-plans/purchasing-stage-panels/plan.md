@@ -447,12 +447,15 @@ whole. That allocation is the reprocessing engine's (`valueOrePlan`), not this s
 
 ## Inherited: the duplicated structure display
 
-**The structure display this stage redraws is duplicated with the Planning setup card.**
-`JobSetupInfoFrame`'s `UseCustomStructure` and `UseDefaultStructures` are copied into
-`jobSetupCard.jsx` — the store read, the system-index calculation, the four table lookups, the rig
-label and the deleted-structure notice are identical, and only the layout wrapper differs. The
-derivation wants one owner; extracting it before this stage rewrites the frame would be discarded by
-the rewrite, so it is handed here rather than done there. What both copies display is live in
+**The structure display this stage redraws now has an owner, and this stage should read it.** The
+Planning setup card that `JobSetupInfoFrame`'s `UseCustomStructure` and `UseDefaultStructures` were
+copied into is gone: planning-stage-panels Stage R replaced it with the Setups panel, which states a
+setup's facility through `Functions/Industry Facilities/setupFacility.js` (`facilityOf`, and
+`sharedFacility` for the facility several setups share) and the `useFacilityWords` hook beside it in
+`Planning/Standard Layout/Setups/` — the saved structure's name or the size, security, rigs, tax,
+system and index, and the deleted-structure notice. `JobSetupInfoFrame` is now the only other copy.
+When this stage rewrites the frame it reads those rather than carrying its own; `useFacilityWords`
+moves somewhere both stages import from at that point. What both display is live in
 [frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md).
 
 Both copies already read one predicate for whether a setup uses a saved structure, and both show what

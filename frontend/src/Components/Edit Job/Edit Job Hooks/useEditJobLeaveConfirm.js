@@ -20,7 +20,7 @@ import {
 } from "../../../Events/editJobReleaseRequestEvents";
 import { closeJobDependencyTreeDialogue } from "../../../Events/jobDependencyTreeDialogueEvents";
 import { mergeEditJobNavigationSearch } from "./mergeEditJobNavigationSearch";
-import { buildGroupSearchAfterEditClose } from "../../../Functions/Groups/groupPageViewSearch";
+import { routeBackFromEditJob } from "../../../Functions/Groups/groupPageViewSearch";
 import { useActiveJobPersistGate } from "./useActiveJobDocumentLock";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import { jobDraftNow, useJobDraft, useJobModified } from "./useJobDraft";
@@ -54,17 +54,7 @@ export function useEditJobLeaveConfirm() {
   }, [routeJobID]);
 
   const navigateAfterRelease = useCallback(() => {
-    const search = routeSearch ?? {};
-    const groupID = search.activeGroup;
-    if (groupID) {
-      navigate({
-        to: "/group/$groupID",
-        params: { groupID },
-        search: buildGroupSearchAfterEditClose(search, routeJobID),
-      });
-      return;
-    }
-    navigate({ to: "/jobplanner" });
+    navigate(routeBackFromEditJob(routeSearch, routeJobID));
   }, [navigate, routeSearch, routeJobID]);
 
   const closeDialogueState = useCallback(() => {

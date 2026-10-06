@@ -84,6 +84,16 @@ export function calculateInstallCostfromSetup(
 }
 
 /**
+ * What installing one setup would cost across all of its job slots.
+ *
+ * @param {Setup} setup
+ * @returns {number}
+ */
+export function setupInstallCost(setup) {
+  return calculateInstallCostfromSetup(setup) * (Number(setup?.jobCount) || 1);
+}
+
+/**
  * What installing every setup on a job would cost, across all of its job slots.
  *
  * @param {Record<string, Setup> | null | undefined} setups
@@ -92,10 +102,10 @@ export function calculateInstallCostfromSetup(
 export function sumSetupInstallCostEstimates(setups) {
   if (!setups) return 0;
 
-  return Object.values(setups).reduce((sum, setup) => {
-    const slots = Number(setup?.jobCount) || 1;
-    return sum + calculateInstallCostfromSetup(setup) * slots;
-  }, 0);
+  return Object.values(setups).reduce(
+    (sum, setup) => sum + setupInstallCost(setup),
+    0,
+  );
 }
 
 /**

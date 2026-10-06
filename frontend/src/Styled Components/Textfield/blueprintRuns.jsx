@@ -3,8 +3,6 @@ import { TextField } from "@mui/material";
 
 /**
  * A text field component for inputting blueprint run quantities.
- * Validates input to ensure only non-negative numbers are accepted.
- * Automatically sets minimum value to 1 on blur if invalid input is provided.
  *
  * @param {Object} props - Component props
  * @param {number} [props.initialState] - Initial value for the text field
@@ -27,7 +25,7 @@ function BlueprintRunsTextField({ initialState, onChange }) {
       value={inputValue}
       size="small"
       variant="standard"
-      helperText="Blueprint Runs"
+      helperText="Runs"
       type="number"
       sx={{
         "& .MuiFormHelperText-root": {

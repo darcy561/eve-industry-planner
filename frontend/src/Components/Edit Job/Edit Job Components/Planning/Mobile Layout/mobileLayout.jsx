@@ -1,9 +1,8 @@
 import { Grid } from "@mui/material";
 import { TutorialStep1 } from "../tutorialStep1";
-import { ProductionStats } from "../Standard Layout/Production Stats Panel/productionStats";
-import { JobSetupPanel } from "../Standard Layout/Setup Panel/jobSetups";
-import { EditJobSetup } from "../Standard Layout/Edit Setup Panel/editJobSetup";
-import { AvailableBlueprintsPanel } from "../Standard Layout/Blueprint Options/blueprintPanel";
+import { OutputPanel } from "../Standard Layout/Output/outputPanel";
+import { SetupsPanel } from "../Standard Layout/Setups/setupsPanel";
+import { BlueprintLibraryPanel } from "../Standard Layout/Blueprint Library/blueprintLibraryPanel";
 import MaterialsAndSourcingPanel from "../Standard Layout/Materials And Sourcing/materialsAndSourcingPanel";
 import PlanningEconomics from "../Standard Layout/Cost Breakdown/planningEconomics";
 import { SkillsPanel } from "../Standard Layout/Skills Panel/SkillsPanel";
@@ -17,10 +16,9 @@ export function Planning_MobileLayout_EditJob() {
         <TutorialTemplate TutorialContent={<TutorialStep1 />} />
       </Grid>
       <Grid size={{ xs: 12 }} spacing={2} container>
-        <ProductionStats />
-        <JobSetupPanel />
-        <EditJobSetup />
-        <AvailableBlueprintsPanel />
+        <OutputPanel />
+        <SetupsPanel />
+        <BlueprintLibraryPanel />
         <MaterialsAndSourcingPanel />
         <PlanningEconomics />
         <ArchiveJobsPanel />

@@ -23,10 +23,11 @@ effect, and the question of whether that shape is worth keeping.
 
 - The React Compiler rules themselves, and whether the compiler is turned on → the lint bar lives in
   [`../../frontend/technical-rules.md`](../../frontend/technical-rules.md).
-- The Edit Job reducer's in-place mutation of `state.activeJob`, which is a settled decision with its
-  own reasoning and measurements → `planning-stage-panels/`.
-- Panel and props shape on the Planning stage, including what re-renders when a dispatch lands →
-  `planning-stage-panels/`.
+- How an open job is held and changed in the editor — the draft store that replaced the Edit Job
+  reducer → [job-document-drafts/plan.md](../job-document-drafts/plan.md) § How a job is held while it
+  is open.
+- What re-renders when the job being edited changes →
+  [job-document-drafts/plan.md](../job-document-drafts/plan.md) § What a component actually reads.
 - Anything about how the asset tree virtualises or measures its rows.
 
 ## Task map

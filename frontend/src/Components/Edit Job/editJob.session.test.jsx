@@ -65,10 +65,10 @@ vi.mock("./Edit Job Hooks/useEditJobLeaveConfirm", () => ({
 }));
 
 const nothing = () => null;
-vi.mock("./saveIcon", () => ({ SaveJobIcon: nothing }));
-vi.mock("./deleteIcon", () => ({ DeleteJobIcon: nothing }));
-vi.mock("./closeIcon", () => ({ CloseJobIcon: nothing }));
-vi.mock("./Linked Job Badge", () => ({ LinkedJobBadge: nothing }));
+vi.mock("./saveJobButton", () => ({ SaveJobButton: nothing }));
+vi.mock("./deleteJobButton", () => ({ DeleteJobButton: nothing }));
+vi.mock("./closeJobButton", () => ({ CloseJobButton: nothing }));
+vi.mock("./jobPurposeLine", () => ({ default: nothing }));
 vi.mock("./StepErrorBoundary", () => ({ default: ({ children }) => children }));
 vi.mock("./EditJobStepContentSelector", () => ({
   default: (props) => StepContent.current(props),
@@ -132,14 +132,19 @@ describe("opening the edit job page", () => {
     show();
 
     expect(await screen.findByText("Rifter")).toBeInTheDocument();
-    expect(screen.getByText("Building")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Building" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
-  it("moves the job on when the reader presses the step button", async () => {
+  it("moves the job on when the reader presses Continue", async () => {
     show();
     await screen.findByText("Rifter");
 
-    fireEvent.click(screen.getAllByLabelText(/move to next step/i)[0]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue to Selling" }),
+    );
 
     await waitFor(() =>
       expect(
@@ -148,11 +153,11 @@ describe("opening the edit job page", () => {
     );
   });
 
-  it("jumps to a stage the reader picks off the stepper", async () => {
+  it("jumps to a stage the reader picks off the tabs", async () => {
     show();
     await screen.findByText("Rifter");
 
-    fireEvent.click(screen.getByText("Planning"));
+    fireEvent.click(screen.getByRole("tab", { name: "Planning" }));
 
     await waitFor(() =>
       expect(
@@ -169,7 +174,9 @@ describe("opening the edit job page", () => {
     const { unmount } = show();
     await screen.findByText("Rifter");
 
-    fireEvent.click(screen.getAllByLabelText(/move to next step/i)[0]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue to Selling" }),
+    );
     await waitFor(() =>
       expect(useUsersStore.getState().editSession.draft.log).toHaveLength(1),
     );
@@ -185,7 +192,9 @@ describe("opening the edit job page", () => {
   it("loads the job again when it is opened after that", async () => {
     const { unmount } = show();
     await screen.findByText("Rifter");
-    fireEvent.click(screen.getAllByLabelText(/move to next step/i)[0]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue to Selling" }),
+    );
     unmount();
 
     show();

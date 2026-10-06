@@ -1,4 +1,5 @@
 import { OWNER_KIND } from "../Shared/ownerKind";
+import { activeJobsByBlueprint } from "./blueprintJobState";
 
 /**
  * @typedef {Object} BlueprintStack
@@ -24,11 +25,7 @@ import { OWNER_KIND } from "../Shared/ownerKind";
  * @returns {BlueprintStack[]}
  */
 export default function consolidateBlueprints(blueprints = [], esiJobs = []) {
-  const activeByItemId = new Map();
-  for (const job of esiJobs) {
-    if (job?.status !== "active") continue;
-    activeByItemId.set(job.blueprint_id, job);
-  }
+  const activeByItemId = activeJobsByBlueprint(esiJobs);
 
   const byKey = new Map();
 

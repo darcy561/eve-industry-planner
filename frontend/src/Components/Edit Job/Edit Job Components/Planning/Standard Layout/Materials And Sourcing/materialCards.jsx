@@ -13,25 +13,18 @@ import StatusChip, {
 } from "../../../../../../Styled Components/Chip/statusChip";
 import { formatCompactNumber } from "../../../../../../Functions/Helper/numberParser";
 import {
-  ExpandAffordance,
   MaterialMark,
   PlanCell,
   SourceCell,
   accentStripe,
   cheaperTone,
 } from "./materialsTable";
+import { ExpandToggle } from "../../../../../../Styled Components/IconButton/ExpandToggle";
+import { openRowBackground } from "../../../../../../Styled Components/Paper/ExpandableRow";
 import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageAvatar";
 
 /**
  * The material list at phone width.
- *
- * A seven-column table cannot survive a 360px stack; the figures can. Each
- * material becomes a card — what it is and the plan on one line, the four
- * figures on the next — so nothing is truncated and no column is dropped.
- *
- * The row's own decisions are imported rather than reproduced: which stripe a
- * row carries, which of the two prices is the cheaper, and what the plan chip
- * says are the same answers at either width.
  *
  * @param {object} props
  * @param {import("../../../../../../Functions/Job/figures/materialSourcingRow.js").MaterialSourcingRow[]} props.rows
@@ -103,7 +96,7 @@ function MaterialCard({
           row.plan === MATERIAL_PLAN.BUILD,
           hasSavingAvailable(row) || Boolean(row.coverage?.isShort),
         ),
-        ...(isOpen ? { bgcolor: "action.hover" } : {}),
+        ...(isOpen ? { bgcolor: openRowBackground } : {}),
       }}
     >
       <Box
@@ -127,12 +120,14 @@ function MaterialCard({
           <Typography variant="body2" noWrap>
             {row.name}
           </Typography>
-          <ExpandAffordance
-            expandable={row.isBuildable}
-            isOpen={isOpen}
-            name={row.name}
-            onToggle={() => onToggleRow?.(row.typeID)}
-          />
+          {row.isBuildable ? (
+            <ExpandToggle
+              isOpen={isOpen}
+              onToggle={() => onToggleRow?.(row.typeID)}
+              showLabel={`Show what building ${row.name} would take`}
+              hideLabel={`Hide what building ${row.name} would take`}
+            />
+          ) : null}
         </Box>
         <Box onClick={(event) => event.stopPropagation()}>
           <PlanCell
@@ -159,8 +154,6 @@ function MaterialCard({
           full={formatQuantity(row.quantity)}
         />
         {row.buyPrice === null && row.plan !== MATERIAL_PLAN.PAID ? (
-          // No market cost is not the same as costing nothing, and the build
-          // total counts it for nothing either way.
           <Box sx={{ minWidth: 0 }}>
             <Typography
               variant="caption"
@@ -184,8 +177,6 @@ function MaterialCard({
           value={row.buildPrice}
           full={row.buildPrice === null ? null : formatIsk(row.buildPrice)}
           tone={cheaperTone(row.delta !== null && row.delta < 0)}
-          // Being priced is not the same as cannot be built, and both showed a
-          // dash.
           isPending={row.buildPrice === null && isCosting && row.isBuildable}
         />
         <Box sx={{ minWidth: 0 }}>
@@ -209,9 +200,6 @@ function MaterialCard({
 
 /**
  * A figure shortened to fit the card, with the full value on tap.
- *
- * Shortening a figure costs a reader nothing they cannot get back; truncating a
- * label costs them the label.
  *
  * @param {object} props
  * @param {number|null} props.value - The raw figure, shortened for display

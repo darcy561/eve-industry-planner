@@ -63,12 +63,10 @@ vi.mock("../../Hooks/EveEsi/useBlueprintIndex", () => ({
 
 const { renderOverEditJob, storedJob } =
   await import("../../tests/editJobHarness.jsx");
-const { JobSetupPanel } =
-  await import("./Edit Job Components/Planning/Standard Layout/Setup Panel/jobSetups.jsx");
+const { SetupsPanel } =
+  await import("./Edit Job Components/Planning/Standard Layout/Setups/setupsPanel.jsx");
 const { MarkAsCompleteButton } =
   await import("./Edit Job Components/Complete/Standard Layout/Button Panel/markAsComplete.jsx");
-const { EditJobSetup } =
-  await import("./Edit Job Components/Planning/Standard Layout/Edit Setup Panel/editJobSetup.jsx");
 const { committedFor } = await import("./Edit Job Hooks/jobDraftStore.js");
 const { stubElementHeights } = await import("../../tests/elementHeights.js");
 const { ZARZAKH_SYSTEM_ID } = await import("../../Context/defaultValues.jsx");
@@ -102,60 +100,55 @@ function setupIds(state) {
   return Object.keys(state.activeJob.build.setup);
 }
 
-function openTheMenu() {
-  fireEvent.click(screen.getByTestId("MoreVertIcon").closest("button"));
+function openTheEditor(job, options) {
+  const result = renderOverEditJob(job, () => <SetupsPanel />, options);
+  fireEvent.click(screen.getAllByRole("button", { expanded: false })[0]);
+  return result;
 }
 
+const deleteButtons = () =>
+  screen.queryAllByRole("button", { name: /^Delete the setup of/ });
+
 describe("the setups a job is built from, end to end", () => {
-  it("deletes the setup being edited", () => {
+  it("deletes the setup whose row it is on", () => {
     const { editJob } = renderOverEditJob(
       withSetups("setup-1", "setup-2"),
-      () => <JobSetupPanel />,
+      () => <SetupsPanel />,
     );
 
-    openTheMenu();
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Delete Active Setup" }),
-    );
-
-    expect(setupIds(editJob.current)).toEqual(["setup-2"]);
-  });
-
-  it("refuses to delete the only setup", () => {
-    const { editJob } = renderOverEditJob(withSetups("setup-1"), () => (
-      <JobSetupPanel />
-    ));
-
-    openTheMenu();
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Delete Active Setup" }),
-    );
+    fireEvent.click(deleteButtons()[1]);
 
     expect(setupIds(editJob.current)).toEqual(["setup-1"]);
+    expect(editJob.current.activeJob.layout.setupToEdit).toBe("setup-1");
+  });
+
+  it("offers no delete on the only setup", () => {
+    renderOverEditJob(withSetups("setup-1"), () => <SetupsPanel />);
+
+    expect(deleteButtons()).toEqual([]);
+    fireEvent.click(screen.getAllByRole("button", { expanded: false })[0]);
+    expect(
+      screen.queryByRole("button", { name: "Delete this setup" }),
+    ).toBeNull();
   });
 
   it("adds a setup to build from", () => {
     const { editJob } = renderOverEditJob(withSetups("setup-1"), () => (
-      <JobSetupPanel />
+      <SetupsPanel />
     ));
 
-    fireEvent.click(screen.getByRole("button", { name: "Add Setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add setup" }));
 
     expect(setupIds(editJob.current)).toHaveLength(2);
     expect(editJob.current.jobModified).toBe(true);
   });
 
   it("moves the editing to a setup that is still there", () => {
-    const { editJob } = renderOverEditJob(
-      withSetups("setup-1", "setup-2"),
-      () => <JobSetupPanel />,
-    );
+    const { editJob } = openTheEditor(withSetups("setup-1", "setup-2"));
 
-    openTheMenu();
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Delete Active Setup" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete this setup" }));
 
+    expect(setupIds(editJob.current)).toEqual(["setup-2"]);
     expect(editJob.current.activeJob.layout.setupToEdit).toBe("setup-2");
   });
 });
@@ -190,7 +183,7 @@ describe("marking a job finished within its group, end to end", () => {
 });
 
 describe("changing the setup a job is built from, end to end", () => {
-  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
+  const openSetup = (job) => openTheEditor(job);
 
   const storedSetup = () =>
     committedFor(useUsersStore.getState().editSession.draft, "job-1").build
@@ -224,7 +217,7 @@ describe("costing a setup against a militia, end to end", () => {
   const CALDARI = 500001;
 
   const openSetup = (job) =>
-    renderOverEditJob(job, () => <EditJobSetup />, {
+    openTheEditor(job, {
       locationNames: { [CALDARI]: "Caldari State" },
     });
 
@@ -284,7 +277,7 @@ describe("costing a setup against a militia, end to end", () => {
 });
 
 describe("fitting both rig slots, end to end", () => {
-  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
+  const openSetup = (job) => openTheEditor(job);
 
   it("offers a field for each of a structure's two rig slots", () => {
     openSetup(withSetups("setup-1"));
@@ -295,7 +288,7 @@ describe("fitting both rig slots, end to end", () => {
 });
 
 describe("choosing a place that settles a setup's other choices, end to end", () => {
-  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
+  const openSetup = (job) => openTheEditor(job);
 
   const storedSetup = () =>
     committedFor(useUsersStore.getState().editSession.draft, "job-1").build
@@ -403,7 +396,7 @@ describe("choosing a place that settles a setup's other choices, end to end", ()
 });
 
 describe("choosing a system from the picker, end to end", () => {
-  const openSetup = (job) => renderOverEditJob(job, () => <EditJobSetup />);
+  const openSetup = (job) => openTheEditor(job);
 
   const storedSetup = () =>
     committedFor(useUsersStore.getState().editSession.draft, "job-1").build

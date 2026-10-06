@@ -595,9 +595,15 @@ describe("the setups a job builds from", () => {
   });
 
   it("removes the setup being edited, and opens what is left", () => {
-    changes(withSetups(), commands.deleteActiveSetup(), (job) => {
+    changes(withSetups(), commands.deleteSetup("setup-1"), (job) => {
       delete job.build.setup["setup-1"];
       job.layout.setupToEdit = "setup-2";
+    });
+  });
+
+  it("removes another setup and leaves the open one open", () => {
+    changes(withSetups(), commands.deleteSetup("setup-2"), (job) => {
+      delete job.build.setup["setup-2"];
     });
   });
 
@@ -610,7 +616,7 @@ describe("the setups a job builds from", () => {
       layout: { setupToEdit: "setup-1" },
     });
 
-    changes(one, commands.deleteActiveSetup(), () => {});
+    changes(one, commands.deleteSetup("setup-1"), () => {});
   });
 });
 

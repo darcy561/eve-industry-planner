@@ -186,8 +186,9 @@ an effect after the state changes. `Edit Job/Hooks/useJobMatchesAndWorldData.js:
 method on the job being rendered.
 
 **After.** The persist moves into the toggle handler beside the `useState` initialiser that already
-reads it. The three Edit Job sites (2.4, 2.5, 2.6) say what changed and let the reducer rebuild; the
-plan defers their shape to [planning-stage-panels](../planning-stage-panels/contents.md).
+reads it. The three Edit Job sites (2.4, 2.5, 2.6) say what changed and let the draft store rebuild;
+the plan defers their shape to [job-document-drafts](../job-document-drafts/plan.md) § How a job is
+held while it is open.
 
 **Work.** Nine sites. The two storage mirrors first. 2.7 and 2.8
 (`Assets/assetLibraryView.jsx:115`, `Dialogues/Assets/dialogueContent.jsx:75`) are still the same
@@ -358,8 +359,8 @@ a few lines and stops the clipboard being overwritten today.
 
 ## Dependencies and order
 
-- **Waits on.** [planning-stage-panels](../planning-stage-panels/contents.md) for what the Edit Job
-  reducer may be handed (2.4, 2.5, 2.6); [job-document-drafts](../job-document-drafts/contents.md) for
+- **Waits on.** [job-document-drafts](../job-document-drafts/plan.md) for what the open job's draft
+  store may be handed (2.4, 2.5, 2.6); [job-document-drafts](../job-document-drafts/contents.md) for
   what an open job is held as (3.9); [reprocessing-rebuild](../reprocessing-rebuild/plan.md) § Stage G
   for three sites; a shopping-list owner for seven.
 - **Waits on this.** Nothing is blocked by it. The view-transitions project

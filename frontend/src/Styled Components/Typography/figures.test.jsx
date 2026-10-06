@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -10,6 +10,7 @@ import {
   Figure,
   FigureCaption,
   FigureRow,
+  FoldedList,
   HeadlineStat,
   PanelFooterMeta,
   PanelHeadline,
@@ -383,5 +384,34 @@ describe("a raw number given to a Figure", () => {
     render(<Figure>{"12,000"}</Figure>);
 
     expect(screen.getByText("12,000")).toBeInTheDocument();
+  });
+});
+
+describe("FoldedList", () => {
+  const list = (count) =>
+    render(
+      <FoldedList
+        items={Array.from({ length: count }, (_, n) => `row ${n + 1}`)}
+        renderItem={(item) => <span key={item}>{item}</span>}
+        foldLabel={(folded) => `Show the other ${folded.length}`}
+      />,
+    );
+
+  it("shows seven rows whole, since folding one saves nothing", () => {
+    list(7);
+
+    expect(screen.getByText("row 7")).toBeInTheDocument();
+    expect(screen.queryByText(/Show the other/)).not.toBeInTheDocument();
+  });
+
+  it("folds past six and counts what it folds", () => {
+    list(9);
+
+    expect(screen.getByText("row 6")).toBeInTheDocument();
+    expect(screen.queryByText("row 7")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Show the other 3"));
+
+    expect(screen.getByText("row 9")).toBeInTheDocument();
   });
 });

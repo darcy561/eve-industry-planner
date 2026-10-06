@@ -1,15 +1,12 @@
-import {
-  setupCount,
-  totalQuantityProduced,
-} from "./Edit Job Hooks/jobSelectors";
+import { setupCount } from "./Edit Job Hooks/jobSelectors";
 import { useMemo } from "react";
-import { Grid, IconButton, Tooltip, Typography } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
+import { Box, Button, Stack, Tooltip, Typography } from "@mui/material";
 import useUsersStore from "../../Zustand/usersStore";
 import { showSnackbarSuccess } from "../../Events/snackbarEvents";
 import { useActiveJobReadOnly } from "./Edit Job Hooks/useActiveJobDocumentLock";
 import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
-import { TYPE_IMAGE, typeImageUrl } from "../../Functions/Shared/eveImage";
+import EveImageAvatar from "../../Styled Components/Avatar/EveImageAvatar";
+import { formatNumberForLocale } from "../../Functions/Helper/numberParser";
 import {
   useJobActions,
   useJobDraft,
@@ -58,76 +55,66 @@ export function ParentJobOptions({ onLinked }) {
     });
   }, [jobArray, linkEdits, itemID, parentJobs, includedInGroup, groupID]);
 
+  if (matches.length === 0) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        No other job needs this item.
+      </Typography>
+    );
+  }
+
   return (
-    <Grid container>
-      {matches.length > 0 ? (
-        matches.map((job) => {
-          return (
-            <Grid
-              container
-              key={job.jobID}
-              size={12}
-              sx={{
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Grid
-                sx={{
-                  display: { xs: "none", sm: "block" },
-                }}
-                align="center"
-                size={{
-                  sm: 1,
+    <Stack>
+      {matches.map((job) => (
+        <Box
+          key={job.jobID}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 1,
+            borderBottom: 1,
+            borderColor: "divider",
+            "&:last-of-type": { borderBottom: 0 },
+          }}
+        >
+          <EveImageAvatar type={job.itemID} size={32} variant="square" />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2">{job.name}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {setupCount(job)} setup{setupCount(job) === 1 ? "" : "s"} · needs{" "}
+              {formatNumberForLocale(
+                job.build?.materials?.[String(itemID)]?.quantity ?? 0,
+                { max: 0 },
+              )}{" "}
+              of this
+            </Typography>
+          </Box>
+          <Tooltip
+            title={
+              jobLockReadOnly
+                ? lockReasonText({ action: "linking is disabled" })
+                : ""
+            }
+            arrow
+            disableHoverListener={!jobLockReadOnly}
+          >
+            <span>
+              <Button
+                size="small"
+                disabled={jobLockReadOnly}
+                onClick={() => {
+                  actions.markParentJobForAddition(job.jobID);
+                  showSnackbarSuccess(`${job.name} Linked`);
+                  onLinked();
                 }}
               >
-                <img
-                  src={typeImageUrl(job.itemID, TYPE_IMAGE.ICON, 32)}
-                  alt=""
-                />
-              </Grid>
-              <Grid align="center" sx={{ paddingLeft: "10px" }} size={6}>
-                <Typography variant="body1">{job.name}</Typography>
-              </Grid>
-              <Grid align="center" size={4}>
-                <Typography variant="body2">
-                  {setupCount(job)} setup
-                  {setupCount(job) === 1 ? "" : "s"} ·{" "}
-                  {totalQuantityProduced(job)} items produced
-                </Typography>
-              </Grid>
-              <Grid size={1}>
-                <Tooltip
-                  title={
-                    jobLockReadOnly
-                      ? lockReasonText({ action: "linking is disabled" })
-                      : ""
-                  }
-                  arrow
-                  disableHoverListener={!jobLockReadOnly}
-                >
-                  <span>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      disabled={jobLockReadOnly}
-                      onClick={() => {
-                        actions.markParentJobForAddition(job.jobID);
-                        showSnackbarSuccess(`${job.name} Linked`);
-                        onLinked();
-                      }}
-                    >
-                      <AddIcon />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              </Grid>
-            </Grid>
-          );
-        })
-      ) : (
-        <Grid size={12}>No Jobs Available</Grid>
-      )}
-    </Grid>
+                Link
+              </Button>
+            </span>
+          </Tooltip>
+        </Box>
+      ))}
+    </Stack>
   );
 }

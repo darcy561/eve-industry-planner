@@ -7,9 +7,11 @@ tax figures the rate block states are [selling-charges.md](./selling-charges.md)
 
 ## The headline and the routes
 
-The panel leads with the listing route's per-unit, margin and return-on-outlay figures on their own
-inset surface — the route a player is planning towards, and the one the fee and tax on the page are
-quoted for. Both exit routes are then stated at equal weight: listing a sell order, priced at the hub
+The panel leads with one route's net return, per-unit, margin and return-on-outlay figures on their
+own inset surface — the route the account says its output leaves by,
+`applicationSettings.defaultPricing.selling.exit`, which `useJobSellingContext` returns as `exitRoute`
+and which defaults to listing. A player who sells into buy orders is led with that route, with no broker
+fee in it, rather than with a listing's margin. Both exit routes are then stated at equal weight: listing a sell order, priced at the hub
 sell price less fee and tax, and selling into buy orders, priced at the hub buy price less tax only.
 Both are struck from the market as it stands now — the app does not model undercutting, order-book
 position, or how long a listing sits. Each route names the price it was struck from and what comes
@@ -30,9 +32,10 @@ and the working behind the fee — see [selling-charges.md](./selling-charges.md
 shows every subtraction, since they come from the player's own character and seeing them is what
 makes the figure checkable; at a citadel it is one line and a sentence that Broker Relations does not
 apply there, since the absence of working is itself the information. Where the location is a citadel,
-the block also names the hub its prices came from, since a citadel holds no market of its own.
+the block says it is priced on that citadel's own orders.
 
-The sale location and seller are **selects**, rendered here and writing to `JobSale.Plan`. Clearing
+The sale location and seller are **selects**, rendered here and writing to `build.saleLocationID` and
+`build.sellerCharacter`. Clearing
 either returns the job to the account's defaults. What that plan is for, and how it resolves for a
 reader on a shared planner, is [selling-charges.md](./selling-charges.md)'s.
 

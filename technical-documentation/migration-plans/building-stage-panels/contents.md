@@ -29,12 +29,10 @@ The Edit Job **Building** stage: what it asks, what it answers, and the shape it
 - **Recording a setup id on a linked run.** The field that would make attribution exact on every path
   is a stored-shape change and its own slice; this project matches on what both sides already carry and
   says plainly where that is not enough.
-- **The Edit Job page frame.** Stage navigation is a vertical MUI `Stepper` in `editJob.jsx` and the
-  stage's panels render inside its active `Step`. Nothing here changes how a reader moves between
-  stages, and no stage depends on that changing first. Replacing the stepper with tabs is now
-  [planning-stage-panels](../planning-stage-panels/contents.md) § Stage Q, and it confirms that
-  independence rather than relying on it — no stage panel imports anything from `editJob.jsx`, so it
-  can land before, after or beside this project.
+- **The Edit Job page frame.** Stage navigation is a row of tabs in `editJob.jsx`, which replaced the
+  vertical MUI `Stepper` in [planning-stage-panels](../planning-stage-panels/contents.md) § Stage Q, and
+  the stage's panels render beneath them. Nothing here changes how a reader moves between stages, and no
+  stage depended on that change — no stage panel imports anything from `editJob.jsx`.
 - **Listing and resolving a custom structure.** That is
   [frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md); this stage
   reads whatever it resolves, and falls back to the size-class list where a setup names none.

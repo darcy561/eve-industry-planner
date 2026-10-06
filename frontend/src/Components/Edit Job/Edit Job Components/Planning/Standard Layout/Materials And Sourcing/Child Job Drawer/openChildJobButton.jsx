@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Button } from "@mui/material";
-import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { requestEditJobNavigation } from "../../../../../../../Events/editJobNavigationEvents";
 import { leaveEditedJobWhereItStands } from "../../../../../../../Functions/Job/editing/editSessionLifetime.js";
 import EditJobLeaveConfirmDialogue from "../../../../../EditJobLeaveConfirmDialogue";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../../../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
@@ -12,12 +11,13 @@ import {
   useJobModified,
 } from "../../../../../Edit Job Hooks/useJobDraft";
 import { saveOpenJob } from "../../../../../Edit Job Hooks/saveOpenJob";
+import { useOpenJob } from "../../../../../Edit Job Hooks/useOpenJob";
 
 export function OpenChildJobButton({ childJobObjects, jobDisplay }) {
   const jobName = useJobDraft((job) => job.name);
   const jobModified = useJobModified();
   const navigate = useNavigate({ from: "/editjob/$jobID" });
-  const search = useSearch({ from: "/editjob/$jobID" });
+  const openJob = useOpenJob();
   const { jobID: routeJobID } = useParams({ from: "/editjob/$jobID" });
   const queryClient = useQueryClient();
   const [fallbackOpen, setFallbackOpen] = useState(false);
@@ -47,32 +47,16 @@ export function OpenChildJobButton({ childJobObjects, jobDisplay }) {
     <>
       <Button
         size="small"
-        onClick={async () => {
-          const childId = childJobObjects[jobDisplay].jobID;
-          const groupIDFromParams = search.activeGroup;
-          const navSearch = {};
-          if (groupIDFromParams != null && String(groupIDFromParams) !== "") {
-            navSearch.activeGroup = groupIDFromParams;
-          }
-          if (search.pageView != null && String(search.pageView) !== "") {
-            navSearch.pageView = search.pageView;
-          }
-          const outcome = await requestEditJobNavigation({
-            jobID: childId,
-            search: navSearch,
+        onClick={() => {
+          const childID = childJobObjects[jobDisplay].jobID;
+          openJob(childID, {
+            onUnhandled: jobModified
+              ? (search) => {
+                  setPendingNav({ jobID: childID, search });
+                  setFallbackOpen(true);
+                }
+              : undefined,
           });
-          if (outcome === "not-handled") {
-            if (jobModified) {
-              setPendingNav({ jobID: childId, search: navSearch });
-              setFallbackOpen(true);
-              return;
-            }
-            navigate({
-              to: "/editjob/$jobID",
-              params: { jobID: childId },
-              search: navSearch,
-            });
-          }
         }}
       >
         Open Child Job

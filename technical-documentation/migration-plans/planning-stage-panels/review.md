@@ -7,27 +7,38 @@ it records what the code bears out so the plan can be corrected deliberately.
 
 Verified against the working tree on 2026-10-05 (HEAD 051f79cf9 plus uncommitted changes).
 
+**Brought up to date on 2026-10-05**, after James decided the questions this review raised. § Decided
+records each answer; the plan, the overlay and the promote drafts now carry them, and § Bringing the
+documents back to the code is done. Paths are as filed by fe8ec2218 ("file the job's code by
+subject"), and the Skills pips are the shared components the uncommitted work introduced.
+
+**Rows P–S re-verified on 2026-10-05** against HEAD f13f60864 plus uncommitted changes, after those
+stages landed, with three further decisions recorded in § Decided.
+
 ## Summary
 
 The project rebuilds the Edit Job Planning stage: three panels in place of the market panel, selling
-charges counted at plan time, and — added late — the Output panel (Stage P) and the page frame
-(Stage Q).
+charges counted at plan time, and — added late — the Output panel (Stage P), the page frame
+(Stage Q), and by decision the Setups panel (Stage R) and the Blueprint Library (Stage S).
 
 The stage table in [plan.md](./plan.md) § Stage status is honest. Stages A–O are in the code, on both
-layouts, with tests beside them. Stages P and Q are designed and not started: Production Stats, the
-Linked Job Badge, the vertical `Stepper`, the floating arrows and the unconfirmed Delete are all still
-what the plan describes as "today".
+layouts, with tests beside them. When this review was first written, Stages P and Q were designed and
+not started — Production Stats, the Linked Job Badge, the vertical `Stepper`, the floating arrows and
+the unconfirmed Delete were all still what the plan describes as "today" — and Stages R and S, added by
+decision, were designed and not started. All four landed later on 2026-10-05; § Verified status below
+is brought up to date for them.
 
-Two things need attention, and neither is a stage:
+Two things needed attention, and neither is a stage:
 
-1. **The project's own documents have fallen behind the code they describe.** Other projects landed
-   on top of Stages A, L and N after they were written up. The per-job selling override is stored on
-   `JobBuild`, not on `JobSale.Plan`. The sale location accessor reads the saved-market registry, not
-   placeholders, and its shape no longer carries a price hub. The custom-structure hand-off has a home
-   and has promoted. The plan, the overlay and the promote drafts still say otherwise, so the drafts
-   cannot be folded in as they stand even once P and Q land.
+1. **The project's own documents had fallen behind the code they describe** — now corrected. Other
+   projects landed on top of Stages A, L and N after they were written up. The per-job selling override
+   is stored on `JobBuild`, not on `JobSale.Plan`. The sale location accessor reads the saved-market
+   registry, not placeholders, and its shape no longer carries a price hub. The custom-structure
+   hand-off has a home and has promoted. The plan, the overlay and the promote drafts said otherwise;
+   they now match the code.
 2. **Live SoT already has a `frontend/editjob/` area**, with two topic docs that describe exactly what
-   Stages P and Q remove. The promote README calls that area "New" and names neither doc.
+   Stages P and Q remove. The promote README called that area "New" and named neither doc; it now
+   treats the area as an update and records what happens to both.
 
 ## Verified status
 
@@ -44,25 +55,30 @@ Two things need attention, and neither is a stage:
 | E — Materials & Sourcing | Done | One material list; old panels and bulk-create hook gone | `SL/Materials And Sourcing/` (`materialsTable`, `materialCards`, `materialDrawer`, `planChip`, `rowPricingOverride`, `sourcingSummary`, `useMaterialsSourcing`); no `Resources Panel/` or `Material Prices/`; no `buildAllChildJobs` anywhere | confirmed |
 | F — Cost Breakdown and Returns | Done | Both panels, one figures hook, shared bars | `SL/Cost Breakdown/` (`costBreakdownPanel`, `costTable`, `costParts`, `pricingModel`, `costComparison`, `inventionEditor`, `planningEconomics`, `useJobEconomics`); `SL/Returns/` (`returnsPanel`, `exitRoutes`, `saleLocationRates`, `outputHeader`); `Styled Components/Charts/bars/{RangeBar,ProportionBar}.jsx` | confirmed |
 | G — speculative child jobs | Done; priced as the panel opens | Own slice; priced from an effect, once per panel | `Zustand/editSession/stateDefault.js:23-24`; `materialsAndSourcingPanel.jsx:59,106`; `SL/Materials And Sourcing/Hooks/useChildJobBuildActions.js` | confirmed |
-| O — a missing price is not zero | Done | One predicate, read by Returns | `Functions/MarketData/prices/isPriced.js`; `Functions/Job/returns.js` (`hasNoOrders`) | confirmed |
+| O — a missing price is not zero | Done | One predicate, read by Returns | `Functions/MarketData/prices/isPriced.js`; `Functions/Job/figures/returns.js` (`hasNoOrders`) | confirmed |
 | H — jobs with parent jobs | Done | Contribution panel; one commitment hook | `SL/Returns/contributionPanel.jsx`; `Hooks/Planner/useJobCommitment.js`, read by `useJobEconomics.js:69` and `SkillsPanel.jsx:56` | confirmed |
-| I — Skills as a model | Done | Three groups, pips, what-if in component state | `SL/Skills Panel/` (`SkillsPanel`, `skillLevelPips`, `skillsWhatIf`, `skillsTimeEffect`, `superseded`); `Functions/MarketOrders/sellingWhatIf.js` | confirmed |
+| I — Skills as a model | Done | Three groups, pips, what-if in component state | `SL/Skills Panel/` (`SkillsPanel`, `skillsWhatIf`, `skillsTimeEffect`, `superseded`); the pips and row are the shared `Styled Components/Skills/SkillLevelPips.jsx` and `SkillLevelRow.jsx`; `Functions/MarketOrders/sellingWhatIf.js` | confirmed |
 | J — mobile layouts | Done | Mobile mounts the standard panels | `Planning/Mobile Layout/mobileLayout.jsx`; `materialCards.jsx` | confirmed |
 | K — default market character | Done | Field, store, picker, accessor | `services/shared/models/accountDocuments.go:293`; `Zustand/applicationSettings/{core,preferences}.js`; `Components/Settings/Standard Layout/jobSettingsFrame.jsx:86`; `Functions/MarketOrders/sellerCharacter.js` | confirmed |
-| L — per-job selling override | Done; held on `JobSale.Plan` | Behaviour is in; the fields are on `JobBuild`, and there is no `JobSale` | `services/shared/models/job.go:96-97`; `Functions/JobDocuments/jobDocument.js:98-101,212-213`; `saleLocationRates.jsx:129,137,257`; `setSellingPlan` in `planningEconomics.jsx` | partly |
+| L — per-job selling override | Done; held on `JobSale.Plan` | Behaviour is in; the fields are on `JobBuild`, and there is no `JobSale` | `services/shared/models/job.go:96-97`; `Functions/Job/jobDocument.js:98-101,212-213`; `saleLocationRates.jsx:129,137,257`; `setSellingPlan` in `planningEconomics.jsx` | partly |
 | M — what a child job covers | Done | Allocation, walk, resize on commit, shortfall tag | `Functions/Groups/childJobCoverage.js`, `childJobCostWalk.js`; `SL/Materials And Sourcing/Helpers/finaliseCreatedChildJobs.js`; `shortfallChip.jsx` | confirmed |
 | N — sale location list and standings | Done | Race-to-faction lookup; failed reads throw; a named station is honoured | `Hooks/React Query/World/raceFactions.js`; `Hooks/React Query/Character/skills.js:58`, `standings.js:59`; `saleLocations.js` (`resolveSaleLocation`) | confirmed |
-| P — Output and parent jobs | Designed, not started | Nothing built | `SL/Production Stats Panel/productionStats.jsx`; `Components/Edit Job/Linked Job Badge.jsx`; `parentJobOptions.jsx:94-96` | confirmed |
-| Q — page frame and controls | Designed, not started | Nothing built | `Components/Edit Job/editJob.jsx`; `deleteIcon.jsx`; `closeIcon.jsx`; `saveIcon.jsx` | confirmed |
+| P — Output and parent jobs | Done | Output on the app-shell surface reading `useJobCommitment`; parent rows folding past seven; the header line naming up to three parents as links; Production Stats and the Linked Job Badge gone | `SL/Output/outputPanel.jsx`, `parentJobRows.jsx`, `outputPanel.test.jsx`; `Components/Edit Job/jobPurposeLine.jsx`, `jobPurposeLine.test.jsx`; `Functions/Groups/parentRequirements.js` (`coverParents`); `Styled Components/Typography/figures.jsx` (`FoldedList`); no `Production Stats Panel/` or `Linked Job Badge.jsx` | confirmed |
+| Q — page frame and controls | Done | Tabs over the navigation rules, the shut final tab's reason, one labelled pair, labelled header controls, Delete confirming, Close asking; `useIsScrolledOutOfView` deleted | `Components/Edit Job/editJob.jsx`, `jobStageNavigation.jsx`, `jobHeader.jsx`, `deleteJobButton.jsx`, `DeleteJobConfirmDialogue.jsx`, `closeJobButton.jsx`, `saveJobButton.jsx`; tested by `editJob.test.jsx`, `jobHeader.test.jsx`, `deleteJobButton.test.jsx`, `closeJobButton.test.jsx`, `saveJobButton.test.jsx`; no `Hooks/GeneralHooks/useIsScrolledOutOfView.js` | confirmed |
+| R — Setups | Done | One `Setups` panel of `ExpandableRow` rows, the facility line, the editor under the row or in a sheet; both old panels deleted | `SL/Setups/setupsPanel.jsx`, `setupRow.jsx`, `setupEditor.jsx`, `useFacilityWords.js`, `setupsPanel.test.jsx`; `Styled Components/Paper/ExpandableRow.jsx`; `Functions/Installation Costs/installCosts.js` (`setupInstallCost`); no `Setup Panel/` or `Edit Setup Panel/` | confirmed |
+| S — Blueprint Library | Done | Rows with status in words, Use and Undo, the setup's blueprint marked, a counting fold, Formula Library for reactions; tiles and legend gone | `SL/Blueprint Library/blueprintLibraryPanel.jsx`, `blueprintRows.jsx`, `formulaRows.jsx`, `useBlueprintLibrary.js`, `blueprintLibraryPanel.test.jsx`; `Functions/Blueprints/blueprintJobState.js` and its test; no `Blueprint Options/` | confirmed |
 | Handed to the custom-structure work | Handed on; no project, no home | Built and promoted elsewhere | `services/shared/models/marketLocations.go` (`MarketLocation`); `Components/Settings/Standard Layout/Market Locations/`; `../contents.md:35-36` | understated |
 | Owed to the shared-planners release | Numeric invention ids still to rewrite | Either shape decodes; no rewrite found | `job.go:578-602` (`InventionEntry.UnmarshalBSON`); `services/core/commands/release_extras_invention_rows.go` | confirmed |
-| Inherited: second rig slot | One rig picker; second slot unreachable | Two pickers | `SL/Edit Setup Panel/editJobSetup.jsx:271-291` (`useRigSlots`, "Rig 1", "Rig 2") | overstated |
+| Inherited: second rig slot | One rig picker; second slot unreachable | Two pickers | Found in `SL/Edit Setup Panel/editJobSetup.jsx`; now `SL/Setups/setupEditor.jsx` (`useRigSlots`, "Rig 1", "Rig 2") | overstated |
 | Known limit: sourcing memo re-runs | Caused by the Edit Job `actions` object | The named cause no longer exists | `SL/Materials And Sourcing/useMaterialsSourcing.js:95-101` reads through `useJobDraft` selectors | unverifiable |
 | Promote drafts | Accurate for A–O | Stale in five places | See § Bringing the documents back to the code | overstated |
 
 ### Discrepancies
 
-- **A is further on than the plan says.** [plan.md](./plan.md) § Building against a placeholder ends
+As found on 2026-10-05, before the corrections. Every one below is now corrected in the documents
+it names; § Bringing the documents back to the code lists the work.
+
+- **A is further on than the plan said.** [plan.md](./plan.md) § Building against a placeholder ended
   "Done when the lane lands: `getSaleStructures` reads the stored lane, the placeholder constant is
   deleted". That has happened. `saleLocations.js` now calls `savedCitadels(allMarketSources())` from
   `Functions/MarketData/registry/marketSources.js`, there is no `getSaleStructures`, and the kinds are
@@ -83,7 +99,9 @@ Two things need attention, and neither is a stage:
   rebuild on unrelated interactions needs a profile, not a read.
 - **Uncommitted work in this area is tidy-up, not new behaviour.** `sellingRates.js` gains
   `salesTaxRateAt`, which `sellingWhatIf.js` now calls instead of its own copy of the formula;
-  `returns.js` reads `isPriced`; `skillLevelPips.jsx` reads `maxSkillLevel`. The edit to
+  `returns.js` reads `isPriced`; the panel's own `skillLevelPips.jsx` is replaced by the shared
+  `Styled Components/Skills/SkillLevelPips.jsx` and `SkillLevelRow.jsx`, which read `maxSkillLevel`
+  and which the Reprocessing setup panel draws too. The edit to
   `promote/frontend/editjob/selling-charges.md` adds one true sentence: with the constants in
   `defaultValues.jsx`, `3 − 0.3×5 − 0.03×10 − 0.02×10` is exactly 1.
 
@@ -219,22 +237,31 @@ Header          modified state from useJobModified
 2. Close asks when `useJobModified()` is true; reuse `EditJobLeaveConfirmDialogue`.
 3. Label and weight the header controls; relabel Save as "Save & close"; render the modified state.
 4. Replace `Stepper` with tabs reading `canJumpToJobStep`, `isFinalStepLockedForJob` and
-   `getLastStepIndex` from `Functions/Job/jobStepNavigation.js`.
+   `getLastStepIndex` from `Functions/Job/editing/jobStepNavigation.js`.
 5. State the lock reason. `Complete/.../sellGroupJob.jsx` returning `null` for a job with parents is
    what makes the wording differ.
-6. Replace the in-content arrows with the labelled pair; delete both floating arrows and both
-   `useIsScrolledOutOfView` calls.
+6. Replace the in-content arrows with the labelled pair; delete both floating arrows, both
+   `useIsScrolledOutOfView` calls, and the hook and its test (`Hooks/GeneralHooks/useIsScrolledOutOfView.js`,
+   `useIsScrolledOutOfView.test.jsx`), since `editJob.jsx` is its only caller.
 7. Tests: `editJob.test.jsx`, `editJob.session.test.jsx`, `closeIcon.test.jsx`, `saveIcon.test.jsx`,
    and a new one for Delete.
-8. At promote: live `frontend/editjob/floating-step-buttons.md` describes a control that is gone, and
-   `frontend/technical-rules.md` § Watching whether an element is on screen teaches the hook from it.
+8. At promote: delete live `frontend/editjob/floating-step-buttons.md` and
+   `frontend/technical-rules.md` § Watching whether an element is on screen — recorded as promote
+   actions in [promote/README.md](./promote/README.md) § Live docs this project deletes.
 
 **Wire.** None. `jobStatus` is still the stage. No prepareRelease step.
 
+### Stages R and S — Setups, and the Blueprint Library
+
+Added by decision; the rationale, the SPA description, the wire statement and the done-when are
+[plan.md](./plan.md) § Stage R and § Stage S. **Wire.** None for either: setups keep every field, and
+`layout.setupToEdit` keeps its meaning. No prepareRelease step.
+
 ### Bringing the documents back to the code
 
-Not a stage, but it is remaining work, and promotion cannot happen without it. Each item is a place
-where plan, overlay or a promote draft describes something the code no longer does.
+**Done on 2026-10-05.** Not a stage, but promotion could not happen without it. Each item was a place
+where plan, overlay or a promote draft described something the code no longer does; what follows is
+what was found, kept as the record of what was corrected.
 
 **The per-job selling override.** The documents say:
 
@@ -259,8 +286,9 @@ type JobBuild struct {
 
 Both fields are omitted when nil, so the wire table's note that "the subdocument appears on every job
 saved after this lands" is no longer true either. The SPA has no `Job` class to add fields to;
-`Functions/JobDocuments/jobDocument.js` builds plain data, and still reads the old place as a
-fallback (`build?.sellerCharacter ?? build?.sale?.plan?.sellerCharacter`).
+`jobDocument.js` builds plain data, and still reads the old place as a
+fallback (`build?.sellerCharacter ?? build?.sale?.plan?.sellerCharacter`) — now in
+`Functions/Job/jobDocument.js`.
 
 **The sale location.** `promote/frontend/editjob/selling-charges.md` documents:
 
@@ -304,126 +332,79 @@ route.
 
 **Wire.** None; documentation only.
 
-## Decisions needed
+## Decided
 
-### Promote A–O now, or hold for P and Q
+James decided each question this review raised on 2026-10-05. The plan, the overlay, the promote
+drafts and the documents named below now carry the answers.
 
-**Question.** Does promotion keep waiting on Stages P and Q?
+### Promotion waits, and happens once
 
-**Why it is James's call.** The plan chose to wait ([plan.md](./plan.md) § Start here), and reversing
-a recorded choice is not an implementer's to do. But the cost of waiting has changed: the drafts went
-stale while they waited, three projects that built on this one have promoted, and
-purchasing-stage-panels tells its reader to "read the promoted live docs" for a picker that has none.
+**Decided: hold.** The project promotes once, when Stages P, Q, R and S are finished as well as A–O.
+A–O are not promoted on their own. The drafts are re-cut for A–O now and the P–S drafts are written as
+those stages land ([promote/README.md](./promote/README.md)). purchasing-stage-panels reads live docs
+for the order type picker only after that single fold.
 
-**Options.**
-- *Hold.* One fold, one description of the stage. The drafts must be re-cut anyway, and will drift
-  again for as long as P and Q are open.
-- *Promote A–O after re-cutting the drafts; P and Q follow.* Live SoT gets the selling charges and
-  three panels now. P and Q then edit live docs under a small project of their own, or reopen this
-  one. Costs a second fold for Output and the frame.
-- *Finish P and Q first, then promote once.* Cleanest, if P and Q are next anyway.
+### Stage L is corrected here
 
-**Recommendation.** The second, unless P and Q start this month. Neither stage changes any panel the
-five drafts describe: Q touches `editJob.jsx` and the header icons, P replaces a panel no draft
-covers. The reason given for waiting — "a live description of a stage that is about to change again" —
-holds only for a full-stage description, which none of the drafts is.
+**Decided: this project's documents describe the moved fields.** The per-job override is
+`build.sellerCharacter` and `build.saleLocationID` on `JobBuild`, both omitted when nil; plan § Stage L,
+the Stage status row, the wire table, the overlay and `promote/frontend/editjob/selling-charges.md` say
+so. Removing the SPA's fallback read of `build.sale.plan` in `Functions/Job/jobDocument.js` is an item
+on job-document-drafts' release list ([review.md](../job-document-drafts/review.md) § Stage 2 — running
+it, item 4), since that project owns the reshape and the release that runs it.
 
-**Blocked until decided.** The fold, the folder's deletion, and purchasing-stage-panels reading live
-docs.
+### `useIsScrolledOutOfView` goes with the floating arrows
 
-### Who describes the moved selling fields
+**Decided: delete all of it.** When Stage Q removes the arrows, the hook and its test are deleted in the
+same change, and at promote the live `frontend/technical-rules.md` § Watching whether an element is on
+screen and `frontend/editjob/floating-step-buttons.md` are deleted. Plan § Stage Q's done-when says so;
+the live deletions are recorded as promote actions in
+[promote/README.md](./promote/README.md) § Live docs this project deletes.
 
-**Question.** Which project's documents carry `build.sellerCharacter` and `build.saleLocationID`, and
-does the SPA's fallback read of `build.sale.plan` stay?
+### Save stays "Save & close"
 
-**Why it is James's call.** This project owns what the fields mean; job-document-drafts owns the
-reshape that moved them and the release that runs it. The fallback at `jobDocument.js:98-101` is
-either load-bearing until that release has run or dead after it, and only the release plan says which.
+**Decided: relabel only.** Stage Q does not split `closeActiveJob`; the header has one save control and
+it says it closes.
 
-**Options.** Correct Stage L here and leave the fallback to job-document-drafts; or treat the whole
-thing as job-document-drafts' and have this project's drafts link to it.
+### The Setups panel and Blueprint Library are this project's
 
-**Recommendation.** Correct it here — the promote draft is this project's and is what a future reader
-gets — and record the fallback's removal as an item in job-document-drafts' release checklist.
+**Decided: folded in as Stages R and S.** [plan.md](./plan.md) § Stage R and § Stage S describe them
+from the design reference, with Stage R carrying the two rig pickers and the militia fields the design
+predates. The separate row in [`../contents.md`](../contents.md) is removed and this project's row
+covers them.
 
-**Blocked until decided.** Work item 1 under § Bringing the documents back to the code.
+### The Edit Job reducer citations point at job-document-drafts
 
-### What happens to `useIsScrolledOutOfView` when the floating arrows go
+**Decided: repoint.** `react-19-idioms/contents.md`, `react-19-idioms/plan.md` and
+`effect-state-sync/contents.md` now send a reader to
+[job-document-drafts/plan.md](../job-document-drafts/plan.md) § How a job is held while it is open
+(and § What a component actually reads, for what re-renders). They no longer count against deleting
+this folder.
 
-**Question.** After Stage Q, is the hook deleted along with its rules section and topic doc?
+### The open setup row stays apart from the selected setup
 
-**Why it is James's call.** `editJob.jsx` is its only caller. Live
-`frontend/technical-rules.md` § Watching whether an element is on screen exists to steer the next
-caller to it, and `frontend/editjob/floating-step-buttons.md` § Reuse calls it general-purpose. Stage
-Q's done-when says only that its use here goes.
+**Decided: keep them separate.** Which row's editor is open is the Setups panel's own state; the
+selected setup is `layout.setupToEdit`, which the stage's other panels read, and it keeps that meaning.
+Plan § Stage R's wire paragraph said `setupToEdit` would now record the row expanded, and is corrected.
+The selected row carries the shared open-row tint (`ExpandableRow`'s `openRowBackground`), which the
+design and the plan said would be unnecessary: a setup can be selected while its editor is shut.
 
-**Options.** Delete the hook, the rules section and the topic doc; or keep the hook and the rule, and
-delete only the topic doc.
+### The design's help text and Output extras are built
 
-**Recommendation.** Delete all three. A rule teaching a hook nothing calls is the kind of leftover
-the current-behaviour rule exists to prevent, and the hook is twenty lines to write again.
+**Decided: build them, all but the ⋮ menu.** The Setups editor carries the run-limit note, the
+system-index explanation, the slot time under Who, the labels *Runs*, *Job slots*, *Use my own system
+index* and *Your system index (%)*, the system among a saved structure's facts, the Where fields in the
+plan's order, and the facility line's counts in words. Output names the slots its longest setup
+assumes, and says "Taking runs off any setup leaves the parents short." or "X owed, Y spare." where they
+apply. The design's ⋮ menu on Output was not built, since the design never says what it holds. Item
+tree and Close are outlined and Continue is filled, as the design draws them.
 
-**Blocked until decided.** Stage Q work items 6 and 8.
+### Parents are counted and named
 
-### Whether Stage Q takes the save point
-
-**Question.** Is "Save & close" the end state for this project, or does Q split `closeActiveJob`?
-
-**Why it is James's call.** The plan names the split and declines it. Since then
-`Functions/JobPlanner/editSessionLifetime.js` has appeared (`endEditSession`,
-`leaveEditedJobWhereItStands`) and `saveIcon.jsx` goes through `useSaveAndLeave`, so the session's
-lifetime is being worked on elsewhere and the split may be cheaper than when the plan was written.
-
-**Options.** Relabel only, as planned; or ask the project that owns the edit session to provide a
-persist-without-leaving step and have Q render a real Save.
-
-**Recommendation.** Relabel only. A save that keeps the page open must still apply parent and child
-link intents whole or not at all, which is not frame work.
-
-**Blocked until decided.** Nothing in Q; it decides whether the header design has two save controls.
-
-### The Setups panel and Blueprint Library
-
-**Question.** Do the last two Planning panels on the old shell get a project, and is it this one?
-
-**Why it is James's call.** It is a scoping decision that has been recorded twice and taken nowhere.
-`contents.md` § Does not own excludes them; `../contents.md:30` carries a row — "a design exists and
-no project is scoped yet; found while finishing the Planning stage panels" — pointing at the design
-rather than at a folder. `jobSetups.jsx`, `editJobSetup.jsx` and `blueprintPanel.jsx` are still
-`ContentPanel`, and so is the page they sit in until Q.
-
-**Options.**
-- *Leave unscoped.* The stage stays half on each shell after this project closes.
-- *A new project folder*, as the plan proposes, taken after P and Q.
-- *Fold them, with P and Q, into one "rest of the Planning stage" project* and let this one promote
-  A–O.
-
-**Recommendation.** The third, if the previous decision goes to promoting A–O now: four pieces of
-work on one design reference, one frame, and one stage make one project. Otherwise the second. Either
-way it owes a Phase 1 folder before any code, and the Setups design should be checked against the two
-rig pickers `editJobSetup.jsx` has gained since it was drawn.
-
-**Blocked until decided.** Nothing in this project. The row in `../contents.md` cannot be removed
-until it points at a folder or the work is dropped.
-
-### Where the Edit Job reducer reasoning lives
-
-**Question.** Three documents cite this folder for a decision it does not contain; where should they
-point?
-
-**Why it is James's call.** `react-19-idioms/contents.md:40` and `plan.md:144`, and
-`effect-state-sync/contents.md:27-29`, send a reader here for "the Edit Job reducer's ownership of
-`state.activeJob`", "its own reasoning and measurements", and what re-renders when a dispatch lands.
-This plan mentions `activeJob` three times in passing and has no such section, and the reducer itself
-is gone. Those citations also count as reasons to keep this folder after promotion.
-
-**Options.** Repoint them at job-document-drafts, which replaced the reducer; or delete the lines as
-describing something that no longer exists.
-
-**Recommendation.** Repoint to job-document-drafts and stop counting them against this folder's
-deletion.
-
-**Blocked until decided.** The citation check that gates deleting this folder.
+**Decided: count them and name up to three.** The header line reads "N for K parents (Name, Name, Name,
++M more) — coverage · S setups", the names largest need first, each opening that job through
+`useOpenJob`. The locked final tab's reason counts them: "Its output is committed to its K parent jobs,
+so it is not sold on its own."
 
 ### The plan's four open questions
 
@@ -442,8 +423,8 @@ deletion.
 
 ## Dependencies and order
 
-**This project waits on** nothing to build P or Q. Promotion waits on the first decision above and on
-re-cutting the drafts.
+**This project waits on** nothing to build P, Q, R or S. Promotion waits on all four; the drafts for
+A–O are re-cut.
 
 **Waiting on this project.**
 - purchasing-stage-panels reuses the order type picker and the Materials & Sourcing table shape, and
@@ -455,7 +436,7 @@ re-cutting the drafts.
 - shared-planners' release carries the numeric invention id rewrite; `shared-planners/plan.md:2712`
   and this plan agree it is still owed.
 
-**Recommended next slice.** The delete confirmation from Stage Q, alone: a few lines, no dependency,
-and the only item here where a mis-aimed click loses work. Then the document corrections, because
-they are cheap and every week adds to them. Then Stage P before the rest of Q, since P is the one
-that fixes a wrong answer on screen for 6,457 jobs and Q changes how the page looks.
+**Recommended next slice.** None is left to build. Stages P, Q, R and S landed on 2026-10-05 in the
+order recommended here — the delete confirmation first, then Output, the rest of the frame, Setups and
+the Blueprint Library — each reviewed after it landed. What remains is the promotion itself, on
+James's go-ahead.

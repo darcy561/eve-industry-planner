@@ -40,7 +40,7 @@ one release window.
 | job-groups | Unblocked, no product work | Confirmed, and the unblocking is real. Its schema argument rests on a false premise | [review](./job-groups/review.md) |
 | entity-id-encryption | Primitive, boundaries and token encryption landed; one sweep and two cleanups left | The landed part is confirmed. The remaining sweep is larger than the plan reads, and its planned gate would pass without converting anything | [review](./entity-id-encryption/review.md) |
 | auth-hardening | A, B, E, G landed; H's wire half landed; C, D, F not started | Confirmed in every stage. Two of its stages contradict each other | [review](./auth-hardening/review.md) |
-| planning-stage-panels | A–O done; P and Q designed | Confirmed. The plan, overlay and promote drafts have fallen behind the code, so it is not promotable as it stands | [review](./planning-stage-panels/review.md) |
+| planning-stage-panels | A–S done | Every stage landed and reviewed; the promote drafts cover the whole stage and wait only on the go-ahead | [review](./planning-stage-panels/review.md) |
 | purchasing-stage-panels | Phase 1 only; A–J not started | Confirmed. The plan misdescribes how purchases are recorded today | [review](./purchasing-stage-panels/review.md) |
 | building-stage-panels | Stage A landed; B–H not started | Confirmed. Two later stages lean on Purchasing work that does not exist yet | [review](./building-stage-panels/review.md) |
 | archived-jobs-stats | Every stage complete | Confirmed, and already promoted. What remains is the release window and plan text that has drifted from the code | [review](./archived-jobs-stats/review.md) |
@@ -184,8 +184,8 @@ the edge rule as an operator note rather than a stage.
   reprocessing-rebuild designs an ore-aware copy for it. No project is scoped to redesign it.
 - **Minerals bought as ore** on the Planning stage and the Shopping List: designed and drawn, owned by
   nobody. Purchasing's part is held open in purchasing-stage-panels.
-- **The Setups panel and Blueprint Library**: the last two Planning panels on the old shell. A design
-  exists and no project is scoped.
+- **The Setups panel and Blueprint Library**: the last two Planning panels on the old shell. Since
+  decided: they are planning-stage-panels' Stages R and S.
 - **A fragility shared-planners parks with auth-hardening**: `ensurePlannerSession` cannot tell "not
   yet logged in" from "credentials unavailable". auth-hardening has no stage for it.
 
@@ -198,7 +198,8 @@ These are recorded for whoever promotes; nothing here was edited.
 - `frontend/navigation/spa.md` describes a page `Fade` that no longer exists, and
   `frontend/technical-rules.md` says dialogues do not fade out. Both wait on view-transitions.
 - `frontend/editjob/` already exists with two topic docs describing controls that planning-stage-panels
-  Stages P and Q remove. That project's promote README calls the area new.
+  Stages P and Q remove. That project's promote README now treats the area as an update and records
+  both docs' fate at promote.
 - `backend/api/auth/sessions.md` cites a keyring path that has moved.
 
 ## Decisions, in the order they unblock work
@@ -248,8 +249,9 @@ the order that frees the most work.
     failure log does. Neither can be built until one gives. [auth-hardening](./auth-hardening/review.md)
 17. **What an archive becomes** once a save is one change. The mechanism writes one collection and an
     archive writes two. [document-write-granularity](./document-write-granularity/review.md)
-18. **Promote planning-stage-panels A–O now, or hold for P and Q.** The drafts went stale while
-    waiting. [planning-stage-panels](./planning-stage-panels/review.md)
+18. **Promote planning-stage-panels A–O now, or hold for P and Q.** Decided: hold, and fold the
+    Setups panel and Blueprint Library in as Stages R and S; the project promotes once.
+    [planning-stage-panels](./planning-stage-panels/review.md)
 19. **Whether offline job creation must keep working.** Gates static-data-delivery Stage E and
     reprocessing-rebuild Stage M. [static-data-delivery](./static-data-delivery/review.md)
 20. **Where the job model lives in the SPA.** Blocks every wide move in spa-module-homes.
@@ -262,7 +264,8 @@ the order that frees the most work.
 23. **Ship reprocessing's stand-in figures, or hold them for three in-game checks.**
     [reprocessing-rebuild](./reprocessing-rebuild/review.md)
 24. **Who owns the Shopping List, the ore-on-stages work, and the last two Planning panels.** Three
-    designed pieces of work with no project. [react-19-idioms](./react-19-idioms/review.md),
+    designed pieces of work with no project. The last two Planning panels are decided: they are
+    planning-stage-panels' Stages R and S. [react-19-idioms](./react-19-idioms/review.md),
     [reprocessing-rebuild](./reprocessing-rebuild/review.md),
     [planning-stage-panels](./planning-stage-panels/review.md)
 
@@ -275,7 +278,7 @@ Each review names its own next slice. These are the ones that wait on nothing:
 | document-write-granularity | Add the delivery leg for a change carrying a removal to the live loop test, which completes the merge slice already in the tree |
 | reprocessing-rebuild | Endpoint and full-loop tests for the settings write path already in the tree |
 | purchasing-stage-panels | Stage A, the price ladder, which is a correctness fix the frozen plan price depends on |
-| planning-stage-panels | Stage Q's delete confirmation, the one place a mis-click loses work |
+| planning-stage-panels | Promotion, on the go-ahead — every stage has landed |
 | react-19-idioms | Phase 2's three defects, each behind a characterisation test |
 | view-transitions | The pending-splash test |
 | changestream-tenant-scale | Phase A, metrics, for a baseline before queues |
@@ -303,8 +306,8 @@ what a reader would do:
   `shared/statistics`.
 - **purchasing-stage-panels:** § Starting position on how purchases are recorded; the ore panel's
   dependency.
-- **planning-stage-panels:** Stage L's storage location; the custom-structure hand-off; five stale
-  places in the promote drafts.
+- **planning-stage-panels:** applied — Stage L's storage location, the custom-structure hand-off and
+  the stale places in the promote drafts are corrected.
 - **realtime-message-routing:** § What this project is waiting on.
 - **changestream-tenant-scale:** Phase C in two overlay files.
 - **spa-delivery:** Stage B's missing mention of the existing version check; Stage D's shared imports;

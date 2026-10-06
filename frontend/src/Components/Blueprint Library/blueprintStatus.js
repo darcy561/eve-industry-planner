@@ -1,6 +1,10 @@
 import { alpha } from "@mui/material/styles";
 
 import { getJobTypeAccentColour } from "../../Functions/Helper/jobTypeDividerColour";
+import {
+  BLUEPRINT_JOB_STATE,
+  blueprintJobState,
+} from "../../Functions/Blueprints/blueprintJobState";
 
 /**
  * The colour a blueprint card is edged in, which says at a glance what is happening to it.
@@ -27,9 +31,8 @@ export function blueprintAccentColour(esiJob, isCopy, runs, jobType) {
     };
   }
 
-  if (isCopy && runs <= esiJob.runs) {
-    return (theme) => theme.palette.error.main;
-  }
-
-  return (theme) => theme.palette.warning.main;
+  return blueprintJobState({ isCopy, runs }, esiJob) ===
+    BLUEPRINT_JOB_STATE.RUNS_OUT
+    ? (theme) => theme.palette.error.main
+    : (theme) => theme.palette.warning.main;
 }

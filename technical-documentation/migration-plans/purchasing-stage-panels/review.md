@@ -47,7 +47,7 @@ project's Stages B, C, F1 and I.
 | H — assets | Not started | No asset hook is imported under Purchasing; the shopping list's own hooks are `useShoppingListCharacterAssets.js` / `useShoppingListCorporationAssets.js` | `Components/Dialogues/Shopping List/Hooks/` | confirmed |
 | I — Job costs and setups | Not started | `InventionCostsCard` is a grid card; `JobSetupInfoFrame` sets `overflowX: auto` above five setups and prints no install cost; Extras editor is on Complete | `Invention Costs/inventionCostsCard.jsx`; `JobSetupInfo/JobSetupInfoFrame.jsx` lines 53–56; `Complete/Standard Layout/Extras Panel/extrasEditor.jsx` | confirmed |
 | J — mobile | Not started | `Purchasing_MobileLayout_EditJob` returns `null`; `LayoutSelector_EditJob_Purchasing` always renders the standard layout; the list is `overflowY: scroll`, `maxHeight: 600` at `xs` | `Mobile Layout/mobileLayout.jsx`; `layoutSelector.jsx`; `standardLayout.jsx` lines 155–167 | confirmed |
-| Inherited — duplicated structure display | Open | `UseCustomStructure` / `UseDefaultStructures` exist in both `JobSetupInfoFrame.jsx` (202, 238) and `Planning/.../Setup Panel/jobSetupCard.jsx` (158, 194) | both files | confirmed |
+| Inherited — duplicated structure display | Open | The Planning copy is gone (planning-stage-panels Stage R); `JobSetupInfoFrame.jsx` keeps its own `UseCustomStructure` / `UseDefaultStructures` where `setupFacility.js` and `useFacilityWords` now own the derivation | `JobSetupInfoFrame.jsx`; `Functions/Industry Facilities/setupFacility.js` | updated 2026-10-05 |
 
 ### Discrepancies
 
@@ -524,9 +524,9 @@ names `localPricing.buying.{market,orderType}` and `Purchase.ItemCost` already i
 **Waits on.** Nothing hard. The ladder hooks it adopts exist (`useEffectiveMarketHub.js`,
 `useMaterialGroupPricing.js`, `materialPricing.js`); Planning's table (`materialsTable.jsx`,
 `tableParts.jsx`), drawer (`materialDrawer.jsx`) and picker (`pricingOrderType.jsx`) exist and are
-marked Done in planning-stage-panels. Planning's Stage Q (stepper → tabs) is designed and not started;
-`editJob.jsx` still renders a `Stepper`, and no file under Purchasing imports from it, so the
-independence the contents file claims holds.
+marked Done in planning-stage-panels. Planning's Stage Q (stepper → tabs) has since landed;
+`editJob.jsx` renders tabs, and no file under Purchasing imports from it, so the independence the
+contents file claims held.
 
 **Waited on by.** The ore panel from reprocessing-rebuild § Not in the sequence. Its engine side is
 further along than the plan records (C and E complete, D1/D3 landed), so this project's B, C, F1 and I

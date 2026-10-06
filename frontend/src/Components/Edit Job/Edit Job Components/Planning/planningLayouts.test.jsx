@@ -14,15 +14,11 @@ import { render, screen } from "@testing-library/react";
  */
 
 const PANELS = [
+  ["./Standard Layout/Output/outputPanel", "OutputPanel"],
+  ["./Standard Layout/Setups/setupsPanel", "SetupsPanel"],
   [
-    "./Standard Layout/Production Stats Panel/productionStats",
-    "ProductionStats",
-  ],
-  ["./Standard Layout/Setup Panel/jobSetups", "JobSetupPanel"],
-  ["./Standard Layout/Edit Setup Panel/editJobSetup", "EditJobSetup"],
-  [
-    "./Standard Layout/Blueprint Options/blueprintPanel",
-    "AvailableBlueprintsPanel",
+    "./Standard Layout/Blueprint Library/blueprintLibraryPanel",
+    "BlueprintLibraryPanel",
   ],
   ["./Standard Layout/Skills Panel/SkillsPanel", "SkillsPanel"],
   ["./Standard Layout/Archive Jobs Panel/archiveJobsPanel", "ArchiveJobsPanel"],
@@ -69,10 +65,9 @@ const { Planning_MobileLayout_EditJob } =
   await import("./Mobile Layout/mobileLayout");
 
 const expected = [
-  "ProductionStats",
-  "JobSetupPanel",
-  "EditJobSetup",
-  "AvailableBlueprintsPanel",
+  "OutputPanel",
+  "SetupsPanel",
+  "BlueprintLibraryPanel",
   "MaterialsAndSourcingPanel",
   "PlanningEconomics",
   "ArchiveJobsPanel",

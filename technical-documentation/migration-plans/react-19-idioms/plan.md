@@ -141,8 +141,9 @@ after the setter, a normalisation after the reducer, a query result copied into 
 job mutated from cached ESI data.
 
 The two `localStorage` mirrors are near-trivial. The three that mutate `activeJob` are the delicate
-ones and want reading against `planning-stage-panels/` first, because that project owns what the
-reducer may be handed. This tier also carries the sweep's one duplicated source of truth:
+ones and want reading against [job-document-drafts/plan.md](../job-document-drafts/plan.md) § How a
+job is held while it is open first, because the draft store described there replaced the reducer and
+owns how an open job is changed. This tier also carries the sweep's one duplicated source of truth:
 `assetLibraryView.jsx:116` and `Dialogues/Assets/dialogueContent.jsx:81` are byte-identical.
 
 ### Phase 5 — Tier 3: React Query (9 sites)

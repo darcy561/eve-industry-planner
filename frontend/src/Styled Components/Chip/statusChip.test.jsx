@@ -16,6 +16,7 @@ describe("StatusChip", () => {
     const tones = [
       [STATUS_TONE.GOOD, /colorSuccess/],
       [STATUS_TONE.WARN, /colorWarning/],
+      [STATUS_TONE.BAD, /colorError/],
       [STATUS_TONE.FACT, /colorPrimary/],
     ];
 

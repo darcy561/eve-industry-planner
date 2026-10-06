@@ -115,8 +115,8 @@ the correction belong together.
 | 2.9 | `Hooks/EveEsi/useLocationNames.js:73` | Copies resolved names out of the query result into the Zustand store | The query layer should hand back one canonical shape that consumers read; the `names` memo directly below already merges the store and the query result, so the store write is a cache-warming side effect looking for a home |
 | 2.10 | `Components/Reprocessing/Hooks/useAutoRecalculation.js:55` | Recalculates reprocessing when any of six settings change, behind an `isInitialMount` ref and four guard conditions | The `isInitialMount` ref is the tell. Recalculate from the handlers that change those settings |
 
-**Read `planning-stage-panels/` before touching 2.4, 2.5 and 2.6.** That project owns what the Edit
-Job reducer may be handed and why the job is mutated in place, and these three sit on its boundary.
+**Read `job-document-drafts/` before touching 2.4, 2.5 and 2.6.** That project replaced the Edit Job
+reducer with the job draft store, and owns what an open job may be handed and how a change is recorded.
 
 ## Tier 3 — React Query (9)
 
@@ -206,7 +206,8 @@ which during a step change is the panel the `CSSTransition` is still sliding out
 arrives — a re-attachment whose correctness depends on an animation constant.
 
 A ref callback attaches when the node attaches, which is the event the timer is approximating, and the
-SPA already has that shape in `Hooks/GeneralHooks/useIsScrolledOutOfView.js`: a callback ref that
+SPA had that shape in `Hooks/GeneralHooks/useIsScrolledOutOfView.js` — since deleted by
+planning-stage-panels Stage Q along with the floating buttons it served: a callback ref that
 builds an observer and returns its disconnect, with no effect to keep in step and nothing to retry. The
 verdict is to measure the panel the same way, as a shared hook beside it rather than a fourth
 hand-rolled observer — `Hooks/GeneralHooks/` holds no resize equivalent today, and measuring an

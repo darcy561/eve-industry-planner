@@ -547,3 +547,32 @@ export function Disclosure({ label, children, defaultOpen = false, onOpen }) {
     </Box>
   );
 }
+
+/**
+ * A list showing its first rows and folding the rest behind a disclosure that counts them, folding
+ * only once two or more rows would be hidden, since a fold of one is not worth a press.
+ *
+ * @template T
+ * @param {object} props
+ * @param {Array<T>} props.items
+ * @param {(item: T) => React.ReactNode} props.renderItem - Carries its own key
+ * @param {(folded: Array<T>) => React.ReactNode} props.foldLabel
+ * @param {number} [props.shown]
+ */
+export function FoldedList({ items, renderItem, foldLabel, shown = 6 }) {
+  const folds = items.length > shown + 1;
+  const folded = folds ? items.slice(shown) : [];
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column" }}>
+      {(folds ? items.slice(0, shown) : items).map(renderItem)}
+      {folds ? (
+        <Disclosure label={foldLabel(folded)}>
+          <Box sx={{ display: "flex", flexDirection: "column" }}>
+            {folded.map(renderItem)}
+          </Box>
+        </Disclosure>
+      ) : null}
+    </Box>
+  );
+}

@@ -68,9 +68,9 @@ figures that do not exist yet.** Cost Breakdown cannot draw a sales-tax row unti
 Returns cannot state a net return until the fee estimate does. Doing the panels first would mean
 building them twice.
 
-Stage A supplies those figures without storing anything: a sale location resolves through one accessor
-returning placeholders, so the panels can be built and tested now and the stored rows arrive later
-underneath them.
+Stage A supplies those figures without storing anything: a sale location resolves through one accessor,
+which returned placeholders until the saved-market registry arrived underneath it — § One accessor over
+the sale locations.
 
 ```
 Stage A  sale locations and their rates                 frontend, no stored shape
@@ -182,29 +182,34 @@ So the backend surface is **one list**, not a rate table. Nothing that can be co
 or fetched from ESI is persisted, which also means a game change to a base rate ships as an SPA change
 rather than a migration over every account.
 
-### Building against a placeholder
+### One accessor over the sale locations
 
-The stored list is not built here, so nothing downstream may read the settings document directly. Every
-consumer goes through `Functions/MarketOrders/saleLocations.js`, which answers two questions and hides
-where the answer came from:
+Nothing downstream reads the settings document directly. Every consumer goes through
+`Functions/MarketOrders/saleLocations.js`, which answers two questions and hides where the answer came
+from:
 
 | Function | Answers |
 |----------|---------|
-| `getSaleStructures` / `getDefaultSaleStructure` | Which citadels can be sold from, and which is used when a job names none |
-| `resolveSaleLocation` | For a hub id or a saved row's id, one normalised location: its name, the station whose prices apply, and its broker fee — `null` at a hub, where the rate is derived from the seller instead |
+| `getSaleCitadels` / `getDefaultSaleStructure` | Which citadels can be sold from, and which market is used when a job names none — the account's selling default, falling back to the trading hub |
+| `resolveSaleLocation` | For a market source id or a saved citadel's id, one normalised location |
 
-Today `getSaleStructures` returns one fixed placeholder carrying the full stored shape. When the lane
-lands, that function reads it instead and **nothing else changes**: the placeholder is not exported, so
-nothing outside this file — panel, test or fee calculation — can name it. The module's own tests read
-their subject back through the accessors for the same reason, so they hold unchanged too.
+The accessor was built against two placeholder citadels while nothing was stored. That has since
+happened: the saved markets landed with market-locations and market-price-delivery, and the accessor
+reads them through `savedCitadels(allMarketSources())` from
+`Functions/MarketData/registry/marketSources.js`. The placeholder is gone, and no consumer changed when
+it went.
 
-Normalising both kinds into one `SaleLocation` is what makes that true. A caller pricing a sale never
-branches on hub-versus-structure — it reads `brokerFee` and prices against `priceHubStationID` — so the
-branch exists in one place rather than in every consumer, and a structure's split of *prices from one
-location, fee from another* is resolved before a caller sees it.
+A resolved location has one shape whatever its kind:
 
-**Done when the lane lands:** `getSaleStructures` reads the stored lane, the placeholder constant is
-deleted, and no other file is edited.
+```js
+{ kind: "npcStation" | "citadel", id, name, feeStationID, brokerFee }
+```
+
+`kind` is `SALE_LOCATION_KIND.NPC_STATION` or `.CITADEL`. `feeStationID` is the NPC station whose
+owner's standings set the broker fee, `null` at a citadel; `brokerFee` is the citadel owner's rate,
+`null` at a station, where the rate is derived from the seller. There is no price hub on it: a citadel
+is priced on its own orders, so a caller reads `brokerFee` and never branches on the kind to find where
+the prices came from.
 
 ### The resolution order
 
@@ -230,8 +235,7 @@ untrained rate on most accounts.
   as `brokerFeeRates` — base, the Broker Relations, faction and corporation coefficients, and the ISK
   floor — plus `marketSkillIDs` for the skill type ids the fee depends on. They are game constants and
   were magic numbers; this is the one source of truth both stages read.
-- Give every consumer one accessor over the sale locations, returning placeholders until the stored
-  list exists — § Building against a placeholder.
+- Give every consumer one accessor over the sale locations — § One accessor over the sale locations.
 
 - Add `salesTaxRates` beside them — base and the Accounting coefficient — with Accounting's type id in
   `marketSkillIDs`. Nothing calculates sales tax today, so these are new rather than lifted.
@@ -266,12 +270,15 @@ SPA constant with no request and no literal of them survives in `calcBrokersFee`
 
 ## Handed to the custom-structure work
 
-Storing saved citadels, and the surface for editing them, is **not this project's work** — it goes with
-the wider custom-structure work being taken separately. This project reads them through the placeholder
-accessor above and never touches the settings document.
+**Landed, and promoted elsewhere.** market-locations and market-price-delivery built what this section
+handed on: saved markets as a lane of their own, the Settings page's Market Locations tab with its
+editor, and a citadel priced on its own orders. Both projects have promoted; the live description is
+[frontend/settings/market-locations.md](../../frontend/settings/market-locations.md), and where it and
+this section disagree the live doc is right — most visibly, nothing stores a price hub for a citadel.
+This project reads saved citadels through the accessor above and never touches the settings document.
 
-What follows is what this project worked out before handing it over. It is written down so it does not
-have to be worked out twice, and it is a proposal for that work rather than a decision it is bound by.
+What follows is the proposal as it was handed over, kept because the projects that built it cite it.
+It is not a description of what runs.
 
 ### The shape it should take
 
@@ -312,7 +319,7 @@ copy rather than a pattern to invent.
 **The custom-structure work itself is not this project's to do.** Building the lane's editing surface —
 the settings frame, the add-a-citadel form, the store rebuild — belongs with the wider custom-structure
 work being taken separately. This project builds against a placeholder instead, and the full lane slides
-in at the end. § Building against a placeholder says how that stays a change to one file.
+in at the end. § One accessor over the sale locations says how that stayed a change to one file.
 
 **The lane belongs to the planner**, which the family it joins has already decided.
 [shared-planners](../shared-planners/plan.md) § Settings split between the planner and the account puts
@@ -411,76 +418,23 @@ structure they may not be able to reach. That is intended — they need to know 
 but it sits beside `ShareCitadelNames`, the existing opt-in for contributing citadel names, and should
 not land without being noticed.
 
-### Where a structure's prices will come from
+### Where a structure's prices come from
 
-**A structure sells at its own market, and one day the app will read it.** Until then the figures are
-priced against a hub the player names, which is what `PriceHub` on the stored row is for. That is a
-stand-in, not the design: a sale location is where the order is listed, so the order book that decides
-what the output fetches is that location's own.
+**Landed.** The proposal was to price a citadel against a hub the player named until the app could read
+the structure's own market. The app reads it now: a saved citadel is fetched by the reader, held on the
+device and priced on its own orders, as live
+[frontend/market-data/contents.md](../../frontend/market-data/contents.md) describes, so the stand-in
+was never built. `SaleLocation` carries no `priceHubID`, the rate block says a citadel is "priced on
+this citadel's own orders", and `feeStationID` stays the one field that tells the two kinds apart for the
+fee — the NPC station whose owner's standings set it, `null` at a citadel.
 
-The seam is already the shape that change needs, and it is worth saying where it is so the work does
-not go looking:
+### ...and where its materials are bought from
 
-- A `SaleLocation` carries **`priceHubID`** — the market its figures are priced against — and every
-  consumer reads that one field. `getMarketPriceForType(typeID, priceHubID, listing)` is the only way
-  a price is fetched, and nothing anywhere asks for market data by `structureID`.
-- So when a structure's market can be read, the change is confined to **`saleLocationFromStructure`**,
-  which returns the structure's own market instead of the named hub's, and to whatever backs the market
-  data behind that accessor. Returns, Cost Breakdown, Skills and the output header need no edit: they
-  already price against whatever the sale location names.
-- **`feeStationID` is a separate field and stays null for a structure.** It is the NPC station whose
-  owner's standings set the broker fee, and it is not the station anything is priced against — the two
-  were one field until they had to mean different things.
-- `PriceHub` does not become dead when that lands. A structure whose market cannot be read — no docking
-  access, or no character with the scope — still needs a market to stand in for it, so the field
-  becomes the fallback rather than the answer.
-
-**What it will take.** Structure orders are not public: they are read per character, through an
-authenticated endpoint, and only where that character can dock. The app requests no market scope today.
-So this is a new ESI surface, a new server-side cache for markets that are not the four hubs, and a
-per-character access question — not an edit. The exact endpoint and scope want checking against
-`docs.esi.evetech.net` rather than taken from here.
-
-### ...and where its materials will be bought from
-
-**The same change is owed to the buying side.** A player who lists from a citadel may buy from one
-too, and the two are separate choices — Materials & Sourcing says where the materials come from,
-Returns says where the output goes, and neither should follow the other. So the hub picker in the
-Materials & Sourcing header must offer saved citadels beside the four hubs, and a material's own
-override must be able to name a different one again.
-
-The resolution seam is ready for that. `getEffectiveMaterialPriceHub` returns
-`override?.marketDisplay ?? panelDefault` — one function, already holding the rule that a row's own
-source outranks the panel's — and what it returns goes straight to `getMarketPriceForType`. A citadel
-id passed through it needs no new plumbing. The stored fields are plain strings on both sides:
-`JobLayout.LocalMarketDisplay` and `MaterialPriceOverride.MarketDisplay` are `string` in
-`models.Job`, with no enum and no validation, so a citadel id is **additive** — no schema bump, no
-migration.
-
-What is not ready is the assumption, in three places, that a market id is one of the four:
-
-- **`Styled Components/Select/marketLocation.jsx` silently rewrites what it does not recognise.**
-  `MARKET_OPTIONS.find((option) => option.id === value) ? value : "jita"` — a stored citadel id would
-  come back as Jita on the next render, with the player's choice gone and nothing said. This is the
-  one that must change first, because it corrupts a stored value rather than merely failing to read
-  it.
-- **`worldData.findMarketData` answers in a per-hub shape.** Its empty default is built by reducing
-  `MARKET_OPTIONS`, so a citadel-keyed lookup misses and `getMarketPriceForType` returns `0` — a
-  material priced at nothing rather than a material that could not be priced.
-- **The market links resolve an id to a region.** `IconButton/marketData.jsx`,
-  `IconButton/marketHistory.jsx` and `Typography/marketData.jsx` each look the id up in
-  `MARKET_OPTIONS` to build an in-game or third-party link. A structure has no region page, so those
-  need an answer — link to the market standing in for it, or show no link — rather than falling back
-  to The Forge for a citadel in Amarr.
-
-**The rule to keep while doing it:** the panel's hub is the default and a row's override outranks it,
-on both sides of the job. Whatever offers citadels has to preserve that, or a player who sets one
-material to a citadel and then changes the panel's hub loses the row they had already answered.
-
-**The two citadels in `saleLocations.js` are test stand-ins**, not data. They exist so the panels can
-be built and exercised before the stored list does, and they disagree on every field that changes a
-figure so that a consumer which assumes one citadel produces a visibly wrong number rather than a
-coincidentally right one.
+**Landed with the same work.** The buying side is a separate choice from the selling side, and the
+material pickers now offer saved markets beside the four hubs: `Styled Components/Select/marketLocation.jsx`
+validates against `useMarketSources()` rather than `MARKET_OPTIONS`, so a stored citadel id is kept
+rather than rewritten to Jita. The rule to keep is unchanged — the panel's market is the default and a
+row's override outranks it, on both sides of the job.
 
 ## Handed to the market pricing defaults work
 
@@ -694,16 +648,20 @@ per-component column waits on the API serving the split it already stores — §
 
 **Returns** leads with the net return and three normalisations of it — per unit, margin, return on
 outlay — then both exit routes at equal weight, then break-even and the previous-build range as context
-rows, then the ledger behind a disclosure. Colour marks sign only.
+rows, then the ledger behind a disclosure. Colour marks sign only. The net return it leads with is the
+route the account says its output leaves by — `applicationSettings.defaultPricing.selling.exit`, read
+through `useJobSellingContext` — so a player who sells into buy orders is not led with a listing's
+margin and a broker fee they never pay.
 
 **The sale location and its rates render here**, as a block inside Returns. At a preset hub it shows
 every subtraction — base, less Broker Relations, less each standing — because those come from the
 player's own character and seeing them is what makes the figure trustworthy. At a citadel it is one
 line and a sentence saying Broker Relations does not apply, since the absence of working is itself the
-information. The block names the character it is quoting, and where the location is a citadel it also
-names the hub its prices came from.
+information. The block names the character it is quoting, and where the location is a citadel it says
+the figures are priced on that citadel's own orders.
 
-**The block chooses the location and the seller, writing to `JobSale.Plan`** — Stage L. Both are nil on
+**The block chooses the location and the seller, writing to `build.sellerCharacter` and
+`build.saleLocationID`** — Stage L. Both are nil on
 a job that sells the usual way, and one link puts a job that has departed back on the account's
 defaults. The add-a-citadel form is the custom-structure work's throughout.
 
@@ -911,23 +869,31 @@ characters, structures and run counts all contributing to one job — but the fi
 once, as a batch. A seller on a setup would be per-setup, and there is no answer to which of three
 setups' sellers applies to the single stack of items that comes out.
 
-So the override lives on `JobSale`, which is already the job's selling block, as a nested plan
-distinguished from the record beside it:
+So the override lives on the job's build, beside the setups rather than inside one, as two nullable
+fields on `JobBuild` (`services/shared/models/job.go`):
 
 ```go
-// JobSellingPlan is where this job's output is meant to go, as against the
-// MarketOrders and Transactions beside it, which are where it went.
-//
-// Both fields are nil on almost every job: absent means the account's defaults
-// apply, and the override exists for the minority that sell somewhere else.
-type JobSellingPlan struct {
+type JobBuild struct {
+	...
 	SellerCharacter *string `json:"sellerCharacter,omitempty" bson:"sellerCharacter,omitempty"`
 	SaleLocationID  *string `json:"saleLocationID,omitempty" bson:"saleLocationID,omitempty"`
+	...
 }
 ```
 
-`SaleLocationID` is a saved citadel's row id or a `MARKET_OPTIONS` hub id — whatever
-`resolveSaleLocation` already accepts — so this stage adds a stored choice and no new resolution.
+```json
+{ "build": { "setup": {}, "materials": {}, "sellerCharacter": "<CharacterHash>", "saleLocationID": "amarr" } }
+```
+
+It was first built as a nested plan on the job's selling block, `build.sale.plan`. job-document-drafts'
+reshape removed `build.sale` and lifted the two fields onto `build`
+(`services/core/commands/reshape_job_document.go`), and the meaning did not change. The SPA holds the
+job as plain data: `Functions/Job/jobDocument.js` reads `build.sellerCharacter` and
+`build.saleLocationID`, and still falls back to `build.sale.plan` for a document written before the
+reshape release has run. Removing that fallback is an item on job-document-drafts' release list.
+
+`SaleLocationID` is a saved citadel's id or a market source id — whatever `resolveSaleLocation`
+already accepts — so this stage adds a stored choice and no new resolution.
 
 ### Both fields, because it is one decision
 
@@ -965,14 +931,15 @@ setting a precedent that the first one is fine.
 
 ### No schema bump
 
-`JobSale` gains a nested struct whose fields are both nullable. An absent `plan` decodes to the zero
-value, whose pointers are nil, which is exactly "no override" — nothing needs filling, so
-`documentschema.Upgrader.Job` gains no step and `JobSchemaCurrent` stays where it is.
+`JobBuild` carries two nullable fields. An absent field decodes to nil, which is exactly "no override",
+and both are omitted when nil — nothing needs filling, so `documentschema.Upgrader.Job` gains no step
+and `JobSchemaCurrent` stays where it is.
 
 ### The work
 
-- Add `Plan JobSellingPlan` to `models.JobSale`, and the matching fields to the SPA's `Job` class and
-  its serialisation.
+- Add `SellerCharacter` and `SaleLocationID` to `models.JobBuild`, and read and write them in
+  `Functions/Job/jobDocument.js`; `setSellingPlan` in `Edit Job Hooks/jobCommands.js` is the command
+  that sets them.
 - Resolve both through the accessors that already exist: `sellerCharacter.js` takes the job's hash
   ahead of the account default, `resolveSaleLocation` takes the job's location id ahead of it.
 - Put the two pickers on the Returns rate block, which until now only states the location — § Stage F
@@ -1162,13 +1129,22 @@ a job with parents states its requirement whether or not it is in a group; the p
 Output with the fold at six; the picker states what each candidate needs; and `Linked Job Badge`'s
 heading, floating `＋` and nested scroll region are gone.
 
+**As built (decided 2026-10-05).** The design's Output extras were built: the longest-setup line names
+the slots it assumes — "6 slots side by side — the wait if every one can start at once" — and the
+sentence under the headline says "Taking runs off any setup leaves the parents short." when the parents
+are covered exactly (without "any setup" on a job with one) and "1,200 owed, 300 spare." when there is spare. The design's ⋮ menu on Output was
+**not** built: the design never says what it holds. The header's summary line counts the parents and
+names up to three, largest need first, each a link that opens that job through `useOpenJob` — "1,200
+for 5 parents (Name, Name, Name, +2 more) — covered exactly · 3 setups". The fold shows seven rows whole
+and folds from eight, since a fold of a single row is not worth a press.
+
 ## Stage Q — The page frame, and the controls that manage the job
 
 **SPA.**
 
 `editJob.jsx` navigates stages with a vertical MUI `Stepper` whose active `Step` holds the whole stage,
 indented behind the rail that draws the connector. **A stepper states a sequence with completion, and
-`jobStepNavigation.js` implements neither**: `canJumpToJobStep` permits any stage from any stage,
+`Functions/Job/editing/jobStepNavigation.js` implements neither**: `canJumpToJobStep` permits any stage from any stage,
 refusing only the current one, an out-of-range index, and the final stage when it is locked. Tabs say
 what is true — five views of one job — and read the same helpers and set the same `jobStatus`.
 
@@ -1184,7 +1160,10 @@ rather than imply something is unfinished.
 
 **Four navigation controls become one labelled pair.** The step labels, the in-content arrows, and the
 two viewport-fixed copies driven by `useIsScrolledOutOfView` all move the same two ways. Sticky tabs
-make the floating pair pointless, so they, their refs and that hook's only use on this page go. What
+make the floating pair pointless, so they and their refs go — and so does the hook: `editJob.jsx` is
+the only caller of `Hooks/GeneralHooks/useIsScrolledOutOfView.js`, so the hook and its test are deleted
+rather than kept for a caller nobody has written. The rules section and the topic doc that teach it go at
+promote, per [promote/README.md](./promote/README.md) § Live docs this project deletes. What
 remains names its destination — *Continue to Purchasing →* — which survives a renamed stage where an
 arrow tooltip reading "move to next step" does not.
 
@@ -1202,8 +1181,10 @@ confirmation that names the job and what its parents lose.
 **Save closes the job, and a save point is separate work.** `saveOpenJob` calls `closeActiveJob`, which
 persists *and* ends the session — and `applyParentChildChanges` runs inside it, so the link intents are
 applied at that moment. A Save that keeps the page open needs `closeActiveJob` split into a persist step
-and a session-end step. Until then the control reads **Save & close**, which is what its tooltip already
-says. The split is named here, not scoped here.
+and a session-end step. **Decided: this project relabels and does not split.** The control reads
+**Save & close**, which is what its tooltip already says. A save that keeps the page open must still
+apply the link intents whole or not at all, which is edit-session work rather than frame work, and it
+is not scoped here.
 
 **Ordering:** independent of every other stage. `EditJobStepContentSelector` switches on `jobStatus`
 alone and no stage panel imports anything from `editJob.jsx`, so this can land before, after or beside
@@ -1218,9 +1199,170 @@ The lock counts and the stage-name lengths are in
 [measurements/parent-jobs-and-stage-locks.md](./measurements/parent-jobs-and-stage-locks.md).
 
 **Done when:** the stepper is a tab bar reading the same navigation helpers; the locked final tab states
-why it is locked for that job; the floating arrows and `useIsScrolledOutOfView`'s use here are gone and
-one labelled control names its destination; the header controls are labelled and weighted, Delete
+why it is locked for that job; the floating arrows are gone and one labelled control names its
+destination; `useIsScrolledOutOfView.js` and `useIsScrolledOutOfView.test.jsx` are deleted, with no
+caller left anywhere; the header controls are labelled and weighted, Save reads Save & close, Delete
 confirms, Close asks when there is unsaved work, and the header states whether there is any.
+
+**As built (decided 2026-10-05).** The header weights follow the design: Item tree and Close outlined,
+Delete outlined in the error colour, Save & close filled when there is something to save, and Continue
+filled at the foot of the stage. The locked final tab's reason counts the parents — "Its output is
+committed to its 3 parent jobs, so it is not sold on its own." Back and Continue sit inside their own
+error boundary, and Close is disabled while it is leaving.
+
+## Stage R — Setups
+
+**SPA.**
+
+Two panels describe one thing. `Setup Panel/jobSetups.jsx` is **Build Setup**, a `ContentPanel` of
+cards in the wide column; `Edit Setup Panel/editJobSetup.jsx` is an untitled `ContentPanel` in the
+narrow column that edits whichever card `layout.setupToEdit` names. A reader picks a card in one column
+and edits it in the other, and the selection is shown only as a mark on the card.
+
+The cards repeat structure, system, rig, tax and character on every tile, and that is the wrong thing to
+repeat. Of the 2,723 jobs in the snapshot with more than one setup, 2,554 — 94% — build every setup at
+the same facility; what differs between two setups is nearly always the run count, which the card gives
+two words on one line among six. The archive holds jobs with 9, 18 and 30 setups, so the list has to
+survive well past the five the live documents reach.
+
+The two become one **Setups** panel on the app-shell surface, in the wide column:
+
+- **The facility is stated once, above the list.** It is derived, not stored: the setups are compared
+  on structure, system, security, both rig slots and tax, and where they agree the line states it once
+  and those fields leave every row. Where they do not, the line states the majority — "Three of four
+  build at" — and the setup that departs says so on its own row, with what it changes. The name is
+  resolved the way `JobSetupInfoFrame.jsx` on the Purchasing stage already does it: the player's
+  `CustomStructure.name` where the setup names one, otherwise the size class from `structureID`, with
+  the system beside it.
+- **Each setup is a row, and the run count leads**, because it is what tells the rows apart: runs ×
+  slots, then the character, ME, TE and the time a slot takes, then the items it contributes and its
+  install cost. A footer totals the items and the install cost.
+- **Install cost per setup is a column.** `calculateInstallCostfromSetup` is on the card today with the
+  per-job figure behind a tooltip. A setup at another structure costing 666,512 less for the same nine
+  runs is the thing a player would act on, and comparing hover states is not comparing.
+- **A row opens in place.** The editor sits under the row it edits rather than in the other column, so
+  the selection needs no mark of its own. *As built, it has one* — see § Left open by the design. Its fields are the ones `editJobSetup.jsx` carries today, grouped as
+  three decisions rather than a flat grid in declaration order: **how much** (runs, job slots, ME, TE),
+  **where** (the saved structure, then size, security, **Rig 1 and Rig 2**, system, facility tax, the
+  militia fields where they apply, and the system-index override), and **who** (the character). Where a
+  saved structure answers the facility, those fields are shown as facts rather than asked —
+  `setupShowsManualStructureFields` is already the condition. The design predates the second rig
+  picker and the militia fields; both are carried, with `useRigSlots` keeping the two-slot and conflict
+  rules it holds today.
+- **Add is a header action.** Today it is an `IconButton` positioned absolutely over the panel's corner,
+  overlapping the title at narrow widths; `AppShellPanel` already takes an `action` opposite the title.
+- **Delete is a quiet row control.** Today it is a kebab item, "Delete Active Setup", which acts on a
+  selection the menu does not show and refuses with a snackbar when one setup is left. It becomes a
+  muted ✕ on the row, and on the last remaining setup it is **not rendered** rather than present and
+  refusing.
+
+**Identical rows are not grouped, deliberately.** The Purchasing and Building designs group identical
+rows, because there a setup is a readout. Here each row is the editable object itself, and a grouped row
+makes it ambiguous what an edit writes to; the grouping key would also have to include the character,
+which is exactly what tells two 714-run setups apart. Sameness is handled by lifting what is shared into
+the facility line instead.
+
+**Mobile.** The row's figures move under the run count, and the ✕ moves into the opened editor rather
+than sitting under a thumb. On a phone the editor opens as a sheet titled by the setup it edits, with
+Delete at the foot, away from the handle.
+
+**Left open by the design**, to settle while building: whether one setup or several can be open at
+once; whether the facility line is pressable to change every setup's facility at once, a bulk edit the
+app has nowhere else; and whether a setup at a structure the rest of the job does not use deserves more
+than its line, given 169 jobs in the snapshot are in that state. **All three settled on 2026-10-05:**
+
+- **One open at a time.** Opening another row folds the first editor away. The open row is the panel's
+  own state, kept apart from the selected setup (`layout.setupToEdit`), which the stage's other panels
+  read; folding an editor away leaves the selection where it was. So the selection does need a mark
+  after all: the selected row carries the shared open-row tint (`ExpandableRow`'s `openRowBackground`),
+  because a setup can be selected while its editor is shut.
+- **The facility line is a statement, not a bulk edit.** Nothing in the app edits every setup at once,
+  and this panel does not add one.
+- **A setup elsewhere gets its own departure line and the missing-structure notice, nothing more.**
+
+**As built, beyond the bullets above.** The design's help text was built. How much notes the blueprint's
+run limit — "200 runs is the most this blueprint takes in one slot.", from `job.maxProductionLimit`.
+Where explains the system index — "Off, the index for Rens is used — 4.12% right now. On, you type the
+figure the game shows you." / "On — 3.50%, as you typed it. Clearing the box goes back to the figure for
+Rens." Who names the time a slot takes. The fields are labelled *Runs*, *Job slots*, *Use my own system
+index* and *Your system index (%)*. The Where fields run structure, size, security, Rig 1, Rig 2,
+system, tax, as above, and a saved structure's facts include its system. The facility line's counts are
+words through `numberWord` — "All three build at", "Two of three build at" — and it repeats the size
+only when a saved structure names the facility. Each row's install cost and the footer total are one
+figure, `setupInstallCost` in `Functions/Installation Costs/installCosts.js`, which
+`sumSetupInstallCostEstimates` totals.
+
+**Wire compatibility:** none. Setups keep every field they have, and `layout.setupToEdit` keeps its
+meaning — the selected setup, the one the stage's other panels read. Which row's editor is expanded is
+the panel's own state and is not stored. No prepareRelease step.
+
+**Done when:** one Setups panel on `AppShellPanel` with `paperSx={{ height: "auto" }}` replaces Build
+Setup and the untitled editor on both layouts, and `Edit Setup Panel/` is deleted; the facility is
+stated once with departures marked on their own rows; install cost is a column; a row opens its editor
+in place with the fields grouped as how much, where and who, both rig pickers and the militia fields
+included; Add is a header action; Delete is a row control absent on the last setup; identical rows are
+not grouped; and `jobSetupCard.test.jsx`, `jobSetups.render.test.jsx`, `editJobMutators.setups.test.jsx`
+and `planningLayouts.test.jsx` cover the new panel rather than the cards and the kebab item.
+*`jobSetupCard.test.jsx` and `jobSetups.render.test.jsx` were deleted with the cards; their coverage
+moved to `Setups/setupsPanel.test.jsx`, beside the panel.*
+
+## Stage S — Blueprint Library
+
+**SPA.**
+
+`Blueprint Options/blueprintPanel.jsx` is a `ContentPanel` titled **Blueprint Library** holding a grid
+of tiles. Every tile is a control drawn as a display: pressing one runs `applySetupChange` with
+`updateMEValue` and `updateTEValue` on the setup being edited, with nothing on the tile saying so but a
+tooltip, no confirmation and no way back. The two states a blueprint can be in — in use, about to run
+out — are a three-pixel stripe in `yellow[800]` and `red[600]`, imported from the palette as literals
+with black text fixed on top, so they are the same two swatches in both themes; a legend at the foot of
+the panel teaches them. The grid scrolls inside a box of `{ xs: "370px", sm: "220px", md: "370px" }`,
+tallest on a phone, where a scroll region inside a scrolling page swallows the flick.
+
+The panel moves to the app-shell surface as **rows rather than tiles**:
+
+- **Each row is a sentence**: ME and TE, then *Original* or *Copy · 6 runs left of 20*, and who holds it.
+  That replaces the tooltip explaining what a parenthesised number means.
+- **Status is a word, and the colour reinforces it.** *Running a job* and *Runs out* take the theme's
+  `warning` and `error` rather than palette literals, so they follow the theme and neither depends on
+  hue alone. **The legend is retired**: with the word on the row there is nothing left to teach.
+- **Use is a named button.** Pressing it applies the blueprint's ME and TE to the open setup and says
+  what changed — *Setup now at ME 10 · TE 20, from the copy with 50 runs left* — with an **Undo**
+  beside it. That is the pattern the buildable chip in Materials & Sourcing already uses for the same
+  shape of action, and the command already names its step, "use a blueprint you own".
+- **The blueprint the setup is already on is marked** — *In this setup*. Nothing records which blueprint
+  supplied the current ME and TE, but matching the setup's pair against the list is enough to mark it;
+  where several match, the first is marked and the row says so. It answers whether one was already
+  applied, which today has no answer.
+- **No fixed-height scroller.** The list shows what fits and folds the rest behind a disclosure that
+  counts them — *Show 2 more* — so it scrolls with the page. The design's "with lower research" was
+  dropped: the list is originals first, so a researched copy can sit below a bare original. The header
+  counts the blueprints no job is running on.
+- **Reactions are titled Formula Library.** `reactionLayout.jsx` already groups by holder and counts
+  stacks, because a formula carries no ME or TE, has no copies and restacks after use. Under a title
+  calling it a blueprint, that correct behaviour reads as a missing feature; the rows stay counts with
+  no Use control, and the title is what makes the absence read as right.
+
+**Mobile.** Three rows and the fold, scrolling with the page, where the grid needed a 370px scroller to
+show the same three.
+
+**Wire compatibility:** none. Use writes the same `updateMEValue` and `updateTEValue` through
+`applySetupChange` to the setup `layout.setupToEdit` names, which keeps its meaning. No stored field is
+added — the mark is derived from the setup's pair. No prepareRelease step.
+
+**Done when:** the panel is rows on `AppShellPanel` on both layouts; status reads as a word in the
+theme's `warning` and `error`, and no `yellow[800]` or `red[600]` literal or legend remains; Use is a
+named button whose confirmation carries an undo; the blueprint matching the setup's ME and TE is marked;
+the list folds behind a counting disclosure rather than scrolling inside a fixed height; reactions are
+titled Formula Library and offer no Use; and `manufacturingLayout.test.jsx` and `reactionLayout.test.jsx`
+cover the rows. *Both were deleted with `Blueprint Options/`; the rows are covered by
+`Blueprint Library/blueprintLibraryPanel.test.jsx`, and the running and running-out rule by
+`Functions/Blueprints/blueprintJobState.test.js`.*
+
+**As built (decided 2026-10-05).** The fold shows seven rows whole and folds from eight — four whole
+and folding from five on a phone — since a fold of a single row is not worth a press. The header counts
+the blueprints free to use, or for a reaction every formula held, and is hidden at nought. Loading and
+errors come from both the blueprint collection and the industry jobs.
 
 ## Owed to the shared-planners release
 
@@ -1238,7 +1380,7 @@ owns the release that already stops traffic to rewrite documents.
 
 | Surface | Change | Compatibility |
 |---------|--------|---------------|
-| Stored document shapes | `JobSale.Plan` (Stage L) | **Additive.** A nested struct of nullable fields; both absent and nulled decode to no override, so no schema bump and no migration. A job that sets neither still carries `plan` with two nulls — the SPA normalises the pair on construction — so the subdocument appears on every job saved after this lands, saying nothing |
+| Stored document shapes | `build.sellerCharacter`, `build.saleLocationID` (Stage L) | **Additive.** Two nullable fields on `JobBuild`, both omitted when nil, so a job that names neither carries neither and no schema bump or migration is needed. Their move from `build.sale.plan` rode job-document-drafts' reshape, which is that project's migration, not this one's |
 | Stored document shapes | `ApplicationSettings.DefaultMarketCharacter` | **Additive.** A nullable field; absent reads as not chosen, which is its default, so no schema bump and no migration — Stage K. Saved citadels remain the custom-structure work's, which owns that lane, its schema bump and its migration — § Handed to the custom-structure work |
 | Stored document shapes | `InventionEntry.ID` (Stage N) | **Additive.** The field turns from an integer to a uuid string. `models.InventionEntry` decodes either shape, so a document written before the change loads unchanged and both kinds sit in one job; the id is compared only for equality on both sides. No schema bump. Rewriting the existing rows rides the shared-planners release — § Owed to the shared-planners release |
 | Base rates and coefficients | Moved into `defaultValues.jsx` | **No wire surface.** SPA constants; a game change ships as a release, not a migration |
@@ -1278,23 +1420,22 @@ not, and the page frame both sit inside: <https://claude.ai/artifact/HtfuYNi9Te5
 | Production Stats, rebuilt as **Output** | **§ Stage P** |
 | **Parent jobs**, as rows inside Output rather than the header block | **§ Stage P** |
 | The **page frame** — the vertical `Stepper` becoming tabs, the four navigation controls and the header icons | **§ Stage Q** |
-| Build Setup and the untitled setup editor, merged into one **Setups** panel whose rows open in place | not scoped — both are still `ContentPanel` |
-| Blueprint Library — rows rather than tiles, the colour legend retired | not scoped — still `ContentPanel` |
+| Build Setup and the untitled setup editor, merged into one **Setups** panel whose rows open in place | **§ Stage R** |
+| Blueprint Library — rows rather than tiles, the colour legend retired | **§ Stage S** |
 
 A third design draws on both: buying minerals as ore, in the reprocessing canvas — see § Handed on:
 minerals bought as ore.
 
 **Where the two disagree about a panel this project already built, this plan and the first proposal
 win**, because that panel shipped. The later proposal only represents those panels; it does not
-re-specify them. For Stages P and Q it is the reference, the same way the first proposal is for
-Stages A–O.
+re-specify them. For Stages P, Q, R and S it is the reference, the same way the first proposal is for
+Stages A–O. It was drawn before the Setup editor gained its second rig picker and its militia fields;
+§ Stage R carries both, and where the design and § Stage R disagree, the plan wins.
 
-**The two rows this project does not own outlive this folder.** A promoted project folder goes, so the
-section task map [`../contents.md`](../contents.md) carries a row of its own for the Setups panel and the
-Blueprint Library, pointing straight at the design rather than at this plan. That row survives the
-delete, which is the whole reason it points where it does. When that work is scheduled it takes a folder
-like any other — the pattern `market-pricing-defaults` and `rig-and-structure-attributes` already follow
-for work found inside one project that belongs to another.
+**Every row of it is this project's.** The Setups panel and the Blueprint Library were first recorded as
+outside this project, with a row of their own in the section task map pointing at the design. They are
+now Stages R and S, so the separate row is gone and this project's row covers them; nothing in the
+design is left without an owner when this folder is deleted.
 
 The **stepper-to-tabs** change appears in the first proposal as well, and the question of whether it had
 to land before the stage work could start was raised while this project was open and left unanswered.
@@ -1459,13 +1600,14 @@ line therefore needs the last non-revoked `ArchivedJobStats` row's cost parts ex
 change to that endpoint and so belongs to the statistics work rather than to a frontend project. Until
 then Cost Breakdown states the comparison once, against the whole build.
 
-**The sourcing memo re-runs on every dispatch, and narrowing its dependencies did not stop it.** Some
-members of the Edit Job `actions` object read `state` directly, so the object cannot be memoised with
-an empty dependency list without capturing stale state, and memoising it against `state` would gain
-nothing. Until the dispatch-only members are separated from the state-reading ones — a change to a hook
-every part of the page uses — a row rebuild happens on unrelated interactions. It costs a re-walk of
-each material's child jobs; the measured cost of that walk is well under a millisecond on the largest
-real job.
+**How often the sourcing memo re-runs needs a profile.** It was recorded as re-running on every
+dispatch, because the Edit Job reducer's `actions` object read `state` and could not be memoised. That
+cause is gone: the reducer was replaced by `Edit Job Hooks/jobDraftStore.js` and `useJobDraft`, and
+`useMaterialsSourcing.js` now reads the draft through selectors. What a read can establish is that its
+memo keys on the whole of `job.build` — deliberately, since the rows are made of nearly all of it — so
+any edit under `build`, a setup's runs or the selling plan included, rebuilds the rows, and an edit
+outside it does not. Whether that is a cost anyone can feel has not been measured; the walk it repeats
+was measured at well under a millisecond on the largest real job.
 
 ## A price that is missing is not a price of nothing
 
@@ -1513,7 +1655,7 @@ nothing can build still shows a dash, which is the distinction the old panel cou
 | Stage | Surface | Status |
 |-------|---------|--------|
 | Phase 1 — project folder and docs | docs | **Done** |
-| A — sale locations and their rates | SPA | **Done.** Storing citadels is handed to the custom-structure work |
+| A — sale locations and their rates | SPA | **Done.** The accessor reads saved citadels from the market source registry; storing them landed with market-locations, not here |
 | B — fee and tax estimation | frontend logic | **Done** |
 | C — Accounting in skill catalogue | data | **Done** |
 | D — pricing order type in panel headers | SPA | **Done** — picker built; Stages E and F mount it |
@@ -1525,43 +1667,42 @@ nothing can build still shows a dash, which is the distinction the old panel cou
 | I — Skills as a model | SPA | **Done.** Three groups, the selling one read from the seller's own skills, Broker Relations kept and marked at a citadel, the signed-out path states requirements, and what-if re-derives the charges without touching the panels |
 | J — mobile layouts | SPA | **Done.** Mobile mounts the same panels as the standard layout; the materials table becomes cards below `sm`, figures shorten with the full value on tap, and the order type picker opens as a bottom sheet. Raw Resources and the totals panel are deleted |
 | K — default market character in settings | SPA + document field | **Done.** `DefaultMarketCharacter` on application settings, the picker on Job Settings, and `sellerCharacter.js` reading it. Nil until chosen, standing in with the account's main and saying so |
-| L — per-job selling override | SPA + job document field | **Done.** `JobSale.Plan` holds the seller and the sale location, both nil on a job that uses the account's defaults; the pickers are on the Returns rate block |
+| L — per-job selling override | SPA + job document field | **Done.** `build.sellerCharacter` and `build.saleLocationID` on `JobBuild` hold the seller and the sale location, both omitted on a job that uses the account's defaults; the pickers are on the Returns rate block |
 | M — what a child job actually covers | SPA | **Done.** The requirement is allocated across the contributing jobs rather than charged to each; a shortfall is bought, extrapolated or resized away depending on what is going to happen to the job, and the drawer and Cost Breakdown both say which |
 | N — the sale location list and its standings | SPA | **Done.** Citadels and NPC stations are separated, the account default is the marked item rather than a second entry, and a station's faction standing resolves through the race-to-faction map instead of matching a race id against the standing list |
-| P — Output, and the parent jobs inside it | SPA | **Designed, not started.** Production Stats becomes Output, reads `useJobCommitment` rather than deriving the commitment a fourth time, and takes the parent jobs out of the header as rows |
-| Q — the page frame and its controls | SPA | **Designed, not started.** The vertical `Stepper` becomes tabs, the four navigation controls become one labelled pair, and the header controls are labelled, weighted and asked about |
+| P — Output, and the parent jobs inside it | SPA | **Done.** Output reads `useJobCommitment`, which now carries the group shortfall and a row per parent; a job with parents states its requirement in or out of a group; the parents are rows folding past six; the picker states each candidate's need; the header keeps one summary line |
+| Q — the page frame and its controls | SPA | **Done.** Tabs over the same navigation rules, the shut final tab saying why, one labelled pair, labelled header controls with Delete confirming and Close asking, and the unsaved state shown; `useIsScrolledOutOfView` deleted |
+| R — Setups | SPA | **Done.** One Setups panel: the shared facility stated once and departures naming what they change, rows led by runs with install cost beside them, the editor opening under its row (a sheet on a phone) grouped as how much, where and who, Add in the header and Delete on the row, absent on the last |
+| S — Blueprint Library | SPA | **Done.** Rows with their status in words from the theme and no legend, a named Use with an Undo, the blueprint the setup is on marked, a counting fold instead of a fixed-height scroller, and Formula Library for reactions |
 
 ## Start here
 
-**Stages A–O are done; P and Q are designed and not started.** The three panels this project first
-owned run on both layouts, the old market and Raw Resources panels are deleted, and the selling charges
-are counted. [`overlay.md`](./overlay.md) carries how each landed part works now, in the shape it takes
-when it is folded into live SoT under [`../../frontend/`](../../frontend/contents.md).
+**Every stage, A–S, is done.** The three panels this project first owned run on both layouts, the old market and Raw Resources panels are deleted, the selling charges are
+counted, Output has replaced Production Stats with the parent jobs inside it, the page frame is tabs
+with labelled controls, and Setups and the Blueprint Library are on the app-shell surface — so no panel
+on the stage is left on the old `ContentPanel` shell. [`overlay.md`](./overlay.md) carries how each landed part works now, in the shape it
+takes when it is folded into live SoT under [`../../frontend/`](../../frontend/contents.md).
+[`review.md`](./review.md) records what the code bore out on 2026-10-05 and the decisions taken on it.
 
-**Promotion waits on P and Q.** The project was promotion-ready and has since taken on two more stages —
-**Output**, which is the panel that must read the seam Stage M built rather than deriving the commitment
-a fourth time, and **the page frame**, which is what every panel here renders inside. Promoting the
-landed stages while those two are open would write a live description of a stage that is about to change
-again.
-
-Two panels on the stage are still outside this project and still on the old `ContentPanel` shell —
-**Build Setup with its untitled setup editor**, and **Blueprint Library**. A design for them exists and
-the section task map [`../contents.md`](../contents.md) carries a row pointing straight at it. They are
-not scoped here and nothing in this project waits on them.
+**The project is ready to promote, once, with James's go-ahead.** Everything is checked against the code
+and the tests; nothing has yet been looked at in a browser, so the open-row tint, the gap between the
+stage's two columns and the header line's wrapping want a look before the go-ahead. The whole stage and its frame fold
+into live SoT together in one pass: [`promote/README.md`](./promote/README.md) lists every draft, the
+live docs it replaces or deletes, and the rules and components sections it adds.
 
 Three things deliberately did not land here, and a reader picking this up should not go looking for
 them:
 
-- **Storing saved citadels** went to the custom-structure work — the lane, its schema bump, its
-  migration and its editing surface. This project stores nothing and reads sale locations through
-  `Functions/MarketOrders/saleLocations.js`, which returns placeholders until that work lands. See
-  § Handed to the custom-structure work for what was worked out and passed on, including the collection
-  backup that work needs before its upgrader writes anything.
+- **Storing saved citadels** went to the custom-structure work, and landed there: market-locations and
+  market-price-delivery built the saved-market lane and its editor, and both have promoted — live
+  [frontend/settings/market-locations.md](../../frontend/settings/market-locations.md). This project
+  stores nothing and reads sale locations through `Functions/MarketOrders/saleLocations.js`, which reads
+  that registry. § Handed to the custom-structure work keeps the proposal as it was handed over.
 - **The per-component "vs last build" comparison** needs a statistics endpoint change and belongs to
   that work. See § Known limits.
-- **The account's market defaults** stayed as they are. Splitting the one default into separate
+- **The account's market defaults** were not changed here. Splitting the one default into separate
   buying and selling defaults, and keying defaults to market groups, came out of this project's hub
-  picker but are their own work — see
+  picker and were their own work, since promoted — see
   [market-pricing-defaults/plan.md](../market-pricing-defaults/plan.md).
 
 **Minerals bought as ore** is designed on this stage and belongs to no project yet; it is recorded
@@ -1578,7 +1719,7 @@ drawn on this stage's built panels inside the frame Stages P and Q plan, in the 
 (<https://claude.ai/artifact/5HovmoD6arBetuQ18GFuiE>, "Reprocessing elsewhere in the app"). It needs
 that project's engine and solver first, so it is built after this project promotes. The section task
 map [`../contents.md`](../contents.md) carries a row for it pointing at that plan, which survives this
-folder being deleted — the same arrangement as the Setups and Blueprint Library row.
+folder being deleted.
 
 What it adds to the panels this project built, so whoever builds it knows which seams it uses:
 
@@ -1606,22 +1747,6 @@ itself — Returns reads the job's recorded extras, and the estimate is never st
 builds this adds it to the cost Returns is handed, from the same figure Cost Breakdown shows. Once the
 reader records the hauling, the recorded extra replaces the estimate in both. The archive reads recorded
 costs only, so an estimate never reaches it.
-
-## Inherited: the Edit Setup panel's second rig slot
-
-**The Edit Setup panel offers one rig picker where a structure carries two slots.**
-`editJobSetup.jsx` renders a single `RigTypeSelect` bound to `rigSlot1`, so `rigSlot2` cannot be set or
-cleared by hand on this stage — while `rigSlotBonuses` counts it and the setup card prints it, so a
-reader who takes a two-rig custom structure and then edits by hand carries a rig they cannot see that
-is still moving their material and time.
-
-The pieces to close it exist: `Hooks/useRigSlots.js` holds the two-slot rule and the conflict rule, and
-`Setup.updateRigSlot(slot, rig)` writes either slot, with slot 1 keeping the requirement handling
-`updateRigID` has always done. The watchlist editor was closed this way, and what a second rig's
-requirement should do to a setup that already applied the first one's is still unanswered. Left to this
-stage because it redesigns the panel that would carry the second picker. What a structure's two slots
-are and how they combine is live in
-[frontend/settings/custom-structures.md](../../frontend/settings/custom-structures.md).
 
 ## Open questions
 

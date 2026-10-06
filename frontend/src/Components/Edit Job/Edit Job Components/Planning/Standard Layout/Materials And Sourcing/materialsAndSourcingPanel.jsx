@@ -15,6 +15,7 @@ import writeTextToClipboard from "../../../../../../Functions/Clipboard/writeTex
 import {
   formatIsk,
   formatNumberForLocale,
+  formatQuantity,
 } from "../../../../../../Functions/Helper/numberParser";
 import MaterialDrawer from "./materialDrawer";
 import PlanChip from "./planChip";
@@ -290,9 +291,6 @@ export default function MaterialsAndSourcingPanel() {
     </AppShellPanel>
   );
 }
-
-/** A count of items, which is never fractional. */
-const formatQuantity = (value) => formatNumberForLocale(value, { max: 0 });
 
 /** Volume, as Raw Resources stated it. */
 const formatVolume = (value) =>

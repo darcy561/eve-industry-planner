@@ -58,7 +58,7 @@ history chart, the parent job dialogue, the header lock's viewer flash, the job 
 | `Components/Groups/Scheduler/CharacterSelection.jsx:45` | Keyed on whether there are characters at all, which is what separates "not seeded" from "the reader chose none" |
 | `Components/Groups/Group Name/groupNameFrame.jsx:28` | No state: `allowEditGroupName && canEdit` where it is read, plus `useHasChanged(canEdit)` to shut the editor for good on losing the lock |
 | `Components/Groups/Group Name/groupNameFrame.jsx:34` | No state to synchronise: the field is seeded when the editor opens |
-| `Components/Edit Job/editJob.jsx:117` | `useIsScrolledOutOfView`, which owns the observer and the answer; whether to show the floating button is derived where it is read |
+| `Components/Edit Job/editJob.jsx:117` | `useIsScrolledOutOfView`, which owns the observer and the answer; whether to show the floating button is derived where it is read. Both floating buttons and the hook were later deleted by planning-stage-panels Stage Q |
 | `Components/Edit Job/editJob.jsx:138` | As above, with a second copy of the hook for the other button |
 | `Components/Tutorials/tutorialTemplate.jsx:43` | `Fade` with `unmountOnExit` and `onExited`, so the transition owns both the mounting and the moment the fade ends — no mount flag, and no second copy of the one-second duration |
 | `Components/Dashboard/Dashboard.jsx:27` | `useHasChanged` on whether help is wanted, so the row is taken back when that changes rather than whenever the card lets go of it |

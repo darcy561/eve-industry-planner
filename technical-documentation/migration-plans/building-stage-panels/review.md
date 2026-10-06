@@ -386,8 +386,8 @@ its zone in a line for the screenshot case.
 - [purchasing-stage-panels](../purchasing-stage-panels/plan.md) § Stage I for the Job costs panel and
   the setup table (Stage C's cost move; half of Stage B).
 - [job-document-drafts](../job-document-drafts/plan.md) for the retirement of `layout`.
-- Nothing else. [planning-stage-panels](../planning-stage-panels/plan.md) § Stage Q replaces the
-  vertical `Stepper` in `editJob.jsx`, which is still in place, and no Building file imports from it.
+- Nothing else. [planning-stage-panels](../planning-stage-panels/plan.md) § Stage Q has since replaced
+  the vertical `Stepper` in `editJob.jsx` with tabs, and no Building file imports from it.
 
 **Waited on by.** Nothing is blocked on this project. The system for managing linked ESI jobs across the
 archive (§ Handed on) inherits its facts but is designed separately, and `archiveJobButton.jsx` still

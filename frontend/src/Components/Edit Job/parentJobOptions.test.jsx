@@ -44,7 +44,7 @@ function job(jobID, name, { builtFrom = [], groupID = null } = {}) {
     build: {
       setup: { one: { id: "one", runCount: 1, jobCount: 1 } },
       materials: Object.fromEntries(
-        builtFrom.map((typeID) => [String(typeID), { typeID }]),
+        builtFrom.map((typeID) => [String(typeID), { typeID, quantity: 2500 }]),
       ),
     },
   };
@@ -88,9 +88,8 @@ function offered(name) {
   return screen.queryByText(name);
 }
 
-/** The link control carries an icon and no name of its own. */
 function linkButton() {
-  return screen.getByTestId("AddIcon").closest("button");
+  return screen.getByRole("button", { name: "Link" });
 }
 
 beforeEach(() => {
@@ -110,6 +109,17 @@ describe("choosing a parent job to link the job being edited to", () => {
     expect(offered("Rifter Build")).toBeInTheDocument();
   });
 
+  it("states how many of this job's item each candidate needs", () => {
+    planner(job("job-a", "Rifter Build", { builtFrom: [TRITANIUM] }));
+    editing();
+
+    show();
+
+    expect(
+      screen.getByText(/1 setup · needs 2,500 of this/),
+    ).toBeInTheDocument();
+  });
+
   it("leaves out a job that does not use what this one makes", () => {
     planner(job("job-a", "Rifter Build", { builtFrom: [35] }));
     editing();
@@ -117,7 +127,9 @@ describe("choosing a parent job to link the job being edited to", () => {
     show();
 
     expect(offered("Rifter Build")).toBeNull();
-    expect(screen.getByText("No Jobs Available")).toBeInTheDocument();
+    expect(
+      screen.getByText("No other job needs this item."),
+    ).toBeInTheDocument();
   });
 
   it("leaves out a job this one is already linked to", () => {

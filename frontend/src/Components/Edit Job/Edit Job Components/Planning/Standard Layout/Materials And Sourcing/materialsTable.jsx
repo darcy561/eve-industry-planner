@@ -2,12 +2,10 @@ import { Fragment } from "react";
 
 import BlockIcon from "@mui/icons-material/Block";
 import DoneIcon from "@mui/icons-material/Done";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import LensIcon from "@mui/icons-material/Lens";
 import {
   Box,
   Skeleton,
-  IconButton,
   Stack,
   TableBody,
   TableCell,
@@ -41,6 +39,7 @@ import {
   hasSavingAvailable,
 } from "../../../../../../Functions/Job/figures/materialSourcingRow.js";
 import ShortfallChip from "./shortfallChip";
+import { ExpandToggle } from "../../../../../../Styled Components/IconButton/ExpandToggle";
 import EveImageAvatar from "../../../../../../Styled Components/Avatar/EveImageAvatar";
 
 /**
@@ -183,12 +182,14 @@ function MaterialRow({
             </Typography>
           </ItemMarketActions>
           <Box sx={{ flex: 1 }} />
-          <ExpandAffordance
-            expandable={expandable}
-            isOpen={isOpen}
-            name={row.name}
-            onToggle={() => onToggleRow?.(row.typeID)}
-          />
+          {expandable ? (
+            <ExpandToggle
+              isOpen={isOpen}
+              onToggle={() => onToggleRow?.(row.typeID)}
+              showLabel={`Show what building ${row.name} would take`}
+              hideLabel={`Hide what building ${row.name} would take`}
+            />
+          ) : null}
         </Box>
       </TableCell>
       <TableCell align="right" sx={NOWRAP_CELL_SX}>
@@ -387,57 +388,7 @@ function accentStripe(building, saving) {
   return {};
 }
 
-export {
-  MaterialRow,
-  MaterialMark,
-  PlanCell,
-  SourceCell,
-  ExpandAffordance,
-  cheaperTone,
-  accentStripe,
-};
-
-/**
- * Says that a row opens, and opens it.
- *
- * The row is clickable as a whole, but a pointer cursor and a hover tint are
- * only discoverable to a reader who has already tried it, and neither reaches a
- * keyboard at all. A chevron states it, and being a button makes the drawer
- * reachable by tab.
- *
- * @param {object} props
- * @param {boolean} props.expandable
- * @param {boolean} props.isOpen
- * @param {string} props.name - Named so one chevron in a list of them is
- *   distinguishable when announced
- * @param {() => void} props.onToggle
- */
-function ExpandAffordance({ expandable, isOpen, name, onToggle }) {
-  if (!expandable) return null;
-
-  return (
-    <IconButton
-      size="small"
-      aria-label={`${isOpen ? "Hide" : "Show"} what building ${name} would take`}
-      aria-expanded={isOpen}
-      onClick={(event) => {
-        event.stopPropagation();
-        onToggle();
-      }}
-      sx={{
-        p: 0.25,
-        color: "text.secondary",
-        transform: isOpen ? "rotate(180deg)" : "none",
-        transition: (theme) =>
-          theme.transitions.create("transform", {
-            duration: theme.transitions.duration.shortest,
-          }),
-      }}
-    >
-      <ExpandMoreIcon fontSize="small" />
-    </IconButton>
-  );
-}
+export { MaterialMark, PlanCell, SourceCell, cheaperTone, accentStripe };
 
 /**
  * Where the row's buy price came from: the hub, and which of the four figures

@@ -41,3 +41,37 @@ export function buildGroupSearchAfterEditClose(editJobSearch, closedJobId) {
   }
   return out;
 }
+
+/**
+ * The search an edit-job route carries to the next job it opens: the group it came from and the
+ * group page's view.
+ *
+ * @param {{ activeGroup?: unknown, pageView?: unknown }} [editJobSearch]
+ * @returns {{ activeGroup?: string, pageView?: string }}
+ */
+export function editJobSearchToCarry(editJobSearch) {
+  const carried = {};
+  for (const key of ["activeGroup", "pageView"]) {
+    const value = editJobSearch?.[key];
+    if (value != null && String(value) !== "") carried[key] = value;
+  }
+  return carried;
+}
+
+/**
+ * Where leaving the editor goes: back to the group the job was opened from, on the view it was on,
+ * or to the planner.
+ *
+ * @param {{ activeGroup?: unknown, pageView?: unknown }} [editJobSearch]
+ * @param {string|null|undefined} [leftJobID]
+ * @returns {{ to: string, params?: { groupID: string }, search?: object }}
+ */
+export function routeBackFromEditJob(editJobSearch, leftJobID) {
+  const groupID = editJobSearch?.activeGroup;
+  if (!groupID) return { to: "/jobplanner" };
+  return {
+    to: "/group/$groupID",
+    params: { groupID },
+    search: buildGroupSearchAfterEditClose(editJobSearch, leftJobID),
+  };
+}

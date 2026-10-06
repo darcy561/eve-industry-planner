@@ -4,8 +4,7 @@ import findSystemIndexForJob from "../../Functions/Helper/findSystemIndexValue";
 import { useHasChanged } from "../../Hooks/useHasChanged";
 
 /**
- * The index as a percentage, without the noise a hundredth of a decimal leaves
- * behind when a stored share is multiplied back up.
+ * The index as a percentage.
  *
  * @param {number} share
  * @returns {number}
@@ -60,7 +59,7 @@ export default function SystemIndexTextField({
       value={inputValue}
       size="small"
       variant="standard"
-      helperText={valueError || "System Index Value (0-100)"}
+      helperText={valueError || "Your system index (%)"}
       error={!!valueError}
       type="number"
       sx={{

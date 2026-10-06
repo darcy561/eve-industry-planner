@@ -458,17 +458,19 @@ export const attachNewSetupToJob = (setup) =>
   });
 
 /**
- * Removes the setup being edited, and opens another.
+ * Removes one setup, opening another when it was the one open; the last setup cannot be removed.
  *
- * A job always builds from something, so the last setup cannot be removed.
+ * @param {string} setupID
  */
-export const deleteActiveSetup = () =>
+export const deleteSetup = (setupID) =>
   command("remove setup", (job) => {
     const ids = Object.keys(job.build.setup);
-    if (ids.length <= 1) return;
+    if (ids.length <= 1 || !ids.includes(setupID)) return;
 
-    delete job.build.setup[job.layout.setupToEdit];
-    job.layout.setupToEdit = Object.keys(job.build.setup).at(-1);
+    delete job.build.setup[setupID];
+    if (job.layout.setupToEdit === setupID) {
+      job.layout.setupToEdit = Object.keys(job.build.setup).at(-1);
+    }
   });
 
 /**

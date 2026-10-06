@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Divider,
-  Drawer,
   Menu,
   MenuItem,
   Typography,
@@ -12,6 +11,7 @@ import {
 import { formatTimeDuration } from "../../Functions/Helper/numberParser";
 import { useMediaQuery, useTheme } from "@mui/material";
 import ExplainerTooltip from "../Tooltip/ExplainerTooltip";
+import BottomSheet from "../Dialogue/BottomSheet";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 /**
@@ -251,27 +251,12 @@ function Options({ asSheet, anchor, onClose, children }) {
   }
 
   return (
-    <Drawer
-      anchor="bottom"
+    <BottomSheet
       open={Boolean(anchor)}
       onClose={onClose}
-      slotProps={{
-        paper: { sx: { borderTopLeftRadius: 12, borderTopRightRadius: 12 } },
-      }}
+      contentProps={{ role: "listbox" }}
     >
-      <Box
-        sx={{
-          width: 34,
-          height: 4,
-          borderRadius: 2,
-          bgcolor: "divider",
-          mx: "auto",
-          mt: 1,
-        }}
-      />
-      <Box role="listbox" sx={{ pb: 2 }}>
-        {children}
-      </Box>
-    </Drawer>
+      {children}
+    </BottomSheet>
   );
 }

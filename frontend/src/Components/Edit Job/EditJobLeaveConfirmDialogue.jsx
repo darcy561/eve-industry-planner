@@ -3,14 +3,8 @@ import ContentDialogue from "../../Styled Components/Dialogue/ContentDialogue";
 import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
 
 /**
- * Confirmation dialogue shared between two flows:
- *
- *     changes. Save/discard advance to the next route; cancel stays.
- *     hold the lock. Save/discard hand over; cancel keeps the lock and is
- *     treated as a denial of the request.
- *
- * Mode-specific copy is selected here so the dialogue reads naturally; action
- * semantics live in the caller (`useEditJobLeaveConfirm`).
+ * Asks the reader to save or discard their changes before the job is closed, another job is opened,
+ * or its lock is handed to a session that asked for it.
  *
  * @param {object} props
  * @param {boolean} props.open
@@ -20,7 +14,7 @@ import { lockReasonText } from "../DocumentLock/LockGatedTooltip";
  * @param {boolean} props.leaveSaving
  * @param {string} props.currentJobName
  * @param {string|null} props.nextJobName
- * @param {"navigation" | "release_request"} [props.mode]
+ * @param {"navigation" | "close" | "release_request"} [props.mode]
  * @param {boolean} [props.saveDisabled] - Hides the Save affordance when the
  *   active job is read-only (another session holds the lock). Discard / cancel
  *   stay available so the user can still leave or drop their local edits.
@@ -55,6 +49,11 @@ export default function EditJobLeaveConfirmDialogue({
             <strong>{currentJobName}</strong> is being edited in another session
             — saving is disabled. Discard your local edits to leave, or cancel
             to stay on this job in read-only view.
+          </>
+        ) : mode === "close" ? (
+          <>
+            Save changes to <strong>{currentJobName}</strong> before closing it,
+            or discard them and leave the job as it was.
           </>
         ) : (
           <>

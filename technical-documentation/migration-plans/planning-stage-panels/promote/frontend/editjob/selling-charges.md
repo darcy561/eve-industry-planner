@@ -6,25 +6,29 @@ and the Selling stage, so both read one formula rather than growing a second cop
 
 ## Sale locations
 
-`saleLocations.js` normalises a preset hub and a saved citadel into one `SaleLocation`, so a caller
-pricing a sale never branches on which kind it is — it reads `brokerFee` and prices against
-`priceHubID`.
+`saleLocations.js` normalises an NPC station and a saved citadel into one `SaleLocation`, so a caller
+pricing a sale never branches on which kind it is — it reads `brokerFee`, and a sale is priced at the
+place it happens.
 
 | Field | Holds |
 |-------|-------|
-| `kind` | `SALE_LOCATION_KIND.HUB` or `.STRUCTURE` |
-| `feeStationID` | The NPC station whose owner's standings set the broker fee; `null` at a structure, whose owner sets a rate directly |
-| `priceHubID` / `priceHubName` | The `MARKET_OPTIONS` hub the figures are priced against — a structure has no market of its own, so it still prices against a named hub |
-| `brokerFee` | The owner's rate at a structure; `null` at a hub, where the rate is derived from the seller |
+| `kind` | `SALE_LOCATION_KIND.NPC_STATION` (`"npcStation"`) or `.CITADEL` (`"citadel"`) |
+| `id` / `name` | The market source id or the saved citadel's id, and its display name |
+| `feeStationID` | The NPC station whose owner's standings set the broker fee; `null` at a citadel, whose owner sets a rate directly |
+| `brokerFee` | The owner's rate at a citadel; `null` at an NPC station, where the rate is derived from the seller |
 
-`resolveSaleLocation(saleLocationID, hubID)` takes a saved citadel's id or an NPC station's id ahead
-of the hub argument, and only falls back to the hub when neither resolves — a named station is
-honoured as the choice it is, rather than falling through to whichever hub the materials are priced
-against.
+A citadel is priced on its own orders, so the shape names no other market for its prices.
 
-`getSaleStructures()` and `getDefaultSaleStructure()` are the only way anything reads which citadels
-a player can sell from. They currently return two fixed placeholder rows — nothing is stored yet —
-so every consumer already reads through the accessor a stored list will fill later without changing.
+`resolveSaleLocation(saleLocationID, marketID)` takes a saved citadel's id or a market source id ahead
+of the market argument, and only falls back to that market — then to the trading hub — when the named
+id does not resolve: a named station is honoured as the choice it is, rather than falling through to
+whichever market the materials are priced against.
+
+`getSaleCitadels()` and `getDefaultSaleStructure()` are the only way anything reads which citadels a
+player can sell from and which market a job sells from when it names none. The citadels are the saved
+ones in the market source registry (`savedCitadels(allMarketSources())`, see
+[../settings/market-locations.md](../settings/market-locations.md)); the default is the account's
+selling default, or the trading hub where that names a market no longer saved.
 
 ## Broker fee and sales tax
 
@@ -39,7 +43,10 @@ an **amount**, for each charge:
 
 Sales tax has no location term: it is a character figure, charged the same way wherever the sale
 happens. Accounting reduces it multiplicatively (`base × (1 − 0.11 × level)`); the broker fee's
-coefficients subtract from the base instead — the two read alike and are not interchangeable.
+coefficients subtract from the base instead — the two read alike and are not interchangeable. The
+broker fee's coefficients in `brokerFeeRates` are set so that maximum Broker Relations and standings
+come to exactly the 1% NPC floor, which is why the derived rate needs no clamp of its own; negative
+standings raise it above base, which is correct.
 
 `brokerFeeWorking` and `salesTaxWorking` name every term applied — `BROKER_FEE_TERMS` is
 `brokerRelations`, `faction`, `corporation` — so the figure can be checked term by term rather than
@@ -86,8 +93,9 @@ resolved `SaleLocation`, and the hub the layout prices against. Returns, Skills 
 resolving the pair themselves, because a seller and a location resolved three times over three panels
 can drift apart from each other.
 
-A job's own choice is held on `JobSale.Plan` (`SellerCharacter`, `SaleLocationID` — both nullable),
-edited from the Returns rate block ([returns.md](./returns.md)). Clearing either returns the job to
+A job's own choice is held on the job's build as `build.sellerCharacter` and `build.saleLocationID`
+(`JobBuild` in `services/shared/models/job.go`, both nullable and omitted when nil), set through
+`setSellingPlan` and edited from the Returns rate block ([returns.md](./returns.md)). Clearing either returns the job to
 the account defaults. Both are **planning inputs only**: once the job reaches the Selling stage, the
 authority is the real ESI market order, which carries its own character and figures, and nothing
 downstream reads the plan once an order is linked. On a shared planner, each member resolves the

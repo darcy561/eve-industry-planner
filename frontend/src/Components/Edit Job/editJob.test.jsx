@@ -1,13 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import {
-  recordIntersectionObservers,
-  observerWatching,
-} from "../../tests/intersectionObservers.js";
 
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ jobID: "job-1" }),
+  useSearch: () => ({}),
 }));
 vi.mock("../../Zustand/usersStore", async () => {
   const { usersStoreOverSession } =
@@ -19,7 +16,7 @@ vi.mock("../../Hooks/useJobStatuses", () => ({
     jobStatuses: [
       { id: 0, name: "Planning" },
       { id: 1, name: "Building" },
-      { id: 2, name: "Selling" },
+      { id: 2, name: "Ready For Market" },
     ],
   }),
 }));
@@ -46,10 +43,10 @@ vi.mock("./Edit Job Hooks/useEditJobLeaveConfirm", () => ({
 }));
 
 const nothing = () => null;
-vi.mock("./closeIcon", () => ({ CloseJobIcon: nothing }));
-vi.mock("./saveIcon", () => ({ SaveJobIcon: nothing }));
-vi.mock("./deleteIcon", () => ({ DeleteJobIcon: nothing }));
-vi.mock("./Linked Job Badge", () => ({ LinkedJobBadge: nothing }));
+vi.mock("./closeJobButton", () => ({ CloseJobButton: nothing }));
+vi.mock("./saveJobButton", () => ({ SaveJobButton: nothing }));
+vi.mock("./deleteJobButton", () => ({ DeleteJobButton: nothing }));
+vi.mock("./jobPurposeLine", () => ({ default: nothing }));
 vi.mock("./StepErrorBoundary", () => ({ default: ({ children }) => children }));
 vi.mock("./EditJobStepContentSelector", () => ({ default: nothing }));
 vi.mock("./EditJobLeaveConfirmDialogue", () => ({ default: nothing }));
@@ -68,10 +65,8 @@ const { jobDraftNow } = await import("./Edit Job Hooks/useJobDraft");
 
 const theme = createTheme();
 const session = () => useUsersStore.getState().editSession;
-let observers = [];
 
-/** Opens a job sitting on one of the three steps. */
-function onStep(jobStatus) {
+function open(jobStatus, rest = {}) {
   session().actions.closeSession();
   session().actions.openJob("job-1", {
     jobID: "job-1",
@@ -82,10 +77,8 @@ function onStep(jobStatus) {
     layout: { setupToEdit: null },
     build: { materials: {}, childJobs: {}, setup: {} },
     esi: { industryJobs: {}, marketOrders: {}, transactions: {} },
+    ...rest,
   });
-}
-
-function show() {
   return render(
     <ThemeProvider theme={theme}>
       <EditJob />
@@ -93,118 +86,104 @@ function show() {
   );
 }
 
-function again() {
-  return (
-    <ThemeProvider theme={theme}>
-      <EditJob />
-    </ThemeProvider>
-  );
-}
-
-/** The step's own buttons sit inside the stepper; the floating stand-ins do not. */
-function inlineButton(name) {
-  return screen
-    .getAllByLabelText(name)
-    .find((element) => element.closest(".MuiStepper-root"));
-}
-
-function floatingButton(name) {
-  const standIn = screen
-    .queryAllByLabelText(name)
-    .find((element) => !element.closest(".MuiStepper-root"));
-  return standIn?.querySelector("button") ?? standIn ?? null;
-}
-
-function anchorOf(name) {
-  return inlineButton(name).closest(".MuiGrid-root");
-}
-
-function scrollOutOfView(name) {
-  observerWatching(observers, anchorOf(name)).report(false);
-}
-
-function scrollIntoView(name) {
-  observerWatching(observers, anchorOf(name)).report(true);
-}
+const tab = (name) => screen.getByRole("tab", { name: new RegExp(name) });
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  observers = recordIntersectionObservers();
-  onStep(1);
+  session().actions.closeSession();
 });
 
-describe("the edit job page's floating step buttons", () => {
-  it("shows neither while the step's own buttons are on screen", () => {
-    show();
+describe("the stages, as tabs", () => {
+  it("labels each tab with the stage's own name and marks the one open", () => {
+    open(1);
 
-    expect(floatingButton(/move to previous step/i)).toBeNull();
-    expect(floatingButton(/move to next step/i)).toBeNull();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Planning",
+      "Building",
+      "Ready For Market",
+    ]);
+    expect(tab("Building")).toHaveAttribute("aria-selected", "true");
   });
 
-  it("floats a previous-step button once the step's own scrolls away", () => {
-    show();
+  it("moves the job to the stage a tab names", () => {
+    open(0);
 
-    scrollOutOfView(/move to previous step/i);
+    fireEvent.click(tab("Ready For Market"));
 
-    expect(floatingButton(/move to previous step/i)).toBeInTheDocument();
-  });
-
-  it("floats a next-step button once the step's own scrolls away", () => {
-    show();
-
-    scrollOutOfView(/move to next step/i);
-
-    expect(floatingButton(/move to next step/i)).toBeInTheDocument();
-  });
-
-  it("takes the floating button away when the step's own comes back", () => {
-    show();
-    scrollOutOfView(/move to next step/i);
-
-    scrollIntoView(/move to next step/i);
-
-    expect(floatingButton(/move to next step/i)).toBeNull();
-  });
-
-  it("moves the job on when the floating button is used", () => {
-    show();
-    scrollOutOfView(/move to next step/i);
-
-    fireEvent.click(floatingButton(/move to next step/i));
-
-    // The step moved on the draft, and the job as the server last stated it is
-    // left where it was until the reader saves.
     expect(jobDraftNow().jobStatus).toBe(2);
   });
 
-  it("offers no way back from the first step", () => {
-    onStep(0);
-    show();
+  it("will not open a shut final stage, and says why for a job with parents", async () => {
+    open(1, { includedInGroup: true, parentJobs: ["parent-1"] });
 
-    expect(screen.queryAllByLabelText(/move to previous step/i)).toHaveLength(
-      0,
+    fireEvent.click(tab("Ready For Market"));
+    expect(jobDraftNow().jobStatus).toBe(1);
+
+    fireEvent.mouseOver(screen.getByText("Ready For Market"));
+    expect(
+      await screen.findByText(/committed to its 1 parent job,/),
+    ).toBeInTheDocument();
+  });
+
+  it("gives the shut tab its reason as a description a screen reader announces", () => {
+    open(1, { includedInGroup: true, parentJobs: ["parent-1"] });
+
+    expect(tab("Ready For Market")).toHaveAccessibleDescription(
+      /committed to its 1 parent job,/,
     );
   });
 
-  it("offers no way on from the last step", () => {
-    onStep(2);
-    show();
+  it("draws no lock on the final stage when it is the one open", () => {
+    open(2, { includedInGroup: true });
 
-    expect(screen.queryAllByLabelText(/move to next step/i)).toHaveLength(0);
+    expect(screen.queryByTitle("Locked")).toBeNull();
   });
 
-  // Both floating buttons hang on their step button still being a thing to
-  // scroll to: a job that moves to the first step has nothing to go back to,
-  // so the floating way back must go with it.
-  it("drops the floating way back when the job moves to the first step", () => {
-    const { rerender } = show();
-    scrollOutOfView(/move to previous step/i);
+  it("names the stage that opens the final one for a grouped job without parents", async () => {
+    open(0, { includedInGroup: true });
 
-    onStep(0);
-    rerender(again());
+    fireEvent.mouseOver(screen.getByText("Ready For Market"));
+    expect(
+      await screen.findByText(/marked ready for sale on Building/),
+    ).toBeInTheDocument();
+  });
+});
 
-    expect(screen.queryAllByLabelText(/move to previous step/i)).toHaveLength(
-      0,
+describe("moving on and back", () => {
+  it("names where each control goes", () => {
+    open(1);
+
+    expect(
+      screen.getByRole("button", { name: "Back to Planning" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Continue to Ready For Market" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no way back from the first stage and no way on from the last", () => {
+    const { unmount } = open(0);
+    expect(screen.queryByRole("button", { name: /^Back to/ })).toBeNull();
+    unmount();
+
+    open(2);
+    expect(screen.queryByRole("button", { name: /^Continue to/ })).toBeNull();
+  });
+
+  it("moves the job on", () => {
+    open(0);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue to Building" }),
     );
+
+    expect(jobDraftNow().jobStatus).toBe(1);
+  });
+
+  it("will not continue into a shut final stage", () => {
+    open(1, { includedInGroup: true });
+
+    expect(
+      screen.getByRole("button", { name: "Continue to Ready For Market" }),
+    ).toBeDisabled();
   });
 });

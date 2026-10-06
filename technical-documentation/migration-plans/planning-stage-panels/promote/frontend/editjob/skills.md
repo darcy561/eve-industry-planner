@@ -19,7 +19,8 @@ character, since they move the fee the same way.
 
 Level pips replace a bare fraction, so a shortfall is visible as a shape before it is read as
 arithmetic; a group header states how much of the requirement is met, and an impact row says what a
-shortfall actually blocks.
+shortfall actually blocks. The pips and the row are the shared `Styled Components/Skills/SkillLevelPips.jsx`
+and `SkillLevelRow.jsx`.
 
 ## What-if
 

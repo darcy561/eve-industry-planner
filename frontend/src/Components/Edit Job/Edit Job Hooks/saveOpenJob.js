@@ -1,6 +1,6 @@
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { buildGroupSearchAfterEditClose } from "../../../Functions/Groups/groupPageViewSearch";
+import { routeBackFromEditJob } from "../../../Functions/Groups/groupPageViewSearch";
 import { yieldEditJobDocumentLocksOnLeave } from "../../../Functions/DocumentLock/yieldEditJobDocumentLocksOnLeave.js";
 import useUsersStore from "../../../Zustand/usersStore";
 import { closeActiveJob } from "../../../Functions/Job/editing/closeActiveJob";
@@ -44,7 +44,7 @@ export async function saveOpenJob(queryClient) {
  * Saves the open job and returns to the group or planner it came from, staying on the page when the
  * editor is kept open.
  *
- * @returns {() => Promise<void>}
+ * @returns {() => Promise<"left"|"kept-open">}
  */
 export function useSaveAndLeave() {
   const queryClient = useQueryClient();
@@ -54,18 +54,9 @@ export function useSaveAndLeave() {
   const openJobID = useJobDraft((job) => job.jobID);
 
   return async function saveAndLeave() {
-    if ((await saveOpenJob(queryClient)) === "kept-open") return;
-    const groupIDFromParams = search.activeGroup;
+    if ((await saveOpenJob(queryClient)) === "kept-open") return "kept-open";
     await yieldEditJobDocumentLocksOnLeave({ jobID });
-
-    if (groupIDFromParams) {
-      navigate({
-        to: "/group/$groupID",
-        params: { groupID: groupIDFromParams },
-        search: buildGroupSearchAfterEditClose(search, openJobID),
-      });
-    } else {
-      navigate({ to: "/jobplanner" });
-    }
+    await navigate(routeBackFromEditJob(search, openJobID));
+    return "left";
   };
 }

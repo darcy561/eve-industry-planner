@@ -1,9 +1,8 @@
-import { Grid, Stack } from "@mui/material";
-import { ProductionStats } from "./Production Stats Panel/productionStats";
+import { Box, Stack } from "@mui/material";
+import { OutputPanel } from "./Output/outputPanel";
 import { TutorialStep1 } from "../tutorialStep1";
-import { JobSetupPanel } from "./Setup Panel/jobSetups";
-import { EditJobSetup } from "./Edit Setup Panel/editJobSetup";
-import { AvailableBlueprintsPanel } from "./Blueprint Options/blueprintPanel";
+import { SetupsPanel } from "./Setups/setupsPanel";
+import { BlueprintLibraryPanel } from "./Blueprint Library/blueprintLibraryPanel";
 import MaterialsAndSourcingPanel from "./Materials And Sourcing/materialsAndSourcingPanel";
 import PlanningEconomics from "./Cost Breakdown/planningEconomics";
 import { SkillsPanel } from "./Skills Panel/SkillsPanel";
@@ -12,36 +11,24 @@ import TutorialTemplate from "../../../../Tutorials/tutorialTemplate";
 
 /**
  * The stage's two columns of panels.
- *
- * Panels are stacked rather than laid out by a Masonry. A masonry exists to pack
- * items of different heights into several columns without leaving gaps; at one
- * column there is nothing to pack, and the measuring it does to find out is not
- * free — it positions every child absolutely and re-measures the whole column
- * whenever any one of them changes height. Opening a material's drawer moved
- * every panel beneath it.
  */
 export function Planning_StandardLayout_EditJob() {
   return (
-    <Grid container sx={{ marginTop: { xs: 0, sm: 2 } }}>
-      <Grid size={12} sx={{ marginBottom: 2 }}>
-        <TutorialTemplate TutorialContent={<TutorialStep1 />} />
-      </Grid>
-      <Grid size={3}>
-        <Stack spacing={2}>
-          <ProductionStats />
-          <EditJobSetup />
-          <AvailableBlueprintsPanel />
+    <Stack spacing={2} sx={{ marginTop: { xs: 0, sm: 2 } }}>
+      <TutorialTemplate TutorialContent={<TutorialStep1 />} />
+      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+        <Stack spacing={2} sx={{ flex: "3 1 0", minWidth: 0 }}>
+          <OutputPanel />
+          <BlueprintLibraryPanel />
           <SkillsPanel />
         </Stack>
-      </Grid>
-      <Grid size={9}>
-        <Stack spacing={2}>
-          <JobSetupPanel />
+        <Stack spacing={2} sx={{ flex: "9 1 0", minWidth: 0 }}>
+          <SetupsPanel />
           <MaterialsAndSourcingPanel />
           <PlanningEconomics />
           <ArchiveJobsPanel />
         </Stack>
-      </Grid>
-    </Grid>
+      </Box>
+    </Stack>
   );
 }

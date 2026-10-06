@@ -119,7 +119,8 @@ into the remaining files — ask what reads the copy before deciding what has to
 
 The edit job page's two are done as well. They were one effect written twice, and came out as a
 hook — `useIsScrolledOutOfView` — that owns the observer behind a ref, so nothing has to set state
-to answer "is that control still on screen".
+to answer "is that control still on screen". The floating buttons it served, and the hook with them,
+were later deleted by [planning-stage-panels](../planning-stage-panels/plan.md) § Stage Q.
 
 The tutorial card and the dashboard row it sits in went together, because they are two halves of
 one fade: the card now leaves the timing to MUI's `Fade`, and the row is taken back on the reader

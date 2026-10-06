@@ -136,6 +136,7 @@ export function plannerJob(
       materials: Object.fromEntries(
         builtFrom.map((typeID) => [String(typeID), { typeID }]),
       ),
+      childJobs: {},
     },
   };
 }

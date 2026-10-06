@@ -16,6 +16,8 @@ export const STATUS_TONE = {
   GOOD: "good",
   /** A choice worth revisiting — right now, but leaving something on the table. */
   WARN: "warn",
+  /** About to stop being possible, or already past it. */
+  BAD: "bad",
   /** Settled fact rather than a choice: a real price, a linked record. */
   FACT: "fact",
   /** A state with no weight either way. */
@@ -25,6 +27,7 @@ export const STATUS_TONE = {
 const TONE_COLOUR = {
   [STATUS_TONE.GOOD]: "success",
   [STATUS_TONE.WARN]: "warning",
+  [STATUS_TONE.BAD]: "error",
   [STATUS_TONE.FACT]: "primary",
   [STATUS_TONE.NEUTRAL]: "default",
 };

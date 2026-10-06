@@ -38,12 +38,10 @@ The Edit Job **Purchasing** stage: what it asks, what it answers, and the shape 
   Complete stage. This project adds a readiness-gated pull for one child and changes nothing about the
   push, the per-child purchase row, or the refusal of a second import.
 - **The Price Entry dialogue** and the **Market Data dialogue**. Both stay as they are.
-- **The Edit Job page frame.** Stage navigation is a vertical MUI `Stepper` in `editJob.jsx` and the
-  stage's panels render inside its active `Step`. Nothing here changes how a reader moves between
-  stages, and no stage depends on that changing first. Replacing the stepper with tabs is now
-  [planning-stage-panels](../planning-stage-panels/contents.md) § Stage Q, and it confirms that
-  independence rather than relying on it — no stage panel imports anything from `editJob.jsx`, so it
-  can land before, after or beside this project.
+- **The Edit Job page frame.** Stage navigation is a row of tabs in `editJob.jsx`, which replaced the
+  vertical MUI `Stepper` in [planning-stage-panels](../planning-stage-panels/contents.md) § Stage Q, and
+  the stage's panels render beneath them. Nothing here changes how a reader moves between stages, and no
+  stage depended on that change — no stage panel imports anything from `editJob.jsx`.
 - **The Extras editor on the Complete stage.** This project proposes surfacing the same rows here and
   says so; whether Extras moves, is mirrored, or stays is a decision about Complete, taken with it.
 - **The excess hand-off.** Offering over-bought units to a sibling job is a behavioural change that

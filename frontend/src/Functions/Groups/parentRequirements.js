@@ -1,12 +1,3 @@
-/**
- * What a job's parents need from it, and what is left over.
- *
- * A job with parents is building to order: its output is committed to the jobs
- * above it and is never listed. Quoting a sale price for that part would invite
- * a player to read a profit that does not exist — so what can honestly be sold
- * is the surplus, and that is what this works out.
- */
-
 import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/jobSelectors";
 /**
  * @typedef {object} ParentRequirements
@@ -15,6 +6,8 @@ import { totalQuantityProduced } from "../../Components/Edit Job/Edit Job Hooks/
  * @property {boolean} multipleChildren - Whether siblings share the requirement
  * @property {Array<{jobID: string, produced: number}>} siblings - The other jobs
  *   feeding the same requirement
+ * @property {Array<{jobID: string, name: string, itemID: number, needs: number}>} parents - Each
+ *   parent that asks for this job's item, and how many
  */
 
 /**
@@ -39,6 +32,7 @@ export function resolveParentRequirements({
     childrenTotal: 0,
     multipleChildren: false,
     siblings: [],
+    parents: [],
   };
 
   for (const parentID of parentJobIDs) {
@@ -46,6 +40,12 @@ export function resolveParentRequirements({
     if (!parent) continue;
 
     const material = parent.build.materials[String(itemID)];
+    totals.parents.push({
+      jobID: parent.jobID,
+      name: parent.name,
+      itemID: parent.itemID,
+      needs: material?.quantity ?? 0,
+    });
     if (!material) continue;
     totals.parentTotal += material.quantity;
 
@@ -74,17 +74,24 @@ export function resolveParentRequirements({
  *   what its siblings already produce
  * @property {number} committed - How much of this job's output is spoken for
  * @property {number} surplus - How much can be sold
+ * @property {number} needed - How much the parents ask for in total
+ * @property {number} madeByOthers - How much the other jobs feeding them make
+ * @property {number} shortfall - How much the parents ask for that no job feeding them makes
+ * @property {Array<ParentCoverage>} parents - Largest need first
  */
 
 /**
- * Splits what a job produces into what it owes and what it may sell.
- *
- * The requirement is shared out across every job feeding it, in job id order,
- * each taking what is left after the ones before it. The order is arbitrary but
- * it is the *same* order whichever child asks, which is what matters: two
- * children each measuring themselves against the other's whole output would both
- * find themselves surplus, and the pair would report twice the spare stock the
- * group actually has.
+ * @typedef {object} ParentCoverage
+ * @property {string} jobID
+ * @property {string} name
+ * @property {number} itemID
+ * @property {number} needs
+ * @property {number} short - What of its need is left uncovered, 0 when covered
+ */
+
+/**
+ * Splits what a job produces into what it owes and what it may sell, sharing the requirement across
+ * every job feeding it in job id order so each child gets the same answer.
  *
  * @param {object} params
  * @param {number} params.produced - This job's total output
@@ -105,6 +112,10 @@ export function parentCommitment({
       outstanding: 0,
       committed: 0,
       surplus: produced,
+      needed: 0,
+      madeByOthers: 0,
+      shortfall: 0,
+      parents: [],
     };
   }
 
@@ -131,5 +142,32 @@ export function parentCommitment({
     outstanding,
     committed,
     surplus: Math.max(0, produced - committed),
+    needed: requirements?.parentTotal ?? 0,
+    madeByOthers: requirements?.childrenTotal ?? 0,
+    shortfall: remaining,
+    parents: coverParents(requirements?.parents ?? [], remaining),
   };
+}
+
+/**
+ * Shares a shortfall out across the parents, largest need first, so the smallest asks are the ones
+ * left short.
+ *
+ * @param {ParentRequirements["parents"]} parents
+ * @param {number} shortfall
+ * @returns {Array<ParentCoverage>}
+ */
+function coverParents(parents, shortfall) {
+  const ordered = [...parents].sort(
+    (a, b) =>
+      b.needs - a.needs || String(a.jobID).localeCompare(String(b.jobID)),
+  );
+  let supply =
+    ordered.reduce((total, parent) => total + parent.needs, 0) - shortfall;
+
+  return ordered.map((parent) => {
+    const covered = Math.min(parent.needs, Math.max(0, supply));
+    supply -= covered;
+    return { ...parent, short: parent.needs - covered };
+  });
 }

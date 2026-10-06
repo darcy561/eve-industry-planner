@@ -1,19 +1,12 @@
 import { Checkbox, FormControlLabel } from "@mui/material";
 
 /**
- * A checkbox component for enabling/disabling alternative system index values.
- * Used in EVE Online industry planning to override default system index calculations.
+ * Whether a setup is costed against the system index the reader types rather than the one the
+ * server reports.
  *
- * @param {Object} props - Component props
- * @param {boolean} props.initialState - Initial checked state of the checkbox
- * @param {Function} props.onChange - Callback function called when checkbox state changes. Receives the new boolean value.
- * @returns {JSX.Element} Alternative system index checkbox component
- *
- * @example
- * <UseAlternativeCheckbox
- *   initialState={false}
- *   onChange={(checked) => console.log('Use alternative:', checked)}
- * />
+ * @param {Object} props
+ * @param {boolean} props.initialState - Whether the reader's own index is in use
+ * @param {(checked: boolean) => void} props.onChange
  */
 export default function UseAlternativeCheckbox({ initialState, onChange }) {
   return (
@@ -31,7 +24,7 @@ export default function UseAlternativeCheckbox({ initialState, onChange }) {
           }}
         />
       }
-      label="Use Alternative System Index Value"
+      label="Use my own system index"
       labelPlacement="bottom"
       sx={{
         "& .MuiFormControlLabel-label": {

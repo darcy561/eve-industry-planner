@@ -51,7 +51,7 @@ there is a shade for however many a build carries.
 
 **Invention** is counted alongside materials, child builds, install and extras for any item whose
 meta group makes it an invented one (T2 or T3), matching what the archive stores per build and what
-`job.buildCost` totals — a T2 job that omitted it would read as cheaper than its own history says
+`buildCostOf` in `Edit Job Hooks/jobSelectors.js` totals — a T2 job that omitted it would read as cheaper than its own history says
 every previous build was. Its editor sits beside the extras editor, and both write the rows the
 Purchasing stage's own editors write, so what either stage records is what the other shows.
 

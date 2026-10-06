@@ -124,6 +124,12 @@ row-constructor path.
 2. In the window: `prepareRelease`, with the reshape and extras steps already in order.
 3. After the release is confirmed: remove the fallbacks in `jobFromDocument` and `esiRows`, the
    `BrokerFee` row-constructor fold, and the tests that exercise the old shape.
+4. In the same pass, remove the per-job selling override's fallback read of `build.sale.plan` in
+   `frontend/src/Functions/Job/jobDocument.js` —
+   `build?.sellerCharacter ?? build?.sale?.plan?.sellerCharacter ?? null` and the matching
+   `saleLocationID` line — leaving `build.sellerCharacter` and `build.saleLocationID` read alone. The
+   fields' meaning is planning-stage-panels' Stage L; only the read of their old place is this
+   project's.
 
 **Wire.** The conversion is migrate-required and already in the step; `revertRelease` restores from
 the `_pre_0_9_0` copies. Removing the fallbacks afterwards is internal to the SPA.

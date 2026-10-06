@@ -37,7 +37,9 @@ project.
 - **The shopping list's seven effects.** The worst in the tree, deliberately left: that logic is
   moving into the reducer under a separate redesign.
 - **Turning the React Compiler on.** Not enabled, and not this project's question.
-- **The Edit Job reducer's ownership of `state.activeJob`** → `planning-stage-panels/`.
+- **How an open job is held and changed in the editor** — the draft store that replaced the Edit Job
+  reducer → [job-document-drafts/plan.md](../job-document-drafts/plan.md) § How a job is held while it
+  is open.
 - **The stored shape of an open job** → `job-document-drafts/`.
 - **The dialogue shell and its hooks** → live SoT in
   [`../../frontend/technical-rules.md`](../../frontend/technical-rules.md) § Dialogues.

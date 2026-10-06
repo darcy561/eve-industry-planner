@@ -42,7 +42,8 @@ const { renderOverEditJob, storedJob } =
 const { ParentJobOptions } = await import("./parentJobOptions.jsx");
 const { ChildJobLinks } =
   await import("./Edit Job Components/Purchasing/Standard Layout/Child Job Dialogue/childJobLinks.jsx");
-const { LinkedJobBadge } = await import("./Linked Job Badge.jsx");
+const { OutputPanel } =
+  await import("./Edit Job Components/Planning/Standard Layout/Output/outputPanel.jsx");
 
 let group = null;
 function onThePlanner(...jobs) {
@@ -71,15 +72,13 @@ describe("linking jobs to each other, end to end", () => {
       },
     );
 
-    fireEvent.click(screen.getByTestId("AddIcon").closest("button"));
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
 
     expect(editJob.current.parentChildToEdit.parentJobs.add).toContain("job-2");
     expect(editJob.current.parentChildToEdit.parentJobs.remove).toEqual([]);
   });
 
-  // Through the badge that mounts it, because the two are only ever used
-  // together and what passes between them is what a conversion breaks.
-  it("offers a parent from the dialogue the badge opens", async () => {
+  it("offers a parent from the dialogue the Output panel opens", async () => {
     const { editJob } = renderOverEditJob(
       storedJob({ itemID: TRITANIUM }),
       () => {
@@ -89,16 +88,14 @@ describe("linking jobs to each other, end to end", () => {
             builtFrom: [TRITANIUM],
           }),
         );
-        return <LinkedJobBadge />;
+        return <OutputPanel />;
       },
     );
 
-    fireEvent.click(screen.getByTestId("AddIcon").closest("button"));
-    const offer = (await screen.findByText("Rifter")).closest(
-      ".MuiGrid-container",
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Link a parent" }));
+    const offers = await screen.findByRole("dialog");
 
-    fireEvent.click(within(offer).getByTestId("AddIcon").closest("button"));
+    fireEvent.click(within(offers).getByRole("button", { name: "Link" }));
 
     expect(editJob.current.parentChildToEdit.parentJobs.add).toContain("job-2");
   });
@@ -166,11 +163,11 @@ describe("unlinking a parent job, end to end", () => {
       storedJob({ parentJobs: ["job-9"] }),
       () => {
         onThePlanner(parent);
-        return <LinkedJobBadge />;
+        return <OutputPanel />;
       },
     );
 
-    fireEvent.click(screen.getByTestId("ClearIcon"));
+    fireEvent.click(screen.getByRole("button", { name: "Unlink Rifter" }));
 
     expect(editJob.current.parentChildToEdit.parentJobs.remove).toContain(
       "job-9",
