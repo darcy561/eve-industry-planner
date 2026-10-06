@@ -2,7 +2,25 @@ import { Box, Typography } from "@mui/material";
 import { alpha, keyframes } from "@mui/material/styles";
 import { useTheme } from "@mui/material/styles";
 
-export const LOGO_SRC = "/android-chrome-192x192.png";
+const LOGO_SRC = {
+  dark: "/android-chrome-192x192.png",
+  light: "/android-chrome-192x192-black.png",
+};
+
+/**
+ * The app logo as an image, drawn in black on the light theme and white on the dark one.
+ */
+export function BrandLogo({ alt = "", sx }) {
+  const theme = useTheme();
+  return (
+    <Box
+      component="img"
+      src={LOGO_SRC[theme.palette.mode]}
+      alt={alt}
+      sx={{ display: "block", borderRadius: 2, userSelect: "none", ...sx }}
+    />
+  );
+}
 
 const logoPulse = keyframes`
   0%, 100% {
@@ -119,18 +137,12 @@ export function LoadingBrandScene({
           gap: 2.5,
         }}
       >
-        <Box
-          component="img"
-          src={LOGO_SRC}
-          alt=""
+        <BrandLogo
           sx={{
             width: logoSize,
             height: logoSize,
-            display: "block",
-            borderRadius: 2,
             boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.22)}`,
             animation: `${logoPulse} 2.2s ease-in-out infinite`,
-            userSelect: "none",
           }}
         />
         <Typography

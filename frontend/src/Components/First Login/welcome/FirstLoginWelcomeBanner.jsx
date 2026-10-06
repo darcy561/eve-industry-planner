@@ -1,6 +1,6 @@
-import { Box, Stack, Typography } from "@mui/material";
+import { Stack, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
-import { LOGO_SRC } from "../../loadingBrand";
+import { BrandLogo } from "../../loadingBrand";
 
 export function FirstLoginWelcomeBanner() {
   const theme = useTheme();
@@ -11,14 +11,10 @@ export function FirstLoginWelcomeBanner() {
       spacing={2}
       sx={{ alignItems: { xs: "flex-start", sm: "center" } }}
     >
-      <Box
-        component="img"
-        src={LOGO_SRC}
-        alt=""
+      <BrandLogo
         sx={{
           width: { xs: 56, sm: 72 },
           height: { xs: 56, sm: 72 },
-          borderRadius: 2,
           flexShrink: 0,
           boxShadow: `0 6px 20px ${alpha(theme.palette.common.black, 0.18)}`,
           objectFit: "contain",

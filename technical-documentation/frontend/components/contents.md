@@ -7,8 +7,9 @@ The shared app-shell atoms a panel is built from, under
 on under [`frontend/src/Context/appShell`](../../../frontend/src/Context/appShell): the panel and
 inset surfaces, the two card atoms, the row anatomy a list of things is built from, the overflow
 action menu, the figure and status atoms, labelled-field shells, the scrolling-table behaviour, the
-control that assembles an item's market actions, how a control that needs explaining says so, and how
-a picture from EVE's image server is asked for and drawn.
+control that assembles an item's market actions, how a control that needs explaining says so, how
+a picture from EVE's image server is asked for and drawn, and how the app's own logo is drawn in the
+page and the browser tab.
 
 ## Does not own
 
@@ -33,3 +34,4 @@ a picture from EVE's image server is asked for and drawn.
 | Change an item's market-data, price-history or assets actions | [item-actions.md](./item-actions.md) |
 | Explain a control a reader cannot work out from its label, or make that explanation reachable by keyboard | [tooltips.md](./tooltips.md) |
 | Ask EVE's image server for a picture, or change what a missing one shows | [avatars.md](./avatars.md) |
+| Show the app logo, or change the logo or favicon files | [logo.md](./logo.md) |

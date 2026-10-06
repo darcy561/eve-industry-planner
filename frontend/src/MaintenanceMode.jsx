@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import GLOBAL_CONFIG from "./global-config-app";
 import { refreshAppConfig } from "./Functions/Endpoints/Public/appConfig.js";
 import { appShellSetupSectionPaperSx } from "./Context/appShell";
-import { LoadingBrandBackdrop, LOGO_SRC } from "./Components/loadingBrand";
+import { BrandLogo, LoadingBrandBackdrop } from "./Components/loadingBrand";
 
 const { DEFAULT_DISCORD_INVITE, MAINTENANCE_RECOVERY_POLL_INTERVAL } =
   GLOBAL_CONFIG;
@@ -38,17 +38,9 @@ function MaintenanceMode() {
           }}
         >
           <Stack spacing={2} sx={{ alignItems: "center" }}>
-            <Box
-              component="img"
-              src={LOGO_SRC}
+            <BrandLogo
               alt="EVE Industry Planner"
-              sx={{
-                width: 88,
-                height: 88,
-                display: "block",
-                borderRadius: 2,
-                userSelect: "none",
-              }}
+              sx={{ width: 88, height: 88 }}
             />
             <Box>
               <Typography variant="h6" color="primary">
