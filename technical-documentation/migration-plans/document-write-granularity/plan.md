@@ -423,7 +423,7 @@ deploy together for this stage, and `BulkUpsertJobs` keeps taking a whole job fo
 restore.
 
 **Built on both sides, and shippable on neither alone.**
-[`writeBody.js`](../../../frontend/src/Functions/Job/sync/jobWrite.js) turns a job and its log
+`writeBody` in [`jobWrite.js`](../../../frontend/src/Functions/Job/sync/jobWrite.js) turns a job and its log
 entries into the two parts. The server walks them through `models.Job` itself — `JobSetPaths` and
 `JobUnsetPaths` — and `PutJobDocumentsHandler` reads the envelope batch, splits the whole-document
 writes from the field-scoped ones and sends each to its own writer.
@@ -1031,7 +1031,11 @@ decides whether removing the full document afterwards is worth the breaking chan
 
 Stage D made a close one change. The other writes that touch several jobs at once still go as several
 requests built from local copies, and a shared planner is where that breaks. Found by an investigation
-of merge and of the lock under shared planners; the evidence is in the overlay once built.
+of merge and of the lock under shared planners.
+
+**Landed.** What follows is the starting position the stage was planned from; what runs now is
+[overlay.md](./overlay.md) § Stage F. Of the Stage D leftovers below, restore is gated on each job, and
+the group lock is handed to [job-groups](../job-groups/plan.md) § Stage A.
 
 **Merge** (`mergeJobs.js`) saves the replacement and the relinked parents and children in one request,
 then deletes the old jobs in a second. It takes no lock, the delete has no revision check, and a partly
@@ -1231,8 +1235,7 @@ its Stage 2 reaching the live release window, which gates deploying Stage C here
 
 **[job-groups](../job-groups/plan.md) no longer waits on this project.** Its dependency table names
 Stage A and Stage D's removal of the group lease over member jobs; both have landed, and the membership
-diff in `BulkUpsertGroups` it planned to delete is already gone. Its own plan still lists the
-dependency as outstanding until its owner updates it.
+diff in `BulkUpsertGroups` it planned to delete is already gone.
 
 **Stage F has landed.** Merge, multi-delete and archive each land whole or not at all, a change's
 removals are followed through delivery, a save another member's lock refused is said and put back, and

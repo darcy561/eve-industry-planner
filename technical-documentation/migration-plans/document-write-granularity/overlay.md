@@ -3,14 +3,15 @@
 How the write path behaves **while this project is in flight**. On overlap with live SoT, this file
 wins for the surfaces below until the project promotes.
 
-Stages A and B have landed, and the batch-refusal half of Stage D with them. Every write is still a
-whole document, as [plan.md](./plan.md) § Starting position describes — what has changed is that a
-write can now be *refused* rather than silently overwriting somebody else's, that a refusal reaches
-the user instead of disappearing, and that one job another session holds no longer costs the rest of
-the batch.
+Every stage, A to F, has landed on this branch; none is deployed. A save sends the fields the reader
+changed where the editor recorded them, and the whole job otherwise, each checked against the revision
+it was read at. A refused write reaches the user rather than disappearing, and one job another session
+holds no longer costs the rest of the batch. A close, a merge, a multi-delete and an archive are each
+one change, written whole or not at all. Other tabs receive a delta and apply it onto the job they
+hold.
 
-**A write is refused for its revision now**, because the SPA carries one — see § What a write is
-checked against. The lock refusals below are live too.
+What stands between this and production is the cutover, not code: [plan.md](./plan.md) § Recommended
+pickup order.
 
 One thing this project depends on **has** landed, delivered by
 [shared-planners](../shared-planners/plan.md) rather than here, and it is recorded below because a
@@ -205,7 +206,7 @@ narrowed by one that can, or the fields it does not name would stop being writte
 
 ### What a write body says
 
-[`writeBody.js`](../../../frontend/src/Functions/Job/sync/jobWrite.js) turns a job and the
+`writeBody` in [`jobWrite.js`](../../../frontend/src/Functions/Job/sync/jobWrite.js) turns a job and the
 entries of its edit-draft change log into the two parts a field-scoped write carries.
 
 `document` is a partial job — a field that is present is being written, a field that is absent is
@@ -308,7 +309,7 @@ both write paths would have to route through the upgrader rather than stamp the 
 document either of them touched becomes invisible to that selection.
 
 The SPA sends these envelopes: `getPendingJobDocumentWritesPayload` builds one per queued job through
-[jobWriteEnvelope.js](../../../frontend/src/Functions/Job/sync/jobWrite.js), and the write
+`jobWriteEnvelope` in [jobWrite.js](../../../frontend/src/Functions/Job/sync/jobWrite.js), and the write
 paths that record no log — a merge relinking parents, a delete cutting children loose — go through
 `wholeJobWrites` beside it. A write the server cannot read is dropped from the queue and said out
 loud, rather than retried for as long as the tab stays open.

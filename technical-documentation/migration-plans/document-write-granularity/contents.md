@@ -18,6 +18,8 @@ as the fields that changed.
   all-or-nothing batch refusal, and whether the lock gates writes at all or becomes advisory.
 - Whether a **refused write reaches the user** — the resolve that cannot tell refusal from success, the
   client gate that discards edits silently, and the retry queue that replays current state.
+- Whether a write touching **several jobs** — a close, a merge, a multi-delete, an archive — lands as
+  one change or not at all, and what a refused one tells the reader.
 
 ## Does not own
 
@@ -60,3 +62,6 @@ as the fields that changed.
 | See what Stage C has settled and what its blocker supplies | [plan.md](./plan.md) § Stage C |
 | Check what is additive and what breaks | [plan.md](./plan.md) § Wire compatibility |
 | See the stages and their order | [plan.md](./plan.md) § Stages |
+| Know how merge, multi-delete and archive are written as one change, and what a refused one shows | [overlay.md](./overlay.md) § Stage F |
+| Find where the job's code and this project's helpers live | [overlay.md](./overlay.md) § Where this work lives |
+| Know which live docs name paths this project moved | [overlay.md](./overlay.md) § Where this work lives |

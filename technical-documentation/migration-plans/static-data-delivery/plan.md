@@ -10,7 +10,7 @@ and `persistStage.go` for what they write,
 [`services/api/helper/sdecache/`](../../../services/api/helper/sdecache/),
 [`frontend/src/Functions/Helper/getCachedData.js`](../../../frontend/src/Functions/Helper/getCachedData.js),
 [`frontend/src/Functions/Static/`](../../../frontend/src/Functions/Static/),
-[`frontend/src/Functions/Job/building/buildJob.js`](../../../frontend/src/Functions/Job%20Build/getItemRecipes.js),
+[`frontend/src/Functions/Job/building/buildJob.js`](../../../frontend/src/Functions/Job/building/buildJob.js),
 and the `cors` middleware attachment in [`docker-stack.yml`](../../../docker-stack.yml).
 **Live SoT (until promote):** [frontend/static-data/](../../frontend/static-data/contents.md),
 [backend/](../../backend/contents.md), [stack/](../../stack/contents.md)
