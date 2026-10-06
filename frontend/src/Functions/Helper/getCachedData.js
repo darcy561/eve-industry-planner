@@ -13,7 +13,6 @@ let cacheMigrationDone = false;
 /** Parsed static payloads by versioned URL, so each is parsed once per build. */
 const parsedPayloads = new Map();
 
-
 let staticMetaCache = null;
 let staticMetaFetchedAt = 0;
 let staticMetaInFlight = null;

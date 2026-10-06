@@ -104,7 +104,7 @@ are not repeated here.
 so a document written before the window loads:
 
 ```js
-// frontend/src/Functions/JobDocuments/jobDocument.js — today
+// frontend/src/Functions/Job/jobDocument.js — today
 extrasCosts: keyRowsBy(build?.extrasCosts ?? build?.costs?.extrasCosts, "id", …),
 sellerCharacter: build?.sellerCharacter ?? build?.sale?.plan?.sellerCharacter ?? null,
 localPricing: jobPricingOverride(build && "localPricing" in build ? build.localPricing : itemJson?.layout?.localPricing),
