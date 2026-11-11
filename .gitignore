@@ -49,3 +49,9 @@ archivejobs_firestore_normalized/
 
 # Version tracking (optional - remove if you want to track versions in git)
 .downloaded-versions.json
+
+eip
+eip.config.yaml
+mongo-keyfile.bak
+backups/*
+

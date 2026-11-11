@@ -40,7 +40,7 @@ func TestOTLPExport_emitsMessageBodyAndAttributes(t *testing.T) {
 	}
 	attrs := make(map[string]string)
 	for _, kv := range r.Attributes {
-		attrs[kv.Key] = kv.Value.AsString()
+		attrs[string(kv.Key)] = kv.Value.AsString()
 	}
 	if attrs["method"] != "GET" {
 		t.Fatalf("attrs = %v, want method=GET", attrs)

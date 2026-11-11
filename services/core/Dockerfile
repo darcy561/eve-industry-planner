@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-FROM golang:1.26.5-alpine AS builder
+FROM golang:1.26.11-alpine AS builder
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o core-service ./core
 
 # Final stage - minimal Alpine image
-FROM alpine:3.20
+FROM alpine:3.24
 
 # Build argument for image source (for GitHub Container Registry linking)
 ARG IMAGE_SOURCE=https://github.com/darcy561/eve-industry-planner
